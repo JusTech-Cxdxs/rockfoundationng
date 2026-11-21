@@ -33,7 +33,7 @@ const ROUND_TRIPS: [string, EntityKey, string[]][] = [
   ['vehicles', 'vehicles', ['customerExternalId', 'externalId', 'chassisNumber', 'plateNumber', 'engineNumber', 'make', 'model', 'year', 'mileage']],
   ['parts', 'parts', ['partNumber', 'name', 'category', 'baseUnit', 'trackingType', 'barcode', 'sellingPrice', 'reorderPoint', 'safetyStock']],
   ['suppliers', 'suppliers', ['externalId', 'name', 'phone', 'email', 'address', 'taxId']],
-  ['history-invoices', 'invoices', ['invoiceNumber', 'invoiceDate', 'customerExternalId', 'amount', 'currency', 'vin', 'companyCode', 'fiscalYear', 'documentType', 'description']],
+  ['history-invoices', 'invoices', ['invoiceNumber', 'invoiceDate', 'customerExternalId', 'amount', 'currency', 'vin', 'documentType', 'description']],
 ];
 
 test('every export that can be imported comes back in, with its old-system numbers recognised', () => {
@@ -46,7 +46,6 @@ test('every export that can be imported comes back in, with its old-system numbe
   // The customer's NAME never feeds the customer NUMBER (an invoice export has both).
   const inv = headers('history-invoices');
   assert.equal(inv[autoMap('invoices', inv).customerExternalId!], 'Customer number');
-  // A file exported before these names changed still comes back in.
   // EJO's own invoices (one per Job Card) read back as invoice history: the total, not the subtotal, is the amount; the balance, due date and status come along.
   const own = headers('invoices');
   const ownMap = autoMap('invoices', own);
@@ -54,12 +53,8 @@ test('every export that can be imported comes back in, with its old-system numbe
   assert.deepEqual(mappingProblems('invoices', ownMap), []);
   assert.equal(own[autoMap('invoices', own).amount!], 'Total');
   assert.equal(autoMap('invoices', own).tax, null, 'the total already holds the VAT');
-  const old = autoMap('invoices', ['Invoice number (SAP)', 'Invoice date', 'Customer', 'Customer SAP number', 'Amount']);
-  assert.equal(old.invoiceNumber, 0); assert.equal(old.customerExternalId, 3);
-  assert.equal(autoMap('customers', ['SAP / old-system number', 'Name']).externalId, 0);
-  assert.equal(autoMap('customers', ['Customer number (SAP or old system)', 'Name']).externalId, 0);
-  assert.equal(autoMap('vehicles', ['Vehicle number (SAP or old system)', 'VIN']).externalId, 0);
-  assert.equal(autoMap('suppliers', ['Supplier number (SAP)', 'Name']).externalId, 0);
+  assert.equal(autoMap('suppliers', ['Supplier number (old system)', 'Name']).externalId, 0);
+  assert.equal(autoMap('parts', ['Part number', 'Number in the old system']).externalId, 1);
 });
 
 // ── The whole way: a customers file written by the export, read by the importer ─

@@ -478,7 +478,7 @@ export async function listAllVehicles(search?: string, vehicleType?: 'PASSENGER'
               { chassisNumber: { contains: q, mode: 'insensitive' } },
               { make: { contains: q, mode: 'insensitive' } },
               { model: { contains: q, mode: 'insensitive' } },
-              // The SAP equipment number (EQUNR), with or without its leading zeros.
+              // The vehicle's number in the old system, with or without its leading zeros.
               { externalId: { in: [q, q.replace(/^0+(?=\w)/, '')] } },
             ],
           }
@@ -1972,7 +1972,7 @@ export async function addEstimateLineItem(jobCardId: string, input: EstimateLine
   // A Store Part line's description comes from its PartType below, not from
   // the client. Other line types need a non-empty description.
   let description = input.description.trim();
-  // Store Part lines need the Store; with the Store switched off (the D'Phoenix
+  // Store Part lines need the Store; with the Store switched off (the
   // Autocare edition) parts are added as External Part lines and priced here.
   if (input.type === 'STORE_PART' && !moduleIsOn('inventory')) {
     throw new WorkshopActionError('Store Part lines are not used here. Add the part as an External Part line with its price.');
@@ -2554,7 +2554,7 @@ export async function requireEligibleManager(branchId: string, key: ManagerPermi
 }
 
 /** The assigned supervisor (or a Platform Administrator) approves a submitted
- * estimate; it then goes to the branch's the Owner. */
+ * estimate; it then goes to the Owner. */
 export async function approveEstimate(jobCardId: string): Promise<void> {
   const estimate = await prisma.estimate.findUnique({
     where: { jobCardId },
@@ -3364,7 +3364,7 @@ export async function getCancellationRequests(jobCardId: string) {
   });
 }
 
-/** Logs the request and notifies the branch's the Owner. Status is unchanged. */
+/** Logs the request and notifies the Owner. Status is unchanged. */
 export async function requestJobCardCancellation(jobCardId: string, reason: string): Promise<void> {
   const trimmedReason = reason.trim();
   if (!trimmedReason) {
@@ -3670,7 +3670,7 @@ export async function getCloseRequests(jobCardId: string) {
   });
 }
 
-/** Logs a close request and notifies the branch's the Owner. Status is
+/** Logs a close request and notifies the Owner. Status is
  * unchanged until the Owner approves. */
 export async function requestJobCardClose(jobCardId: string): Promise<void> {
   const jobCard = await prisma.jobCard.findUnique({

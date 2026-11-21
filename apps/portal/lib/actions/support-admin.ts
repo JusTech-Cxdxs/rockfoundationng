@@ -164,7 +164,7 @@ export async function getMySupportAway(): Promise<{ member: boolean; away: boole
 }
 
 /**
- * Connects a shared support mailbox (support@, warranty@ …) to a team: checks
+ * Connects a shared support mailbox (support@, service@ …) to a team: checks
  * both servers first, then saves the password encrypted. The organisation
  * must own the address (one address, one team).
  */

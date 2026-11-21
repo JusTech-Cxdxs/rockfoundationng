@@ -18,7 +18,7 @@ export default async function SupportTeamsPage({ searchParams }: { searchParams:
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   return (
     <SupportSetupFrame active="/settings/support/teams" icon="users" title="Teams & addresses" sp={sp}
-      description="Give each kind of request its own team and address — support@, warranty@, technical@, customercare@. Mail to each address becomes numbered requests within minutes; replies go out from the same address.">
+      description="Give each kind of request its own team and address — support@, service@, parts@, customercare@. Mail to each address becomes numbered requests within minutes; replies go out from the same address.">
       <SectionCard icon="users" title={plural(s.queues.length, 'team', 'teams')} flush>
         {s.queues.length ? (
           <ul className="divide-y divide-[var(--ejo-border)]">

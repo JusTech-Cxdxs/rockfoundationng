@@ -24,7 +24,7 @@ const MIN_LOAD_GAP_MS = 30000;
  * change was the single biggest server cost (performance audit, Oct 2026). */
 const PAGE_REFRESH_GAP_MS = 30000;
 const HEAVY_PAGE_REFRESH_GAP_MS = 120000;
-/** /analytics, /inventory/analytics, /warranty/analytics, … */
+/** /analytics, /inventory/analytics, … */
 const HEAVY_PAGE = /\/analytics(\/|$)/;
 const refreshGapFor = (path: string) => (HEAVY_PAGE.test(path) ? HEAVY_PAGE_REFRESH_GAP_MS : PAGE_REFRESH_GAP_MS);
 

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NO_CUSTOMER_EMAIL, hasEmail } from '../lib/customer-email';
 
-// v-A0: a customer brought in from SAP or an old spreadsheet may have no email.
+// A customer brought in from QuickBooks or an old spreadsheet may have no email.
 // They are full customer records; nothing is ever sent to, or recorded as sent
 // to, a missing address, and no made-up address is ever used.
 
@@ -19,17 +19,13 @@ test('a real address is one with text in it', () => {
   assert.match(NO_CUSTOMER_EMAIL, /phone/);
 });
 
-test('the schema: email optional but unique, SAP numbers unique per organisation and per branch', () => {
+test('the schema: email optional but unique, old-system numbers unique per organisation and per branch', () => {
   const schema = read('packages/database/prisma/schema.prisma');
   const customer = schema.slice(schema.indexOf('model Customer {'), schema.indexOf('model CustomerVehicle {'));
   assert.match(customer, /\n\s+email\s+String\?\s+@unique/);
   assert.match(customer, /@@unique\(\[organisationId, externalSource, externalId\]\)/);
   const part = schema.slice(schema.indexOf('model Part {'), schema.indexOf('model PartStock {'));
   assert.match(part, /@@unique\(\[branchId, externalSource, externalId\]\)/);
-  // The deploy script adds the same indexes under the names Prisma expects, so db push finds nothing to do.
-  const sql = read('scripts/predeploy/0003-external-keys.sql');
-  for (const name of ['customers_organisationId_externalSource_externalId_key', 'customer_vehicles_externalSource_externalId_idx', 'parts_branchId_externalSource_externalId_key']) assert.ok(sql.includes(`"${name}"`), name);
-  assert.match(read('scripts/v-a0-optional-email-sap-keys.sql'), /ALTER COLUMN "email" DROP NOT NULL/);
 });
 
 test('the email sender refuses a missing address instead of skipping it', () => {
@@ -43,8 +39,6 @@ test('reminder buttons stop before anything is recorded as sent when there is no
     ['apps/portal/lib/actions/workshop.ts', 'sendApprovalReminder', 'jobCard'],
     ['apps/portal/lib/actions/workshop.ts', 'notifyOverdueCancelledVehicle', 'jobCard'],
     ['apps/portal/lib/actions/workshop.ts', 'sendReadyForCollectionReminder', 'jobCard'],
-    ['apps/portal/lib/actions/vehicle-service.ts', 'sendVehicleServiceCollectionReminder', 'service'],
-    ['apps/portal/lib/actions/vehicle-service.ts', 'sendVehicleServiceCancelledCollectionNotice', 'service'],
   ];
   for (const [file, fn, v] of cases) {
     const src = read(file);

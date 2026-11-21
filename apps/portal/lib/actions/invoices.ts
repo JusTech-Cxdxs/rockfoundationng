@@ -10,7 +10,7 @@ import { requireUser } from './workshop';
 class InvoiceActionError extends Error {}
 
 /**
- * Who may issue or resend an invoice at the Job Card's branch: Finance
+ * Who may issue or resend an invoice at the Job Card's branch: Accounts
  * (workshop.payment.record — they bill and take the money) or the branch
  * Owner (workshop.close.approve — they sign off finished jobs). Anyone who
  * can see the Job Card can view and print it.
@@ -18,7 +18,7 @@ class InvoiceActionError extends Error {}
 async function requireBiller(branchId: string, where: string): Promise<{ id: string }> {
   const user = await requireUser();
   if (await allows('workshop.payment.record', { branchId, homeBranch: true })) return user;
-  await authorize('workshop.close.approve', { branchId, homeBranch: true }, where, 'Only Finance or the Owner for this branch can issue invoices.');
+  await authorize('workshop.close.approve', { branchId, homeBranch: true }, where, 'Only Accounts or the Owner can issue invoices.');
   return user;
 }
 

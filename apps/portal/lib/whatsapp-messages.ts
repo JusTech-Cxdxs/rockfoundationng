@@ -11,7 +11,7 @@
  * The link itself is @ejo/utils/whatsapp whatsAppShareUrlFor: no usable
  * phone, no link, and the button is not shown.
  *
- * D'Phoenix phase 6A: the estimate, the invoice and the receipt go with
+ * The estimate, the invoice and the receipt go with
  * their PDF, as the email does — a WhatsApp message cannot attach a file, so
  * it carries the secure document link (/d/<token>, 30 days) made by the
  * "Send on WhatsApp" action (lib/actions/whatsapp.ts). Also the welcome and

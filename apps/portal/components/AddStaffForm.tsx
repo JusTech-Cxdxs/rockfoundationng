@@ -53,7 +53,7 @@ export function AddStaffForm({ branches, departments, roles, branchLocked, locke
         <div><label className={labelCls} htmlFor="phone">Phone</label><input id="phone" name="phone" type="tel" maxLength={40} autoComplete="off" placeholder="Optional" defaultValue={state.values.phone ?? ''} key={`p-${state.values.phone ?? ''}`} className={field} /></div>
       </Step>
 
-      <Step n={2} icon="branch" title="Where they work" hint="The branch decides which records they see; the department decides whose exit passes their head authorises.">
+      <Step n={2} icon="branch" title="Where they work" hint="The branch decides which records they see; the department groups the workshop team.">
         <div>
           <span className={labelCls}>Branch{req}</span>
           {branchLocked ? (
@@ -69,7 +69,7 @@ export function AddStaffForm({ branches, departments, roles, branchLocked, locke
         </div>
       </Step>
 
-      <Step n={3} icon="key" title="What they may do" hint="Start with one role; give more later from their card. Everyone can request their own exit passes.">
+      <Step n={3} icon="key" title="What they may do" hint="Start with one role; give more later from their card.">
         <div>
           <span className={labelCls}>First role</span>
           <FilterSelect key={`r-${state.values.roleId ?? ''}`} name="roleId" ariaLabel="First role" placeholder="Type to find a role…" className="w-full" large options={roles.map(({ value, label }) => ({ value, label }))} defaultValue={state.values.roleId} onChange={setRoleId} />
@@ -77,7 +77,7 @@ export function AddStaffForm({ branches, departments, roles, branchLocked, locke
         <div className="rounded-[var(--ejo-radius-md)] border border-dashed border-[var(--ejo-border)] bg-[var(--ejo-bg)] p-3 text-sm" aria-live="polite">
           {role ? (
             <><p className="font-medium text-[var(--ejo-text)]">{role.label}</p><p className="mt-1 text-xs leading-relaxed text-[var(--ejo-text-muted)]">{role.description ?? 'A role your organisation set up. Its permissions are on the Roles page.'}</p></>
-          ) : <p className="text-xs text-[var(--ejo-text-muted)]">Choose a role to see what it allows. Without one, they can only request their own exit passes.</p>}
+          ) : <p className="text-xs text-[var(--ejo-text-muted)]">Choose a role to see what it allows. Without one, they see nothing of the business.</p>}
         </div>
       </Step>
 

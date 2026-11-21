@@ -55,7 +55,7 @@ export function ContactForm({ phone, altPhone, address }: { phone: string; altPh
         </Field>
       </div>
       <Field id="address" label="Main address" error={fe.address} hint={<span className="flex justify-between gap-2"><span>Short — it’s printed on your Job Cards.</span><span className={addr.length > 80 ? 'text-[var(--ejo-error)]' : ''}>{addr.length}/80</span></span>}>
-        <input id="address" name="address" required maxLength={120} value={addr} onChange={(e) => setAddr(e.target.value)} autoComplete="street-address" aria-invalid={Boolean(fe.address) || undefined} aria-describedby={fe.address ? 'address-error' : undefined} className={cls(fe.address)} placeholder="e.g. 12 Adeola Odeku St, Victoria Island" />
+        <input id="address" name="address" required maxLength={120} value={addr} onChange={(e) => setAddr(e.target.value)} autoComplete="street-address" aria-invalid={Boolean(fe.address) || undefined} aria-describedby={fe.address ? 'address-error' : undefined} className={cls(fe.address)} placeholder="e.g. 14 Idiroko Road, Ota" />
       </Field>
       <Banner key={state.at ?? state.error} state={state} />
       <button type="submit" disabled={pending} className={primaryBtn}>{pending ? <Spinner /> : <Icon name="check" size={16} strokeWidth={2.4} />}{pending ? 'Saving…' : 'Save contact details'}</button>

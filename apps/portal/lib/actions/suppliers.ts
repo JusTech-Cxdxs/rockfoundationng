@@ -1,9 +1,9 @@
 'use server';
 
 /**
- * Suppliers (v-A2): the organisation's list, shared by every branch — brought
- * in from SAP (vendors, LIFNR) through Data Exchange or used by name on goods
- * receipts. Read by the Store; fenced to the person's own organisation.
+ * Suppliers: the organisation's list, shared by every branch, brought in
+ * from QuickBooks or a spreadsheet through Data Exchange or used by name on
+ * goods receipts. Read by the Store; fenced to the person's own organisation.
  */
 import { prisma, type Prisma } from '@ejo/database';
 import { parseSourceFilter, sourceWhere, type SOURCE_PARAMS } from '@/lib/source-filter';

@@ -51,7 +51,7 @@ test('dates in Lagos time, money as numbers, record numbers as text, Yes / No', 
   assert.equal(csvValue('int', 3.6), '4');
   assert.equal(csvValue('bool', true), 'Yes');
   assert.equal(csvValue('bool', false), 'No');
-  assert.equal(csvValue('code', '0000123456'), '0000123456', 'SAP keeps its leading zeros');
+  assert.equal(csvValue('code', '0000123456'), '0000123456', 'leading zeros are kept');
   assert.match(xlsxCell('code', '0000123456', 'A2'), /<t xml:space="preserve">0000123456<\/t>/);
   assert.match(xlsxCell('money', 1234.567, 'B2'), /s="5"><v>1234.57<\/v>/);
   assert.match(xlsxCell('day', new Date('2026-01-01T00:00:00Z'), 'C2'), /s="3"><v>46023<\/v>/);
@@ -61,14 +61,14 @@ test('dates in Lagos time, money as numbers, record numbers as text, Yes / No', 
 });
 
 test('an export keeps only the list’s known filters, short and plain', () => {
-  const p = cleanParams({ q: '  Ade  ', page: '7', error: 'x', evil: 'y', source: 'sap', imp: 'imp-2026-000003', type: ['COMMERCIAL', 'PASSENGER'], cursor: 'abc', tag: 'a\u0000b', long: 'z'.repeat(500), filter: 'z'.repeat(500) });
+  const p = cleanParams({ q: '  Ade  ', page: '7', error: 'x', evil: 'y', source: 'legacy', imp: 'imp-2026-000003', type: ['COMMERCIAL', 'PASSENGER'], cursor: 'abc', tag: 'a\u0000b', long: 'z'.repeat(500), filter: 'z'.repeat(500) });
   assert.deepEqual(Object.keys(p).sort(), ['filter', 'imp', 'q', 'source', 'tag', 'type']);
   assert.equal(p.q, 'Ade');
   assert.equal(p.type, 'COMMERCIAL');
   assert.equal(p.tag, 'a b');
   assert.equal(p.filter!.length, 120);
   assert.deepEqual(cleanParams(null), {});
-  assert.equal(describeParams({ q: 'Ade', source: 'sap', imp: 'imp-2026-000003', history: 'exclude', type: 'COMMERCIAL' }), 'Search: Ade · Source: Imported from SAP · Import: IMP-2026-000003 · History from before EJO: Left out (EJO only) · Vehicle category: Commercial');
+  assert.equal(describeParams({ q: 'Ade', source: 'legacy', imp: 'imp-2026-000003', history: 'exclude', type: 'COMMERCIAL' }), 'Search: Ade · Source: Imported from a spreadsheet · Import: IMP-2026-000003 · History from before EJO: Left out (EJO only) · Vehicle category: Commercial');
   assert.equal(describeParams({}), 'Everything in the list');
   assert.equal(describeParams({ customerId: 'c1', userId: 'u1' }), 'Everything in the list', 'internal ids are never shown as words');
   assert.ok(isExportFormat('xlsx') && isExportFormat('csv') && !isExportFormat('pdf'));
@@ -186,7 +186,6 @@ test('every Export button names a real list; the file is built at download, for 
   assert.match(server, /action: 'data_exchange\.exported'/);
   const actions = read('lib/actions/exports.ts');
   assert.match(actions, /export async function createExport[\s\S]{0,300}authorize\('dataexchange\.export\.run'/);
-  assert.match(actions, /refuseDuringAssist\('createExport'\)/);
   assert.match(actions, /EXPORTS_PER_HOUR/);
   // No copy of the data is stored: the export holds its filters only.
   assert.doesNotMatch(read('../../packages/database/prisma/schema.prisma').slice(read('../../packages/database/prisma/schema.prisma').indexOf('model ExportJob')), /Bytes\b|content\s+String/);

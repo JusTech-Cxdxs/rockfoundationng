@@ -8,7 +8,7 @@ import { PrintButton } from '@/components/customer/PrintButton';
 export const metadata = { title: 'Invoice' };
 
 type FrozenLine = { description: string; quantity: number; unitOfMeasure: string | null; unitPrice: number | null; lineDiscount: number; amount: number; billTo: string };
-const NOT_CHARGED: Record<string, string> = { WARRANTY: 'Covered by warranty', GOODWILL: 'Goodwill', INTERNAL: 'Covered by us' };
+const NOT_CHARGED: Record<string, string> = { WARRANTY: 'Under warranty', GOODWILL: 'Goodwill', INTERNAL: 'Covered by us' };
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 // Only the invoice on paper: the portal's menus and buttons are left out when printing.

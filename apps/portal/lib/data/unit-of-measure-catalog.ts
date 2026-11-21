@@ -40,7 +40,7 @@ export const UNIT_OF_MEASURE_OPTIONS: UnitOfMeasureOption[] = [
   { code: 'MHR', label: 'Man-Hour', group: 'Labor & Service' },
   { code: 'JOB', label: 'Job', hint: 'Activity', group: 'Labor & Service' },
   // Standard unit for Sundry: small consumables (rags, grease, solvent) not
-  // worth counting per repair. Common in ERPs (SAP, Oracle, Odoo, QuickBooks).
+  // worth counting per repair. Common in accounting systems such as QuickBooks.
   { code: 'LOT', label: 'Lot', group: 'Labor & Service' },
 ];
 

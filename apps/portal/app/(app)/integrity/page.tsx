@@ -20,7 +20,7 @@ const select = 'min-h-10 rounded-[var(--ejo-radius-md)] border border-[var(--ejo
 
 /**
  * The integrity watch: unusual or risky activity the daily checks found —
- * money, parts and purchases, warranty, the gate, access and sign-ins — and
+ * money, parts, the gate, access and sign-ins, and
  * concerns colleagues raised (Speak up). A flag is a reason to look, never
  * proof. Alerts about you are shown to the other reviewers only.
  */

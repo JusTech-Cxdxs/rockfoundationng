@@ -23,7 +23,6 @@ export const CUSTOMER_PORTAL_FEATURES = [
   'Follow each visit as it moves from check-in to estimate, work and collection.',
   'See your estimates, what you have paid and what is still due.',
   'Keep track of your vehicles, their service history and when the next service is due.',
-  'See your warranties and what they cover.',
   'Read messages from the branch and keep your contact details up to date.',
 ];
 

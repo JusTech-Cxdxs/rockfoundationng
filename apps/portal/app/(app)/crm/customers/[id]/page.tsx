@@ -245,12 +245,12 @@ export default async function Customer360Page({ params, searchParams }: { params
           </Section>
         ) : null}
         {tab === 'jobs' && data.pastJobs.length ? (
-          <Section icon="wrench" title={`Job cards before EJO (${data.pastJobs.length})`} subtitle={`Brought in from ${OLD_SYSTEM}: read-only history. Each counts as a visit; one whose work was a service also set the vehicle’s next-service clock.`} className="mt-6" action={<ExportAction kind="sap-jobs" params={{ customerId: id }} label="Export" />}>
+          <Section icon="wrench" title={`Job cards before EJO (${data.pastJobs.length})`} subtitle={`Brought in from ${OLD_SYSTEM}: read-only history. Each counts as a visit; one whose work was a service also set the vehicle’s next-service clock.`} className="mt-6" action={<ExportAction kind="history-jobs" params={{ customerId: id }} label="Export" />}>
             <PastJobList rows={data.pastJobs} />
           </Section>
         ) : null}
         {tab === 'jobs' && data.invoicesBefore.length ? (
-          <Section icon="receipt" title={`From ${OLD_SYSTEM}, before EJO (${data.invoicesBefore.length})`} subtitle={`Invoices brought in from ${OLD_SYSTEM}: read-only history, already settled there. ${naira(money.fromBefore)} in all — counted in lifetime spend, visits and last visit.`} className="mt-6" action={<ExportAction kind="sap-invoices" params={{ customerId: id }} label="Export" />}>
+          <Section icon="receipt" title={`From ${OLD_SYSTEM}, before EJO (${data.invoicesBefore.length})`} subtitle={`Invoices brought in from ${OLD_SYSTEM}: read-only history, already settled there. ${naira(money.fromBefore)} in all — counted in lifetime spend, visits and last visit.`} className="mt-6" action={<ExportAction kind="history-invoices" params={{ customerId: id }} label="Export" />}>
             <InvoicesBeforeList rows={data.invoicesBefore} />
           </Section>
         ) : null}

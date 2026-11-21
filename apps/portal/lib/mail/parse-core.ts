@@ -19,7 +19,7 @@ export type AttachmentInfo = { name: string; size: number };
 
 /**
  * The text versions of HTML emails show each picture as its address in
- * brackets ("D'Phoenix Autocare [https://…/logo.png]", "[cid:…]"). In a
+ * brackets ("Rock Foundation Automobile [https://…/logo.png]", "[cid:…]"). In a
  * text view those are noise: they are removed (the picture itself shows in
  * the email's own layout).
  */

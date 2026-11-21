@@ -29,7 +29,7 @@ import { sendCustomerAccessOnWhatsApp } from './crm';
  * never a link or a token.
  *
  *   ESTIMATE  id = the Job Card (lib/actions/customer-approval prepareEstimateWhatsApp)
- *   INVOICE   id = the invoice: Finance or the branch Owner, as "Email invoice"
+ *   INVOICE   id = the invoice: Accounts or the Owner, as "Email invoice"
  *   RECEIPT   id = the payment: the branch's Accounts, who records it (and its email)
  */
 
@@ -40,11 +40,11 @@ class WhatsAppError extends Error {}
 const NO_PHONE = 'There is no mobile number WhatsApp can take on file for this customer.';
 const STAFF_NOTE = 'The message is ready. Press “Open WhatsApp” and send it from your phone — nothing has been sent yet.';
 
-/** Finance (workshop.payment.record) or the branch Owner (workshop.close.approve): who may email an invoice. */
+/** Accounts (workshop.payment.record) or the Owner (workshop.close.approve): who may email an invoice. */
 async function requireBiller(branchId: string, where: string): Promise<{ id: string }> {
   const user = await requireUser();
   if (await allows('workshop.payment.record', { branchId, homeBranch: true })) return user;
-  await authorize('workshop.close.approve', { branchId, homeBranch: true }, where, 'Only Finance or the Owner for this branch can send invoices.');
+  await authorize('workshop.close.approve', { branchId, homeBranch: true }, where, 'Only Accounts or the Owner can send invoices.');
   return user;
 }
 

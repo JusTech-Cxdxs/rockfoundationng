@@ -26,7 +26,7 @@ test('csv: the same rows whatever size the pieces are (split inside quotes and b
 });
 
 test('csv: the separator is worked out from the first line (comma, semicolon, tab, pipe)', () => {
-  assert.equal(detectDelimiter('KUNNR|NAME1|TELF1'), '|');
+  assert.equal(detectDelimiter('Customer number|Name|Phone'), '|');
   assert.equal(detectDelimiter('a;b;"c,d"'), ';');
   assert.equal(detectDelimiter('a\tb\tc'), '\t');
   assert.equal(detectDelimiter('single'), ',');
@@ -52,18 +52,18 @@ test('excel: shared and inline strings, numbers without float noise, dates, gaps
     + '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="D1" t="inlineStr"><is><t>Sold</t></is></c></row>'
     + '<row r="3"><c r="A3"><v>1000123</v></c><c r="B3" t="s"><v>2</v></c><c r="C3"><v>0.30000000000000004</v></c><c r="D3" s="1"><v>45366</v></c></row>'
     + '<row r="4" spans="1:4"/>'
-    + '<row r="5"><c r="B5" t="str"><f>A1&amp;"x"</f><v>KUNNRx</v></c><c r="C5" t="b"><v>1</v></c><c r="D5" s="2"><v>1234.5</v></c></row>'
+    + '<row r="5"><c r="B5" t="str"><f>A1&amp;"x"</f><v>Codex</v></c><c r="C5" t="b"><v>1</v></c><c r="D5" s="2"><v>1234.5</v></c></row>'
     + '</sheetData></worksheet>';
-  const bytes = workbook(sheet, { shared: ['KUNNR', 'NAME1', 'Okafor &amp; Sons'], styles });
+  const bytes = workbook(sheet, { shared: ['Code', 'Name', 'Okafor &amp; Sons'], styles });
   for (const size of [5, 64, 100000]) {
     const rows: string[][] = [];
     await readXlsx(sourceOf(bytes, size), (r) => { rows.push(...r); });
     assert.deepEqual(rows, [
-      ['KUNNR', 'NAME1', '', 'Sold'],
+      ['Code', 'Name', '', 'Sold'],
       [],
       ['1000123', 'Okafor & Sons', '0.3', '2024-03-15'],
       [],
-      ['', 'KUNNRx', 'TRUE', '1234.5'],
+      ['', 'Codex', 'TRUE', '1234.5'],
     ], `pieces of ${size}`);
   }
 });
@@ -90,17 +90,17 @@ test('excel helpers: columns, entities, rich text, first sheet, date styles', ()
 });
 
 // ── Matching columns ──────────────────────────────────────────────────────
-test('columns match by plain names and SAP field names, each column once', () => {
+test('columns match by plain names, each column once', () => {
   assert.equal(headerKey(' Customer No. '), 'customerno');
-  const sap = ['KUNNR', 'NAME1', 'NAME2', 'STRAS', 'ORT01', 'REGIO', 'TELF1', 'TELF2', 'SMTP_ADDR', 'STCD1'];
-  const m = autoMap('customers', sap);
+  const plain = ['Customer number', 'Name', 'Name, second line', 'Address', 'City', 'State', 'Phone', 'Second phone', 'Email', 'Tax ID'];
+  const m = autoMap('customers', plain);
   assert.deepEqual([m.externalId, m.fullName, m.name2, m.address, m.city, m.state, m.phone, m.altPhone, m.email, m.taxId], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   const excel = autoMap('customers', ['Customer Name', 'Phone', 'Mobile', 'E-mail', 'Address']);
   assert.equal(excel.fullName, 0);
   assert.equal(excel.phone, 1);
   assert.equal(excel.altPhone, null, 'Mobile is a phone alias already used once, so it is not reused');
   assert.equal(excel.email, 3);
-  const v = autoMap('vehicles', ['KUNNR', 'VIN', 'Reg No', 'Make', 'Model', 'Year', 'Odometer']);
+  const v = autoMap('vehicles', ['Customer number', 'VIN', 'Reg No', 'Make', 'Model', 'Year', 'Odometer']);
   assert.deepEqual([v.customerExternalId, v.chassisNumber, v.plateNumber, v.make, v.model, v.year, v.mileage], [0, 1, 2, 3, 4, 5, 6]);
 });
 
@@ -111,9 +111,9 @@ test('a mapping from the browser is checked, and saved profiles fit files with c
   assert.equal(m.phone, null, 'a column is used once');
   assert.equal(m.address, null, 'no such column');
   assert.ok(!('nonsense' in m));
-  const profile = profileFromMapping({ fullName: 0, phone: 1 }, ['NAME1', 'TELF1']);
-  assert.deepEqual(profile, { fullName: 'NAME1', phone: 'TELF1' });
-  const again = mappingFromProfile('customers', profile, ['telf1', 'Something', 'name1']);
+  const profile = profileFromMapping({ fullName: 0, phone: 1 }, ['Client', 'Tel']);
+  assert.deepEqual(profile, { fullName: 'Client', phone: 'Tel' });
+  const again = mappingFromProfile('customers', profile, ['tel', 'Something', 'client']);
   assert.equal(again.fullName, 2);
   assert.equal(again.phone, 0);
   assert.deepEqual(mappingProblems('customers', { fullName: null }), ['Choose the column for “Name”.']);
@@ -121,18 +121,18 @@ test('a mapping from the browser is checked, and saved profiles fit files with c
 });
 
 // ── Checking rows ─────────────────────────────────────────────────────────
-const CUST = autoMap('customers', ['KUNNR', 'NAME1', 'NAME2', 'Type', 'Company', 'SMTP_ADDR', 'TELF1', 'TELF2', 'STRAS', 'ORT01', 'REGIO', 'STCD1', 'Tags']);
+const CUST = autoMap('customers', ['Customer number', 'Name', 'Name, second line', 'Type', 'Company', 'Email', 'Phone', 'Second phone', 'Address', 'City', 'State', 'Tax ID', 'Tags']);
 
-test('a good SAP customer row: leading zeros off the number, name lines joined, keys for matching', () => {
-  const r = checkCustomerRow(['0001000123', 'Dangote', 'Cement Plc', 'Company', 'Dangote Cement Plc', 'FLEET@Dangote.com', '0803 123 4567', '', 'Plot 3, Cheesebrough', 'Lagos', 'Lagos', '1234567-0001', 'Fleet, VIP'], CUST);
+test('a good customer row: leading zeros off the number, name lines joined, keys for matching', () => {
+  const r = checkCustomerRow(['0001000123', 'Ogun Haulage', 'Services Ltd', 'Company', 'Ogun Haulage Services Ltd', 'FLEET@OgunHaulage.example.com', '0803 123 4567', '', 'Plot 3, Idiroko Road', 'Ota', 'Ogun', '1234567-0001', 'Fleet, VIP'], CUST);
   assert.equal(r.status, 'GOOD', JSON.stringify(r.issues));
   assert.equal(r.values?.externalId, '1000123');
-  assert.equal(r.values?.fullName, 'Dangote Cement Plc');
+  assert.equal(r.values?.fullName, 'Ogun Haulage Services Ltd');
   assert.equal(r.values?.customerType, 'ORGANIZATION');
-  assert.equal(r.values?.email, 'fleet@dangote.com');
-  assert.equal(r.values?.address, 'Plot 3, Cheesebrough, Lagos');
+  assert.equal(r.values?.email, 'fleet@ogunhaulage.example.com');
+  assert.equal(r.values?.address, 'Plot 3, Idiroko Road, Ota');
   assert.deepEqual(r.values?.tags, ['Fleet', 'VIP']);
-  assert.deepEqual(r.keys, ['ext:1000123', 'email:fleet@dangote.com', 'phone:8031234567']);
+  assert.deepEqual(r.keys, ['ext:1000123', 'email:fleet@ogunhaulage.example.com', 'phone:8031234567']);
 });
 
 test('old data with gaps loads with notes; only a missing name rejects the row', () => {
@@ -173,10 +173,10 @@ test('phones match however they are written', () => {
   assert.equal(phoneKey('12'), null);
 });
 
-const VEH = autoMap('vehicles', ['KUNNR', 'Customer email', 'Customer phone', 'EQUNR', 'VIN', 'Plate', 'Engine number', 'Engine type', 'Make', 'Model', 'Year', 'Category', 'Mileage']);
+const VEH = autoMap('vehicles', ['Customer number', 'Customer email', 'Customer phone', 'Vehicle number', 'VIN', 'Plate', 'Engine number', 'Engine type', 'Make', 'Model', 'Year', 'Category', 'Mileage']);
 
 test('vehicles: VIN and plate tidied, commercial worked out from the model, year and mileage checked', () => {
-  const r = checkVehicleRow(['1000123', '', '', '', 'jaanlr85 el7100001', 'lnd 123 ab', '4JJ1-1', '4JJ1', 'Isuzu', 'NQR 71', '2024', '', '45,200 km'], VEH, 2026);
+  const r = checkVehicleRow(['1000123', '', '', '', 'jaanlr85 el7100001', 'lnd 123 ab', '2TR-1', '2TR', 'Toyota', 'Hiace 2.7', '2024', '', '45,200 km'], VEH, 2026);
   assert.equal(r.status, 'GOOD', JSON.stringify(r.issues));
   assert.equal(r.values?.chassisNumber, 'JAANLR85EL7100001');
   assert.equal(r.values?.plateNumber, 'LND 123 AB');
@@ -193,8 +193,8 @@ test('vehicles: VIN and plate tidied, commercial worked out from the model, year
 
 test('vehicles: no customer, or no VIN and no plate, rejects the row; an odd VIN is only a note', () => {
   assert.equal(checkVehicleRow(['', '', '', '', 'JAANLR85EL7100001', '', '', '', '', '', '', '', ''], VEH).status, 'REJECTED');
-  assert.equal(checkVehicleRow(['1', '', '', '', '', '', '', '', 'Isuzu', '', '', '', ''], VEH).status, 'REJECTED');
-  const odd = checkVehicleRow(['1', '', '', '', 'NQR-12345', '', '', '', '', '', '', '', ''], VEH);
+  assert.equal(checkVehicleRow(['1', '', '', '', '', '', '', '', 'Toyota', '', '', '', ''], VEH).status, 'REJECTED');
+  const odd = checkVehicleRow(['1', '', '', '', 'ABC-12345', '', '', '', '', '', '', '', ''], VEH);
   assert.equal(odd.status, 'WARNING');
   assert.match(odd.issues[0]!.message, /not a standard 17-character VIN/);
 });

@@ -71,7 +71,7 @@ export async function listUsersForAdmin(q?: string, filters: UserFilters = {}): 
     counts: { total: active + off, active, off, withoutId },
     users: users.map((u: (typeof users)[number]) => ({ id: u.id, fullName: u.fullName, email: u.email, employeeId: u.employeeId, isActive: u.isActive, branch: u.branch?.name ?? null, department: u.department?.name ?? null, roles: u.roles.map((r: { role: { id: string; name: string; isSuperAdmin: boolean } }) => ({ id: r.role.id, name: r.role.name, isPlatform: r.role.isSuperAdmin })) })),
     // Organisation administrators never see the platform role as an option.
-    // …and, with Store, Warranty or the plant off, never a role that only does that work (holders keep theirs).
+    // …and, with a module switched off, never a role that only does that work (holders keep theirs).
     roles: roles.filter((r: { isSuperAdmin: boolean; slug: string }) => (p.isSuperAdmin || !r.isSuperAdmin) && roleShown(r.slug)).map((r: { id: string; name: string; slug: string; isSuperAdmin: boolean }) => ({ id: r.id, name: r.name, slug: r.slug, isPlatform: r.isSuperAdmin })),
   };
 }
@@ -166,7 +166,7 @@ export async function rolesForNewStaff(): Promise<AssignableRole[]> {
   await authorize('admin.users.manage', undefined, 'users.roles_for_new');
   const { organisationId, branchOnly } = await actorOrg();
   const roles = await prisma.role.findMany({ where: { organisationId: organisationId ?? '__none__', isSuperAdmin: false, ...(branchOnly ? { slug: { notIn: ADMIN_ROLE_SLUGS } } : {}) }, orderBy: { name: 'asc' }, select: { id: true, name: true, slug: true } });
-  // With Store, Warranty or the plant off, the roles that only do that work are not offered.
+  // With a module switched off, the roles that only do its work are not offered.
   return roles.filter((r: { slug: string }) => roleShown(r.slug)).map((r: { id: string; name: string; slug: string }) => ({ id: r.id, name: r.name, slug: r.slug, isPlatform: false }));
 }
 

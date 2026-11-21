@@ -4,8 +4,7 @@ import { addEstimateLineItemFormAction } from '@/lib/actions/workshop-form-handl
 import { EstimateLineAddForm, type PartCategoryWithTypes } from '@/components/EstimateLineAddForm';
 import { moduleIsOn } from '@/lib/modules';
 
-// Store Part lines need the Store: with it switched off (the D'Phoenix Autocare
-// edition) parts are added as External Part lines and priced on the estimate.
+// Store Part lines need the Store: with it switched off edition) parts are added as External Part lines and priced on the estimate.
 const TYPES = [
   { value: 'STORE_PART', label: 'Store Part' },
   { value: 'EXTERNAL_PART', label: 'External Part' },

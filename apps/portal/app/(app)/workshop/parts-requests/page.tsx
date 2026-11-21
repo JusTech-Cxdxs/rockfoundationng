@@ -8,7 +8,7 @@ import { LiveSearchInput } from '@/components/LiveSearchInput';
 import { PageHeader } from '@/components/ui';
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING_HOD_APPROVAL: 'Awaiting HOD approval',
+  PENDING_HOD_APPROVAL: 'Awaiting first approval',
   PENDING_STORE_APPROVAL: 'Awaiting Store approval',
   APPROVED: 'Approved — awaiting release',
   RELEASED: 'Released',

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { oldNumberQuery } from '../lib/search-plan';
 import { isFiltered, lagosDayBound, matchesSource, normaliseImportNumber, parseSourceFilter, sourceWhere } from '../lib/source-filter';
-import { checkInvoiceRow, invoiceRange, sapRange } from '../lib/data-exchange/check-history';
+import { checkInvoiceRow } from '../lib/data-exchange/check-history';
 import { autoMap } from '../lib/data-exchange/fields';
 
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
@@ -21,39 +21,20 @@ test('an old-system number is recognised as typed, with leading zeros, and narro
 
 test('search lists every old-system match, labelled with its kind and year, inside the person’s reach', () => {
   const src = read('lib/actions/search.ts');
-  for (const label of ['customer ${c.externalId}', 'vehicle ${v.externalId}', 'supplier ${x.externalId}', 'item ${p.externalId}', 'invoice ${i.invoiceNumber} · ${i.fiscalYear ?? i.invoiceDate.getUTCFullYear()}']) assert.ok(src.includes(label), label);
-  assert.match(src, /voidedAt: null, invoiceNumber: ext, \.\.\.\(n\.year \? \{ fiscalYear: n\.year \} : \{\}\)/);
+  for (const label of ['customer ${c.externalId}', 'vehicle ${v.externalId}', 'supplier ${x.externalId}', 'item ${p.externalId}', 'invoice ${i.invoiceNumber} · ${i.invoiceDate.getUTCFullYear()}']) assert.ok(src.includes(label), label);
+  assert.match(src, /voidedAt: null, invoiceNumber: ext, \.\.\.\(n\.year \? \{ invoiceDate: \{ gte: new Date\(Date\.UTC\(n\.year, 0, 1\)\)/);
   assert.match(src, /ctx\.canCrm \? prisma\.historicalInvoice/);
   assert.match(src, /plan\.kind === 'reference' \|\| plan\.kind === 'prefix' \? \[\]/);
 });
 
-test('SAP invoices keep company code and fiscal year; a reused number in another year is a different invoice', () => {
-  const m = autoMap('invoices', ['BELNR', 'BUKRS', 'GJAHR', 'BUDAT', 'KUNNR', 'DMBTR']);
-  const a = checkInvoiceRow(['125262', '1000', '2025', '14.03.2025', '1000123', '1000'], m, '2026-11-01');
-  const b = checkInvoiceRow(['125262', '1000', '2026', '14.03.2026', '1000123', '1000'], m, '2026-11-01');
-  assert.equal(a.values?.source, 'SAP/1000/2025');
-  assert.equal(b.values?.source, 'SAP/1000/2026');
-  assert.notDeepEqual(a.keys, b.keys, 'not duplicates of each other');
-  assert.equal(a.values?.fiscalYear, 2025);
-  // Without company code or year: the plain range, and the fiscal year is the invoice date's.
-  const c = checkInvoiceRow(['125262', '', '', '14.03.2024', '1000123', '1000'], m, '2026-11-01');
-  assert.equal(c.values?.source, 'SAP');
-  assert.equal(c.values?.fiscalYear, 2024);
-  assert.equal(sapRange(null, null, false), 'SAP');
-});
-
-test('an old system\'s invoices: the same number in another year (or company code) is kept as a different invoice', () => {
-  const m = autoMap('invoices', ['BELNR', 'BUKRS', 'GJAHR', 'BUDAT', 'KUNNR', 'DMBTR']);
-  const a = checkInvoiceRow(['125262', '1000', '2024', '10.05.2024', '1000123', '1000'], m, '2026-11-01');
-  const b = checkInvoiceRow(['125262', '1000', '2025', '12.06.2025', '1000123', '1000'], m, '2026-11-01');
-  assert.equal(invoiceRange('LEGACY', a.values!.source), 'LEGACY/1000/2024');
-  assert.equal(invoiceRange('LEGACY', b.values!.source), 'LEGACY/1000/2025');
-  // A file without company code or year (a Zoho export, say): one range, numbers unique in it.
-  const c = checkInvoiceRow(['INV-000123', '', '', '14.03.2024', '1000123', '1000'], m, '2026-11-01');
-  assert.equal(invoiceRange('LEGACY', c.values!.source), 'LEGACY');
-  // SAP's own file keeps SAP's range.
-  assert.equal(invoiceRange('SAP', a.values!.source), 'SAP/1000/2024');
-  assert.equal(invoiceRange('SAP', 'SAP'), 'SAP');
+test('an old system\'s invoice is one invoice per number: loading the same number again is the same invoice', () => {
+  const m = autoMap('invoices', ['Invoice number', 'Invoice date', 'Customer number', 'Amount']);
+  const a = checkInvoiceRow(['0125262', '14/03/2025', '1000123', '1000'], m, '2026-11-01');
+  const b = checkInvoiceRow(['125262', '14/03/2026', '1000123', '1000'], m, '2026-11-01');
+  assert.deepEqual(a.keys, ['inv:125262'], 'leading zeros come off');
+  assert.deepEqual(a.keys, b.keys, 'the same number is the same invoice: a duplicate in the file is flagged');
+  const z = checkInvoiceRow(['INV-000123', '14/03/2024', '1000123', '1000'], m, '2026-11-01');
+  assert.deepEqual(z.keys, ['inv:INV-000123']);
 });
 
 test('source and date filters: created here or imported, which import, when entered, original date', () => {
@@ -76,7 +57,5 @@ test('source and date filters: created here or imported, which import, when ente
 
 test('dashboards can leave out the history from before EJO', () => {
   assert.match(read('lib/actions/crm.ts'), /WHERE \$\{history\} AND h\."voidedAt" IS NULL/);
-  assert.match(read('lib/actions/headquarters.ts'), /if \(org && ids\.length && opts\.history !== false\)/);
-  assert.match(read('lib/actions/master-analytics.ts'), /const sapRows = fence\.organisationId && withHistory/);
-  assert.match(read('app/(app)/headquarters/page.tsx'), /getHeadquarters\(sp\.period, \{ history \}\)/);
+  assert.match(read('lib/actions/master-analytics.ts'), /const rowsBefore = fence\.organisationId && withHistory/);
 });

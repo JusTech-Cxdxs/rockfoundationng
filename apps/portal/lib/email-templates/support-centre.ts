@@ -2,7 +2,7 @@ import { renderEmailLayout, html, greeting, para, callout, details, raw, EMAIL_F
 import { REPLY_ABOVE } from '../support/core';
 
 /**
- * Emails from the Support centre (support@, warranty@ …), in the
+ * Emails from the Support centre (support@, service@ …), in the
  * organisation's letterhead. Each carries the ticket reference in the subject
  * ([#SUP-…]) so replies thread, a "reply above this line" marker, and the
  * customer's own page for "Solved / Talk to a person / Rate us" (the link is

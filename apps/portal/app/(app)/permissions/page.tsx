@@ -13,7 +13,7 @@ import { permissionShown, roleShown } from '@/lib/edition';
 export default async function PermissionsPage() {
   await guardPage('admin.roles.manage', '/permissions');
   const me = await getPrincipal();
-  // This edition's roles and permissions (with Store, Warranty and the plant off, none of theirs; lib/edition.ts).
+  // The roles and permissions in use (a switched-off module's are left out; lib/edition.ts).
   const slugs = Object.keys(ROLE_GRANTS).filter((s) => roleShown(s));
   const keys = (Object.keys(PERMISSIONS) as PermissionKey[]).filter((k) => permissionShown(k));
   const rows: MatrixRow[] = keys.map((k) => ({
@@ -28,7 +28,7 @@ export default async function PermissionsPage() {
         icon="key"
         title="Permissions"
         description={<>Who can do what, and on which records. Each department sees only what its work needs: Front Desk opens jobs, supervisors and
-        technicians do the work, the Owner approves and closes, Finance handles money{moduleIsOn('inventory') ? ', the Store handles stock' : ''} and Security runs the gate. The server
+        technicians do the work, the Owner approves and closes, Accounts handles money{moduleIsOn('inventory') ? ', the Store handles stock' : ''} and Security runs the gate. The server
         checks every rule on every page, action, list and search. Someone with several roles gets what those roles allow together. Headquarters can add a
         permission to a role on the Roles page.</>}
       />

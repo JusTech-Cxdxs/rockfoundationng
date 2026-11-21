@@ -1,5 +1,5 @@
 /**
- * Customers brought in from SAP or old spreadsheets may have no email
+ * Customers brought in from QuickBooks or old spreadsheets may have no email
  * address (v-A0). They are full customer records, reached by phone; every
  * email to them is refused with this message, before anything is recorded
  * as sent, and never sent to a made-up address.

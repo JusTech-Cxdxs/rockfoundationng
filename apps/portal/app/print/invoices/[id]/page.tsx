@@ -9,7 +9,7 @@ import { DocumentHeader, DocumentFooter } from '@/components/print/DocumentHeade
 import { PrintOnLoad } from '@/components/print/PrintOnLoad';
 import { pluralizeWord } from '@/lib/utils/pluralize';
 
-const GOLD = '#EC3237';
+const RED = '#EC3237'; // the logo red: the rules on the invoice
 
 function naira(n: number): string {
   return `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -66,7 +66,7 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
         documentTitle="Invoice"
         referenceNumber={inv.invoiceNumber}
         statusLabel={balance > 0 ? `Balance due ${naira(balance)}` : 'Paid in full'}
-        accentColor={GOLD}
+        accentColor={RED}
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', marginTop: '20px' }}>
@@ -127,7 +127,7 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
 
       <div style={{ marginTop: '28px', textAlign: 'center' }}>
         <div style={{ fontSize: '14px', fontWeight: 700, color: '#3E4095' }}>Thank you for choosing {inv.organisation.name}.</div>
-        <div style={{ borderTop: `2px solid ${GOLD}`, width: '160px', margin: '8px auto 0' }} />
+        <div style={{ borderTop: `2px solid ${RED}`, width: '160px', margin: '8px auto 0' }} />
         <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '6px' }}>Issued by {inv.issuedBy.fullName} on {invoiceDate(inv.issuedAt)}.</div>
       </div>
 

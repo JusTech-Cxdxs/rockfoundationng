@@ -5,6 +5,8 @@ import { getPrincipal, guardPage } from '@/lib/authz/server';
 import { decide, type PermissionKey } from '@/lib/authz/catalogue';
 import { formatDateTime, formatRelative } from '@/lib/utils/format-date';
 import { Icon, PageHeader, type IconName } from '@/components/ui';
+import { DemoConsoleCard } from '@/components/DemoConsoleCard';
+import { getDemoConsoleState } from '@/lib/actions/demo-console';
 
 const card = 'rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]';
 
@@ -18,26 +20,24 @@ const GROUPS: Group[] = [
   {
     id: 'organisation', title: 'Organisation', text: 'Who you are and how you are organised.',
     areas: [
-      { href: '/organisation', icon: 'building', title: 'Organisation profile', text: 'Name, logo, contacts, business units and the website ID.', needs: 'admin.organisation.manage' },
-      { href: '/organisation/people', icon: 'users', title: 'People we publish', text: 'Leadership and heads of department Enyo can introduce (“who is …”).', needs: 'admin.organisation.manage' },
-      { href: '/branches', icon: 'branch', title: 'Branches and departments', text: 'Locations, departments and teams.', needs: 'admin.structure.manage' },
-      { href: '/structure', icon: 'sitemap', title: 'Structure', text: 'Reporting lines and who approves what.', needs: 'admin.structure.manage' },
+      { href: '/organisation', icon: 'building', title: 'Business details', text: 'Name, address, phones and RC number printed on every document; VAT, deposits and the discount limit.', needs: 'admin.organisation.manage' },
+      { href: '/branches', icon: 'branch', title: 'Workshop and bank account', text: 'The workshop’s address, phones and the bank account customers pay into.', needs: 'admin.structure.manage' },
+      { href: '/structure', icon: 'sitemap', title: 'Departments', text: 'Departments, teams and reporting lines.', needs: 'admin.structure.manage' },
     ],
   },
   {
     id: 'people', title: 'People and access', text: 'Who can sign in and what each person may see and do.',
     areas: [
-      { href: '/users', icon: 'users', title: 'Users', text: 'Invite staff, reset access, assign roles and branches.', needs: 'admin.users.manage' },
-      { href: '/roles', icon: 'shield', title: 'Roles', text: 'The roles people hold and what each covers.', needs: 'admin.roles.manage' },
+      { href: '/users', icon: 'users', title: 'Staff', text: 'Invite staff, reset access and give them roles.', needs: 'admin.users.manage' },
+      { href: '/roles', icon: 'shield', title: 'Roles in use', text: 'Switch the optional roles on or off, and see what each role covers.', needs: 'admin.roles.manage' },
       { href: '/permissions', icon: 'key', title: 'Permissions', text: 'Every permission, and which roles have it.', needs: 'admin.roles.manage' },
     ],
   },
   {
-    id: 'enyo', title: 'Enyo (AI)', text: 'The assistant, what it learns from and the models it uses.',
+    id: 'enyo', title: 'Enyo (AI)', text: 'The assistant and what it learns from.',
     areas: [
       { href: '/settings/enyo', icon: 'sparkles', title: 'Enyo settings', text: 'Switch features on or off, the go-live learning day, and the language model test.', needs: 'enyo.manage' },
-      { href: '/enyo/models', icon: 'layers', title: 'Models', text: 'Choose the trained models in use and how far each capability goes.', needs: 'enyo.manage' },
-      { href: '/enyo/learning', icon: 'trend-up', title: 'Learning and training data', text: 'Accuracy, data quality and the training export.', needs: 'enyo.manage' },
+      { href: '/enyo/learning', icon: 'trend-up', title: 'What Enyo has learned', text: 'Answers people marked helpful, waiting for approval before Enyo reuses them.', needs: 'enyo.manage' },
     ],
   },
   {
@@ -51,7 +51,7 @@ const GROUPS: Group[] = [
     id: 'records', title: 'Records and compliance', text: 'What changed, who changed it, and what was removed.',
     areas: [
       { href: '/audit-logs', icon: 'history', title: 'Audit logs', text: 'Every change and sign-in, searchable.', needs: 'audit.view' },
-      { href: '/audit-logs/errors', icon: 'alert', title: 'Error log', text: 'Every error reference people were shown, with what happened — for IT.', needs: 'audit.view' },
+      { href: '/audit-logs/errors', icon: 'alert', title: 'Error log', text: 'Every error reference people were shown, with what happened.', needs: 'audit.view' },
       { href: '/recycle-bin', icon: 'trash', title: 'Recycle bin', text: 'Restore removed records before they are deleted for good.', needs: 'admin.recycle_bin.manage' },
     ],
   },
@@ -63,6 +63,8 @@ export default async function SettingsPage() {
   const [{ jobs, emails7d }, p, schema] = await Promise.all([jobStatuses(), getPrincipal(), schemaHealth()]);
   const groups = GROUPS.map((g) => ({ ...g, areas: g.areas.filter((a) => decide(p, a.needs).allowed) })).filter((g) => g.areas.length);
   const late = jobs.filter((j) => jobIsLate(j));
+  // The demo console: the platform team only (Sample data for showing the system).
+  const demo = p.isSuperAdmin ? await getDemoConsoleState() : null;
 
   return (
     <div className="w-full max-w-6xl p-4 sm:p-8">
@@ -113,7 +115,7 @@ export default async function SettingsPage() {
               {schema.state === 'behind' ? (
                 <>
                   <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-[var(--ejo-text-muted)]">{schema.missing.map((m) => <li key={m.column}>{m.version}: {m.what}</li>)}</ul>
-                  <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Redeploy the API service on Render (its build adds the missing tables and columns — the log ends with “[db-push] Done.”). Until then those features cannot save.</p>
+                  <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Redeploy on Vercel (the production build adds the missing tables and columns; the log ends with “[db-push] Done.”). Until then those features cannot save.</p>
                 </>
               ) : <p className="text-xs text-[var(--ejo-text-muted)]">Checked against the database&apos;s own catalogue just now.</p>}
             </div>
@@ -153,6 +155,8 @@ export default async function SettingsPage() {
               <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Failures usually mean the mail settings (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM) are missing or wrong in Vercel.</p>
             </div>
           ) : null}
+
+          {demo ? <div className="mt-4"><DemoConsoleCard state={demo} /></div> : null}
         </section>
       </div>
     </div>

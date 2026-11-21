@@ -27,7 +27,7 @@ import { requireUser, currentUserIsMasterAdmin } from './workshop';
  *
  * Who: the front desk (workshop.customer.notify — the people who tell
  * customers about their estimate), this Job Card's own supervisor or
- * opener, and the branch's the Owner (final approval of estimates).
+ * opener, and the Owner (final approval of estimates).
  */
 
 class CustomerApprovalError extends Error {}

@@ -15,7 +15,7 @@ const EXACT: Record<string, Tone> = {
   FULFILLED: 'success', CONFIRMED: 'success', RESOLVED: 'success', ACCEPTED: 'success', RETURNED: 'success', COLLECTED: 'success', HEALTHY: 'success',
   REPAIRED: 'success', REPLACED: 'success', REIMBURSED: 'success', SIGNED_IN: 'success', ON_PREMISES: 'info', INSIDE: 'info', OUT: 'info',
   CHECKED_IN: 'info', IN_PROGRESS: 'info', IN_SERVICE: 'info', OPEN: 'info', BOOKED: 'info', SCHEDULED: 'info', DRAFT: 'neutral', NEW: 'info',
-  ON_ROAD_TEST: 'info', IN_TRANSIT: 'info', ORDERED: 'info', ARRIVED: 'info', PARTIAL: 'warning', PARTIALLY_RELEASED: 'warning', PARTIALLY_PAID: 'warning',
+  IN_TRANSIT: 'info', ORDERED: 'info', ARRIVED: 'info', PARTIAL: 'warning', PARTIALLY_RELEASED: 'warning', PARTIALLY_PAID: 'warning',
   QUALITY_CHECK: 'warning', SUBMITTED: 'warning', DUE_SOON: 'warning', ON_HOLD: 'warning', ESCALATED: 'warning', REQUESTED: 'warning', UNPAID: 'warning',
   CANCELLED: 'error', CANCELED: 'error', REJECTED: 'error', DECLINED: 'error', OVERDUE: 'error', FAILED: 'error', VOID: 'error', VOIDED: 'error',
   DENIED: 'error', LOST: 'error', DEAD: 'neutral', OUT_OF_STOCK: 'error', CRITICAL: 'error', REFUSED: 'error', NO_SHOW: 'error',

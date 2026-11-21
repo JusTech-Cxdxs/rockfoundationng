@@ -152,7 +152,7 @@ jobs:
         run: npx prisma db execute --file=apps/portal/e2e/security/rls-supabase-roles.sql --url="$DIRECT_URL"
       - name: Schema (pre-deploy SQL → db push → post-deploy SQL), exactly as deployed
         run: |
-          for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
+          if [ -d scripts/predeploy ]; then for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done; fi
           npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
           for f in scripts/postdeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
           npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
@@ -165,7 +165,6 @@ jobs:
           MASTER_ADMIN_NAME: 'Morgan Master'
         run: |
           npx tsx packages/database/prisma/seed.ts
-          npx prisma db execute --file=scripts/v24-roles.sql --url="$DIRECT_URL"
           npx tsx apps/portal/e2e/seed.ts
           npx tsx apps/portal/e2e/security/fixtures.ts
       - name: Build the portal (names kept, so tests can call server actions by name)
@@ -184,21 +183,6 @@ jobs:
       - name: Access control (cron, role × page, cross-organisation, IDOR sweep, signed-out sweep, privilege escalation)
         if: always()
         run: npx tsx apps/portal/e2e/security/access-control.ts
-      - name: API (NestJS) — unauthenticated probes
-        if: always()
-        run: |
-          npm run build --workspace=apps/api > /dev/null
-          (PORT=4000 nohup node apps/api/dist/main.js > api.log 2>&1 &)
-          for i in $(seq 1 30); do curl -sf http://localhost:4000/api/v1/health > /dev/null && break; sleep 1; done
-          out=""; bad=0
-          for p in users users/x audit-logs permissions roles teams cities states business-units departments auth/me workshop inventory settings notifications email storage warehouse; do
-            s=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:4000/api/v1/$p"); out="$out $p=$s"
-            case "$s" in 401|403|404) ;; *) bad=1 ;; esac
-          done
-          h=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:4000/api/v1/health)
-          forged=$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer forged-token' http://localhost:4000/api/v1/users)
-          echo "::$([ $bad = 0 ] && echo notice || echo error) title=API unauthenticated probes::health=$h forged-bearer=/users:$forged;$out"
-          [ $bad = 0 ]
       - name: ZAP baseline — portal (signed out, then signed in as an administrator)
         if: always()
         run: |
@@ -295,11 +279,10 @@ jobs:
           MASTER_ADMIN_PASSWORD: 'E2e-Master-Pass-2026!'
           MASTER_ADMIN_NAME: 'Morgan Master'
         run: |
-          for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
+          if [ -d scripts/predeploy ]; then for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done; fi
           npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
           for f in scripts/postdeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
           npx tsx packages/database/prisma/seed.ts
-          npx prisma db execute --file=scripts/v24-roles.sql --url="$DIRECT_URL"
           npx tsx apps/portal/e2e/seed.ts
       - run: cd apps/portal && npx next build --no-mangling
       - name: Start the portal

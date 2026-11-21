@@ -3,7 +3,7 @@ import { areaNotAtMyBranch, guardAnyPage } from '@/lib/authz/server';
 import { AreaNotHere } from '@/components/AreaNotHere';
 
 /**
- * Server-side guard for /workshop — pasted links included. (Workshop staff, Finance, Store, Warranty, management.)
+ * Server-side guard for /workshop — pasted links included. (Workshop staff, Accounts, the Store Keeper and the Owner.)
  * Someone whose own branch has no such area (the menu does not offer it) is
  * told so in place of the page.
  */

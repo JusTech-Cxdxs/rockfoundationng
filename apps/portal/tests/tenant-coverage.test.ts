@@ -47,10 +47,6 @@ const READ_FENCES = [
   'getAppointment(', 'requireJobCardApprover', 'managerApprovers', 'me()', 'requireStoreStaff',
   // Organisation structure (lib/actions/structure.ts): fenced to the person's organisation + authorize with the branch.
   'branchInMyOrg(', 'departmentInMyOrg(', 'orgFence(o)',
-  // Postings for SAP (lib/actions/sap-postings.ts): the file fenced to the person's organisation, with the rights at its branch.
-  'sapPostingOf(',
-  // "Sent to SAP" on a record's page (lib/actions/sap-postings.ts): the record found inside the person's organisation, then allows() at its branch.
-  'sapTrailOf(',
   // Customers' data requests (lib/actions/data-requests.ts): the request, or its customer, found inside the person's organisation.
   'dataRequestOf(',
   'requestCustomerOf(',

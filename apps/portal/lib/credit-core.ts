@@ -3,7 +3,7 @@
  * shared by the Job Card, the customer's page and the tests.
  *
  *  - On credit: the company has payment terms above 0 days, approved by
- *    Finance or the Owner. Only organisation customers can be.
+ *    Accounts or the Owner. Only organisation customers can be.
  *  - A Job Card on credit can leave with a balance once its invoice is
  *    issued, while the organisation's unpaid invoices (this one included)
  *    stay within the credit limit. No limit set: no ceiling.

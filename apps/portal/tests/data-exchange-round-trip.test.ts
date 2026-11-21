@@ -1,6 +1,6 @@
 /**
  * The round trip (P10): an edited export comes back as updates. Found by the
- * EJO record only; only real changes count (a phone, a plate, a SAP number
+ * EJO record only; only real changes count (a phone, a plate, an old number
  * written another way is the same value); an empty cell never blanks a
  * field; what identifies a record is never changed by a file; an odometer
  * never goes back; and the wiring — the mode only for the lists an export
@@ -21,10 +21,9 @@ import { templateCsv } from '../lib/data-exchange/templates';
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
 const ID = 'ckx1abcdefghijklmnop';
 
-test('the EJO record: the export’s column is matched by its name and SAP’s; only an EJO number counts', () => {
+test('the EJO record: the export’s column is matched by its name; only an EJO number counts', () => {
   for (const e of ROUND_TRIP_ENTITIES) {
     assert.equal(autoMap(e, ['EJO record']).ejoRecord, 0, e);
-    assert.equal(autoMap(e, ['ZZ_EJO_ID']).ejoRecord, 0, e);
     assert.ok(ENTITIES[e].fields.find((f) => f.key === 'ejoRecord')?.roundTrip, e);
   }
   const m = autoMap('customers', ['EJO record']);
@@ -38,7 +37,7 @@ test('the EJO record: the export’s column is matched by its name and SAP’s; 
 test('customers: only real changes; a phone written another way, an email in capitals are the same; an empty cell leaves the field', () => {
   const H = ['Name', 'Phone', 'Second phone', 'Email', 'Address', 'Customer since', 'Customer number', 'EJO record'];
   const m = autoMap('customers', H);
-  const cur = { fullName: 'Ada Okafor', phone: '08031234567', altPhone: '08099998888', email: 'ada@example.ng', address: '3 Old Road', customerSince: null, externalId: '1000101', externalSource: 'SAP' };
+  const cur = { fullName: 'Ada Okafor', phone: '08031234567', altPhone: '08099998888', email: 'ada@example.ng', address: '3 Old Road', customerSince: null, externalId: '1000101', externalSource: 'LEGACY' };
   const cells = ['Ada Okafor', "'+234 803 123 4567", '', 'ADA@example.ng', '12 New Road', '14.03.2019', '0001000101', ID];
   const v = checkCustomerRow(cells, m).values!;
   const d = diffRecord('customers', cur, v, cells, m);
@@ -49,9 +48,9 @@ test('customers: only real changes; a phone written another way, an email in cap
 test('vehicles: the chassis number is the vehicle (never changed by a file, though filled when empty); mileage never goes back; a plate with a space is the same', () => {
   const H = ['Plate', 'Chassis number (VIN)', 'Mileage (km)', 'Make', 'Category', 'EJO record'];
   const m = autoMap('vehicles', H);
-  const cur = { plateNumber: 'KJA-123AB', chassisNumber: 'JAANLR85EL7100001', mileage: 50000, make: 'Isuzu', vehicleType: 'COMMERCIAL', engineNumber: null, engineType: null, model: null, year: null, externalId: null, externalSource: null };
+  const cur = { plateNumber: 'KJA-123AB', chassisNumber: 'JAANLR85EL7100001', mileage: 50000, make: 'Toyota', vehicleType: 'COMMERCIAL', engineNumber: null, engineType: null, model: null, year: null, externalId: null, externalSource: null };
   const row = (o: Partial<Record<string, string>>) => H.map((h) => o[h] ?? '');
-  const same = row({ Plate: 'KJA 123AB', 'Chassis number (VIN)': 'JAANLR85EL7100001', 'Mileage (km)': '52,300', Make: 'ISUZU', Category: 'Commercial', 'EJO record': ID });
+  const same = row({ Plate: 'KJA 123AB', 'Chassis number (VIN)': 'JAANLR85EL7100001', 'Mileage (km)': '52,300', Make: 'TOYOTA', Category: 'Commercial', 'EJO record': ID });
   const v = checkVehicleRow(same, m, 2026, true).values!;
   assert.ok(v, 'no owner needed: the EJO record names the vehicle');
   assert.deepEqual(diffRecord('vehicles', cur, v, same, m).changes.map(changeWords), ['Mileage (km): 50,000 → 52,300']);
@@ -67,20 +66,20 @@ test('vehicles: the chassis number is the vehicle (never changed by a file, thou
 test('parts: the part number, tracking and base unit are never changed by a file; prices and levels are', () => {
   const H = ['Part number', 'Description', 'Base unit', 'Tracking', 'Selling price', 'Reorder point', 'EJO record'];
   const m = autoMap('parts', H);
-  const cur = { partNumber: '8-98100000-0', name: 'Brake pad set', baseUnitOfMeasure: 'Set', trackingType: 'QUANTITY', sellingPrice: 45000, reorderPoint: 10, safetyStock: null, category: null, barcode: null, externalId: null, externalSource: null };
-  const cells = ['8-98100000-0', 'Brake pad set', 'Set', 'Quantity', '47,500', '10', ID];
+  const cur = { partNumber: '04465-02220', name: 'Brake pad set', baseUnitOfMeasure: 'Set', trackingType: 'QUANTITY', sellingPrice: 45000, reorderPoint: 10, safetyStock: null, category: null, barcode: null, externalId: null, externalSource: null };
+  const cells = ['04465-02220', 'Brake pad set', 'Set', 'Quantity', '47,500', '10', ID];
   assert.deepEqual(diffRecord('parts', cur, checkPartRow(cells, m).values!, cells, m).changes.map(changeWords), ['Selling price (₦): 45,000 → 47,500']);
-  const renamed = ['8-98100000-9', 'Brake pad set', 'Set', 'Batch', '45000', '10', ID];
+  const renamed = ['04465-02229', 'Brake pad set', 'Set', 'Batch', '45000', '10', ID];
   const d = diffRecord('parts', cur, checkPartRow(renamed, m).values!, renamed, m);
   assert.match(d.errors[0]!, /never changed by a file/);
   assert.match(d.notes[0]!.message, /How the part is tracked is changed on its page/);
 });
 
 test('suppliers: name, contact, phone, email, address, tax ID and number', () => {
-  const H = ['Supplier number (SAP or old system)', 'Name', 'Contact person', 'Phone', 'EJO record'];
+  const H = ['Supplier number (old system)', 'Name', 'Contact person', 'Phone', 'EJO record'];
   const m = autoMap('suppliers', H);
-  const cur = { name: 'Isuzu Motors Ltd', contactName: null, phone: null, email: null, address: null, taxId: null, externalId: 'V-77', externalSource: 'SAP' };
-  const cells = ['V-77', 'Isuzu Motors Ltd', 'Sales desk', '0803 123 4567', ID];
+  const cur = { name: 'Ota Auto Parts Ltd', contactName: null, phone: null, email: null, address: null, taxId: null, externalId: 'V-77', externalSource: 'LEGACY' };
+  const cells = ['V-77', 'Ota Auto Parts Ltd', 'Sales desk', '0803 123 4567', ID];
   assert.deepEqual(diffRecord('suppliers', cur, checkSupplierRow(cells, m).values!, cells, m).changes.map((c) => c.field), ['contactName', 'phone']);
   assert.deepEqual(UPDATABLE.suppliers.map((s) => s.field), ['name', 'contactName', 'phone', 'email', 'address', 'taxId', 'externalId']);
 });

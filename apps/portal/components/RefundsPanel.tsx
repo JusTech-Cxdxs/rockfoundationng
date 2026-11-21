@@ -25,7 +25,7 @@ function naira(n: number): string {
 /**
  * Refunds for a cancelled Job Card or Vehicle Service — shared by both
  * pages so they behave identically. Money in, money returned, what is
- * still owed back; Finance's form to record a refund (only once the
+ * still owed back; Accounts' form to record a refund (only once the
  * cancellation is authorised); and every refund with its RF-number and
  * printable receipt.
  */
@@ -158,7 +158,7 @@ export function RefundsPanel({
         </form>
       ) : remaining > 0 && canRefundNow ? (
         <p className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-warning)]/40 bg-[var(--ejo-warning)]/10 px-3 py-2 text-xs text-[var(--ejo-text)]">
-          Waiting on Finance to refund {naira(remaining)} to the customer.
+          Waiting on Accounts to refund {naira(remaining)} to the customer.
           {isJobCard ? ' The vehicle can be handed back once the refund is complete.' : ''}
         </p>
       ) : null}

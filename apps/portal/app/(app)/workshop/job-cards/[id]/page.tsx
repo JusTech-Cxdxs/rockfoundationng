@@ -1,5 +1,4 @@
 import { jobCardVisible, guardAnyPage, can, allows } from '@/lib/authz/server';
-import { securityActionDetail } from '@/lib/security-labels';
 import { LoadingLink } from '@/components/LoadingLink';
 import { depositDueOn, vatIsFixed, discountNeedsManager, discountPercent, isCustomerLine, jobCardTotals, paidInFull } from '@/lib/estimate-billing';
 import { creditStanding } from '@/lib/credit';
@@ -74,15 +73,8 @@ const STATUS_LABEL: Record<string, string> = {
 const AUDIT_ACTION_LABEL: Record<string, string> = {
   'job_card.moved_to_recycle_bin': 'Moved to the Recycle bin',
   'job_card.restored_from_recycle_bin': 'Restored from the Recycle bin',
-  'road_test.requested': 'Road test requested',
-  'road_test.approved': 'Road test approved by the Owner',
-  'road_test.declined': 'Road test declined',
-  'road_test.cancelled': 'Road test cancelled',
-  'road_test.gate_out': 'Out on road test',
-  'road_test.gate_in': 'Back from road test',
   'vehicle.gate_exit': 'Left through the gate',
   'job_card.line_bill_to_set': 'Who pays changed',
-  'warranty.issued': 'Warranties issued',
   'job_card.created': 'Job Card created',
   'job_card.approved': 'Job Card approved',
   'job_card.rejected': 'Job Card rejected',
@@ -95,7 +87,7 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
   'estimate.line_item_removed': 'Estimate line removed',
   'estimate.submitted': 'Estimate submitted for validation',
   'estimate.approved': 'Estimate approved',
-  'estimate.manager_approved': 'Estimate approved by manager',
+  'estimate.manager_approved': 'Estimate approved by the Owner',
   'estimate.customer_notified': 'Customer notified of approved estimate',
   'estimate.nudge_to_technician': 'Supervisor notified technician about estimate',
   'estimate.nudge_to_supervisor': 'Technician notified supervisor about estimate',
@@ -126,15 +118,10 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
   'collection.overdue_notice_sent': 'Collection overdue notice sent',
   'collection.ready_reminder_sent': 'Ready-for-collection reminder sent',
   'part_request_slip.requested': 'Parts request raised',
-  'part_request_slip.hod_approved': 'Parts request approved by HOD',
-  'part_request_slip.store_approved': 'Parts request approved by Store',
+  'part_request_slip.hod_approved': 'Parts request approved (first check)',
+  'part_request_slip.store_approved': 'Parts request approved by the Store',
   'part_request_slip.released': 'Parts request released',
   'part_request_slip.rejected': 'Parts request rejected',
-  'external_procurement.requested': 'External procurement requested',
-  'external_procurement.sent_to_manager': 'External procurement sent to Owner',
-  'external_procurement.approved': 'External procurement approved',
-  'external_procurement.disbursed': 'External procurement disbursed',
-  'external_procurement.rejected': 'External procurement rejected',
   'estimate.store_matching_requested': 'Store matching requested',
   'estimate.store_matching_completed': 'Store matching completed',
   'estimate_line.store_matched': 'Store Part line matched',
@@ -161,14 +148,11 @@ const PART_REQUEST_STATUS_BADGE_CLASS: Record<string, string> = {
 function formatAuditDetail(entry: { action: string; metadata: unknown }): string | null {
   const meta = entry.metadata as Record<string, unknown> | null;
   if (!meta) return null;
-  if (entry.action.startsWith('road_test.')) return securityActionDetail(entry.action, meta);
   switch (entry.action) {
     case 'vehicle.gate_exit':
       return [typeof meta.exitNumber === 'string' ? meta.exitNumber : null, typeof (meta.collectedBy ?? meta.driver) === 'string' ? `collected by ${String(meta.collectedBy ?? meta.driver)}` : null].filter(Boolean).join(' · ') || null;
     case 'job_card.line_bill_to_set':
       return `${typeof meta.line === 'string' ? meta.line : 'Line'}${typeof meta.amount === 'number' ? ` (${formatNaira(meta.amount)})` : ''}: ${String(meta.from ?? 'Customer')} → ${String(meta.to ?? '')}${typeof meta.note === 'string' ? ` — ${meta.note}` : ''}`;
-    case 'warranty.issued':
-      return Array.isArray(meta.warrantyNumbers) ? `${(meta.warrantyNumbers as string[]).join(', ')}${typeof meta.referenceNumber === 'string' ? ` — with ${meta.referenceNumber}` : ''}` : null;
     case 'estimate.discount_set':
     case 'estimate.line_discount_set':
       return [typeof meta.description === 'string' ? `"${meta.description}"` : null, typeof meta.to === 'number' ? formatNaira(meta.to) : null, typeof meta.reason === 'string' ? `Reason: ${meta.reason}` : null].filter(Boolean).join(' — ') || null;
@@ -250,25 +234,6 @@ function formatAuditDetail(entry: { action: string; metadata: unknown }): string
       const parts: string[] = [];
       if (typeof meta.referenceNumber === 'string') parts.push(meta.referenceNumber);
       if (typeof meta.stage === 'string') parts.push(`at ${meta.stage}`);
-      if (typeof meta.reason === 'string') parts.push(`Reason: ${meta.reason}`);
-      return parts.join(' — ') || null;
-    }
-    case 'external_procurement.requested':
-    case 'external_procurement.approved': {
-      const parts: string[] = [];
-      if (typeof meta.referenceNumber === 'string') parts.push(meta.referenceNumber);
-      if (typeof meta.estimatedAmount === 'number') parts.push(`Estimated: ${formatNaira(meta.estimatedAmount)}`);
-      return parts.join(' — ') || null;
-    }
-    case 'external_procurement.disbursed': {
-      const parts: string[] = [];
-      if (typeof meta.referenceNumber === 'string') parts.push(meta.referenceNumber);
-      if (typeof meta.disbursedAmount === 'number') parts.push(`Disbursed: ${formatNaira(meta.disbursedAmount)}`);
-      return parts.join(' — ') || null;
-    }
-    case 'external_procurement.rejected': {
-      const parts: string[] = [];
-      if (typeof meta.referenceNumber === 'string') parts.push(meta.referenceNumber);
       if (typeof meta.reason === 'string') parts.push(`Reason: ${meta.reason}`);
       return parts.join(' — ') || null;
     }
@@ -491,7 +456,7 @@ export default async function JobCardDetailPage({
     ? customerWhatsAppUrl(jobCard.customer, jobCardNoticeMessage({ notice: noticeKind, customerName: jobCard.customer.fullName, organisation: asOrganisation, vehicle: waVehicle, jobNumber: jobCard.jobNumber, collectedByName: jobCard.collectedByName ?? null, portalUrl: customerLinks(websiteBaseUrl()).jobCard(jobCard.id), workshop: workshopContact }))
     : null;
   const NOTICE_LABEL: Record<JobCardNotice, string> = { CHECKED_IN: 'Checked in', IN_PROGRESS: 'Work started', QUALITY_CHECK: 'Quality check', COMPLETED: 'Completed', CHECKED_OUT: 'Collected', CANCELLED: 'Cancelled', CLOSED: 'Closed' };
-  // A refund, as its receipt email (there is no refund PDF): Finance, who records refunds.
+  // A refund, as its receipt email (there is no refund PDF): Accounts, who records refunds.
   const refundWhatsApp = (r: { referenceNumber: string; amount: unknown; method: string; recordedAt: Date }) => {
     const refundedBy = refunds.filter((x: (typeof refunds)[number]) => new Date(x.recordedAt).getTime() <= new Date(r.recordedAt).getTime()).reduce((sum: number, x: (typeof refunds)[number]) => sum + Number(x.amount ?? 0), 0);
     const owedBack = jobCard.status === 'CANCELLED' || approvedCancellation ? paymentsTotal : Math.max(0, paymentsTotal - estimateTotal);
@@ -1819,7 +1784,7 @@ export default async function JobCardDetailPage({
               </p>
               {paymentsTotal > 0 ? (
                 <p className="mt-2 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-warning)]/40 bg-[var(--ejo-warning)]/10 px-3 py-2 text-xs text-[var(--ejo-text)]">
-                  The customer has paid {formatNaira(paymentsTotal)}. Approving this cancellation also authorises a full refund of that amount — Finance then pays it and records it under Refunds.
+                  The customer has paid {formatNaira(paymentsTotal)}. Approving this cancellation also authorises a full refund of that amount — Accounts then pays it and records it under Refunds.
                 </p>
               ) : null}
               <div className="mt-3 space-y-2">

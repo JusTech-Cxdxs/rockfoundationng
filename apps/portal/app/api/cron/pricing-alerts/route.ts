@@ -26,7 +26,7 @@ import { moduleIsOn } from '@/lib/modules';
  *
  * Requires `Authorization: Bearer <CRON_SECRET>`, which Vercel Cron sends.
  *
- * In an edition with Inventory off (D'Phoenix Autocare) there are no pricing
+ * While the parts Store is switched off there are no pricing
  * alerts, so no digest is sent; everything after it (scheduled exports, the
  * clean-ups, reminders…) runs as before.
  */

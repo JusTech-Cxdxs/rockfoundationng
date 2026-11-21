@@ -7,11 +7,11 @@ import { checkPartRow, checkStockRow, checkSupplierRow, parseAmount, partKey } f
 
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
 
-test('amounts as SAP, Excel and people write them', () => {
+test('amounts as accounting systems, Excel and people write them', () => {
   assert.equal(parseAmount('1,250.00'), 1250);
   assert.equal(parseAmount('₦1,250'), 1250);
   assert.equal(parseAmount('NGN 45 000.50'), 45000.5);
-  assert.equal(parseAmount('100-'), -100); // SAP's trailing minus
+  assert.equal(parseAmount('100-'), -100); // a trailing minus
   assert.equal(parseAmount('(250)'), -250);
   assert.equal(parseAmount('1.2E+3'), 1200);
   assert.equal(parseAmount('abc'), null);
@@ -49,13 +49,13 @@ test('parts: no part number or description rejects; gaps are notes', () => {
 });
 
 test('opening stock: cost from the stock value, or the unit cost per price unit; one line per part, batch and storage location', () => {
-  const m = autoMap('stock', ['MATNR', 'LABST', 'MEINS', 'SALK3', 'VERPR', 'PEINH', 'CHARG', 'LGORT']);
-  const byValue = checkStockRow(['8-98123456-0', '12', 'ST', '540,000.00', '45000', '1', '', '0001'], m);
+  const m = autoMap('stock', ['Part number', 'Quantity on hand', 'Unit', 'Stock value', 'Unit cost', 'Price unit', 'Batch', 'Storage location']);
+  const byValue = checkStockRow(['04465-02220', '12', 'ST', '540,000.00', '45000', '1', '', '0001'], m);
   assert.equal(byValue.status, 'GOOD', JSON.stringify(byValue.issues));
   assert.equal(byValue.values?.totalValue, 540000);
   assert.equal(byValue.values?.unitCost, 45000);
-  assert.deepEqual(byValue.keys, ['line:8-98123456-0||0001']);
-  // Cost per 100 units (SAP price unit), no stock value.
+  assert.deepEqual(byValue.keys, ['line:04465-02220||0001']);
+  // Cost per 100 units (a price unit), no stock value.
   const per100 = checkStockRow(['BOLT-M10', '250', 'ST', '', '1500', '100', '', ''], m);
   assert.equal(per100.values?.unitCost, 15);
   assert.equal(per100.values?.totalValue, 3750);
@@ -77,13 +77,13 @@ test('opening stock: negative, zero, missing cost and mismatched serials are rej
   assert.deepEqual(mappingProblems('stock', { partNumber: 0, quantity: 1, totalValue: null, unitCost: null }), ['Choose the column for the stock value or the unit cost: stock is valued at what it cost.']);
 });
 
-test('suppliers: an SAP vendor list maps itself; name required', () => {
-  const m = autoMap('suppliers', ['LIFNR', 'NAME1', 'NAME2', 'TELF1', 'SMTP_ADDR', 'STRAS', 'ORT01', 'STCD1']);
-  const r = checkSupplierRow(['0000300045', 'Isuzu Motors', 'Africa', '+27 41 403 9111', 'orders@example.com', 'Struandale', 'Port Elizabeth', ''], m);
+test('suppliers: a vendor list maps itself; name required', () => {
+  const m = autoMap('suppliers', ['Supplier number', 'Name', 'Name, second line', 'Phone', 'Email', 'Address', 'City', 'Tax ID']);
+  const r = checkSupplierRow(['0000300045', 'Ota Auto Parts', 'Limited', '+234 803 000 0001', 'orders@example.com', '12 Idiroko Road', 'Ota', ''], m);
   assert.equal(r.status, 'GOOD', JSON.stringify(r.issues));
   assert.equal(r.values?.externalId, '300045');
-  assert.equal(r.values?.name, 'Isuzu Motors Africa');
-  assert.equal(r.values?.address, 'Struandale, Port Elizabeth');
+  assert.equal(r.values?.name, 'Ota Auto Parts Limited');
+  assert.equal(r.values?.address, '12 Idiroko Road, Ota');
   assert.equal(checkSupplierRow(['1', '', '', '', '', '', '', ''], m).status, 'REJECTED');
 });
 

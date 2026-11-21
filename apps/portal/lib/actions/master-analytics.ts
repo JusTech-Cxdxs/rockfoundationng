@@ -43,7 +43,7 @@ const SLIP_JOB = { slipLine: { select: { slip: { select: { jobCardId: true } } }
 
 /** `opts.history` false: leave out the invoices from the old system before EJO (EJO's own figures only). */
 export async function getMasterAnalytics(periodKey?: string, custom?: { from?: string; to?: string }, opts: { history?: boolean } = {}) {
-  if (!(await canSeeMasterAnalytics())) throw new Error('The master dashboard is for the Platform Administrator, Administrators, the Owner and Finance.');
+  if (!(await canSeeMasterAnalytics())) throw new Error('The master dashboard is for the Owner.');
   const now = new Date();
   const key = ((PERIODS as readonly string[]).includes(periodKey ?? '') ? periodKey : 'this_month') as PeriodKey;
   const { from, to, label } = periodRange(key, now, custom);

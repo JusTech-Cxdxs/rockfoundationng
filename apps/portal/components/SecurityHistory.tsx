@@ -5,8 +5,8 @@ import type { getSecurityHistory } from '@/lib/actions/security';
 
 type History = Awaited<ReturnType<typeof getSecurityHistory>>;
 
-/** The full record of a Visit / Exit Pass: every step, and every email —
- * sent or failed — so nothing that happened is ever missing. */
+/** The full record of a gate exit or a notice: every step, and every email
+ * (sent or failed), so nothing that happened is ever missing. */
 export function SecurityHistory({ history }: { history: History }) {
   const card = 'rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6';
   return (

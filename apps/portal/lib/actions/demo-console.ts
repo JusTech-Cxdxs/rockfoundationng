@@ -1,15 +1,15 @@
 'use server';
 
 /**
- * The platform team's demo console (IT control room → Demo organisation):
- * which organisation is the demo, how much demo is in it, one button to make
- * the demo organisation ("D'Phoenix Autocare (Demo)", kept apart from the
+ * The platform team's demo console (Settings → System health): which
+ * organisation is the demo, how much demo is in it, one button to make the
+ * demo organisation ("Rock Foundation Automobile (Demo)", kept apart from the
  * real one), one to load it again as of now (people → workshop) and one to
  * take the demo records out. The same code as `npm run demo:reset`.
  *
  * Only the platform team (the Platform Administrator) — never an organisation's
- * own administrators — typed words confirm every change, never during an
- * assisted session, and every step is audited. Only an organisation marked
+ * own administrators. Typed words confirm every change, and every step is
+ * audited. Only an organisation marked
  * as a demo is ever loaded, and the real organisation (or any organisation
  * with its own customers or job cards) is never marked; a person's own
  * records are never touched (the demo removes exactly what it made, listed

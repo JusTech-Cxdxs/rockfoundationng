@@ -56,7 +56,7 @@ function AnalysisLine({ entry }: { entry: CustodyEntry }) {
   );
 }
 
-/** A pending cancellation request, as on the Job Card page. the Owner can
+/** A pending cancellation request, as on the Job Card page. The Owner can
  * approve or decline here; others only see that a decision is pending. */
 function PendingCancellationBlock({ entry, isEligibleManager }: { entry: CustodyEntry; isEligibleManager: boolean }) {
   if (!entry.pendingCancellationRequest) return null;
@@ -479,7 +479,7 @@ export default async function WorkshopCustodyPage({
                   </form>
                 ) : (
                   <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
-                    Only the Owner or HOD can notify the customer.
+                    Only the Owner can notify the customer.
                   </p>
                 )}
                 {isEligibleManager ? (

@@ -151,7 +151,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
               <div className="mt-3 border-t border-[var(--ejo-border)] pt-3">
                 <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">Roles</p>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {u.roles.length === 0 ? <span className="text-xs text-[var(--ejo-text-muted)]">No role yet — they can only request exit passes.</span> : null}
+                  {u.roles.length === 0 ? <span className="text-xs text-[var(--ejo-text-muted)]">No role yet: they can sign in, but see nothing of the business.</span> : null}
                   {u.roles.map((r) => (
                     u.id === me || (r.isPlatform && !isPlatformTeam) ? (
                       <span key={r.id} className={`${chip} ${r.isPlatform ? 'bg-[var(--ejo-primary)] text-white' : 'bg-[var(--ejo-bg)] text-[var(--ejo-text)]'}`}>{r.isPlatform ? `Platform team — ${r.name}` : r.name}</span>

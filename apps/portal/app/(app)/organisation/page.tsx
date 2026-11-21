@@ -7,8 +7,7 @@ import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
 import { HotlineListInput } from '@/components/HotlineListInput';
 import { LoadingLink } from '@/components/LoadingLink';
 import { EditIcon, BuildingIcon } from '@/components/icons';
-import { EmptyState, PageTitle, SubNav } from '@/components/ui';
-import { ORGANISATION_TABS } from './tabs';
+import { EmptyState, PageTitle } from '@/components/ui';
 
 /**
  * The organisation's printed identity (name, legal name, hotlines, address,
@@ -30,9 +29,8 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
       </div>
       <p className="mb-6 max-w-2xl text-sm text-[var(--ejo-text-muted)]">
         The organisation&apos;s name, legal name, contact and registration details. These appear in the header of
-        every printed document (Job Cards, parts requests, external procurement, receipts).
+        every printed document (Job Cards, estimates, invoices, parts requests, receipts).
       </p>
-      <SubNav tabs={ORGANISATION_TABS} active="/organisation" label="Organisation" />
 
       {error ? (
         <div className="mb-6 max-w-xl">

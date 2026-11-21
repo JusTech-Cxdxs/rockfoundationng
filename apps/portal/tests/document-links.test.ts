@@ -405,5 +405,5 @@ test('the schema change is additive: the deploy SQL, its manual mirror, the migr
   assert.equal(readRepo('scripts/predeploy/0031-document-links.sql'), readRepo('scripts/v-dp6-document-links.sql'));
   assert.match(readRepo('docs/DATA_MIGRATION.md'), /0031-document-links\.sql[\s\S]{0,40}v-dp6-document-links\.sql/);
   assert.match(read('lib/governance/data-inventory.ts'), /DocumentLink: \{ tenancy: 'ORGANISATION', owner: 'organisationId', classification: \['SECRET'\][^\n]*ai: 'NEVER' \}/);
-  assert.match(readRepo('docs/DPHOENIX_SETUP.md'), /### WhatsApp/);
+  assert.match(readRepo('docs/SETUP.md'), /WhatsApp/);
 });

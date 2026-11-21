@@ -34,7 +34,7 @@ export type SendEmailOptions = {
  * Sends one email as multipart/alternative (HTML and plain text), so
  * text-only clients and spam filters both get a proper version.
  */
-/** Raised when there is no address to send to: a customer brought in from SAP or an old spreadsheet without an email. */
+/** Raised when there is no address to send to: a customer brought in from QuickBooks or an old spreadsheet without an email. */
 export class NoEmailAddressError extends Error {
   constructor() {
     super('This customer has no email address on file. Add one on their customer page, or reach them by phone.');

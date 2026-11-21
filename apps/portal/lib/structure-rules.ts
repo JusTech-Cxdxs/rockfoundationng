@@ -12,7 +12,7 @@ export const SYSTEM_DEPARTMENT_SLUGS = new Set(ALL_SYSTEM_DEPARTMENTS.map((d) =>
 
 /**
  * The standard departments as this edition creates them. With Inventory off
- * (the D'Phoenix Autocare edition, lib/modules.ts) a workshop has no Store
+ * (lib/modules.ts) a workshop has no Store
  * department: parts bought for a job are priced on its estimate.
  */
 export function systemDepartments(store: boolean = moduleIsOn('inventory')): { slug: string; name: string; why: string }[] {

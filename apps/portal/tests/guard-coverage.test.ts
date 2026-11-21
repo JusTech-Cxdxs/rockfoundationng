@@ -24,8 +24,6 @@ const GUARDS = [
   'profileOrg(',
   // News & media (lib/actions/news.ts): authorize('website.news.manage') + the person's own organisation.
   'newsOrg(',
-  // Postings for SAP (lib/actions/sap-postings.ts): the file fenced to the person's organisation + allows() at its branch.
-  'sapPostingOf(',
   // Customers' data requests (lib/actions/data-requests.ts): authorize('privacy.requests.manage') across the organisation.
   'privacyDesk(',
   // Customer documents in bulk (lib/actions/documents.ts): authorize('dataexchange.export.sensitive'), then allows('dataexchange.export.run') at the branch.

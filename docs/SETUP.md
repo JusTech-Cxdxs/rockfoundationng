@@ -115,6 +115,13 @@ SELECT cron.schedule('rf-support-enyo', '*/2 * * * *', $$
     headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>'),
     timeout_milliseconds := 60000);
 $$);
+-- Scheduled notices, access-changed emails and personal reminders.
+SELECT cron.schedule('rf-reminders', '*/10 * * * *', $$
+  SELECT net.http_get(
+    url := 'https://portal.rockfoundationng.com/api/cron/reminders',
+    headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>'),
+    timeout_milliseconds := 60000);
+$$);
 ```
 
 Check with `SELECT status_code, created FROM net._http_response ORDER BY

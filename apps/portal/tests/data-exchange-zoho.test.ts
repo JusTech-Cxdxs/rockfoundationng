@@ -3,7 +3,7 @@
  * the files Zoho Books and Zoho Invoice export (Contacts, Invoices), Zoho
  * CRM's (Contacts, Accounts) and a Zoho People staff list map themselves by
  * their own column headers — as CSV and as an Excel workbook — and their
- * rows check into the same records a spreadsheet or SAP file gives. The
+ * rows check into the same records any other spreadsheet gives. The
  * workbook is built here with the importer's own Excel writer and read with
  * its reader, exactly as a file chosen in the browser is.
  */

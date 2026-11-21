@@ -34,7 +34,7 @@ export async function getMyPending(): Promise<PendingItem[]> {
     p.organisationId ? prisma.supportTicket.findMany({ where: { organisationId: p.organisationId, requesterUserId: mine, status: { in: ['OPEN', 'WAITING_ON_CUSTOMER', 'ON_HOLD'] } }, take: 20, select: { id: true, number: true, subject: true, status: true, createdAt: true, assignedToId: true } }).catch(() => []) : [],
   ]);
 
-  // Who is "the Owner" or "Finance" in each branch, by name and role (once per branch).
+  // Who is "the Owner" or "Accounts" in each branch, by name and role (once per branch).
   const managers = new Map<string, string>();
   const names = (list: { id?: string; fullName: string }[], role: string, fallback: string) => {
     const xs = list.filter((x) => x.id !== mine).slice(0, 2).map((x) => `${x.fullName} (${role})`);
@@ -73,7 +73,7 @@ export async function getMyPending(): Promise<PendingItem[]> {
   for (const s of prs) out.push({
     id: `prs-${s.id}`, area: 'Store', number: s.referenceNumber,
     title: s.status === 'PENDING_HOD_APPROVAL' ? 'Parts request waiting for the Owner' : s.status === 'PENDING_STORE_APPROVAL' ? 'Parts request waiting for the Store' : 'Parts approved — waiting to be released',
-    waitingOn: s.status === 'PENDING_HOD_APPROVAL' ? await managerOf(s.branchId) : 'the Store (Store Keeper or Store Keeper)',
+    waitingOn: s.status === 'PENDING_HOD_APPROVAL' ? await managerOf(s.branchId) : 'the Store Keeper',
     since: s.storeApprovedAt ?? s.hodApprovedAt ?? s.createdAt, url: `/workshop/parts-requests/${s.id}`,
   });
   for (const c of closes) out.push({ id: `close-${c.jobCard.id}`, area: 'Workshop', number: c.jobCard.jobNumber, title: 'Close request waiting for approval', waitingOn: await managerOf(c.jobCard.branchId), since: c.requestedAt, url: `/workshop/job-cards/${c.jobCard.id}` });

@@ -21,7 +21,7 @@ export function WaitingOnOthers({ items, limit, compact = false }: { items: Pend
       className="mb-6"
     >
       {shown.length === 0 ? (
-        <EmptyState icon="check-circle" title="Nothing of yours is waiting on anyone.">Job Cards, estimates, parts requests, purchases, exit passes and help requests you send appear here until they are decided.</EmptyState>
+        <EmptyState icon="check-circle" title="Nothing of yours is waiting on anyone.">Job Cards, estimates, parts requests and help requests you send appear here until they are decided.</EmptyState>
       ) : (
         <ul className="divide-y divide-[var(--ejo-border)]" aria-label="Waiting on others">
           {shown.map((n) => (

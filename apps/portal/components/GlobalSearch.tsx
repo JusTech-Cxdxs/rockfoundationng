@@ -11,10 +11,9 @@ import { isVin, vehiclePagePath } from '@/lib/vin';
 /** Each result group's icon (the same icons the menu and pages use). */
 const GROUP_ICON: Record<string, IconName> = {
   Pages: 'grid', 'Job Cards': 'clipboard', 'Vehicle Services': 'droplet', Vehicles: 'car', Customers: 'users', Parts: 'package',
-  'Parts requests': 'package', 'External procurement': 'cart', 'Goods receipts': 'receipt', Warranties: 'shield-check', 'Warranty claims': 'file',
-  Visitors: 'badge', 'Exit passes': 'exit', 'Road tests': 'road', Incidents: 'alert', Deliveries: 'truck', Contractors: 'hardhat',
-  Appointments: 'calendar', Broadcasts: 'megaphone', 'Vehicle exits': 'car', Refunds: 'refund', 'Warranty policies': 'file',
-  'Warranty providers': 'building', 'Meeting rooms': 'room', Branches: 'branch', Departments: 'sitemap', Staff: 'user',
+  'Parts requests': 'package', 'Goods receipts': 'receipt',
+  Broadcasts: 'megaphone', 'Vehicle exits': 'car', Refunds: 'refund',
+   Branches: 'branch', Departments: 'sitemap', Staff: 'user',
 };
 
 /** The typed words, highlighted inside a result ("vx 12" marks VX and 000012 in VX-2026-000012). */

@@ -199,7 +199,7 @@ export function lagosMonthStart(now: Date): Date {
 }
 
 /**
- * An invoice from before EJO (QuickBooks, Zoho or the old system): read-only
+ * An invoice from before EJO (QuickBooks or the old system): read-only
  * history, already settled there. It counts as spend and as a visit on its
  * date; it is never "outstanding", and the averages (job value, turnaround)
  * stay EJO's own.

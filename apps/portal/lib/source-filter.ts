@@ -3,7 +3,7 @@
  * vehicles, parts, suppliers). Pure: parsed from the page's address, applied
  * in the database by the list's own action.
  *
- *  • Source: created in EJO / imported from a spreadsheet (Zoho, QuickBooks
+ *  • Source: created in EJO / imported from a spreadsheet (QuickBooks
  *    or an old system), by the import that created the record.
  *  • Import: one import, by its number (IMP-2026-000012).
  *  • Date entered EJO: when the record was created or imported.

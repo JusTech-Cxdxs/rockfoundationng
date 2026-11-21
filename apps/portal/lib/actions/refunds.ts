@@ -151,7 +151,7 @@ export type RecordRefundInput = {
 };
 
 /**
- * Finance pays money back to the customer and records it here. Only by a
+ * Accounts pays money back to the customer and records it here. Only by a
  * Accounts for the branch or a Platform Administrator, and never more than is
  * owed back: on a cancelled job (cancellation is the Owner's authorisation)
  * everything paid; on an active Job Card only an overpayment. A refund can

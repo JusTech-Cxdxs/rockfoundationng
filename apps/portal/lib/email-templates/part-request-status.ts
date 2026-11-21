@@ -80,9 +80,9 @@ export type PartRequestStatusEmailOptions = {
 
 export const PART_REQUEST_STATUS: Record<PartRequestStatusEmailOptions['kind'], { label: string; heading: string; line: string; tone: EmailTone }> = {
   hod_approved: {
-    label: 'Approved by HOD',
-    heading: 'Parts request approved by the HOD',
-    line: 'was approved by the workshop HOD and is now with Store for approval and stock reservation.',
+    label: 'First approval given',
+    heading: 'Parts request approved: now with the Store',
+    line: 'was approved by the workshop supervisor and is now with the Store for approval and stock reservation.',
     tone: 'success',
   },
   store_approved: {

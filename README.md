@@ -119,8 +119,8 @@ environment variable and what it does: [.env.example](.env.example) and
 ## Build phases
 
 1. Foundation: the workshop edition rebranded to Rock Foundation (colours,
-   Roboto, logos, business details), everything unused removed, the eight
-   roles, settings, CI.
+   Roboto, logos, business details), everything unused removed, the roles
+   and optional-role switches, settings, CI.
 2. Customers, vehicles and customer care: complaints, follow-ups and ratings
    (planned).
 3. Job cards with job types (service, repair, diagnostics, spraying, car

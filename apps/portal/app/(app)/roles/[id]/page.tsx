@@ -50,7 +50,7 @@ export default async function RolePage({ params, searchParams }: { params: Promi
   const does = r.defaults.filter((k) => !APPROVAL_PERMISSIONS.includes(k));
   const holdsIt = !me.isSuperAdmin && me.roleSlugs.includes(r.slug);
   const here = `/roles/${r.id}`;
-  // This edition's permissions only (with Store, Warranty and the plant off, none of theirs).
+  // The permissions in use only (a switched-off module's are left out).
   const addable = (Object.keys(PERMISSIONS) as PermissionKey[]).filter((k) => permissionShown(k) && !r.defaults.includes(k) && !r.added.includes(k));
 
   return (
@@ -70,7 +70,7 @@ export default async function RolePage({ params, searchParams }: { params: Promi
           {r.isPlatform ? null : (
             <>
               <SectionCard icon="check-circle" title="Included by default — can do" description="From the platform catalogue (reviewed code), with how far each reaches.">
-                {does.length ? <Grouped keys={does} scope={scope} /> : <p className="text-sm text-[var(--ejo-text-muted)]">No defaults. Everyone can request their own exit pass and see their own notifications.</p>}
+                {does.length ? <Grouped keys={does} scope={scope} /> : <p className="text-sm text-[var(--ejo-text-muted)]">No defaults: this role does only what is added here.</p>}
               </SectionCard>
               <SectionCard icon="shield-check" title="Included by default — can approve" description="Each one a step that waits on a named person. Nobody approves their own request.">
                 {approves.length ? <Grouped keys={approves} scope={scope} /> : <p className="text-sm text-[var(--ejo-text-muted)]">This role approves nothing.</p>}

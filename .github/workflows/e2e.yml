@@ -95,7 +95,7 @@ jobs:
       # The exact deploy path: pre-deploy SQL, push, post-deploy SQL.
       - name: Schema (pre-deploy SQL → db push → post-deploy SQL)
         run: |
-          for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
+          if [ -d scripts/predeploy ]; then for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done; fi
           npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
           for f in scripts/postdeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
           npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
@@ -106,7 +106,6 @@ jobs:
           MASTER_ADMIN_NAME: 'Morgan Master'
         run: |
           npx tsx packages/database/prisma/seed.ts
-          npx prisma db execute --file=scripts/v24-roles.sql --url="$DIRECT_URL"
           npx tsx apps/portal/e2e/seed.ts
           # Idempotent: a second run changes nothing and does not fail.
           npx tsx apps/portal/e2e/seed.ts
@@ -248,7 +247,7 @@ jobs:
               git show "$base:packages/database/prisma/schema.prisma" > /tmp/baseline.prisma
               npx prisma db push --schema=/tmp/baseline.prisma --skip-generate
             fi
-            if [ -d scripts/predeploy ]; then for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done; fi
+            if [ -d scripts/predeploy ]; then if [ -d scripts/predeploy ]; then for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done; fi; fi
             npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
             for f in scripts/postdeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
             echo "::endgroup::"

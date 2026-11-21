@@ -8,9 +8,11 @@ import { pluralize } from './utils/pluralize';
  *  • A job's SALES are counted when it is completed (finishedAt).
  *    Lines split into Labour (LABOUR, INTERNAL_JOB), Parts (STORE_PART,
  *    EXTERNAL_PART), Sublet (EXTERNAL_JOB) and Sundry (SUNDRY).
- *  • Who pays: CUSTOMER lines = customer sales; WARRANTY lines = sales
- *    recoverable from the warranty provider; GOODWILL / INTERNAL lines are
- *    given away (no revenue; their cost still counts).
+ *  • Who pays: CUSTOMER lines = revenue; WARRANTY lines are covered by the
+ *    workshop's own warranty (a comeback or a part still under warranty), so
+ *    they are no revenue, counted apart to show what warranty work costs;
+ *    GOODWILL / INTERNAL lines are given away (no revenue; their cost still
+ *    counts).
  *  • COST OF SALES = issued parts at their actual goods-receipt cost +
  *    sublet (outside work) cost.
  *  • GROSS PROFIT = sales − cost of sales.
@@ -59,10 +61,11 @@ export function jobMoney(j: Job) {
   for (const l of j.lines) {
     const amt = l.amount || 0;
     if (l.billTo === 'GOODWILL' || l.billTo === 'INTERNAL') { givenAway += amt; continue; }
-    if (l.billTo === 'WARRANTY') warranty += amt; else customer += amt;
+    if (l.billTo === 'WARRANTY') { warranty += amt; continue; }
+    customer += amt;
     g[LINE_GROUP[l.type] ?? 'sundry'] += amt;
   }
-  const sales = customer + warranty;
+  const sales = customer;
   const cost = j.partsCost + j.subletCost;
   const paid = sum(j.payments.map((p) => p.amount)) - sum(j.refunds.map((p) => p.amount));
   return { ...g, customer: r2(customer), warranty: r2(warranty), givenAway: r2(givenAway), sales: r2(sales), cost: r2(cost), grossProfit: r2(sales - cost), paid: r2(paid), owed: r2(customer - paid) };

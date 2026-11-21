@@ -26,7 +26,7 @@ export const PAUSE_AT = 0.97;
 /**
  * Bytes one loaded record takes, including its audit-journal entry and its
  * indexes (the journal is append-only, so this space never comes back).
- * Measured on Postgres 16 with 50,000 SAP parts: about 1.7 KB a part; the
+ * Measured on Postgres 16 with 50,000 parts: about 1.7 KB a part; the
  * others are set from how many rows each record writes, rounded up.
  */
 export const BYTES_PER_RECORD: Record<string, number> = {
@@ -38,7 +38,7 @@ export const BYTES_PER_RECORD: Record<string, number> = {
   invoices: 4_000, // invoice and its lines
   registers: 3_000,
 };
-/** Bytes one staged row of an uploaded file takes (measured: about 400 B for an 8-column SAP line; wide files more). */
+/** Bytes one staged row of an uploaded file takes (measured: about 400 B for an 8-column line; wide files more). */
 export const BYTES_PER_STAGED_ROW = 600;
 
 /** The plan's limit in bytes, or null when no limit is set. */

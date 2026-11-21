@@ -359,7 +359,7 @@ export async function sendManualServiceReminder(vehicleId: string): Promise<void
 }
 
 /**
- * "Send all due reminders": the Owner or the Owner sends the reminders that
+ * "Send all due reminders": the Owner sends the reminders that
  * are due now (same stages, 7-working-day spacing and skips).
  */
 export async function runServiceRemindersNow(): Promise<{ evaluated: number; sent: number; failed: number }> {

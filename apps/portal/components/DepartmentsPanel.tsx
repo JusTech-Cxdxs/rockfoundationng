@@ -45,7 +45,7 @@ export function DepartmentsPanel({ branchId, departments, returnTo }: { branchId
         <summary className="inline-flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-full px-3 text-sm font-medium text-[var(--ejo-primary)] hover:bg-[var(--ejo-primary)]/10 [&::-webkit-details-marker]:hidden">+ Add a department</summary>
         <form action={createDepartmentFormAction} className="mt-2 flex flex-wrap gap-2">
           <input type="hidden" name="branchId" value={branchId} /><input type="hidden" name="returnTo" value={returnTo} />
-          <input name="name" required minLength={2} maxLength={80} placeholder="e.g. Finance, Human Resources, Sales" aria-label="New department name" className={input} />
+          <input name="name" required minLength={2} maxLength={80} placeholder="e.g. Mechanical, Body and spraying, Car wash" aria-label="New department name" className={input} />
           <SubmitButton label="Add department" pendingLabel="Adding…" className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-3 py-1.5 text-sm font-medium text-white" />
         </form>
       </details>

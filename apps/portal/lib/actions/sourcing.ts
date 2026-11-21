@@ -71,7 +71,7 @@ async function notifyTechnicianAndSupervisorOfPartRequestStatus(
       prisma.partRequestSlip.findUnique({ where: { id: slipId }, select: { requestedById: true, hodApprovedById: true, rejectionStage: true } }),
     ]);
     // The job's technician and supervisor, the person who raised the request
-    // (when someone else did), and — when the Store turns it down — the HOD
+    // (when someone else did), and — when the Store turns it down — the supervisor
     // who approved it.
     const recipientIds = [...new Set([jobCard.supervisorId, jobCard.assignedTechnicianId, slip?.requestedById, kind === 'rejected' && slip?.rejectionStage === 'STORE' ? slip.hodApprovedById : null].filter((id): id is string => Boolean(id)))];
     const recipients = await prisma.user.findMany({ where: { id: { in: recipientIds }, isActive: true }, select: { fullName: true, email: true } });
@@ -105,7 +105,7 @@ async function notifyTechnicianAndSupervisorOfPartRequestStatus(
 /**
  * Separation of duties, with one exception: the Platform Administrator may sign
  * a second step (as the Workshop already allows) — so a new installation,
- * where nobody holds the Store, Finance or Owner roles yet, is never stuck.
+ * where nobody holds the Store Keeper, Accounts or Owner roles yet, is never stuck.
  * Every such second signature is written to the audit log, and the integrity
  * watch still flags the same person asking and approving.
  */
@@ -399,7 +399,7 @@ async function requestablePartRequestLines(db: Pick<typeof prisma, 'estimate' | 
   return (estimate?.lineItems ?? []).filter((li: { id: string }) => !alreadyRequestedLineIds.has(li.id));
 }
 
-/** Raises a Store parts request (then HOD approval, Store approval,
+/** Raises a Store parts request (then the supervisor's first approval, Store approval,
  * release) and moves the Job Card to AWAITING_PARTS. Takes no part or
  * quantity input: everything comes from the matched estimate lines. */
 export async function requestPartRequestSlip(jobCardId: string): Promise<{ id: string; referenceNumber: string }> {
@@ -500,7 +500,7 @@ export async function requestPartRequestSlip(jobCardId: string): Promise<{ id: s
   return { id: slip.id, referenceNumber };
 }
 
-/** Step 1 of 3: the Workshop HOD confirms the request before Store checks stock. */
+/** Step 1 of 3: the workshop supervisor (or the Owner) confirms the request before the Store checks stock. */
 export async function approvePartRequestSlipByHod(slipId: string, notes?: string): Promise<void> {
   // Catalogue check first (who may attempt this); branch eligibility and
   // workflow state are checked below.
@@ -510,7 +510,7 @@ export async function approvePartRequestSlipByHod(slipId: string, notes?: string
     throw new SourcingActionError('Request not found.');
   }
   if (slip.status !== 'PENDING_HOD_APPROVAL') {
-    throw new SourcingActionError('This request is not awaiting HOD approval.');
+    throw new SourcingActionError('This request is not awaiting its first approval.');
   }
   const user = await requireEligibleManager(slip.branchId, 'store.prs.approve_hod');
   // Separation of duties: nobody approves their own request.
@@ -562,7 +562,7 @@ export async function approvePartRequestSlipByHod(slipId: string, notes?: string
           `Parts request needs your approval — ${slip.referenceNumber}`,
           renderPartRequestApprovalNeededEmail({
             recipientName: recipient.fullName,
-            requestedByName: 'The Workshop HOD',
+            requestedByName: 'The workshop supervisor',
             referenceNumber: slip.referenceNumber,
             jobNumber: emailContext.jobNumber,
             customerName: emailContext.customer.fullName,
@@ -764,7 +764,7 @@ export async function releasePartRequestSlip(
           if (remaining <= 0) break;
           const take = Math.min(remaining, Number(batch.remainingQuantity));
           await tx.partBatch.update({ where: { id: batch.id }, data: { remainingQuantity: { decrement: take } } });
-          // Record which batch this release drew from, and how much, for warranty
+          // Record which batch this release drew from, and how much, for tracing
           // and quality traces.
           await tx.partBatchConsumption.create({ data: { batchId: batch.id, slipLineId: line.id, quantityTaken: take } });
           remaining -= take;
@@ -778,7 +778,7 @@ export async function releasePartRequestSlip(
         for (const serialNumber of serials) {
           const issued = await tx.partSerial.updateMany({
             where: { partId: line.partId, serialNumber, status: 'IN_STOCK' },
-            // Which release this unit was issued against, for warranty traces.
+            // Which release this unit was issued against, for tracing a faulty unit.
             data: { status: 'ISSUED', issuedToSlipLineId: line.id },
           });
           // Another release may have issued this unit since the check above; never
@@ -853,7 +853,7 @@ export async function releasePartRequestSlip(
   }
 }
 
-/** Rejects a request still awaiting HOD or Store approval, by whoever would
+/** Rejects a request still awaiting its first or the Store's approval, by whoever would
  * approve at that stage. Not possible once APPROVED, since stock is reserved. */
 export async function rejectPartRequestSlip(slipId: string, reason: string): Promise<void> {
   const slip = await prisma.partRequestSlip.findUnique({ where: { id: slipId }, select: { status: true, branchId: true, jobCardId: true, referenceNumber: true } });

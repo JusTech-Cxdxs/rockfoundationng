@@ -1,8 +1,8 @@
 /**
  * Links into the customer portal on the public website (pure). Every link a
  * customer gets — in an email, a support reply or from Enyo — is built here,
- * so it always lands on the exact page: the Job Card, the service visit, the
- * warranty, payments, the password pages. A customer who is signed out is
+ * so it always lands on the exact page: the Job Card, its invoice, the
+ * vehicle, payments, the password pages. A customer who is signed out is
  * taken to sign-in first and then straight on to the page (website middleware).
  */
 
@@ -18,11 +18,8 @@ export function customerLinks(site: string) {
     jobCard: (jobCardId: string) => `${base}/dashboard/services/jc/${id(jobCardId)}`,
     /** The Job Card's invoice, to view and print. */
     invoice: (jobCardId: string) => `${base}/dashboard/services/jc/${id(jobCardId)}/invoice`,
-    service: (vehicleServiceId: string) => `${base}/dashboard/services/vs/${id(vehicleServiceId)}`,
     vehicles: `${base}/dashboard/vehicles`,
     vehicle: (vehicleId: string) => `${base}/dashboard/vehicles/${id(vehicleId)}`,
-    warranties: `${base}/dashboard/warranties`,
-    warranty: (warrantyId: string) => `${base}/dashboard/warranties/${id(warrantyId)}`,
     payments: `${base}/dashboard/payments`,
     profile: `${base}/dashboard/profile`,
     support: `${base}/dashboard/support`,

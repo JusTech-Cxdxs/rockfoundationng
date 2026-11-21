@@ -112,14 +112,14 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   JobCard: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL', 'FINANCIAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER', recycleBin: true },
   JobCardComplaint: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   Estimate: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['FINANCIAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  // D'Phoenix phase 4: the customer's approval link — only the token's SHA-256, usable once within 7 days.
+  // the customer's approval link — only the token's SHA-256, usable once within 7 days.
   EstimateApprovalLink: { tenancy: 'VIA_PARENT', owner: 'estimateId', classification: ['SECRET'], lifecycle: 'CASCADE', retention: 'Kept with the estimate (usable once, within 7 days)', ai: 'NEVER' },
-  // D'Phoenix phase 6A: the link a WhatsApp message carries to a document's PDF — only the token's SHA-256, 30 days.
+  // the link a WhatsApp message carries to a document's PDF — only the token's SHA-256, 30 days.
   DocumentLink: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['SECRET'], lifecycle: 'CASCADE', retention: 'Kept with the organisation (the link works 30 days, or until revoked)', ai: 'NEVER' },
   EstimateLineItem: { tenancy: 'VIA_PARENT', owner: 'estimateId', classification: ['FINANCIAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   Payment: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   Refund: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  // D'Phoenix phase 3: the customer's invoice, its figures frozen at issue.
+  // the customer's invoice, its figures frozen at issue.
   Invoice: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['FINANCIAL', 'PERSONAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   CancellationRequest: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   CloseRequest: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
@@ -166,14 +166,14 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   SupportQueue: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'While the organisation uses it; switched off rather than deleted while tickets point at it', ai: 'AUTHORISED_USER' },
   SupportQueueMember: { tenancy: 'VIA_PARENT', owner: 'queueId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'Until the person is taken off the queue', ai: 'NEVER' },
   SupportMailbox: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['SECRET'], lifecycle: 'EDITABLE', retention: 'Until an administrator removes it; the encrypted password goes with it', ai: 'NEVER' },
-  // Data Exchange (v-A1): imports from SAP and spreadsheets. The staged rows are the file as uploaded (often personal data):
+  // Data Exchange: imports from QuickBooks, Zoho and spreadsheets. The staged rows are the file as uploaded (often personal data):
   // never given to AI, removed with their import, and gone when an import is cancelled.
   ImportJob: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the contract (the record of what was brought in)', ai: 'AGGREGATE_ONLY' },
   ImportRow: { tenancy: 'VIA_PARENT', owner: 'jobId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'With its import; deleted at once if the import is cancelled. The file’s cells are released 30 days after it finished (the organisation’s setting), keeping outcomes, rejected rows and what undo needs', ai: 'NEVER' },
-  // v-A2: the organisation's suppliers (SAP vendors). Business contacts; restorable from the Recycle bin.
+  // The organisation's suppliers. Business contacts; restorable from the Recycle bin.
   Supplier: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'RECYCLE_BIN', retention: 'Life of the contract', ai: 'AUTHORISED_USER', recycleBin: true },
   HistoricalInvoice: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['FINANCIAL', 'PERSONAL'], lifecycle: 'ARCHIVE', retention: '7 years (financial records); an undone import voids its rows (kept, restored by reloading the file)', ai: 'AUTHORISED_USER' },
-  // P4: job cards from before EJO (SAP service orders), read-only history; the technician's name is staff-only.
+  // Job cards from before EJO, read-only history; the technician's name is staff-only.
   HistoricalJob: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['FINANCIAL', 'PERSONAL'], lifecycle: 'ARCHIVE', retention: '7 years (financial and service records); an undone import voids its rows (kept, restored by reloading the file)', ai: 'AUTHORISED_USER' },
   // v-A4: an export of a list (which list, which filters, who, when) and who downloaded it. No copy of the data is
   // stored: the file is built at download time for the person downloading it.

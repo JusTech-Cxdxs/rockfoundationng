@@ -52,10 +52,10 @@ const LIP_LINE = '#8f3446';
 const MOUTH = '#5e1f2c';
 const TEETH = '#fffaf5';
 const TONGUE = '#de7783';
-// Dressed in the D'Phoenix colours: a navy top with orange trim.
-const TOP = '#13294b';
-const TOP_SHADE = '#3E4095';
-const TRIM = '#3E4095';
+// Dressed in the Rock Foundation colours: a blue top with red trim.
+const TOP = '#3E4095';
+const TOP_SHADE = '#2F3173';
+const TRIM = '#EC3237';
 const GOLD = '#e2b04a';
 const GOLD_SHINE = '#f7dc8f';
 const BROW = '#3b241b';
@@ -67,8 +67,8 @@ const PUPIL = '#170d09';
 /** Styles shared by every avatar on the page (React hoists and de-duplicates this tag). */
 const CSS = `
 .enyo-av{--enyo-av-bg:#EEF0FB;--enyo-av-ring:#EC3237;display:inline-block;flex:none;line-height:0}
-:root[data-theme='dark'] .enyo-av{--enyo-av-bg:#1c2c47}
-@media (prefers-color-scheme: dark){:root:not([data-theme='light']) .enyo-av{--enyo-av-bg:#1c2c47}}
+:root[data-theme='dark'] .enyo-av{--enyo-av-bg:#24265c}
+@media (prefers-color-scheme: dark){:root:not([data-theme='light']) .enyo-av{--enyo-av-bg:#24265c}}
 .enyo-av svg{display:block;overflow:visible}
 .enyo-av g,.enyo-av path,.enyo-av circle,.enyo-av ellipse,.enyo-av rect{transform-box:view-box}
 .enyo-av .av-body{transform-origin:60px 112px;animation:enyo-av-breathe 4.8s ease-in-out infinite}
@@ -292,7 +292,7 @@ export function EnyoAvatar({ mood, size = 48, level = 0, hair = 'straight', glas
               )}
             </g>
 
-            {/* Neck and shoulders: the navy top */}
+            {/* Neck and shoulders: the blue top */}
             <path fill={TOP} d="M12 124C13.6 103.4 27.4 91.4 46.6 88.2L60 101.6L73.4 88.2C92.6 91.4 106.4 103.4 108 124Z" />
             <path fill={SKIN_SHADE} d="M47.2 88.1L60 100.9L72.8 88.1C70.4 87.4 68.6 86.6 68.5 85.6C66 89.2 62.8 90.6 60 90.6S54 89.2 51.5 85.6C51.4 86.6 49.6 87.4 47.2 88.1Z" />
             <path fill={TOP_SHADE} d="M46.6 88.2L60 101.6L73.4 88.2L76.2 88.8L60 105.2L43.8 88.8Z" />

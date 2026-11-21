@@ -44,7 +44,8 @@ async function main() {
     { key: 'organisation', name: 'Organisation', status: 'LIVE', sortOrder: 1 },
     { key: 'business-units', name: 'Business Units', status: 'LIVE', sortOrder: 2 },
     { key: 'workshop', name: 'Workshop', status: 'LIVE', sortOrder: 10 },
-    { key: 'inventory', name: 'Inventory', status: 'COMING_SOON', sortOrder: 11 },
+    { key: 'inventory', name: 'Parts store', status: 'LIVE', sortOrder: 11 },
+    { key: 'security', name: 'Gate', status: 'LIVE', sortOrder: 12 },
   ];
   for (const m of modules) {
     await prisma.platformModule.upsert({
@@ -54,26 +55,36 @@ async function main() {
     });
   }
 
-  // --- D'Phoenix Autocare hierarchy -----------------------------------------
+  // --- Rock Foundation Automobile -------------------------------------------
   // One business, one workshop: the details printed on every estimate, invoice,
-  // receipt and email come from here (Settings → Organisation edits them).
+  // receipt and email come from here (Settings → Business details edits them).
+  // Only what the business publishes (rockfoundationng.com); no email is
+  // published, so none is set.
+  const ADDRESS = '1, Heal The World Avenue, Opp. Gateway Hotel, Ota, Ogun State';
+  const HOTLINES = ['+234 803 304 9194', '+234 802 389 1766'];
   const organisation = await prisma.organisation.upsert({
-    where: { slug: 'dphoenix-autocare' },
+    where: { slug: 'rock-foundation' },
     update: {},
     create: {
-      name: "D'Phoenix Autocare",
-      slug: 'dphoenix-autocare',
-      legalName: "D'PHOENIX AUTOCARE LIMITED",
-      website: 'https://www.dphoenixautocare.com',
-      email: 'dphoenixautocare@gmail.com',
-      hqAddress: 'Plot 1 Muri Okunola Street, opposite NNPC Hospital, beside Prime Shopping Complex, Sandfill Bus Stop, Victoria Island, Lagos',
-      hotlines: ['+234 811 496 6212', '+234 807 654 4837'],
+      name: 'Rock Foundation Automobile',
+      slug: 'rock-foundation',
+      legalName: 'Rock Foundation Automobile Investment Ltd',
+      rcNumber: 'RC 1772429',
+      website: 'https://rockfoundationng.com',
+      hqAddress: ADDRESS,
+      poBox: 'P.O. Box 257, Ota, Ogun State',
+      hotlines: HOTLINES,
+      // VAT at 7.5% (Settings → Business details can switch it off or change the rate).
+      vatEnabled: true,
+      vatRate: 7.5,
       // Service reminders: every 5,000 km or 6 months, whichever comes first (changeable in Settings).
       primaryServiceIntervalKm: 5000,
       primaryServiceIntervalDays: 180,
+      // The optional roles start off: the Owner switches each on in Settings → Roles.
+      optionalRoles: [],
       branding: {
         create: {
-          // The website's own colours: orange, navy and the logo gold.
+          // The logo's own colours: blue, with the logo red for accents.
           primaryColor: '#3E4095',
           secondaryColor: '#3E4095',
           accentColor: '#EC3237',
@@ -88,80 +99,74 @@ async function main() {
     create: { name: 'Nigeria', isoCode: 'NG' },
   });
 
-  const workshopUnit = await prisma.businessUnit.upsert({
-    where: { organisationId_slug: { organisationId: organisation.id, slug: 'workshop-fleet' } },
+  const unit = await prisma.businessUnit.upsert({
+    where: { organisationId_slug: { organisationId: organisation.id, slug: 'automobile' } },
     update: {},
-    create: { organisationId: organisation.id, name: 'Workshop & Fleet Services', slug: 'workshop-fleet' },
+    create: { organisationId: organisation.id, name: 'Automobile Services', slug: 'automobile' },
   });
 
   await prisma.countryLink.upsert({
-    where: { businessUnitId_countryId: { businessUnitId: workshopUnit.id, countryId: nigeria.id } },
+    where: { businessUnitId_countryId: { businessUnitId: unit.id, countryId: nigeria.id } },
     update: {},
-    create: { businessUnitId: workshopUnit.id, countryId: nigeria.id },
+    create: { businessUnitId: unit.id, countryId: nigeria.id },
   });
 
-  const lagos = await prisma.state.upsert({
-    where: { countryId_name: { countryId: nigeria.id, name: 'Lagos State' } },
+  const ogun = await prisma.state.upsert({
+    where: { countryId_name: { countryId: nigeria.id, name: 'Ogun State' } },
     update: {},
-    create: { countryId: nigeria.id, name: 'Lagos State' },
+    create: { countryId: nigeria.id, name: 'Ogun State' },
   });
 
-  const victoriaIsland = await prisma.city.upsert({
-    where: { stateId_name: { stateId: lagos.id, name: 'Victoria Island' } },
+  const ota = await prisma.city.upsert({
+    where: { stateId_name: { stateId: ogun.id, name: 'Ota' } },
     update: {},
-    create: { stateId: lagos.id, name: 'Victoria Island' },
+    create: { stateId: ogun.id, name: 'Ota' },
   });
 
   const workshopBranch = await prisma.branch.upsert({
-    where: { id: `${workshopUnit.id}-vi-seed` }, // fixed id so the seed can run again safely
+    where: { id: `${unit.id}-ota-seed` }, // fixed id so the seed can run again safely
     update: {},
     create: {
-      id: `${workshopUnit.id}-vi-seed`,
-      businessUnitId: workshopUnit.id,
-      cityId: victoriaIsland.id,
-      name: 'Victoria Island Workshop',
-      code: 'DPA',
-      address: 'Plot 1 Muri Okunola Street, opposite NNPC Hospital, beside Prime Shopping Complex, Sandfill Bus Stop, Victoria Island, Lagos',
-      email: 'dphoenixautocare@gmail.com',
-      hotlines: ['+234 811 496 6212', '+234 807 654 4837'],
+      id: `${unit.id}-ota-seed`,
+      businessUnitId: unit.id,
+      cityId: ota.id,
+      name: 'Ota Workshop',
+      code: 'OTA',
+      type: 'WORKSHOP',
+      address: ADDRESS,
+      hotlines: HOTLINES,
     },
   });
 
-  // The workshop department, and the two operational workshops (cars, and
-  // commercial and fleet vehicles), each with its own supervisor. Job cards
-  // route to one of them by vehicle type. "workshop" stays: the platform
-  // finds the workshop branch through it.
-  await prisma.department.upsert({
-    where: { branchId_slug: { branchId: workshopBranch.id, slug: 'workshop' } },
-    update: {},
-    create: { branchId: workshopBranch.id, name: 'Workshop', slug: 'workshop' },
-  });
-  const [passengerWorkshop, commercialWorkshop] = await Promise.all([
-    prisma.department.upsert({
-      where: { branchId_slug: { branchId: workshopBranch.id, slug: 'workshop-passenger' } },
+  // The workshop department ("workshop" stays: the platform finds the
+  // workshop branch through it) and the workshop's own sections.
+  const departments: [string, string][] = [['workshop', 'Workshop'], ['mechanical', 'Mechanical'], ['electrical', 'Electrical and diagnostics'], ['body-spray', 'Body and spraying'], ['car-wash', 'Car wash']];
+  for (const [slug, name] of departments) {
+    await prisma.department.upsert({
+      where: { branchId_slug: { branchId: workshopBranch.id, slug } },
       update: {},
-      create: { branchId: workshopBranch.id, name: 'Cars and SUVs', slug: 'workshop-passenger' },
-    }),
-    prisma.department.upsert({
-      where: { branchId_slug: { branchId: workshopBranch.id, slug: 'workshop-commercial' } },
-      update: {},
-      create: { branchId: workshopBranch.id, name: 'Fleet and commercial vehicles', slug: 'workshop-commercial' },
-    }),
-  ]);
-  // eslint-disable-next-line no-console
-  console.log(`Seeded workshop departments: ${passengerWorkshop.name} (${passengerWorkshop.id}), ${commercialWorkshop.name} (${commercialWorkshop.id})`);
+      create: { branchId: workshopBranch.id, name, slug },
+    });
+  }
 
-  // --- Baseline roles (system roles, cannot be deleted) --------------------
-  // The D'Phoenix edition's roles: the workshop, front desk, finance, security,
-  // customer care, leadership and IT. No Store roles while the Store is off
-  // (apps/portal/lib/modules.ts).
-  const roleNames = ['Administrator', 'Workshop Manager', 'Workshop Supervisor', 'Technician', 'Finance Officer', 'Department Head', 'Chief Security Officer', 'Security Officer', 'Receptionist', 'Calendar User', 'Scheduling Admin', 'Broadcaster', 'Customer Care', 'Customer Care Lead', 'Executive', 'IT Administrator'];
-  for (const name of roleNames) {
+  // --- Roles (system roles, cannot be deleted) -----------------------------
+  // The same slugs and names as apps/portal/lib/authz/catalogue.ts
+  // (ROLE_GRANTS, ROLE_LABELS): the Owner and Front Desk always on; the
+  // other five optional, switched on in Settings → Roles.
+  const roles: [string, string][] = [
+    ['owner', 'Owner / GMD'],
+    ['front-desk', 'Front Desk / Customer Care'],
+    ['workshop-supervisor', 'Workshop Supervisor / Service Advisor'],
+    ['technician', 'Technician'],
+    ['store-keeper', 'Store Keeper'],
+    ['accounts', 'Accounts'],
+    ['security', 'Security'],
+  ];
+  for (const [slug, name] of roles) {
     await prisma.role.upsert({
-      where: { organisationId_slug: { organisationId: organisation.id, slug: slugify(name) } },
+      where: { organisationId_slug: { organisationId: organisation.id, slug } },
       update: {},
-      // A Manager runs a branch (the role keeps its stable slug).
-      create: { organisationId: organisation.id, name: name === 'Workshop Manager' ? 'Manager' : name, slug: slugify(name), isSystem: true },
+      create: { organisationId: organisation.id, name, slug, isSystem: true },
     });
   }
 
@@ -233,11 +238,7 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log(`Seed complete: module registry + D'Phoenix Autocare hierarchy + Platform Administrator (${MASTER_ADMIN.email}).`);
-}
-
-function slugify(value: string): string {
-  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  console.log(`Seed complete: module registry + Rock Foundation Automobile (Ota Workshop, ${roles.length} roles) + Platform Administrator (${MASTER_ADMIN.email}).`);
 }
 
 main()

@@ -1,5 +1,5 @@
 /**
- * Staff from SAP HR or a staff list (P7): the pure row check (a name, the
+ * Staff from an HR or staff list: the pure row check (a name, the
  * person's own work email, a branch, roles by name — never an administrator),
  * the branch a row names, and how the import is wired: accounts switched off
  * with an unusable password and nobody emailed until an Organisation
@@ -16,34 +16,34 @@ import { SNAPSHOT_ORDER, staffAccountEligibility } from '../lib/recycle-bin/rule
 import { DATA_INVENTORY } from '../lib/governance/data-inventory';
 
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
-const H = ['PERNR', 'ENAME', 'Work email', 'Phone', 'Employee ID', 'Branch', 'Department', 'Roles'];
+const H = ['Personnel number', 'Full name', 'Work email', 'Phone', 'Employee ID', 'Branch', 'Department', 'Roles'];
 const m = autoMap('staff', H);
 const row = (o: Partial<Record<(typeof H)[number], string>>) => H.map((h) => o[h] ?? '');
 
 test('roles: separated by ; , | or lines, each once, at most ten', () => {
   assert.deepEqual(splitRoles('Technician; Front Desk'), ['Technician', 'Front Desk']);
-  assert.deepEqual(splitRoles('Kit Inspector, Line Operator | line operator'), ['Kit Inspector', 'Line Operator']);
+  assert.deepEqual(splitRoles('Technician, Store Keeper | store keeper'), ['Technician', 'Store Keeper']);
   assert.deepEqual(splitRoles(''), []);
 });
 
-test('a row: the SAP HR columns map themselves; name, own work email and branch required; administrators never by a file', () => {
+test('a row: the staff list’s columns map themselves; name, own work email and branch required; administrators never by a file', () => {
   assert.deepEqual(mappingProblems('staff', m), []);
-  const ok = checkStaffRow(row({ PERNR: '00010200', ENAME: 'Emeka  Okoro', 'Work email': 'Emeka.Okoro@staff.example.com', 'Employee ID': 'emp-0042', Branch: 'Ajah Branch', Department: 'Commercial Vehicle Workshop', Roles: 'Technician' }), m);
+  const ok = checkStaffRow(row({ 'Personnel number': '00010200', 'Full name': 'Emeka  Okoro', 'Work email': 'Emeka.Okoro@staff.example.com', 'Employee ID': 'emp-0042', Branch: 'Ota Workshop', Department: 'Commercial Vehicle Workshop', Roles: 'Technician' }), m);
   assert.equal(ok.status, 'GOOD', JSON.stringify(ok.issues));
-  assert.deepEqual(ok.values, { fullName: 'Emeka Okoro', email: 'emeka.okoro@staff.example.com', phone: null, employeeId: 'EMP-0042', personnelNumber: '10200', branch: 'Ajah Branch', department: 'Commercial Vehicle Workshop', roles: ['Technician'] });
+  assert.deepEqual(ok.values, { fullName: 'Emeka Okoro', email: 'emeka.okoro@staff.example.com', phone: null, employeeId: 'EMP-0042', personnelNumber: '10200', branch: 'Ota Workshop', department: 'Commercial Vehicle Workshop', roles: ['Technician'] });
   assert.deepEqual(ok.keys, ['email:emeka.okoro@staff.example.com', 'emp:EMP-0042']);
   const err = (o: Partial<Record<(typeof H)[number], string>>) => checkStaffRow(row(o), m).issues.filter((i) => i.level === 'error').map((i) => i.message);
-  assert.deepEqual(err({ 'Work email': 'a@b.ng', Branch: 'Ajah' }), ['Full name is required.']);
-  assert.deepEqual(err({ ENAME: 'A Person', Branch: 'Ajah' }), ['Work email is required: the person signs in with it and their invitation goes to it.']);
-  assert.match(err({ ENAME: 'A Person', 'Work email': 'not-an-email', Branch: 'Ajah' })[0]!, /is not an email address/);
-  assert.match(err({ ENAME: 'A Person', 'Work email': 'a@b.ng' })[0]!, /Branch is required/);
-  for (const r of ['Administrator', 'Organisation Administrator', 'Branch Administrator', 'branch-administrator']) assert.match(err({ ENAME: 'A Person', 'Work email': 'a@b.ng', Branch: 'Ajah', Roles: `Technician; ${r}` })[0]!, /added by hand on the Users page, never by a file/, r);
-  assert.match(err({ ENAME: 'A Person', 'Work email': 'a@b.ng', Branch: 'Ajah', 'Employee ID': 'EMP 99!' })[0]!, /is not an employee ID/);
+  assert.deepEqual(err({ 'Work email': 'a@b.ng', Branch: 'Ota' }), ['Full name is required.']);
+  assert.deepEqual(err({ 'Full name': 'A Person', Branch: 'Ota' }), ['Work email is required: the person signs in with it and their invitation goes to it.']);
+  assert.match(err({ 'Full name': 'A Person', 'Work email': 'not-an-email', Branch: 'Ota' })[0]!, /is not an email address/);
+  assert.match(err({ 'Full name': 'A Person', 'Work email': 'a@b.ng' })[0]!, /Branch is required/);
+  for (const r of ['Administrator', 'Organisation Administrator', 'Branch Administrator', 'branch-administrator']) assert.match(err({ 'Full name': 'A Person', 'Work email': 'a@b.ng', Branch: 'Ota', Roles: `Technician; ${r}` })[0]!, /added by hand on the Users page, never by a file/, r);
+  assert.match(err({ 'Full name': 'A Person', 'Work email': 'a@b.ng', Branch: 'Ota', 'Employee ID': 'EMP 99!' })[0]!, /is not an employee ID/);
   // Notes, not refusals: a shared mailbox, no role yet.
-  const shared = checkStaffRow(row({ ENAME: 'Front Office', 'Work email': 'info@workshop.example.com', Branch: 'Ajah', Roles: 'Front Desk' }), m);
+  const shared = checkStaffRow(row({ 'Full name': 'Front Office', 'Work email': 'info@workshop.example.com', Branch: 'Ota', Roles: 'Front Desk' }), m);
   assert.equal(shared.status, 'WARNING');
   assert.match(shared.issues[0]!.message, /looks like a shared mailbox/);
-  assert.match(checkStaffRow(row({ ENAME: 'New Person', 'Work email': 'new.person@staff.example.com', Branch: 'Ajah' }), m).issues[0]!.message, /No role: the person will see only their own account/);
+  assert.match(checkStaffRow(row({ 'Full name': 'New Person', 'Work email': 'new.person@staff.example.com', Branch: 'Ota' }), m).issues[0]!.message, /No role: the person will see only their own account/);
 });
 
 test('wired in: switched off, unusable password, nobody emailed at load; invitations once each by an Organisation Administrator; undo never keeps a password', () => {
