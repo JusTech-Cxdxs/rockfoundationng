@@ -12,7 +12,6 @@ import { describeAccess, plainLabel } from '../lib/authz/describe-access';
 import { PERMISSIONS, type Principal, type PermissionKey } from '../lib/authz/catalogue';
 import { renderStaffAccessEmail, STAFF_RULES } from '../lib/email-templates/staff-access';
 import { navigationFor } from '../lib/authz/navigation';
-import { ROADMAP } from '../lib/roadmap';
 import { SYSTEM_DEPARTMENT_SLUGS } from '../lib/structure-rules';
 import { parseTheme, THEME_BOOT_SCRIPT } from '../lib/theme';
 import { initialsOf, colourOf } from '../lib/avatar';
@@ -100,18 +99,6 @@ test('version 1 menu: only live modules; everything planned is on the Roadmap, w
   for (const items of [admin, master]) for (const i of items) assert.equal(i.status, 'LIVE', `${i.key} is shown but not live`);
   assert.ok(admin.some((i) => i.key === 'structure'), 'the organisation structure is in the menu for administrators');
   assert.ok(!navigationFor(who(['technician'])).some((i) => i.key === 'structure'), 'but not for a technician');
-  const keys = ROADMAP.map((m) => m.key);
-  for (const k of ['hr', 'payroll', 'finance', 'procurement', 'suppliers', 'warehouse', 'manufacturing', 'documents', 'reports']) assert.ok(keys.includes(k), `${k} is on the roadmap`);
-  assert.equal(new Set(keys).size, keys.length, 'roadmap keys are unique');
-  for (const m of ROADMAP) {
-    assert.ok(m.phases.length > 0 && m.phases.every((p) => p.items.length > 0), `${m.key} says what it will do`);
-    for (const c of m.connects) assert.match(c.href, /^\/[a-z]/, `${m.key} links inside the portal`);
-  }
-  const hr = ROADMAP.find((m) => m.key === 'hr')!.phases.flatMap((p) => p.items).join(' ');
-  for (const must of ['clock', 'QR', 'Lateness', 'Overtime', 'vehicle', 'Leave']) assert.match(hr, new RegExp(must, 'i'), `HR plan covers ${must}`);
-  // Old addresses of planned modules lead to their roadmap page.
-  const cfg = read('next.config.ts');
-  for (const k of ['hr', 'payroll', 'finance']) assert.ok(cfg.includes(`'${k}'`), `/${k} redirects`);
   assert.equal(existsSync(join(ROOT, 'components', 'PagePlaceholder.tsx')), false);
 });
 

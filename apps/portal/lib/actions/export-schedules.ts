@@ -6,11 +6,11 @@
  * data. When it is due, EJO records a fresh export for its owner and tells
  * them; the file is built only when they download it, signed in, within
  * their permissions then (lib/exports/schedule-server). A schedule is its
- * owner's alone: only they see, pause, resume or end it. Not during an
- * assisted session. Ended schedules are kept, never deleted.
+ * owner's alone: only they see, pause, resume or end it. Ended schedules
+ * are kept, never deleted.
  */
 import { prisma } from '@ejo/database';
-import { authorize, getPrincipal, myOrganisationId, refuseDuringAssist } from '@/lib/authz/server';
+import { authorize, getPrincipal, myOrganisationId } from '@/lib/authz/server';
 import { lagosToday } from '@/lib/data-exchange/dates';
 import { EXPORT_KINDS, mayExport } from '@/lib/exports/kinds';
 import { cadenceWords, checkWhen, MAX_SCHEDULES, nextRunAfter } from '@/lib/exports/schedule';
@@ -50,7 +50,6 @@ export async function listMyExportSchedules(): Promise<ScheduleRow[]> {
 /** Repeat one of your own exports: the same list, format and filters, on a schedule. */
 export async function scheduleExport(exportId: string, input: { cadence: string; dayOfWeek?: number; dayOfMonth?: number }): Promise<{ ok: true; id: string; when: string; nextRunOn: string } | Fail> {
   const { userId, organisationId } = await exportScheduler('scheduleExport');
-  try { await refuseDuringAssist('scheduleExport'); } catch (e) { return fail((e as Error).message); }
   const when = checkWhen(input.cadence, input.dayOfWeek, input.dayOfMonth);
   if (!when.ok) return when;
   const job = await myExportOf(organisationId, userId, exportId);
@@ -76,7 +75,6 @@ export async function scheduleExport(exportId: string, input: { cadence: string;
 /** Pause, resume or end one of your own schedules (each change once: compare-and-set on its status). */
 export async function changeExportSchedule(id: string, to: 'PAUSED' | 'ACTIVE' | 'ENDED'): Promise<{ ok: true } | Fail> {
   const { userId, organisationId } = await exportScheduler('changeExportSchedule');
-  try { await refuseDuringAssist('changeExportSchedule'); } catch (e) { return fail((e as Error).message); }
   if (!['PAUSED', 'ACTIVE', 'ENDED'].includes(to)) return fail('Choose pause, resume or end.');
   const s = await myScheduleOf(organisationId, userId, id);
   if (!s) return fail('This scheduled export was not found.');

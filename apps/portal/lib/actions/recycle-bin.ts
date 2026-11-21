@@ -2,7 +2,7 @@
 
 import { prisma, type Prisma } from '@ejo/database';
 import { requireUser } from '@/lib/actions/workshop';
-import { allows, authorize, currentAssist, getPrincipal, inMyOrganisation, NOT_AVAILABLE, orgWhere, reachWhere, refuse, refuseDuringAssist, seeJobCard, seePart, seeService, seeVehicle } from '@/lib/authz/server';
+import { allows, authorize, getPrincipal, inMyOrganisation, NOT_AVAILABLE, orgWhere, reachWhere, refuse, seeJobCard, seePart, seeVehicle } from '@/lib/authz/server';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { binRecord, eligibilityOf, moveToBin, purgeItems, restoreFromBin, RETENTION_DAYS, type BinRecord } from '@/lib/recycle-bin/server';
 import { BIN_KIND, binHref, binState, cleanReason, daysLeft, isBinEntity, JOB_DELETE_REFUSED, mayDeleteJob, mayDeleteOther, type BinEntity, type BinState, type DeleterRights } from '@/lib/recycle-bin/rules';
@@ -21,7 +21,6 @@ class RecycleBinActionError extends Error {}
 async function fence(rec: BinRecord, where: string): Promise<void> {
   if (!(await inMyOrganisation(rec.organisationId))) throw new RecycleBinActionError(NOT_AVAILABLE);
   if (rec.entity === 'JobCard') await seeJobCard(rec.id, where);
-  else if (rec.entity === 'VehicleService') await seeService(rec.id, where);
   else if (rec.entity === 'CustomerVehicle') await seeVehicle(rec.id, where);
   else if (rec.entity === 'Part') await seePart(rec.id, where);
 }
@@ -32,20 +31,18 @@ async function rightsFor(rec: BinRecord): Promise<DeleterRights> {
   const manageBin = await allows('admin.recycle_bin.manage', at);
   let ownerRight = false;
   let openJobs = false;
-  if (rec.entity === 'JobCard' || rec.entity === 'VehicleService') {
+  if (rec.entity === 'JobCard') {
     ownerRight = await allows('workshop.close.approve', at);
     openJobs = await allows('workshop.job_card.create', at);
   } else if (rec.entity === 'Customer') ownerRight = await allows('crm.manage');
   else if (rec.entity === 'CustomerVehicle') ownerRight = (await allows('workshop.customer.manage')) || (await allows('crm.manage'));
-  else if (rec.entity === 'Warranty' || rec.entity === 'WarrantyClaim') ownerRight = await allows('warranty.claim.approve');
   else if (rec.entity === 'User') ownerRight = await allows('admin.users.manage');
-  else if (rec.entity === 'PlantShipment' || rec.entity === 'PlantVehicle' || rec.entity === 'PlantKit' || rec.entity === 'PlantKitIssue') ownerRight = await allows('plant.kit.release', at);
   else ownerRight = await allows('store.parts.manage', at);
   return { userId: p.userId, isSuperAdmin: p.isSuperAdmin, manageBin, ownerRight, openJobs };
 }
 
 function mayDelete(rec: BinRecord, r: DeleterRights, now: Date): boolean {
-  if (rec.entity === 'JobCard' || rec.entity === 'VehicleService') return mayDeleteJob(r, { createdById: rec.createdById ?? '', createdAt: rec.createdAt }, now);
+  if (rec.entity === 'JobCard') return mayDeleteJob(r, { createdById: rec.createdById ?? '', createdAt: rec.createdAt }, now);
   return mayDeleteOther(r);
 }
 
@@ -61,7 +58,7 @@ export async function getRecycleBinOffer(entity: BinEntity, id: string): Promise
   // Outside the try: someone who isn't signed in is refused, not told "nothing to offer".
   await requireUser();
   try {
-    if (!isBinEntity(entity) || (await currentAssist())) return { mode: 'none' };
+    if (!isBinEntity(entity)) return { mode: 'none' };
     const rec = await binRecord(entity, id);
     if (!rec || !(await inMyOrganisation(rec.organisationId))) return { mode: 'none' };
     const rights = await rightsFor(rec);
@@ -83,7 +80,6 @@ export async function getRecycleBinOffer(entity: BinEntity, id: string): Promise
 /** Moves a record created by mistake to the Recycle bin, with the reason. */
 export async function moveToRecycleBin(entity: BinEntity, id: string, reasonRaw: string): Promise<{ reference: string; days: number }> {
   const user = await requireUser();
-  await refuseDuringAssist('moveToRecycleBin');
   if (!isBinEntity(entity)) throw new RecycleBinActionError(NOT_AVAILABLE);
   const reason = cleanReason(reasonRaw);
   if (!reason.ok) throw new RecycleBinActionError(reason.message);
@@ -93,7 +89,7 @@ export async function moveToRecycleBin(entity: BinEntity, id: string, reasonRaw:
   const rights = await rightsFor(rec);
   if (!mayDelete(rec, rights, new Date())) {
     const noun = BIN_KIND[entity].noun;
-    return refuse('admin.recycle_bin.manage', 'moveToRecycleBin', entity === 'JobCard' || entity === 'VehicleService' ? `You can't delete this ${noun}. ${JOB_DELETE_REFUSED}` : `You don't have permission to delete this ${noun.toLowerCase()}.`);
+    return refuse('admin.recycle_bin.manage', 'moveToRecycleBin', entity === 'JobCard' ? `You can't delete this ${noun}. ${JOB_DELETE_REFUSED}` : `You don't have permission to delete this ${noun.toLowerCase()}.`);
   }
   const moved = await moveToBin(entity, id, reason.reason, user.id);
   await writeAuditLog({
@@ -111,7 +107,6 @@ export async function moveToRecycleBin(entity: BinEntity, id: string, reasonRaw:
 /** Restores an item within the retention period (organisation administrators). */
 export async function restoreFromRecycleBin(itemId: string): Promise<{ entity: BinEntity; entityId: string; reference: string; originalReference: string; changed: boolean; notes: string[] }> {
   const user = await requireUser();
-  await refuseDuringAssist('restoreFromRecycleBin');
   const item = itemId ? await prisma.recycleBinItem.findUnique({ where: { id: itemId }, select: { organisationId: true, branchId: true } }) : null;
   if (!item || !(await inMyOrganisation(item.organisationId))) throw new RecycleBinActionError(NOT_AVAILABLE);
   await authorize('admin.recycle_bin.manage', { branchId: item.branchId }, 'restoreFromRecycleBin', 'Only administrators can restore from the Recycle bin.');
@@ -136,7 +131,6 @@ async function auditPurges(items: Awaited<ReturnType<typeof purgeItems>>, userId
 /** Platform team: permanently remove chosen items now (even before their time runs out). */
 export async function purgeRecycleBinItems(ids: string[]): Promise<number> {
   const user = await requireUser();
-  await refuseDuringAssist('purgeRecycleBinItems');
   const p = await getPrincipal();
   if (!p.isSuperAdmin) return refuse('admin.recycle_bin.manage', 'purgeRecycleBinItems', 'Only the platform team can remove items permanently.');
   const chosen = [...new Set((ids ?? []).filter((x) => typeof x === 'string' && x.length > 0))].slice(0, 500);
@@ -150,7 +144,6 @@ export async function purgeRecycleBinItems(ids: string[]): Promise<number> {
 /** Platform team: permanently remove every item whose time has run out. */
 export async function purgeExpiredRecycleBinItems(): Promise<number> {
   const user = await requireUser();
-  await refuseDuringAssist('purgeExpiredRecycleBinItems');
   const p = await getPrincipal();
   if (!p.isSuperAdmin) return refuse('admin.recycle_bin.manage', 'purgeExpiredRecycleBinItems', 'Only the platform team can remove items permanently.');
   const done = await purgeItems({ expiredBy: new Date() }, user.id);

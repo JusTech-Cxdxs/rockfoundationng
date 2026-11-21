@@ -1,43 +1,56 @@
 'use client';
-// Copied from apps/portal/components (the apps never import across each other) — keep in step.
 
 import { useState } from 'react';
-import { LOGO } from '@/lib/brand';
+import { EMBLEM, LOGO } from '@/lib/brand';
 
 /**
- * The organisation's wordmark — the same lockup as the printed document
- * header (components/print/DocumentHeader.tsx): the logo, the first word of
- * the name large and heavy, and the rest of the name smaller beneath, set off
- * by a thin rule in the logo's own green that runs flush to the end of the
- * first word. Used in the sidebar and on every sign-in page.
+ * The organisation's wordmark, used in the sidebar, the phone header and on
+ * every sign-in page.
+ *
+ *  - On a light background ("default") it is the workshop's full logo, used
+ *    exactly as published (emblem, name and RC number).
+ *  - On the blue panels ("onDark") the full logo's blue lettering would not
+ *    show, so it is the emblem on a white tile with the name in white: the
+ *    first part large, the rest smaller beneath, set off by a thin rule in the
+ *    logo's red.
  *
  *  size  "sm" (phone header) · "md" (sidebar) · "lg" (sign-in brand panel)
- *  tone  "default" (theme colours) · "onDark" (white text on the dark panel)
  */
 export function Wordmark({ name, size = 'md', tone = 'default' }: { name: string; size?: 'sm' | 'md' | 'lg'; tone?: 'default' | 'onDark' }) {
-  const [logoFailed, setLogoFailed] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const words = name.trim().split(/\s+/);
-  const top = words[0] ?? name;
-  const bottom = words.slice(1).join(' ');
-  const logoH = size === 'lg' ? 52 : size === 'sm' ? 30 : 40;
-  const logoW = Math.round(logoH * (LOGO.width / LOGO.height));
-  const topText = tone === 'onDark' ? 'text-white' : 'text-[var(--ejo-text)]';
-  const bottomText = tone === 'onDark' ? 'text-white/75' : 'text-[var(--ejo-text-muted)]';
+  const split = Math.max(1, Math.ceil(words.length / 2));
+  const top = words.slice(0, split).join(' ') || name;
+  const bottom = words.slice(split).join(' ');
+  const h = size === 'lg' ? 52 : size === 'sm' ? 30 : 40;
+
+  if (tone === 'default' && !imageFailed) {
+    const logoH = size === 'lg' ? 56 : size === 'sm' ? 34 : 44;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- plain onError fallback to the lettered wordmark
+      <img src={LOGO.src} alt={name} title={name} width={Math.round(logoH * (LOGO.width / LOGO.height))} height={logoH} className="block max-w-full object-contain" style={{ height: logoH, width: 'auto' }} onError={() => setImageFailed(true)} />
+    );
+  }
+
+  const topText = tone === 'onDark' ? 'text-white' : 'text-[var(--ejo-primary-text)]';
+  const bottomText = tone === 'onDark' ? 'text-white/80' : 'text-[var(--ejo-text-muted)]';
   return (
-    <div className="flex min-w-0 items-center" title={name}>
-      {logoFailed ? (
-        <span className="mr-1 flex shrink-0 items-center justify-center rounded-md bg-[var(--ejo-brand)] font-bold text-white" style={{ width: logoW, height: logoH }}>{top.charAt(0)}</span>
+    <div className="flex min-w-0 items-center gap-2.5" title={name}>
+      {imageFailed ? (
+        <span className="flex shrink-0 items-center justify-center rounded-lg bg-[var(--ejo-brand)] font-bold text-white" style={{ width: h, height: h }}>{top.charAt(0)}</span>
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element -- plain onError fallback to the monogram
-        <img src="/images/logo/logo.png" alt="" width={logoW} height={logoH} className="mr-1 block shrink-0 object-contain" style={{ width: logoW, height: logoH }} onError={() => setLogoFailed(true)} />
+        <span className="flex shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm ring-1 ring-black/5" style={{ width: h, height: h }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- plain onError fallback to the monogram */}
+          <img src={EMBLEM.src} alt="" width={h - 8} height={h - 8} className="block h-full w-full object-contain" onError={() => setImageFailed(true)} />
+        </span>
       )}
       <div className="inline-flex min-w-0 flex-col items-stretch">
-        <span className={`truncate font-extrabold leading-none tracking-[0.01em] ${topText} ${size === 'lg' ? 'text-[30px]' : size === 'sm' ? 'text-[17px]' : 'text-[22px]'}`}>{top}</span>
+        <span className={`truncate font-bold leading-none tracking-[0.01em] ${topText} ${size === 'lg' ? 'text-[26px]' : size === 'sm' ? 'text-[15px]' : 'text-[18px]'}`}>{top}</span>
         {bottom ? (
-          <span className={`flex min-w-0 items-center ${size === 'lg' ? 'mt-1.5' : size === 'sm' ? 'mt-[3px]' : 'mt-1'}`}>
-            {/* A real border (not a background) so it prints, like the document header. */}
-            <span className={`${size === 'sm' ? 'mr-1 min-w-[8px]' : 'mr-1.5 min-w-[12px]'} flex-1`} data-testid="wordmark-rule" aria-hidden="true" style={{ borderBottom: `${size === 'lg' ? 1.5 : size === 'sm' ? 1 : 1.25}px solid var(--ejo-brand)` }} />
-            <span className={`truncate font-semibold leading-none ${bottomText} ${size === 'lg' ? 'text-sm' : size === 'sm' ? 'text-[9px]' : 'text-[11px]'}`}>{bottom}</span>
+          <span className={`flex min-w-0 items-center ${size === 'lg' ? 'mt-1.5' : 'mt-1'}`}>
+            <span className={`truncate font-medium uppercase leading-none tracking-[0.14em] ${bottomText} ${size === 'lg' ? 'text-xs' : 'text-[10px]'}`}>{bottom}</span>
+            {/* A real border (not a background) so it prints. */}
+            <span className="ml-1.5 min-w-[12px] flex-1" style={{ borderBottom: `${size === 'lg' ? 2 : 1.5}px solid var(--ejo-brand)` }} />
           </span>
         ) : null}
       </div>

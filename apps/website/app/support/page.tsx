@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { prisma } from '@ejo/database';
 import { siteOrganisation } from '@/lib/enyo/settings';
 import { siteConfig } from '@/lib/site-config';
-import { DPHOENIX } from '@/lib/content/dphoenix';
+import { WORKSHOP } from '@/lib/content/workshop';
 
 export const metadata: Metadata = { title: 'Customer support', description: 'How to reach our support teams: email, chat with our assistant, your customer portal, or a call.' };
 export const revalidate = 300;
@@ -25,8 +25,8 @@ export default async function SupportPage() {
     prisma.supportSetting.findUnique({ where: { organisationId: org.id }, select: { hours: true } }),
     prisma.branch.findMany({ where: { isActive: true, businessUnit: { organisationId: org.id, isActive: true } }, orderBy: { name: 'asc' }, take: 20, select: { id: true, name: true, hotlines: true, email: true } }),
   ]).catch(() => [[], null, []] as const) : [[], null, []] as const;
-  // Until the Support centre's hours are saved, D'Phoenix Autocare's published hours.
-  const hours = (setting?.hours && typeof setting.hours === 'object' ? setting.hours : DPHOENIX.hoursByDay) as Record<string, [string, string]>;
+  // The Support centre's saved hours (the workshop publishes none of its own yet).
+  const hours = (setting?.hours && typeof setting.hours === 'object' ? setting.hours : WORKSHOP.hoursByDay) as Record<string, [string, string]>;
   const withEmail = queues.filter((q) => q.mailboxes.length);
   return (
     <main className="mx-auto max-w-5xl px-4 pb-16 pt-28 sm:px-6 lg:px-10 sm:pb-24 sm:pt-32">

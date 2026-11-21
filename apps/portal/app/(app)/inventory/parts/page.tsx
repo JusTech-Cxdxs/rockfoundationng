@@ -6,11 +6,7 @@ import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
 import { allows, guardAnyPage } from '@/lib/authz/server';
 import { OrgTrail } from '@/components/OrgTrail';
 import { listPartsPage, getStoreBranchId, listAllPartTypesForSelect, searchPartTypesForSelect } from '@/lib/actions/store';
-import { durationLabel, durationShort } from '@/lib/warranty-state';
 import { StockLevelDot, stockLevel } from '@/components/StockLevelDot';
-import { PartWarrantyChoice } from '@/components/PartWarrantyChoice';
-import { listWarrantyPolicies, searchPartWarrantyPolicyOptions, loadPartWarrantyPolicyOptions } from '@/lib/actions/warranty';
-import { coverageLabel, REMEDY_LABEL } from '@/lib/warranty-claim-status';
 import { createPartFormAction } from '@/lib/actions/store-form-handlers';
 import { LoadingLink } from '@/components/LoadingLink';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -44,7 +40,7 @@ export default async function InventoryPartsPage({
   const { error, status, q, binned, page } = sp;
   const origin = Object.fromEntries(SOURCE_PARAMS.map((k) => [k, sp[k]]).filter((e) => e[1])) as Record<string, string>;
   const branchId = await getStoreBranchId();
-  const [paged, partPolicies, canManage] = await Promise.all([listPartsPage(branchId, q, Number(page) || 1, origin), listWarrantyPolicies('PART', { state: 'active' }), allows('store.parts.manage', { branchId })]);
+  const [paged, canManage] = await Promise.all([listPartsPage(branchId, q, Number(page) || 1, origin), allows('store.parts.manage', { branchId })]);
   const parts = paged.parts;
   const pageHref = (n: number) => `/inventory/parts?${new URLSearchParams({ ...(q ? { q } : {}), ...origin, page: String(n) }).toString()}`;
 
@@ -107,7 +103,6 @@ export default async function InventoryPartsPage({
                     <th className="px-4 py-2">Name</th>
                     <th className="px-4 py-2">Part No.</th>
                     <th className="px-4 py-2">Tracking</th>
-                    <th className="px-4 py-2">Warranty</th>
                     <th className="px-4 py-2">Unit</th>
                     <th className="px-4 py-2">
                       On Hand
@@ -129,18 +124,6 @@ export default async function InventoryPartsPage({
                       </td>
                       <td data-label="Part No." className="px-4 py-2 text-[var(--ejo-text-muted)]">{part.partNumber ?? '—'}</td>
                       <td data-label="Tracking" className="px-4 py-2 text-[var(--ejo-text)]">{TRACKING_TYPE_LABEL[part.trackingType] ?? part.trackingType}</td>
-                      <td data-label="Warranty" className="px-4 py-2 text-xs">
-                        {part.warrantyPolicyId ? (
-                          <LoadingLink href={`/warranty/policies/${part.warrantyPolicyId}`} className="rounded-full bg-[var(--ejo-success)]/15 px-2 py-0.5 font-medium text-[var(--ejo-success)] hover:underline">
-                            {(() => {
-                              const pol = partPolicies.find((x: (typeof partPolicies)[number]) => x.id === part.warrantyPolicyId);
-                              return pol ? `${durationShort(pol)}${pol.distanceLimit ? ` / ${pol.distanceLimit.toLocaleString('en-NG')} km` : ''}` : 'Warranty';
-                            })()}
-                          </LoadingLink>
-                        ) : (
-                          <span className="text-[var(--ejo-text-muted)]">None</span>
-                        )}
-                      </td>
                       <td data-label="Unit" className="px-4 py-2 text-[var(--ejo-text-muted)]">{part.baseUnitOfMeasure}</td>
                       <td data-label="On hand" className="px-4 py-2 font-medium text-[var(--ejo-text)]">
                         {part.stock ? Number(part.stock.quantityOnHand).toLocaleString('en-NG', { maximumFractionDigits: 3 }) : '0'}
@@ -224,14 +207,6 @@ export default async function InventoryPartsPage({
                 <option value="SERIALIZED">Serialized — every unit has its own ID (e.g. tyres, rims)</option>
               </select>
             </div>
-            <PartWarrantyChoice
-              search={searchPartWarrantyPolicyOptions}
-              loadDefaultOptions={loadPartWarrantyPolicyOptions}
-              policies={partPolicies.map((p: (typeof partPolicies)[number]) => ({
-                id: p.id, name: p.name, code: p.code, term: durationLabel(p), km: p.distanceLimit, covers: coverageLabel(p).toLowerCase(),
-                remedy: (REMEDY_LABEL[p.defaultRemedy] ?? p.defaultRemedy).toLowerCase(), provider: p.provider.name, isSample: p.isSample,
-              }))}
-            />
             <div>
               <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Base Unit of Measure</label>
               <UnitOfMeasureInput name="baseUnitOfMeasure" required />

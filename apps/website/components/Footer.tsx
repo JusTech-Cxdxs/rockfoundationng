@@ -3,7 +3,7 @@ import { siteConfig } from '@/lib/site-config';
 import { SiteWordmark } from './SiteWordmark';
 import { PoweredByBadge } from './PoweredByBadge';
 import { FacebookIcon, LinkedInIcon, XIcon, YouTubeIcon, InstagramIcon } from './icons';
-import { DPHOENIX } from '@/lib/content/dphoenix';
+import { WORKSHOP } from '@/lib/content/workshop';
 
 // Social links come from lib/site-config.ts; only the ones that are set show.
 const SOCIALS = [
@@ -16,7 +16,7 @@ const SOCIALS = [
 
 /**
  * The footer of the pages outside the customer portal: the organisation, how
- * to reach it (the deployment's own contact settings, or D'Phoenix
+ * to reach it (the deployment's own contact settings, or Rock Foundation
  * Autocare's published contacts when none are set) and the legal links.
  */
 export function Footer() {
@@ -27,7 +27,7 @@ export function Footer() {
       <div className="mx-auto grid max-w-[1480px] gap-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:px-10">
         <div>
           <SiteWordmark tone="light" size="footer" />
-          <p className="mt-3 max-w-sm text-sm text-white/60">{DPHOENIX.tagline}. {DPHOENIX.summary}</p>
+          <p className="mt-3 max-w-sm text-sm text-white/70">{WORKSHOP.tagline} {WORKSHOP.summary}</p>
           {SOCIALS.length > 0 ? (
             <div className="mt-5 flex gap-3">
               {SOCIALS.map(({ label, icon: Icon, href }) => (
@@ -50,10 +50,10 @@ export function Footer() {
               </>
             ) : (
               <>
-                <p>{DPHOENIX.address}</p>
-                {DPHOENIX.phones.map((p) => <p key={p}><a href={`tel:${p.replace(/[^\d+]/g, '')}`} className="hover:text-white">{p}</a></p>)}
-                <p><a href={`mailto:${DPHOENIX.email}`} className="hover:text-white">{DPHOENIX.email}</a></p>
-                <p>{DPHOENIX.hours}</p>
+                <p>{WORKSHOP.address}</p>
+                {WORKSHOP.phones.map((p) => <p key={p}><a href={`tel:${p.replace(/[^\d+]/g, '')}`} className="hover:text-white">{p}</a></p>)}
+                {WORKSHOP.email ? <p><a href={`mailto:${WORKSHOP.email}`} className="hover:text-white">{WORKSHOP.email}</a></p> : null}
+                {WORKSHOP.hours ? <p>{WORKSHOP.hours}</p> : null}
               </>
             )}
           </address>

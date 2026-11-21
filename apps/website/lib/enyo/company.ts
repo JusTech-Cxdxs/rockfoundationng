@@ -5,7 +5,7 @@
  */
 import { prisma } from '@ejo/database';
 import { siteConfig } from '@/lib/site-config';
-import { DPHOENIX } from '@/lib/content/dphoenix';
+import { WORKSHOP } from '@/lib/content/workshop';
 
 export type CompanyInfo = {
   organisation: string;
@@ -13,8 +13,8 @@ export type CompanyInfo = {
   branches: { name: string; area: string | null; address: string | null; phones: string[]; email: string | null }[];
   openingHours: string | null;
   businesses: string[];
-  /** D'Phoenix Autocare's own published facts (lib/content/dphoenix.ts). */
-  about: { company: string; tagline: string; whatWeDo: string; address: string; services: string[]; phones: string[]; email: string; openingHours: string; website: string };
+  /** The workshop's own published facts (lib/content/workshop.ts). */
+  about: { company: string; tagline: string; whatWeDo: string; address: string; postalAddress: string; services: string[]; phones: string[]; email: string | null; openingHours: string | null; website: string };
   websitePages: { title: string; link: string }[];
   howToBook: string[];
   customerPortal: string;
@@ -36,13 +36,13 @@ export async function loadCompanyInfo(organisationId: string): Promise<CompanyIn
   ]);
   // Opening hours from the Support centre's set-up, when an administrator has saved them.
   const setting = await prisma.supportSetting.findUnique({ where: { organisationId }, select: { hours: true } }).catch(() => null);
-  // D'Phoenix Autocare's published contacts fill what the records leave empty.
+  // The workshop's published contacts fill what the records leave empty.
   const recorded = unique([...(org?.hotlines ?? []), siteConfig.contact.phone]);
-  const phones = recorded.length ? recorded : [...DPHOENIX.phones];
-  const email = org?.email?.trim() || siteConfig.contact.email || DPHOENIX.email;
+  const phones = recorded.length ? recorded : [...WORKSHOP.phones];
+  const email = org?.email?.trim() || siteConfig.contact.email || WORKSHOP.email;
   return {
     organisation: org?.name || siteConfig.organisationName,
-    headOffice: { address: org?.hqAddress?.trim() || siteConfig.contact.address || DPHOENIX.address, phones, email, website: org?.website?.trim() || DPHOENIX.website },
+    headOffice: { address: org?.hqAddress?.trim() || siteConfig.contact.address || WORKSHOP.address, phones, email, website: org?.website?.trim() || WORKSHOP.website },
     branches: branches.map((b) => ({
       name: b.name,
       area: [b.city?.name, b.city?.state?.name].filter(Boolean).join(', ') || null,
@@ -50,19 +50,20 @@ export async function loadCompanyInfo(organisationId: string): Promise<CompanyIn
       phones: unique(b.hotlines),
       email: b.email?.trim() || null,
     })),
-    openingHours: setting?.hours ? hoursText(setting.hours) : DPHOENIX.hours,
+    openingHours: setting?.hours ? hoursText(setting.hours) : WORKSHOP.hours,
     businesses: unique(units.map((u) => u.name)),
-    // D'Phoenix Autocare's own facts (lib/content/dphoenix.ts), so the business is described without the web.
+    // The workshop's own published facts (lib/content/workshop.ts), so the business is described without the web.
     about: {
-      company: `${DPHOENIX.legalName} (${DPHOENIX.name})`,
-      tagline: DPHOENIX.tagline,
-      whatWeDo: DPHOENIX.summary,
-      address: DPHOENIX.address,
-      services: [...DPHOENIX.services],
-      phones: [...DPHOENIX.phones],
-      email: DPHOENIX.email,
-      openingHours: DPHOENIX.hours,
-      website: DPHOENIX.website,
+      company: `${WORKSHOP.legalName}, ${WORKSHOP.rcNumber} (${WORKSHOP.name})`,
+      tagline: WORKSHOP.tagline,
+      whatWeDo: WORKSHOP.summary,
+      address: WORKSHOP.address,
+      postalAddress: WORKSHOP.postalAddress,
+      services: [...WORKSHOP.services],
+      phones: [...WORKSHOP.phones],
+      email: WORKSHOP.email,
+      openingHours: WORKSHOP.hours,
+      website: WORKSHOP.website,
     },
     // The support page and the customer portal are the pages to link to.
     websitePages: [{ title: 'Customer support', link: '/support' }, { title: 'Customer portal', link: '/customer-portal' }],

@@ -47,7 +47,7 @@ test('every Job Card status today, repairs and services, at any hour of any day;
   }
   const services = plan.jobCards.filter((j) => j.service).length;
   assert.ok(services >= plan.jobCards.length * 0.3 && services <= plan.jobCards.length * 0.7, `a mix of repairs and services: ${services} of ${plan.jobCards.length}`);
-  assert.ok(plan.jobCards.some((j) => j.rework) && plan.jobCards.some((j) => j.refund) && plan.jobCards.some((j) => j.roadTest), 'rework, a refund and road tests');
+  assert.ok(plan.jobCards.some((j) => j.rework) && plan.jobCards.some((j) => j.refund), 'rework and a refund');
   assert.ok(plan.jobCards.some((j) => j.estimate?.declined), 'an estimate the customer declined');
   for (const c of DEMO_CUSTOMERS) {
     const key = c.email.split('@')[0]!;
@@ -120,7 +120,6 @@ test('the workshop’s rules hold in every job card: stages in order with their 
     assert.equal(j.refund, null, `${j.key}: a refund only after a cancellation`);
     if (j.cancellation && j.cancellation.status === 'PENDING') assert.ok(!['CANCELLED', 'CHECKED_OUT'].includes(j.status));
     if (j.rework) { assert.ok(j.workStartedAt && j.rework.at > j.workStartedAt); assert.ok(REWORK_FROM_STATUSES.includes('QUALITY_CHECK')); assert.ok(j.audit.some((a) => a.action === 'job_card.rework_requested')); }
-    if (j.roadTest?.status === 'RETURNED') assert.ok(j.roadTest.inAt! > j.roadTest.outAt! && j.roadTest.endOdometer! > j.roadTest.startOdometer);
     assert.ok(j.audit.length >= 1 && j.audit[0]!.action === 'job_card.created');
     assert.ok(j.technicianKey !== j.supervisorKey);
     const sup = DEMO_STAFF.find((s) => s.email === j.supervisorKey)!; assert.equal(sup.dept, j.dept, `${j.key} supervisor in its department`);
@@ -161,17 +160,7 @@ test('the Service Tracker: services anchor the count, reminders only for vehicle
   assert.ok(plan.reminders.length >= 1);
 });
 
-test('security, scheduling, support: the CSO’s overdue items exist today (a visitor past their time, an exit pass out past its return), an open incident, deliveries at the gate, today’s appointments, open complaints, the Zoho and spreadsheet imports, exports', () => {
-  assert.ok(plan.visits.some((v) => v.status === 'CHECKED_IN' && v.checkedInAt!.getTime() + v.durationMinutes * 60_000 < NOW.getTime()), 'an overdue visitor');
-  assert.ok(plan.visits.some((v) => v.status === 'EXPECTED' && v.expectedAt > NOW));
-  assert.ok(plan.exitPasses.some((e) => e.status === 'OUT' && e.returning && e.expectedReturnAt! < NOW), 'an exit pass out and overdue');
-  assert.ok(plan.exitPasses.some((e) => e.status === 'PENDING_HEAD') && plan.exitPasses.some((e) => e.status === 'PENDING_MANAGER') && plan.exitPasses.some((e) => e.status === 'DECLINED'));
-  for (const e of plan.exitPasses) if (['OUT', 'RETURNED', 'CLOSED'].includes(e.status)) assert.ok(e.headAt && e.managerAt && e.gateOutAt);
-  assert.ok(plan.incidents.some((i) => i.status === 'OPEN') && plan.incidents.some((i) => i.status === 'CLOSED' && i.closedAt));
-  assert.ok(plan.deliveries.some((d) => d.status === 'AT_GATE') && plan.deliveries.some((d) => d.status === 'EXPECTED') && plan.deliveries.filter((d) => d.status === 'LEFT').length >= 10);
-  assert.equal(plan.contractors[0]!.attendance.at(-1)!.outAt, null, 'the contractor team is still on site');
-  const today = NOW.toISOString().slice(0, 10);
-  assert.ok(plan.appointments.filter((a) => a.startsAt.toISOString().startsWith(today)).length >= 2);
+test('support and Data Exchange: open complaints, the spreadsheet imports and exports, broadcasts', () => {
   assert.ok(plan.tickets.filter((t) => t.tags.includes('complaint') && t.status === 'OPEN').length >= 1);
   for (const t of plan.tickets) { if (t.firstResponseAt) assert.ok(t.firstResponseAt >= t.createdAt); if (t.customerKey) assert.ok(plan.customers.some((c) => c.key === t.customerKey), `${t.key} customer`); }
   assert.deepEqual(plan.imports.map((i) => i.entity).sort(), ['customers', 'invoices', 'jobs', 'staff', 'vehicles']);
@@ -187,12 +176,11 @@ test('nothing real: every phone on the 0800 000 range, every email on a reserved
     if (c.email) assert.ok(reserved(c.email), c.email);
     for (const k of c.contacts) { assert.match(k.phone, /^0800 000 \d{4}$/); assert.ok(reserved(k.email), k.email); }
   }
-  for (const v of plan.visits) assert.match(v.phone, /^0800 000 \d{4}$/);
   assert.equal(new Set(plan.vehicles.map((v) => v.plate)).size, plan.vehicles.length);
   assert.equal(new Set(plan.vehicles.map((v) => v.vin)).size, plan.vehicles.length);
   for (const v of plan.vehicles) { assert.ok(v.vin.length === 17 && !/[IOQ]/.test(v.vin), v.vin); assert.match(v.plate, /^[A-Z]{3} \d{3} [A-Z]{2}$/); }
   const people = new Set(DEMO_STAFF.map((s) => s.email));
-  const keys = [...plan.jobCards.flatMap((j) => [j.technicianKey, j.supervisorKey, ...j.payments.map((p) => p.byKey), ...j.audit.map((a) => a.byKey).filter((k): k is string => Boolean(k))]), ...plan.visits.map((v) => v.hostKey), ...plan.exitPasses.map((e) => e.requestedByKey), ...plan.appointments.flatMap((a) => [a.ownerKey, ...a.participantKeys])];
+  const keys = [...plan.jobCards.flatMap((j) => [j.technicianKey, j.supervisorKey, ...j.payments.map((p) => p.byKey), ...j.audit.map((a) => a.byKey).filter((k): k is string => Boolean(k))])];
   for (const k of keys) assert.ok(people.has(k), `${k} is a demo person`);
   const text = JSON.stringify(plan);
   assert.doesNotMatch(text, OLD_ORGANISATION);

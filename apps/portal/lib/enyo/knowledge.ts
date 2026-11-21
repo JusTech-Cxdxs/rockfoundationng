@@ -17,29 +17,27 @@ export type OrganisationKnowledge = {
   sources: { label: string; href: string }[];
 };
 
-const DPHOENIX: OrganisationKnowledge = {
+const ROCK_FOUNDATION: OrganisationKnowledge = {
   summary:
-    'D\'PHOENIX AUTOCARE LIMITED ("D\'Phoenix Autocare", tagline "Restore Life To Your Vehicle") is an auto workshop in Victoria Island, Lagos, for vehicles from 2006 to the present, that also maintains vehicle fleets for client companies.',
+    'ROCK FOUNDATION AUTOMOBILE INVESTMENT LTD (RC 1772429, "Rock Foundation Automobile", tagline "Trust your vehicle to the certified service experts.") is an auto workshop in Ota, Ogun State, for all makes of vehicle, that also sells spare parts.',
   facts: [
-    'Address: Plot 1 Muri Okunola Street, opposite NNPC Hospital, beside Prime Shopping Complex, Sandfill Bus Stop, Victoria Island, Lagos.',
-    'Works on vehicles from 2006 to the present, and maintains vehicle fleets for client companies.',
-    'Services: Fleet Maintenance, Diagnostics & Repairs, Preventive Maintenance, Car Wash & Detailing, Roadside Assistance (24/7) and Tire Services.',
-    'Phones: +234 811 496 6212 and +234 807 654 4837. Email: dphoenixautocare@gmail.com.',
-    'Opening hours: Monday to Saturday, 8:00 AM to 6:00 PM; closed on Sunday. Roadside Assistance runs 24/7.',
-    'Website: https://www.dphoenixautocare.com',
+    'Head office: 1, Heal The World Avenue, Opp. Gateway Hotel, Ota, Ogun State.',
+    'Services: auto diagnostics and computer diagnostic testing, general repair and maintenance, repairs and parts, spraying (own spray booth), car wash, servicing; fuel, exhaust, transmission, cooling, starting and charging, electrical, brakes, A/C, steering and suspension, wheel alignment, CV axles, emissions, tune-up and oil change.',
+    'Phones: +234 803 304 9194 and +234 802 389 1766.',
+    'Website: https://rockfoundationng.com',
   ],
   people: [],
-  sources: [{ label: 'D\'Phoenix Autocare', href: 'https://www.dphoenixautocare.com' }],
+  sources: [{ label: 'Rock Foundation Automobile', href: 'https://rockfoundationng.com' }],
 };
 
-const BY_SLUG: Record<string, OrganisationKnowledge> = { 'dphoenix-autocare': DPHOENIX, dphoenix: DPHOENIX, 'dphoenix-autocare-limited': DPHOENIX };
+const BY_SLUG: Record<string, OrganisationKnowledge> = { 'rock-foundation': ROCK_FOUNDATION, 'rock-foundation-automobile': ROCK_FOUNDATION, rockfoundation: ROCK_FOUNDATION };
 
 /** Background for an organisation, by slug or name; null when the platform knows nothing about it. */
 export function organisationKnowledge(slugOrName: string | null | undefined): OrganisationKnowledge | null {
   const key = (slugOrName ?? '').toLowerCase().trim();
   if (!key) return null;
   if (BY_SLUG[key]) return BY_SLUG[key]!;
-  if (/d.?phoenix/.test(key)) return DPHOENIX;
+  if (/rock.?foundation/.test(key)) return ROCK_FOUNDATION;
   return null;
 }
 

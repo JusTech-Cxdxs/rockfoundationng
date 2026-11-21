@@ -23,7 +23,7 @@ const customer = (over: Partial<CustomerFacts> = {}): CustomerFacts => ({
   id: 'c1', name: 'Ada Obi',
   portal: { on: true, hasPassword: true, lastLoginAt: new Date('2026-10-10T09:00:00Z'), failedRecently: 0, lastFailedAt: null, resetRequestedAt: null, offReason: null, offAt: null, offBy: null },
   jobs: [{ id: 'jc1', number: 'JC-2026-000123', status: 'AWAITING_PARTS', vehicle: 'Toyota Hilux', plate: 'KJA-219XY', updatedAt: new Date('2026-10-15T09:00:00Z') }],
-  services: [], warranties: [{ id: 'w1', number: 'WR-2026-000001', status: 'ACTIVE', subject: 'Battery', endsAt: new Date('2027-01-01T00:00:00Z') }], claims: [], errors: [], openRequests: 1,
+  errors: [], openRequests: 1,
   ...over,
 });
 const staff = (over: Partial<StaffFacts> = {}): StaffFacts => ({

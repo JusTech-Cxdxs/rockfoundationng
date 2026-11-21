@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { CUSTOMER, OTHER_PORTAL_CUSTOMER, PASSWORD_CUSTOMER, PORTAL_CUSTOMER, SEED_WARRANTY } from './people';
+import { CUSTOMER, OTHER_PORTAL_CUSTOMER, PASSWORD_CUSTOMER, PORTAL_CUSTOMER } from './people';
 import { as, open, latestMail, linkIn, uniq, urlOrExplain, visibleOrExplain, waitOutcome } from './helpers';
 import { WEB, afterSignIn, customerSignOut, customerSignedIn, portal, submitSignIn, websiteUp } from './customer';
 import { freshVehicle, resetCustomerAccount } from './db';
@@ -12,7 +12,7 @@ import { WARRANTY_ENABLED, WARRANTY_OFF } from './edition';
  * The customer portal (apps/website, :3002 in CI), as customers use it:
  * sign in, forgot / reset / change password, the overview, their services
  * and Job Cards (the estimate appears only once the front desk has sent it),
- * payments, warranties, notifications, their profile — on a desktop and on
+ * payments, notifications, their profile — on a desktop and on
  * a 375 px phone. And the fences: another customer's records are "not
  * found", and a staff session never opens the customer portal (nor the
  * other way round).
@@ -149,7 +149,7 @@ test.describe('passwords', () => {
 test.describe('a Job Card, followed by its customer', () => {
   test.describe.configure({ mode: 'serial' });
   const LINE = `Portal labour ${uniq()}`;
-  const S = { plate: '', url: '', id: '', number: '', warrantyId: '', warrantyNumber: '' };
+  const S = { plate: '', url: '', id: '', number: '' };
 
   test.beforeAll(async () => {
     S.plate = (await freshVehicle('POR', { customerEmail: PORTAL_CUSTOMER.email, make: 'Kia', model: 'Sportage' })).plate;
@@ -227,37 +227,10 @@ test.describe('a Job Card, followed by its customer', () => {
     await expect(page.getByTestId('payment-history')).toContainText(new RegExp(`Payment (RCT-\\d{4}-\\d{6} )?· ${S.number}`));
   });
 
-  test('a warranty registered on the vehicle appears under Warranties', async ({ page }) => {
-    test.skip(!WARRANTY_ENABLED, WARRANTY_OFF);
-    await as(page, 'warranty-officer');
-    await page.goto(`/warranty/register?q=${encodeURIComponent(S.plate)}`);
-    await page.getByRole('link', { name: new RegExp(S.plate) }).first().click();
-    await page.waitForURL(/vehicleId=/);
-    const form = jcForm(page, 'Register warranty');
-    const policy = await form.locator('select[name="policyId"] option', { hasText: SEED_WARRANTY.vehiclePolicyName }).first().getAttribute('value');
-    await form.locator('select[name="policyId"]').selectOption(policy!);
-    await form.locator('input[name="startsAt"]').fill(new Date(Date.now() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' }));
-    const reading = form.locator('input[name="startReading"]');
-    if (await reading.count()) await reading.fill('15000');
-    await form.locator('textarea[name="evidenceNote"]').fill('Sales invoice INV-E2E-PORTAL');
-    await form.getByRole('button', { name: 'Register warranty' }).click();
-    await waitOutcome(page, /\/warranty\/[^/?]+\?status=registered/);
-    S.warrantyId = new URL(page.url()).pathname.split('/').pop()!;
-    S.warrantyNumber = ((await page.getByRole('heading', { level: 1 }).first().textContent()) ?? '').trim();
-
-    await customerSignedIn(page, PORTAL_CUSTOMER);
-    await page.goto(portal('/dashboard/warranties'));
-    await expect(page.getByRole('heading', { level: 1, name: 'What’s covered' })).toBeVisible();
-    await expect(page.getByText(S.warrantyNumber).first()).toBeVisible();
-    await page.goto(portal(`/dashboard/warranties/${S.warrantyId}`));
-    await expect(page.getByText(S.warrantyNumber).first()).toBeVisible();
-    await expect(page.getByText('Engine and gearbox').first()).toBeVisible();
-  });
-
-  test('another customer: the same Job Card and warranty addresses are simply not found', async ({ page }) => {
+  test('another customer: the same Job Card address is simply not found', async ({ page }) => {
     test.skip(!S.id, 'needs the Job Card from the first step');
     await customerSignedIn(page, OTHER_PORTAL_CUSTOMER);
-    for (const path of [`/dashboard/services/jc/${S.id}`, ...(S.warrantyId ? [`/dashboard/warranties/${S.warrantyId}`] : [])]) {
+    for (const path of [`/dashboard/services/jc/${S.id}`]) {
       await page.goto(portal(path));
       await expect(page.getByRole('heading', { name: 'We couldn’t find that' }), path).toBeVisible();
       await expect(page.locator('body'), path).not.toContainText(S.number);

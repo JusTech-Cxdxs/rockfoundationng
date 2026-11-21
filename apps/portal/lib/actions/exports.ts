@@ -9,11 +9,11 @@
  * built when it is downloaded (lib/exports/download-server.ts) — for the
  * person downloading it, never a stored copy. The link works for 24 hours and
  * once per person; a long list comes in parts. Contact details and payments
- * (customers, SAP invoices) need dataexchange.export.sensitive as well.
- * Not during an assisted session: data leaving EJO is the person's own act.
+ * (customers, old-system invoices) need dataexchange.export.sensitive as well.
+ * Every export is recorded: data leaving EJO is the person's own act.
  */
 import { prisma } from '@ejo/database';
-import { allows, authorize, getPrincipal, myOrganisationId, refuseDuringAssist } from '@/lib/authz/server';
+import { allows, authorize, getPrincipal, myOrganisationId } from '@/lib/authz/server';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { lagosYear } from '@/lib/utils/format-date';
 import { highestSequence } from '@/lib/recycle-bin/numbers';
@@ -31,7 +31,6 @@ async function nextExportNumber(): Promise<string> {
 /** Export a list: records the export and returns its link (the browser starts the download at once). */
 export async function createExport(input: { kind: string; format: string; params?: Record<string, unknown> }): Promise<ExportStart> {
   await authorize('dataexchange.export.run', undefined, 'createExport', 'Exporting lists is not part of your role.');
-  try { await refuseDuringAssist('createExport'); } catch (e) { return { ok: false, error: (e as Error).message }; }
   const kind = EXPORT_KINDS[String(input.kind)];
   if (!kind) return { ok: false, error: 'This list cannot be exported.' };
   if (!isExportFormat(input.format)) return { ok: false, error: 'Choose Excel or CSV.' };

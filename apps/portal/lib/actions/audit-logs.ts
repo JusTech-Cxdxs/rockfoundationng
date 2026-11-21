@@ -1,6 +1,5 @@
 'use server';
 
-import { actorLabel } from '@/lib/assist/rules';
 import { prisma } from '@ejo/database';
 import { requireUser } from './workshop';
 import { allows, getPrincipal, lensPeopleWhere, orgWhere } from '@/lib/authz/server';
@@ -86,7 +85,7 @@ export async function getAuditLogPage(f: { kind?: string; q?: string; userId?: s
   const rec = (type: string, id: string | null) => (id ? [resolved.get(`${type}:${id}`) ?? { label: 'Record', url: recordUrl(type.replace(/^db:/, ''), id) }] : []);
   const mapped: AuditRow[] = page.map((r: (typeof page)[number]) => {
     const meta = (r.metadata && typeof r.metadata === 'object' ? r.metadata : {}) as Record<string, unknown>;
-    const who = r.userId ? actorLabel(name.get(r.userId) ?? 'Former user', meta) : 'System';
+    const who = r.userId ? name.get(r.userId) ?? 'Former user' : 'System';
     if (r.entityType.startsWith('db:')) {
       const model = r.entityType.slice(3);
       const op = r.action.replace(/^data\./, '');

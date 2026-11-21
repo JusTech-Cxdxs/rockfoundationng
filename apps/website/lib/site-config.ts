@@ -44,5 +44,6 @@ export const siteConfig = {
 /** First word of the name over the rule, the rest beneath (the wordmark lockup). */
 export function wordmarkParts(name: string = siteConfig.organisationName): { top: string; bottom: string } {
   const words = name.trim().split(/\s+/);
-  return { top: words[0] ?? name, bottom: words.slice(1).join(' ') };
+  const split = Math.max(1, Math.ceil(words.length / 2));
+  return { top: words.slice(0, split).join(' ') || name, bottom: words.slice(split).join(' ') };
 }

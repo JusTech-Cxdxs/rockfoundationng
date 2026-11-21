@@ -3,7 +3,7 @@
  * only). Each section is a table EJO keeps about them, found from the customer
  * inside their organisation: their own details, addresses, contacts, company,
  * vehicles; their job cards and services with complaints, estimates,
- * inspections, payments and refunds; warranties and claims; reminders sent and
+ * payments and refunds; reminders sent and
  * gate exits of their vehicles; support requests and replies; their chats
  * with Enyo; portal sign-ins and accounts; notes kept about them; history from
  * the old system. Nothing about the staff who handled them, no secrets.
@@ -45,17 +45,11 @@ export async function collectPack(db: PrismaClient, organisationId: string, cust
   const jobs = ids(await read('job-cards.csv', 'Job cards (workshop visits)', db.jobCard, { customerId }));
   await read('job-card-complaints.csv', 'What you reported on each job card', db.jobCardComplaint, { jobCardId: { in: jobs } });
   await read('estimates.csv', 'Estimates for job cards', db.estimate, { jobCardId: { in: jobs } });
-  const services = ids(await read('vehicle-services.csv', 'Vehicle services', db.vehicleService, { customerId }));
-  await read('vehicle-service-complaints.csv', 'What you reported on each service', db.vehicleServiceComplaint, { vehicleServiceId: { in: services } });
-  await read('service-estimates.csv', 'Estimates for services', db.serviceEstimate, { vehicleServiceId: { in: services } });
-  await read('vehicle-inspections.csv', 'Vehicle inspections', db.vehicleInspection, { vehicleServiceId: { in: services } });
-  const ofJobs = { OR: [{ jobCardId: { in: jobs } }, { vehicleServiceId: { in: services } }] };
+  const ofJobs = { jobCardId: { in: jobs } };
   await read('payments.csv', 'Payments', db.payment, ofJobs);
   await read('refunds.csv', 'Refunds', db.refund, ofJobs);
   await read('invoices.csv', 'Invoices', db.invoice, { customerId, organisationId }, 'issuedAt');
 
-  await read('warranties.csv', 'Warranties', db.warranty, { customerId });
-  await read('warranty-claims.csv', 'Warranty claims', db.warrantyClaim, { customerId });
   await read('service-reminders.csv', 'Service reminders sent about your vehicles', db.serviceReminderLog, { vehicleId: { in: vehicles } }, 'sentAt');
   await read('gate-exits.csv', 'Your vehicles leaving our premises', db.vehicleGateExit, { vehicleId: { in: vehicles } });
 

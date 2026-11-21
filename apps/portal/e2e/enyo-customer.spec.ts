@@ -145,24 +145,14 @@ test.describe('a website visitor', () => {
     await expect(answer.getByTestId('enyo-error')).toHaveCount(0);
   });
 
-  test('greetings, "who is" one of our people and how to reach us are answered from the records at once', async ({ page }) => {
-    // One of the people the organisation publishes (Organisation → People we publish).
-    const org = await db().organisation.findFirstOrThrow({ where: { slug: process.env.WEBSITE_ORGANISATION_SLUG || ORGANISATION_SLUG }, select: { id: true } });
-    // A real-looking name (letters only), unique to this run.
-    const tag = uniq().replace(/[^A-Z]/g, '').toLowerCase().replace(/^./, (c) => c.toUpperCase()) || 'Okafor';
-    const name = `Tunde Bakare${tag}`;
-    await db().publicProfile.create({ data: { organisationId: org.id, name, title: 'Workshop Manager', area: 'Workshop', bio: 'Runs the workshop floor and the fleet accounts.', isPublic: true, sortOrder: 1 } });
+  test('greetings and how to reach us are answered from the records at once', async ({ page }) => {
     await page.goto(`${WEB}/support`);
     const hi = await ask(page, 'Hey Enyo');
     await expect(hi).toContainText(/Good (morning|afternoon|evening)! I'm/);
     await expect(hi).not.toContainText('You said');
-    const who = await ask(page, `Hi who's ${name}`);
-    await expect(who).toContainText(`${name} — Workshop Manager`);
-    await expect(who).not.toContainText('You said');
     const reach = await ask(page, 'How can I reach you?');
     await expect(reach).toContainText('Customer support');
-    for (const a of [hi, who, reach]) await expect(a.getByTestId('enyo-error')).toHaveCount(0);
-    await db().publicProfile.deleteMany({ where: { organisationId: org.id, name } });
+    for (const a of [hi, reach]) await expect(a.getByTestId('enyo-error')).toHaveCount(0);
   });
 
   test('when the model is out of budget, the visitor still gets an answer — never "try again in a minute"', async ({ page }) => {

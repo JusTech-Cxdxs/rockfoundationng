@@ -10,11 +10,7 @@
  *              estimate, the supervisor approves it two days later — and wait
  *              there for the demo Manager's approval; one nobody moved for a
  *              week is cancelled (the customer did not come back)
- *   Services   one service Job Card (Service ticked) checked in today, and a
- *              service booked for the next working day (an appointment)
- *   Security   two visitors expected today (one in by now), earlier ones
- *              signed out
- *   Schedule   the morning workshop meeting (weekdays)
+ *   Services   one service Job Card (Service ticked) checked in today
  *   Support    two new requests from demo customers with the automatic
  *              acknowledgement; yesterday's answered; a week-old one resolved
  *   Broadcast  on Mondays, "This week in the workshop" (never emailed)
@@ -43,7 +39,7 @@ import { REAL_ORG_SLUG } from './organisation';
 import { COMMERCIAL_COMPLAINTS, JOB_LINES, PASSENGER_COMPLAINTS, SERVICE_TEXTS } from '../workshop/demo/catalogue';
 import { Numbers, demoWorkshopBranch, highestInUse } from '../workshop/demo/load';
 import {
-  PULSE_AGENT_REPLY, PULSE_AGE_OUT_DAYS, PULSE_AI_ACK, PULSE_JOB, PULSE_MODEL, PULSE_SERVICE, PULSE_TICKET, PULSE_TICKETS, PULSE_VISIT, PULSE_VISITORS,
+  PULSE_AGENT_REPLY, PULSE_AGE_OUT_DAYS, PULSE_AI_ACK, PULSE_JOB, PULSE_MODEL, PULSE_SERVICE, PULSE_TICKET, PULSE_TICKETS,
   dayRandom, happenedAt, lagosAt, nextWorkingDay, pulseDay, pulseDayId, pulseEnabled,
 } from './pulse-core';
 
@@ -53,7 +49,6 @@ export type PulseResult = { ran: boolean; reason: 'added' | 'already' | 'off' | 
 const DAY = 86_400_000;
 const staff = (prefix: string) => DEMO_STAFF.find((s) => s.email.startsWith(`${prefix}@`))!.email;
 const OPEN_JOB = ['CHECKED_IN', 'AWAITING_CUSTOMER_APPROVAL', 'IN_PROGRESS', 'AWAITING_PARTS', 'QUALITY_CHECK', 'COMPLETED', 'READY_FOR_COLLECTION'] as const;
-const OPEN_SERVICE = ['SCHEDULED', 'CHECKED_IN', 'IN_SERVICE', 'COMPLETED', 'READY_FOR_COLLECTION'] as const;
 
 /** Whether the pulse already ran (or the demo was loaded) on this Lagos day. */
 export async function pulseRanOn(organisationId: string, dayKey: string): Promise<boolean> {
@@ -76,14 +71,14 @@ export async function runDemoPulse(organisationId: string, now: Date = new Date(
   const dept = (slug: string) => workshop.departments.find((d) => d.slug === slug)?.id ?? null;
   setAuditActor(null, 'demo:pulse', organisationId);
 
-  // What is free to come in today: demo vehicles with no open job card or service.
+  // What is free to come in today: demo vehicles with no open job card.
   const vehicles = await prisma.customerVehicle.findMany({
-    where: { externalSource: 'EJO-DEMO', customer: { organisationId, isActive: true }, jobCards: { none: { status: { in: [...OPEN_JOB] } } }, vehicleServices: { none: { status: { in: [...OPEN_SERVICE] } } } },
+    where: { externalSource: 'EJO-DEMO', customer: { organisationId, isActive: true }, jobCards: { none: { status: { in: [...OPEN_JOB] } } } },
     orderBy: { id: 'asc' }, select: { id: true, customerId: true, vehicleType: true, mileage: true, make: true, model: true, plateNumber: true },
   });
   const rnd = dayRandom(day.dayKey, organisationId);
   const take = <T,>(xs: T[], n: number): T[] => { const pool = [...xs]; const out: T[] = []; while (out.length < n && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]!); return out; };
-  const chosen = take(vehicles, day.jobCards + day.servicesToday + day.servicesBooked);
+  const chosen = take(vehicles, day.jobCards + day.servicesToday);
   const numbers = new Numbers(highestInUse);
   const counts: Record<string, number> = {};
   const add = (k: string, n = 1) => { counts[k] = (counts[k] ?? 0) + n; };
@@ -92,19 +87,10 @@ export async function runDemoPulse(organisationId: string, now: Date = new Date(
   const care = by(staff('care'));
 
   // Numbers are worked out before the transaction (reads only); the writes are all in it.
-  // Today's check-ins: repairs, then the services (a Job Card with Service ticked); the bookings are for the next working day.
+  // Today's check-ins: repairs, then the services (a Job Card with Service ticked).
   const arrivals = day.jobCards + day.servicesToday;
   const jobPlans = await Promise.all(chosen.slice(0, arrivals).map(async (v, i) => ({ v, at: happenedAt(day.dayKey, now, i, arrivals), service: i >= day.jobCards, number: '' })));
   for (const p of jobPlans) p.number = await numbers.take('JC', p.at);
-  const bookingPlans: { v: (typeof chosen)[number]; at: Date; number: string }[] = [];
-  for (const [i, v] of chosen.slice(arrivals).entries()) bookingPlans.push({ v, at: lagosAt(nextWorkingDay(day.dayKey), 8 + (i % 3), 30), number: await numbers.take('APT', now) });
-  const visitorPlans = await Promise.all(PULSE_VISITORS.slice(0, day.visitors).map(async (t, i) => {
-    const expectedAt = lagosAt(day.dayKey, t.hh, t.mm);
-    const checkedIn = expectedAt.getTime() + 5 * 60_000 <= now.getTime();
-    return { t, i, expectedAt, checkedIn };
-  }));
-  const visitNumbers: { visit: string; pass: string | null }[] = [];
-  for (const v of visitorPlans) visitNumbers.push({ visit: await numbers.take('VIS', now), pass: v.checkedIn ? await numbers.take('VP', now) : null });
   const ticketCustomers = await prisma.customer.findMany({ where: { organisationId, externalSource: 'EJO-DEMO', isActive: true }, orderBy: { id: 'asc' }, select: { id: true, fullName: true, email: true, phone: true } });
   const ticketPlans: { c: (typeof ticketCustomers)[number]; t: (typeof PULSE_TICKETS)[number]; at: Date; number: string }[] = [];
   for (let i = 0; i < day.tickets; i += 1) {
@@ -114,22 +100,17 @@ export async function runDemoPulse(organisationId: string, now: Date = new Date(
     const at = happenedAt(day.dayKey, now, i, day.tickets);
     ticketPlans.push({ c, t: PULSE_TICKETS[Math.floor(rnd() * PULSE_TICKETS.length)]!, at, number: await numbers.take('SUP', at) });
   }
-  const meetingNumber = day.meeting ? await numbers.take('APT', now) : null;
   const broadcastNumber = day.broadcast ? await numbers.take('BC', now) : null;
   const queue = await prisma.supportQueue.findFirst({ where: { organisationId, isDefault: true }, select: { id: true } }) ?? await prisma.supportQueue.findFirst({ where: { organisationId }, select: { id: true } });
-  const room = await prisma.meetingRoom.findFirst({ where: { branchId: workshop.id, isActive: true }, orderBy: { name: 'asc' }, select: { id: true } });
 
   // Earlier pulse records to move on (the ones the pulse itself made, before today).
   const earlier = async (model: string) => (await prisma.demoRecord.findMany({ where: { organisationId, model }, select: { recordId: true } })).map((r) => r.recordId);
   const todayStart = lagosAt(day.dayKey, 0);
-  const [oldJobIds, oldVisitIds, oldTicketIds] = await Promise.all([earlier(PULSE_JOB), earlier(PULSE_VISIT), earlier(PULSE_TICKET)]);
-  const [oldJobs, oldVisits, oldTickets] = await Promise.all([
+  const [oldJobIds, oldTicketIds] = await Promise.all([earlier(PULSE_JOB), earlier(PULSE_TICKET)]);
+  const [oldJobs, oldTickets] = await Promise.all([
     prisma.jobCard.findMany({ where: { id: { in: oldJobIds }, createdAt: { lt: todayStart }, status: 'CHECKED_IN' }, select: { id: true, createdAt: true, isService: true, technicianAcceptanceStatus: true, assignedTechnicianId: true, supervisorId: true, departmentId: true, mileageAtCheckIn: true, vehicle: { select: { vehicleType: true } }, estimate: { select: { id: true, status: true } } } }),
-    prisma.visit.findMany({ where: { id: { in: oldVisitIds }, expectedAt: { lt: todayStart }, status: { in: ['EXPECTED', 'CHECKED_IN'] } }, select: { id: true, status: true, expectedAt: true, checkedInAt: true, expectedDurationMinutes: true, passNumber: true } }),
     prisma.supportTicket.findMany({ where: { id: { in: oldTicketIds }, createdAt: { lt: todayStart }, status: { in: ['OPEN', 'WAITING_ON_CUSTOMER'] } }, select: { id: true, status: true, createdAt: true, firstResponseAt: true } }),
   ]);
-  const passNumbers = new Map<string, string>();
-  for (const v of oldVisits) if (!v.passNumber) passNumbers.set(v.id, await numbers.take('VP', v.expectedAt!));
 
   const registry: { model: string; recordId: string }[] = [];
   const reg = (model: string, id: string) => { registry.push({ model, recordId: id }); return id; };
@@ -163,17 +144,6 @@ export async function runDemoPulse(organisationId: string, now: Date = new Date(
         if (accepted) audit(sup, 'job_card.approved', 'JobCard', id, new Date(p.at.getTime() + 35 * 60_000), { jobNumber: p.number });
         add(p.service ? 'servicesToday' : 'jobCards');
       }
-      // A service booked for the next working day: on the calendar, with the customer's vehicle.
-      for (const p of bookingPlans) {
-        const id = reg('Appointment', randomUUID());
-        const vehicle = [p.v.make, p.v.model, p.v.plateNumber].filter(Boolean).join(' ');
-        await tx.appointment.create({ data: {
-          id, appointmentNumber: p.number, branchId: workshop.id, status: 'SCHEDULED', title: `Service booking: ${vehicle}`, agenda: 'Booked by the front desk; open a Job Card with Service ticked when the vehicle arrives.',
-          ownerId: frontdesk, createdById: frontdesk, startsAt: p.at, endsAt: new Date(p.at.getTime() + 60 * 60_000), location: 'Front desk', createdAt: new Date(Math.min(now.getTime(), lagosAt(day.dayKey, 11, 0).getTime())),
-        } });
-        add('servicesBooked');
-      }
-
       // ── Earlier pulse job cards move on one safe step ──
       for (const j of oldJobs) {
         const ageDays = (now.getTime() - j.createdAt.getTime()) / DAY;
@@ -204,37 +174,6 @@ export async function runDemoPulse(organisationId: string, now: Date = new Date(
           add('estimatesApproved');
         }
       }
-      // ── Security ──
-      const gate = by(staff('gate'));
-      for (const [k, p] of visitorPlans.entries()) {
-        const id = reg('Visit', randomUUID());
-        const host = by(staff(p.i === 0 ? 'supervisor.fleet' : 'manager'));
-        await tx.visit.create({ data: {
-          id, visitNumber: visitNumbers[k]!.visit, passNumber: visitNumbers[k]!.pass, branchId: workshop.id, status: p.checkedIn ? 'CHECKED_IN' : 'EXPECTED', visitorName: p.t.name, company: p.t.company || null, phone: `0800 000 07${String(10 + p.i)}`,
-          vehicleType: p.t.vehicle, vehiclePlate: p.t.vehicle === 'ON_FOOT' ? null : `EKY ${700 + p.i} DM`, purpose: p.t.purpose, hostUserId: host, expectedAt: p.expectedAt, expectedDurationMinutes: p.t.minutes, registeredById: frontdesk,
-          receivedAt: p.checkedIn ? new Date(p.expectedAt.getTime() + 5 * 60_000) : null, receivedById: p.checkedIn ? gate : null, checkedInAt: p.checkedIn ? new Date(p.expectedAt.getTime() + 5 * 60_000) : null, checkedInById: p.checkedIn ? gate : null, createdAt: new Date(Math.min(now.getTime(), p.expectedAt.getTime()) - 3 * 3_600_000),
-        } });
-        registry.push({ model: PULSE_VISIT, recordId: id });
-        add('visitors');
-      }
-      for (const v of oldVisits) {
-        const inAt = v.checkedInAt ?? new Date(v.expectedAt!.getTime() + 5 * 60_000);
-        const out = await tx.visit.updateMany({ where: { id: v.id, status: v.status }, data: { status: 'CHECKED_OUT', passNumber: v.passNumber ?? passNumbers.get(v.id) ?? null, receivedAt: inAt, receivedById: gate, checkedInAt: inAt, checkedInById: gate, checkedOutAt: new Date(inAt.getTime() + v.expectedDurationMinutes * 60_000), checkedOutById: gate } });
-        if (out.count === 1) add('visitorsOut');
-      }
-
-      // ── Schedule ──
-      if (meetingNumber) {
-        const startsAt = lagosAt(day.dayKey, 8, 15); const endsAt = lagosAt(day.dayKey, 8, 45);
-        const id = reg('Appointment', randomUUID());
-        await tx.appointment.create({ data: {
-          id, appointmentNumber: meetingNumber, branchId: workshop.id, status: endsAt <= now ? 'COMPLETED' : 'SCHEDULED', title: 'Morning workshop meeting', agenda: 'Yesterday’s carry-overs, today’s check-ins, parts waiting, approvals.', ownerId: manager, createdById: manager, startsAt, endsAt,
-          roomId: room?.id ?? null, location: room ? null : 'Workshop office', completedAt: endsAt <= now ? endsAt : null, createdAt: new Date(startsAt.getTime() - DAY),
-          participants: { create: ['supervisor.cars', 'supervisor.fleet', 'finance', 'frontdesk'].map((k) => ({ id: reg('AppointmentParticipant', randomUUID()), userId: by(staff(k)) })) },
-        } });
-        add('meetings');
-      }
-
       // ── Support ──
       for (const p of ticketPlans) {
         const id = reg('SupportTicket', randomUUID());

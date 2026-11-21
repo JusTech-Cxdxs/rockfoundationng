@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import { PageIntro, Prose, Section } from '@/components/site/Page';
 import { siteConfig } from '@/lib/site-config';
-import { DPHOENIX } from '@/lib/content/dphoenix';
+import { WORKSHOP } from '@/lib/content/workshop';
 
 export const metadata: Metadata = { title: 'Privacy', description: 'What this website and the customer portal collect, why, how long it is kept, and your rights under the Nigeria Data Protection Act 2023.' };
 
 export default function PrivacyPage() {
   const name = siteConfig.organisationName;
-  const address = DPHOENIX.address;
-  const reach = `email ${DPHOENIX.email}, call ${DPHOENIX.phones.join(' or ')}, or write to us at the address above.`;
+  const address = WORKSHOP.address;
+  const reach = `${WORKSHOP.email ? `email ${WORKSHOP.email}, ` : ''}call ${WORKSHOP.phones.join(' or ')}, or write to us at ${WORKSHOP.postalAddress}.`;
   return (
     <main>
       <PageIntro kicker="Privacy" title="What we collect, and why" lede="Plain words about the data this website and the customer portal handle, written to the Nigeria Data Protection Act 2023. Last reviewed October 2026." />

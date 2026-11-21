@@ -12,18 +12,11 @@ const str = (f: FormData, k: string) => String(f.get(k) ?? '').trim();
 
 const LIST: Record<BinEntity, string> = {
   JobCard: '/workshop/job-cards',
-  VehicleService: '/workshop/vehicle-service',
   Customer: '/crm',
   CustomerVehicle: '/workshop/vehicles',
   Part: '/inventory/parts',
   Supplier: '/inventory/suppliers',
-  Warranty: '/warranty',
-  WarrantyClaim: '/warranty/claims',
   User: '/users',
-  PlantShipment: '/plant/shipments',
-  PlantVehicle: '/plant/vehicles',
-  PlantKit: '/plant/kits',
-  PlantKitIssue: '/plant/kits',
 };
 
 export async function moveToRecycleBinFormAction(formData: FormData) {

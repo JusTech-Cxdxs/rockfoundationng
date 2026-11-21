@@ -987,7 +987,7 @@ export default async function JobCardDetailPage({
                   {estimate.lineItems.some((item: (typeof estimate.lineItems)[number]) => !isCustomerLine(item)) ? (
                     <>
                       <div className="flex justify-between text-sm text-[var(--ejo-success)]">
-                        <span>{WARRANTY_ON ? 'Covered — warranty / goodwill / internal (not charged)' : 'Covered — goodwill / internal (not charged)'}</span>
+                        <span>Covered — under warranty, goodwill or internal (not charged)</span>
                         <span>
                           −{formatNaira(
                             estimate.lineItems

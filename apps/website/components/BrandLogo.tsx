@@ -2,13 +2,14 @@
 
 import { siteConfig } from '@/lib/site-config';
 import { useState } from 'react';
+import { EMBLEM } from '@/lib/brand';
 
 interface BrandLogoProps {
   transparent?: boolean;
   size?: number;
 }
 
-/** Organisation logo (public/images/logo/logo.png) for the header and footer, or a one-letter monogram if it is missing. */
+/** The workshop's emblem (public/brand/emblem.png) for the header and footer, on a white tile so it reads on the blue footer; a one-letter monogram if it is missing. */
 export function BrandLogo({ transparent = false, size = 44 }: BrandLogoProps) {
   const [failed, setFailed] = useState(false);
 
@@ -26,12 +27,9 @@ export function BrandLogo({ transparent = false, size = 44 }: BrandLogoProps) {
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- needs a plain onError fallback to the monogram
-    <img
-      src="/images/logo/logo.png"
-      alt={siteConfig.organisationName}
-      style={{ height: size, width: 'auto' }}
-      onError={() => setFailed(true)}
-    />
+    <span className="flex shrink-0 items-center justify-center rounded-xl bg-white p-1 shadow-sm ring-1 ring-black/5" style={{ height: size, width: size }}>
+      {/* eslint-disable-next-line @next/next/no-img-element -- needs a plain onError fallback to the monogram */}
+      <img src={EMBLEM.src} alt={siteConfig.organisationName} className="block h-full w-full object-contain" onError={() => setFailed(true)} />
+    </span>
   );
 }

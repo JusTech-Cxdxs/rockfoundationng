@@ -3,6 +3,7 @@
 import { prisma, type Prisma } from '@ejo/database';
 import { authorize, allows, myOrganisationId, NOT_AVAILABLE } from '@/lib/authz/server';
 import { requireUser } from './workshop';
+import { withinLimit } from '@/lib/rate-limit';
 import { recordUrl } from '@/lib/notification-rules';
 import { scanOrganisation, type ScanResult } from '@/lib/integrity/scan';
 import {

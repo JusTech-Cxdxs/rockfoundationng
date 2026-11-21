@@ -78,8 +78,6 @@ export async function deleteAccountAndPersonal(userId: string): Promise<void> {
     await tx.enyoMemory.deleteMany({ where: { userId } });
     await tx.reminder.deleteMany({ where: { ownerId: userId } });
     await tx.reminderDelegate.deleteMany({ where: { OR: [{ ownerId: userId }, { delegateId: userId }] } });
-    await tx.mailStyleSample.deleteMany({ where: { userId } });
-    await tx.mailAccount.deleteMany({ where: { userId } }); // its messages cascade
     await tx.supportQueueMember.deleteMany({ where: { userId } });
     // Sessions, sign-in, roles, employee profile and notification state cascade with the user.
     await tx.user.delete({ where: { id: userId } });

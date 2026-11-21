@@ -3,7 +3,6 @@ import { prisma } from '@ejo/database';
 import { LlmError, lagosNow, stream, type ChatMessage, type EnyoEvent, type LlmConfig, type Source, type ToolResult, type Usage } from '@ejo/enyo';
 import { getPrincipal } from '@/lib/authz/server';
 import { scopeFor } from '@/lib/authz/catalogue';
-import { featureOn } from '@/lib/modules';
 import { staffTools } from './tools';
 import type { StaffCtx, StaffTool } from './types';
 import { packToText, renderBriefing, type BriefingPack, type Section } from './briefing-core';
@@ -54,17 +53,13 @@ async function branchNamed(message: string, organisationId: string): Promise<str
   });
 }
 
-/** Website and store leads for leaders: what the public website brought in this week. */
+/** Website enquiries for leaders: what the customer site brought in this week. */
 async function websiteLeads(ctx: StaffCtx): Promise<unknown> {
-  // Organisation-wide figures, like website_traffic: leaders with the whole organisation in view.
+  // Organisation-wide figures: leaders with the whole organisation in view.
   const me = await getPrincipal();
   if (!(me.isSuperAdmin || scopeFor(me, 'analytics.business.view') === 'ALL')) return null;
   const since = new Date(Date.now() - 7 * 86_400_000);
-  const [tickets, stories] = await Promise.all([
-    prisma.supportTicket.findMany({ where: { organisationId: ctx.organisationId, channel: 'WEBSITE', createdAt: { gte: since } }, select: { tags: true, status: true }, take: 500 }),
-    // News & media is switched off in some editions (lib/modules.ts): no story is read then.
-    featureOn('news') ? prisma.newsPost.findMany({ where: { organisationId: ctx.organisationId, status: 'PUBLISHED' }, orderBy: { publishedAt: 'desc' }, take: 1, select: { title: true, publishedAt: true } }).catch(() => []) : Promise.resolve([]),
-  ]);
+  const tickets = await prisma.supportTicket.findMany({ where: { organisationId: ctx.organisationId, channel: 'WEBSITE', createdAt: { gte: since } }, select: { tags: true, status: true }, take: 500 });
   const by: Record<string, number> = {};
   for (const t of tickets) {
     const topic = t.tags.find((x) => x.startsWith('topic:'))?.slice(6) ?? 'other';
@@ -76,8 +71,6 @@ async function websiteLeads(ctx: StaffCtx): Promise<unknown> {
     enquiriesFromTheWebsite: tickets.length,
     byTopic: by,
     stillOpen: tickets.filter((t) => t.status !== 'RESOLVED' && t.status !== 'CLOSED').length,
-    latestStoryOnTheWebsite: stories[0] ? { title: stories[0].title, published: stories[0].publishedAt?.toLocaleDateString('en-GB', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'long' }) } : null,
-    note: 'Online checkout is not open yet: store enquiries arrive here as sales and parts requests and referrals.',
   };
 }
 

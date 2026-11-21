@@ -1,6 +1,7 @@
 import { websiteBaseUrl } from '@/lib/site-urls';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import { Roboto } from 'next/font/google';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SiteChrome } from '@/components/SiteChrome';
@@ -9,6 +10,9 @@ import { ThemeProvider } from '@/lib/theme';
 import { siteConfig } from '@/lib/site-config';
 import { themeInitScript } from '@/lib/theme-init-script';
 import './globals.css';
+
+// Roboto, the font of the workshop's website; exposed as --font-roboto for globals.css.
+const roboto = Roboto({ subsets: ['latin'], weight: ['400', '500', '700'], display: 'swap', variable: '--font-roboto' });
 
 export const metadata: Metadata = {
   title: {
@@ -28,7 +32,7 @@ export const metadata: Metadata = {
     title: siteConfig.companyShortName,
     description: siteConfig.description || siteConfig.tagline || undefined,
   },
-  // Made from public/images/logo/logo.png (public/icons).
+  // Resized from the workshop's emblem (public/brand/emblem.png).
   icons: {
     icon: [{ url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' }, { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
     shortcut: '/icons/favicon-32.png',
@@ -42,14 +46,14 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#0a1628' },
-    { media: '(prefers-color-scheme: dark)', color: '#06120a' },
+    { media: '(prefers-color-scheme: light)', color: '#3e4095' },
+    { media: '(prefers-color-scheme: dark)', color: '#24265c' },
   ],
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en-NG" className={roboto.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

@@ -4,25 +4,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { claimReadiness } from '../lib/warranty-claim-readiness';
 import { logFailure } from '../lib/log';
 import { NUMBER_CLASH_TRIES, numberClashPause, retryOnNumberClash } from '../lib/integrity-core';
-
-test('E2E-07: a failure dated today (stored at 12:00 UTC) is not "in the future" at 08:00 Lagos', () => {
-  const r = claimReadiness(
-    { complaint: 'Gearbox whine in third gear', cause: 'Synchro ring worn out', correction: 'Replaced the synchro ring', causalPart: 'Synchro ring', causalPartNumber: 'SR-1', failureDate: new Date('2026-10-12T12:00:00Z'), failureReading: 900, labourAmount: 10000, partsAmount: 0, otherAmount: 0, deadlineAt: null, jobCardId: null, vehicleServiceId: null },
-    { status: 'ACTIVE', startsAt: new Date('2026-01-01T00:00:00Z'), endsAt: new Date('2027-01-01T00:00:00Z'), startReading: 0, distanceLimit: 100000, isSamplePolicy: false },
-    new Date('2026-10-12T07:00:00Z'),
-  );
-  const item = r.items.find((i: { key: string }) => i.key === 'failureDate');
-  assert.ok(item?.ok, 'today is never in the future');
-  const tomorrow = claimReadiness(
-    { complaint: 'Gearbox whine in third gear', cause: 'Synchro ring worn out', correction: 'Replaced the synchro ring', causalPart: 'Synchro ring', causalPartNumber: 'SR-1', failureDate: new Date('2026-10-13T12:00:00Z'), failureReading: 900, labourAmount: 10000, partsAmount: 0, otherAmount: 0, deadlineAt: null, jobCardId: null, vehicleServiceId: null },
-    { status: 'ACTIVE', startsAt: new Date('2026-01-01T00:00:00Z'), endsAt: new Date('2027-01-01T00:00:00Z'), startReading: 0, distanceLimit: 100000, isSamplePolicy: false },
-    new Date('2026-10-12T22:00:00Z'),
-  );
-  assert.equal(tomorrow.items.find((i: { key: string }) => i.key === 'failureDate')?.ok, false, 'tomorrow still is');
-});
 
 test('LOG-01: failure logs are one JSON line with emails masked and secrets removed', () => {
   const lines: string[] = [];

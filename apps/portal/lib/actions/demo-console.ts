@@ -16,7 +16,7 @@
  * in demo_records).
  */
 import { revalidatePath } from 'next/cache';
-import { authorize, getPrincipal, refuse, refuseDuringAssist } from '@/lib/authz/server';
+import { authorize, getPrincipal, refuse } from '@/lib/authz/server';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { prisma } from '@ejo/database';
 import { describeDemoPeople, disableStrayDemoPeople, loadDemoPeople, markDemoOrganisation } from '@/lib/demo/people-load';
@@ -67,7 +67,6 @@ export async function getDemoConsoleState(): Promise<DemoConsoleState> {
 /** Makes the demo organisation (its own Victoria Island workshop and departments; marked as the demo). Typed: its slug. */
 export async function createDemoOrganisationNow(confirm: string): Promise<Done<{ summary: string }>> {
   const userId = await platformTeam('createDemoOrganisationNow');
-  try { await refuseDuringAssist('createDemoOrganisationNow'); } catch (e) { return fail((e as Error).message); }
   const slug = demoOrgSlug();
   if (String(confirm ?? '').trim().toLowerCase() !== slug) return fail(`Type “${slug}” to go ahead.`);
   let org: Awaited<ReturnType<typeof ensureDemoOrganisation>>;
@@ -80,7 +79,6 @@ export async function createDemoOrganisationNow(confirm: string): Promise<Done<{
 /** Marks (or unmarks) an organisation as the demo. Unmarking switches its demo people off on the spot. Typed: the organisation's slug. */
 export async function setDemoOrganisation(organisationId: string, isDemo: boolean, confirm: string): Promise<Done<{ summary: string }>> {
   const userId = await platformTeam('setDemoOrganisation');
-  try { await refuseDuringAssist('setDemoOrganisation'); } catch (e) { return fail((e as Error).message); }
   const org = await platformOrg(organisationId);
   if (!org) return fail('No such organisation.');
   if (String(confirm ?? '').trim().toLowerCase() !== org.slug.toLowerCase()) return fail(`Type the organisation’s short name, “${org.slug}”, to go ahead.`);
@@ -97,7 +95,6 @@ export async function setDemoOrganisation(organisationId: string, isDemo: boolea
 /** Loads the whole demo again as of now: the people (when the password is set) and the workshop's seven months. */
 export async function refreshDemoNow(organisationId: string, confirm: string): Promise<Done<{ summary: string }>> {
   const userId = await platformTeam('refreshDemoNow');
-  try { await refuseDuringAssist('refreshDemoNow'); } catch (e) { return fail((e as Error).message); }
   if (String(confirm ?? '').trim().toLowerCase() !== 'refresh the demo') return fail('Type “refresh the demo” to go ahead: the demo records are replaced as of now (nobody’s own records are touched).');
   const org = await platformOrg(organisationId);
   if (!org) return fail('No such organisation.');
@@ -121,7 +118,6 @@ export async function refreshDemoNow(organisationId: string, confirm: string): P
 /** Takes the demo records out. The demo people stay — unmark the organisation to switch them off. */
 export async function removeDemoNow(organisationId: string, confirm: string): Promise<Done<{ summary: string }>> {
   const userId = await platformTeam('removeDemoNow');
-  try { await refuseDuringAssist('removeDemoNow'); } catch (e) { return fail((e as Error).message); }
   if (String(confirm ?? '').trim().toLowerCase() !== 'remove the demo') return fail('Type “remove the demo” to go ahead.');
   const org = await platformOrg(organisationId);
   if (!org) return fail('No such organisation.');

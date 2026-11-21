@@ -1,5 +1,5 @@
 /**
- * The one email layout every message from EJO 100 is built on. The website
+ * The one email layout every message from EJO is built on. The website
  * keeps a byte-for-byte copy (apps/website/lib/email-templates/layout.ts); a
  * unit test fails if the two drift apart.
  *
@@ -64,20 +64,20 @@ export function html(strings: TemplateStringsArray, ...values: HtmlValue[]): Saf
 /* Design tokens (the portal's own colours)                            */
 /* ------------------------------------------------------------------ */
 
-export const EMAIL_FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+export const EMAIL_FONT = "Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 
 const C = {
-  brand: '#d6890b', // the logo gold: wordmark rule and top bar
-  button: '#f09e2c', // the brand orange; its label is navy (8.3:1), never white
-  link: '#a8620c', // orange deep enough to read on white (4.7:1)
-  page: '#f1f5f4',
+  brand: '#ec3237', // the logo red: wordmark rule and top bar
+  button: '#3e4095', // the brand blue; its label is white (8.6:1)
+  link: '#3e4095', // the brand blue reads on white (8.6:1)
+  page: '#f3f4f6',
   card: '#ffffff',
-  surface: '#f8fafc',
-  border: '#e2e8f0',
-  text: '#0a1628',
-  body: '#334155',
-  muted: '#64748b',
-  faint: '#94a3b8',
+  surface: '#f9fafb',
+  border: '#e5e7eb',
+  text: '#111827',
+  body: '#374151',
+  muted: '#6b7280',
+  faint: '#9ca3af',
 };
 
 export type EmailTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
@@ -342,12 +342,12 @@ function wordmark(name: string, logoUrl: string): SafeHtml {
 function button(label: string, url: string): SafeHtml {
   // Outlook on Windows renders with Word, which ignores padding on links: VML draws the button there.
   const width = Math.min(520, Math.max(200, Math.round(label.length * 8.6 + 72)));
-  const vml = `<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(url)}" style="height:46px;v-text-anchor:middle;width:${width}px;" arcsize="17%" stroke="f" fillcolor="${C.button}"><w:anchorlock/><center style="color:#0a1628;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">${escapeHtml(label)}</center></v:roundrect><![endif]-->`;
+  const vml = `<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeHtml(url)}" style="height:46px;v-text-anchor:middle;width:${width}px;" arcsize="17%" stroke="f" fillcolor="${C.button}"><w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">${escapeHtml(label)}</center></v:roundrect><![endif]-->`;
   return html`
                 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                   <tr>
                     <td align="left" bgcolor="${raw(C.button)}" style="border-radius: 8px; background-color: ${raw(C.button)};">
-                      ${raw(vml)}${raw('<!--[if !mso]><!-->')}<a href="${url}" data-t="button" class="ejo-btn" style="display: inline-block; padding: 13px 26px; border-radius: 8px; background-color: ${raw(C.button)}; font-family: ${raw(EMAIL_FONT)}; font-size: 15px; line-height: 20px; font-weight: 700; color: #0a1628; text-decoration: none; -webkit-text-size-adjust: none;">${label}&nbsp;&nbsp;&rarr;</a>${raw('<!--<![endif]-->')}
+                      ${raw(vml)}${raw('<!--[if !mso]><!-->')}<a href="${url}" data-t="button" class="ejo-btn" style="display: inline-block; padding: 13px 26px; border-radius: 8px; background-color: ${raw(C.button)}; font-family: ${raw(EMAIL_FONT)}; font-size: 15px; line-height: 20px; font-weight: 700; color: #ffffff; text-decoration: none; -webkit-text-size-adjust: none;">${label}&nbsp;&nbsp;&rarr;</a>${raw('<!--<![endif]-->')}
                     </td>
                   </tr>
                 </table>`;
@@ -375,14 +375,14 @@ const STYLE_BASE = `
 const STYLE_DARK = `
   :root { color-scheme: light dark; supported-color-schemes: light dark; }
   @media (prefers-color-scheme: dark) {
-    .ejo-page, .ejo-outer { background-color: #0a1628 !important; }
-    .ejo-card, .ejo-head { background-color: #111f36 !important; border-color: #24324a !important; }
-    .ejo-box { background-color: #0d1526 !important; border-color: #24324a !important; }
-    .ejo-rowline, .ejo-note { border-color: #24324a !important; }
+    .ejo-page, .ejo-outer { background-color: #111827 !important; }
+    .ejo-card, .ejo-head { background-color: #1f2937 !important; border-color: #374151 !important; }
+    .ejo-box { background-color: #111827 !important; border-color: #374151 !important; }
+    .ejo-rowline, .ejo-note { border-color: #374151 !important; }
     .ejo-strong, .ejo-h1 { color: #f1f5f9 !important; }
     .ejo-body { color: #cbd5e1 !important; }
     .ejo-muted { color: #94a3b8 !important; }
-    .ejo-link { color: #f09e2c !important; }
+    .ejo-link { color: #a5a8f0 !important; }
     .ejo-callout-success { background-color: #0f2e1d !important; border-color: #22c55e !important; }
     .ejo-callout-warning { background-color: #33240a !important; border-color: #f59e0b !important; }
     .ejo-callout-danger { background-color: #3a1214 !important; border-color: #ef4444 !important; }
@@ -403,9 +403,9 @@ const STYLE_DARK = `
 // Outlook.com's dark mode marks the body with data-ogsc / data-ogsb. Kept in
 // its own block because some clients drop a whole block over attribute selectors.
 const STYLE_OUTLOOK_DARK = `
-  [data-ogsb] .ejo-page, [data-ogsb] .ejo-outer { background-color: #0a1628 !important; }
-  [data-ogsb] .ejo-card, [data-ogsb] .ejo-head { background-color: #111f36 !important; }
-  [data-ogsb] .ejo-box { background-color: #0d1526 !important; }
+  [data-ogsb] .ejo-page, [data-ogsb] .ejo-outer { background-color: #111827 !important; }
+  [data-ogsb] .ejo-card, [data-ogsb] .ejo-head { background-color: #1f2937 !important; }
+  [data-ogsb] .ejo-box { background-color: #111827 !important; }
   [data-ogsc] .ejo-strong, [data-ogsc] .ejo-h1 { color: #f1f5f9 !important; }
   [data-ogsc] .ejo-body { color: #cbd5e1 !important; }
   [data-ogsc] .ejo-muted { color: #94a3b8 !important; }`;
@@ -419,7 +419,7 @@ const STYLE_MOTION = `
   @keyframes ejo-sheen { from { background-position: 100% 0; } to { background-position: 0 0; } }
   @media (prefers-reduced-motion: no-preference) {
     .ejo-rule { transform-origin: left center; animation: ejo-draw 900ms cubic-bezier(0.2, 0.7, 0.2, 1) 200ms both; }
-    .ejo-topbar { background-image: linear-gradient(90deg, #d6890b 0%, #d6890b 40%, #f09e2c 50%, #d6890b 60%, #d6890b 100%); background-size: 250% 100%; animation: ejo-sheen 1600ms ease-out 300ms both; }
+    .ejo-topbar { background-image: linear-gradient(90deg, #ec3237 0%, #ec3237 40%, #3e4095 50%, #ec3237 60%, #ec3237 100%); background-size: 250% 100%; animation: ejo-sheen 1600ms ease-out 300ms both; }
     .ejo-chip { animation: ejo-fade 600ms ease-out 350ms both; }
   }`;
 

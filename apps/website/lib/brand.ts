@@ -2,24 +2,23 @@
  * THE ONE PLACE for the platform's name and its "Powered by" line.
  *
  * Every screen, email, printed document, PDF, the installed app and Enyo's
- * own answers read these values. To rename the platform (EJO 100 → EJO 150)
- * change it here, then run `npm run brand:sync` — it copies this file to
- * apps/portal/lib/brand.ts and apps/website/lib/brand.ts (a unit test fails
- * if the copies differ).
+ * own answers read these values. Change it here, then run
+ * `npm run brand:sync`: it copies this file to apps/portal/lib/brand.ts and
+ * apps/website/lib/brand.ts (a unit test fails if the copies differ).
  *
- * Naming: "EJO 100" is the product; "Enterprise Platform" is what it is (the
- * common term for an ERP suite — "OS" usually means device software); the
- * mark everywhere is the short "Powered by EJO 100".
+ * The workshop's own name, address and phones are not here: they live in
+ * Settings (the organisation record), so documents always show what the
+ * workshop typed.
  */
 export const PLATFORM = {
   /** The product, as people say it. */
-  name: 'EJO 100',
+  name: 'EJO',
   /** What it is. */
-  descriptor: 'Enterprise Platform',
+  descriptor: 'Workshop Platform',
   /** Name and descriptor together (sign-in pages, About, document titles). */
-  fullName: 'EJO 100 Enterprise Platform',
+  fullName: 'EJO Workshop Platform',
   /** The mark on every footer, email, print-out and PDF. */
-  poweredBy: 'Powered by EJO 100',
+  poweredBy: 'Powered by EJO · JusTech',
   /** Who makes it. */
   maker: 'Just Technologies (JusTech)',
   makerShort: 'JusTech',
@@ -31,13 +30,21 @@ export const PLATFORM = {
 } as const;
 
 /**
- * The organisation's logo file (public/images/logo/logo.png): its shape, so
- * the wordmark, the sidebar and the printed letterhead size it without
- * squashing. D'Phoenix Autocare's crest is square.
+ * The workshop's two logo files, used exactly as published on its website:
+ * the full logo (public/brand/logo.png: emblem, name and RC number) for the
+ * sign-in page, letterheads, PDFs and emails, and the square emblem
+ * (public/brand/emblem.png) for the sidebar, small spaces and app icons.
+ * Their shapes let every place size them without squashing.
  */
 export const LOGO = {
-  width: 500,
-  height: 500,
+  src: '/brand/logo.png',
+  width: 720,
+  height: 172,
+} as const;
+export const EMBLEM = {
+  src: '/brand/emblem.png',
+  width: 512,
+  height: 512,
 } as const;
 
 /** "Lagos Fleet Services Limited" → "LFSL": the installed app's home-screen name. */

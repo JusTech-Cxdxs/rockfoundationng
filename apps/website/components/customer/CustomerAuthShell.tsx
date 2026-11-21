@@ -4,7 +4,7 @@ import { Wordmark } from './Wordmark';
 import { PoweredByEjo } from './PoweredByEjo';
 import { ThemeSwitch } from './ThemeSwitch';
 import { Icon, type IconName } from './Icon';
-import { DPHOENIX } from '@/lib/content/dphoenix';
+import { WORKSHOP } from '@/lib/content/workshop';
 
 const HIGHLIGHTS: { title: string; text: string; icon: IconName }[] = [
   { title: 'Follow every step', text: 'Every repair and service, from check-in to collection, as it happens.', icon: 'route' },
@@ -93,8 +93,8 @@ export function CustomerAuthShell({ title, subtitle, children, footer }: { title
       {/* Form panel */}
       <section className="relative flex w-full flex-1 flex-col lg:w-[54%]">
         <div className="flex items-center justify-between px-5 pt-5 sm:px-10 sm:pt-6">
-          {/* "Back to website" goes to D'Phoenix Autocare's own website. */}
-          <a href={DPHOENIX.website} className="inline-flex items-center gap-1.5 rounded-full px-1 py-1 text-sm text-[var(--ejo-text-muted)] transition-colors hover:text-[var(--ejo-primary)]">
+          {/* "Back to website" goes to the workshop's own website. */}
+          <a href={WORKSHOP.website} className="inline-flex items-center gap-1.5 rounded-full px-1 py-1 text-sm text-[var(--ejo-text-muted)] transition-colors hover:text-[var(--ejo-primary)]">
             <Icon name="arrowLeft" size={16} /> Back to website
           </a>
           <div className="hidden lg:block"><ThemeSwitch /></div>

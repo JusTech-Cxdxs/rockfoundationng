@@ -87,9 +87,6 @@ export function VehiclePartsFitted({ rows }: { rows: PartFittedRow[] }) {
                 {r.jobCard ? <LoadingLink href={`/workshop/job-cards/${r.jobCard.id}`} className={link}>{r.jobCard.number}</LoadingLink> : null}
                 {r.customer ? <span className="block text-[var(--ejo-text-muted)]">{r.customer}</span> : null}
               </span>
-                  ))
-                )}
-              </span>
             </li>
           ))}
         </ul>

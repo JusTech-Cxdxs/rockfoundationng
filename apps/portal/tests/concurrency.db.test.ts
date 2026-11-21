@@ -159,20 +159,3 @@ test('control: the same two requests locking in the order they were listed DO de
   assert.ok(outcomes.some((o) => o.status === 'rejected' && /deadlock/i.test(String((o as PromiseRejectedResult).reason))), 'expected Postgres to report a deadlock');
 });
 
-test('bookings: two people booking the same room for overlapping times — exactly one booking', { skip }, async () => {
-  await pool.query(`INSERT INTO ${SCHEMA}.meeting_rooms VALUES ('room-1'); INSERT INTO ${SCHEMA}.users VALUES ('host-a'), ('host-b')`);
-  const book = (owner: string, startMin: number) => asUser(async (c) => {
-    await c.query(lockSql('meetingRoom'), [['room-1']]);
-    await c.query(lockSql('user'), [[owner]]);
-    const s = new Date(Date.UTC(2030, 0, 1, 9, startMin)), e = new Date(s.getTime() + 60 * 60000);
-    const clash = await c.query(`SELECT 1 FROM appointments WHERE status = 'SCHEDULED' AND "roomId" = $1 AND "startsAt" < $3 AND "endsAt" > $2`, ['room-1', s, e]);
-    await c.query('SELECT pg_sleep(0.03)');
-    if (clash.rowCount) return false;
-    await c.query(`INSERT INTO appointments ("roomId", "ownerId", "startsAt", "endsAt") VALUES ($1, $2, $3, $4)`, ['room-1', owner, s, e]);
-    return true;
-  });
-  const ok = await Promise.all([book('host-a', 0), book('host-b', 30), book('host-a', 15), book('host-b', 45)]);
-  assert.equal(ok.filter(Boolean).length, 1);
-  const { rows } = await pool.query(`SELECT count(*) AS n FROM ${SCHEMA}.appointments`);
-  assert.equal(Number(rows[0].n), 1);
-});

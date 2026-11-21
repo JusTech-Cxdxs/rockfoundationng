@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { inspectionPdfProps, jobEstimatePdfProps, jobEstimateTotals, letterhead, nairaForPdf, serviceEstimatePdfProps, serviceEstimateTotals } from '../lib/pdf/document-props';
+import { inspectionPdfProps, jobEstimatePdfProps, jobEstimateTotals, letterhead, nairaForPdf } from '../lib/pdf/document-props';
 import { checkPeriod, documentFileName, DOCUMENTS_PER_ZIP, partsOf, periodWindow, zipFileName } from '../lib/exports/documents';
 
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
@@ -60,20 +60,8 @@ test('a Job Card estimate: covered lines are shown but never charged; three figu
   assert.equal(withBilling.minimumDepositAmount, '₦7,525.00');
 });
 
-test('a Vehicle Service estimate: everything but labour and sundry is Parts & Services; its own label; the year on the vehicle', () => {
-  const lines = [{ type: 'STORE_PART', description: 'Filter', quantity: '1', amount: 4000, unitOfMeasure: null }, { type: 'INTERNAL_JOB', description: 'Wash', quantity: 1, amount: 1000, unitOfMeasure: null }, { type: 'LABOUR', description: 'Service', quantity: 1, amount: 5000, unitOfMeasure: 'hour' }];
-  assert.deepEqual(serviceEstimateTotals(lines, 0.7), { services: 5000, labour: 5000, sundry: 0, total: 10000, minimumDeposit: 7000 });
-  assert.equal(serviceEstimateTotals(lines).minimumDeposit, 0, 'no deposit unless one applies');
-  const p = serviceEstimatePdfProps({ letterhead: head, bank, serviceNumber: 'SV-2026-000009', customer, vehicle, lineItems: lines, depositFraction: 0.7 });
-  assert.equal(p.referenceLabel, 'VEHICLE SERVICE');
-  assert.equal(p.vehicleDescription, '2024 Isuzu NQR');
-  assert.equal(p.sundrySubtotal, null);
-  assert.equal(p.lineItems[2]!.unitLabel, 'hour');
-  assert.equal(p.paymentRemarkSuggestion, 'SV-2026-000009 Isuzu NQR ABC-123XY');
-});
-
 test('an inspection report: reviewed items only', () => {
-  const p = inspectionPdfProps({ letterhead: head, serviceNumber: 'SV-1', customerName: 'Ada Obi', vehicle, inspectedByName: 'T', completedOnLabel: 'x', items: [{ section: 'Brakes', name: 'Pads', condition: 'Worn', severity: 'HIGH', action: 'Replace' }, { section: 'Brakes', name: 'Discs', condition: null, severity: null, action: null }] });
+  const p = inspectionPdfProps({ letterhead: head, jobNumber: 'JC-1', customerName: 'Ada Obi', vehicle, inspectedByName: 'T', completedOnLabel: 'x', items: [{ section: 'Brakes', name: 'Pads', condition: 'Worn', severity: 'HIGH', action: 'Replace' }, { section: 'Brakes', name: 'Discs', condition: null, severity: null, action: null }] });
   assert.deepEqual(p.reviewedItems.map((i: { name: string }) => i.name), ['Pads']);
 });
 
