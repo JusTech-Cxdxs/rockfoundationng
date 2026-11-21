@@ -77,7 +77,7 @@ export async function getStoreBranchId(): Promise<string> {
 
 export type EligibleStoreStaffResult = { staff: { id: string; fullName: string; email: string }[]; usingFallback: boolean };
 
-/** Users holding `roleSlug` at the branch, falling back to Master Admins
+/** Users holding `roleSlug` at the branch, falling back to Platform Administrators
  * so the list is never empty. Same pattern as listEligibleManagersForBranch(). */
 async function listEligibleStoreStaffForBranch(branchId: string, roleSlug: string): Promise<EligibleStoreStaffResult> {
   await requireUser();
@@ -110,7 +110,7 @@ export async function listEligibleStoreOfficersForBranch(branchId: string): Prom
 }
 
 /** Gates Store work on the given permission (Store Manager/Officer by
- * default, plus Roles-page grants; Master Admin always), checked against the
+ * default, plus Roles-page grants; Platform Administrator always), checked against the
  * branch that owns the record so one branch cannot change another's stock,
  * prices or receipts. */
 export async function requireStoreStaff(branchId: string, key: StorePermission = 'store.grn.record'): Promise<{ id: string }> {

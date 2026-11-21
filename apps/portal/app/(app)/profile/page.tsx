@@ -19,7 +19,7 @@ export default async function ProfilePage() {
     select: { fullName: true, email: true, phone: true, employeeId: true, isActive: true, createdAt: true, organisation: { select: { name: true } }, branch: { select: { name: true } }, department: { select: { name: true } }, roles: { select: { role: { select: { name: true, slug: true, isSuperAdmin: true } } } } },
   });
   if (!u) return null;
-  const roles = u.roles.map((r: (typeof u.roles)[number]) => (r.role.isSuperAdmin ? 'Platform team (Master Administrator)' : roleLabel(r.role.slug, r.role.name)));
+  const roles = u.roles.map((r: (typeof u.roles)[number]) => (r.role.isSuperAdmin ? 'Platform team (Platform Administrator)' : roleLabel(r.role.slug, r.role.name)));
   const access = describeAccess(p).filter((g) => g.lines.length);
   const details: [string, string][] = [
     ['Employee ID', u.employeeId ?? 'Not yet issued — ask your administrator'],

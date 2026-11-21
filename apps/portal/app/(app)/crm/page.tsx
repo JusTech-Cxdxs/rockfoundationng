@@ -55,7 +55,7 @@ export default async function CrmHubPage({ searchParams }: { searchParams: Promi
             <div className="min-w-0">
               <h1 className="text-2xl font-bold text-[var(--ejo-text)] sm:text-3xl">Customers</h1>
               <p className="mt-1 max-w-2xl text-sm text-[var(--ejo-text-muted)]">
-                Every customer with their vehicles, visits, spend, warranties, contacts and change history.
+                Every customer with their vehicles, visits, spend, contacts and change history.
                 {hub.scope.branchOnly ? <> Visits and money show <span className="font-medium text-[var(--ejo-text)]">{hub.scope.branchName}</span> only.</> : null}
               </p>
             </div>

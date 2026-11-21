@@ -48,7 +48,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
     <html lang="en">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>EJO 100</title>
+        <title>EJO</title>
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
       </head>
       <body>
@@ -58,7 +58,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
           <div className="icon">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3 2.5 20h19z" /><path d="M12 10v4M12 17h.01" /></svg>
           </div>
-          <h1>EJO 100 is having a problem right now</h1>
+          <h1>EJO is having a problem right now</h1>
           <p>Nothing you entered has been lost. Please try again in a moment. If it keeps happening, tell IT and quote the reference below.</p>
           {ref ? (
             <div className="ref">

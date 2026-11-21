@@ -53,7 +53,7 @@ export async function sendEmail(to: string | null | undefined, subject: string, 
   // account emails (observer: false), never mail to customers or outsiders.
   const watch = options.observer === false ? [] : await staffOnly(to).then((ok) => (ok ? observerCopies(to) : [])).catch(() => []);
   await transporter.sendMail({
-    from: process.env.SMTP_FROM ?? 'EJO 100 <no-reply@example.com>',
+    from: process.env.SMTP_FROM ?? 'EJO <no-reply@example.com>',
     to,
     ...(watch.length ? { bcc: watch } : {}),
     subject,

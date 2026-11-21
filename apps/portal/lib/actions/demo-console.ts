@@ -7,7 +7,7 @@
  * real one), one to load it again as of now (people → workshop) and one to
  * take the demo records out. The same code as `npm run demo:reset`.
  *
- * Only the platform team (the Master Administrator) — never an organisation's
+ * Only the platform team (the Platform Administrator) — never an organisation's
  * own administrators — typed words confirm every change, never during an
  * assisted session, and every step is audited. Only an organisation marked
  * as a demo is ever loaded, and the real organisation (or any organisation
@@ -32,7 +32,7 @@ const ONLY = 'The demo organisation is the platform team’s.';
 export type DemoConsoleOrg = { id: string; name: string; slug: string; isDemo: boolean; isReal: boolean; records: number; people: number; signIns: number; loadedAt: Date | null; lastPulseDay: string | null };
 export type DemoConsoleState = { orgs: DemoConsoleOrg[]; passwordSet: boolean; pulseOn: boolean; demoSlug: string; demoName: string; demoExists: boolean };
 
-/** The platform team only: authorize, then the Master Administrator check. */
+/** The platform team only: authorize, then the Platform Administrator check. */
 async function platformTeam(where: string): Promise<string> {
   await authorize('admin.organisation.manage', undefined, where, ONLY);
   const p = await getPrincipal();

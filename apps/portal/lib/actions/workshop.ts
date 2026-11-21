@@ -141,7 +141,7 @@ async function currentUserIsMasterAdminUncached(): Promise<boolean> {
 }
 
 
-/** Only the Job Card's assigned supervisor, or a Master Administrator, may approve or reject it. */
+/** Only the Job Card's assigned supervisor, or a Platform Administrator, may approve or reject it. */
 export async function requireJobCardApprover(jobCard: { supervisorId: string | null }): Promise<{ id: string }> {
   const user = await requireUser();
   if (jobCard.supervisorId === user.id) {
@@ -227,14 +227,14 @@ export type EligibleSupervisor = { id: string; fullName: string; email: string }
 export type EligibleSupervisorResult = {
   supervisors: EligibleSupervisor[];
   // True when nobody holds the Workshop Supervisor role in this department yet
-  // and the list is Master Administrators standing in. The UI must say so.
+  // and the list is Platform Administrators standing in. The UI must say so.
   usingFallback: boolean;
 };
 
 /** Users eligible to supervise a Job Card for the given vehicle type: members
  * of that type's Workshop department holding the "Workshop Supervisor" role,
  * so a Passenger job can never be given a Commercial supervisor.
- * Falls back to Master Administrators when the department has nobody yet,
+ * Falls back to Platform Administrators when the department has nobody yet,
  * flagged with `usingFallback: true`. */
 /** The eligibility query shared by the creation picker (by vehicle type) and
  * the reassignment picker (by Job Card), so the rule and its fallback live
@@ -1131,7 +1131,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
   if (status === JobCardStatus.CHECKED_OUT && priorStatus !== JobCardStatus.CHECKED_OUT && !collectedByName?.trim()) {
     throw new WorkshopActionError('The name of whoever is collecting the vehicle is required to check it out.');
   }
-  // Enforce the standard forward progression server-side. Master Admin
+  // Enforce the standard forward progression server-side. Platform Administrator
   // bypasses it. CHECKED_OUT and cancellation moves are covered by the guards
   // above; this only handles plain single-step moves.
   if (priorStatus !== status && priorStatus !== JobCardStatus.CANCELLED) {
@@ -1407,7 +1407,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
   return result;
 }
 
-/** The supervisor (or Master Admin) confirms the Job Card is correctly
+/** The supervisor (or Platform Administrator) confirms the Job Card is correctly
  * opened. Separate from `status`. */
 export async function approveJobCard(jobCardId: string, notes?: string): Promise<void> {
   const jobCard = await prisma.jobCard.findUnique({
@@ -1498,7 +1498,7 @@ export async function rejectJobCard(jobCardId: string, reason: string, notes?: s
 }
 
 /** Routes a Job Card to a different supervisor, typically after a
- * rejection. Only the creator or a Master Administrator may do this.
+ * rejection. Only the creator or a Platform Administrator may do this.
  * Resets approval to PENDING and clears the previous decision, as
  * assignTechnician() does for acceptance. */
 export async function reassignSupervisor(jobCardId: string, newSupervisorId: string): Promise<void> {
@@ -1605,7 +1605,7 @@ export async function reassignSupervisor(jobCardId: string, newSupervisorId: str
  * technician's response doesn't carry over. Emails the technician (fail-soft). */
 export async function assignTechnician(jobCardId: string, technicianId: string) {
   const actor = await requireUser();
-  // Only this job's supervisor (Master Admin always) assigns its technician,
+  // Only this job's supervisor (Platform Administrator always) assigns its technician,
   // checked on the record itself.
   await authorizeOnJobCard('workshop.technician.assign', jobCardId, 'assignTechnician');
   const current = await prisma.jobCard.findUnique({ where: { id: jobCardId }, select: { status: true, supervisorId: true } });
@@ -1681,7 +1681,7 @@ export async function assignTechnician(jobCardId: string, technicianId: string) 
   return jobCard;
 }
 
-/** Only the assigned technician, or a Master Administrator, may respond to an assignment. */
+/** Only the assigned technician, or a Platform Administrator, may respond to an assignment. */
 async function requireAssignedTechnician(jobCard: { assignedTechnicianId: string | null }): Promise<{ id: string }> {
   const user = await requireUser();
   if (jobCard.assignedTechnicianId === user.id) {
@@ -1837,7 +1837,7 @@ export async function listTechnicianCandidates() {
     select,
   });
   if (hands.length) return hands;
-  // Nobody holds the technician or supervisor role yet: the master administrator can take the job (lib/master-fallback.ts).
+  // Nobody holds the technician or supervisor role yet: the Platform Administrator can take the job (lib/master-fallback.ts).
   const org = (await getPrincipal()).organisationId;
   return prisma.user.findMany({
     where: { isActive: true, roles: { some: { role: { isSuperAdmin: true } } }, ...(org ? { OR: [{ organisationId: org }, { organisationId: null }] } : {}) },
@@ -1903,7 +1903,7 @@ export type EstimateLineItemInput = {
 };
 
 /** Who may add to or edit an estimate: the assigned supervisor, the assigned
- * technician, or a Master Administrator. Every line records who entered or
+ * technician, or a Platform Administrator. Every line records who entered or
  * last changed it. */
 async function requireEstimateContributor(jobCard: {
   supervisorId: string | null;
@@ -2507,7 +2507,7 @@ export async function submitEstimateForValidation(jobCardId: string): Promise<vo
 
 /** Managers for the branch (a Manager covers both Passenger and
  * Commercial departments, so eligibility is by branch). Falls back to
- * Master Admins like the supervisor list. */
+ * Platform Administrators like the supervisor list. */
 async function listEligibleManagersForBranchUncached(branchId: string): Promise<EligibleSupervisorResult> {
   await requireUser();
   return managersForBranchShared(branchId);
@@ -2538,18 +2538,18 @@ const managersForBranchShared = unstable_cache(async (branchId: string): Promise
 }, ['branch-managers-v1'], { revalidate: 60, tags: ['org-structure'] });
 
 /** There is no single assigned manager: any eligible manager for the branch
- * (or a Master Admin) may act, and the first to act completes the step. */
+ * (or a Platform Administrator) may act, and the first to act completes the step. */
 type ManagerPermission = 'workshop.close.approve' | 'workshop.estimate.final_approve' | 'store.prs.approve_hod';
 
 export async function requireEligibleManager(branchId: string, key: ManagerPermission = 'workshop.close.approve'): Promise<{ id: string }> {
   const user = await requireUser();
   // Authorization Catalogue (Manager by default, plus Roles-page
-  // grants; Master Admin always), checked against the record's branch.
+  // grants; Platform Administrator always), checked against the record's branch.
   await authorize(key, { branchId, homeBranch: true }, `manager:${key}`, 'Only the Owner can approve this.');
   return user;
 }
 
-/** The assigned supervisor (or a Master Admin) approves a submitted
+/** The assigned supervisor (or a Platform Administrator) approves a submitted
  * estimate; it then goes to the branch's Managers. */
 export async function approveEstimate(jobCardId: string): Promise<void> {
   const estimate = await prisma.estimate.findUnique({
@@ -2778,7 +2778,7 @@ export async function returnEstimateForChanges(jobCardId: string, reason: string
 }
 
 /** Sends the Manager-approved estimate to the customer. Only the Job Card's
- * creator or a Master Admin, and only after Manager approval. Not automatic:
+ * creator or a Platform Administrator, and only after Manager approval. Not automatic:
  * approval means the numbers are right, not that the customer should be told yet. */
 export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promise<void> {
   const estimate = await prisma.estimate.findUnique({
@@ -2919,7 +2919,7 @@ export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promi
 
 export type PaymentMethod = 'BANK_TRANSFER' | 'CASH';
 
-/** Finance Officers for the branch (with the Master Admin fallback), who may
+/** Finance Officers for the branch (with the Platform Administrator fallback), who may
  * record payments. Branch-scoped like Managers. */
 export async function listEligibleFinanceOfficersForBranch(branchId: string): Promise<EligibleSupervisorResult> {
   await requireUser();
@@ -3302,7 +3302,7 @@ export async function recordPayment(
 }
 
 // ---------------------------------------------------------------------------
-// CANCELLATION: the creator, the assigned supervisor or a Master Admin
+// CANCELLATION: the creator, the assigned supervisor or a Platform Administrator
 // raises a request with a reason (however the customer asked), and a
 // Manager approves or declines it. JobCard.status only changes on
 // approval, so a decline has nothing to revert.
@@ -4299,7 +4299,7 @@ export async function sendApprovalReminder(jobCardId: string): Promise<void> {
   );
 }
 
-/** Master Admin's manual "run today's checks": sends due approval reminders
+/** Platform Administrator's manual "run today's checks": sends due approval reminders
  * and counts Job Cards past the deadline. Never cancels anything; that
  * stays a Manager-approved cancellation request, so staff can still extend
  * grace when a customer asks. */
@@ -4341,7 +4341,7 @@ export async function runApprovalDeadlineChecks(): Promise<{ remindersSent: numb
 }
 
 /** Manually notifies the customer of a cancelled Job Card's uncollected
- * vehicle. Only an eligible Manager (or Master Admin). Never automatic. */
+ * vehicle. Only an eligible Manager (or Platform Administrator). Never automatic. */
 export async function notifyOverdueCancelledVehicle(jobCardId: string, notes?: string): Promise<void> {
   const jobCard = await prisma.jobCard.findUnique({
     where: { id: jobCardId },

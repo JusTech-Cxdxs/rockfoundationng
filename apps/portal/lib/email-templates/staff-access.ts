@@ -45,16 +45,16 @@ export function renderStaffAccessEmail(o: StaffAccessEmailOptions): { subject: s
   const welcome = o.kind === 'welcome';
   const hours = o.setPasswordHours ?? 72;
   const roleText = o.isPlatformTeam
-    ? 'Platform team (Master Administrator)'
+    ? 'Platform team (Platform Administrator)'
     : o.roles.length ? o.roles.join(', ') : 'None yet. Your administrator will give you one.';
   const subject = welcome
-    ? `Welcome to EJO 100: your ${o.companyName} account`
-    : 'Your EJO 100 roles and permissions have changed';
+    ? `Welcome to EJO: your ${o.companyName} account`
+    : 'Your EJO roles and permissions have changed';
 
   const bodyHtml = html`
     ${greeting(o.fullName)}
     ${welcome
-      ? para(`An account has been created for you on EJO 100, the system ${o.companyName} uses to run its daily work.`)
+      ? para(`An account has been created for you on EJO, the system ${o.companyName} uses to run its daily work.`)
       : para(`${o.changeNote ? `${o.changeNote} ` : ''}Here is what your account can do from now on.`)}
     ${details([
       ['Employee ID', o.employeeId ?? 'Not issued yet'],
@@ -89,7 +89,7 @@ export function renderStaffAccessEmail(o: StaffAccessEmailOptions): { subject: s
     status: welcome ? { label: 'New account', tone: 'success' } : { label: 'Access changed', tone: 'info' },
     heading: welcome ? `Welcome to ${o.companyName}` : 'Your access has changed',
     bodyHtml,
-    ctaLabel: welcome ? undefined : 'Open EJO 100',
+    ctaLabel: welcome ? undefined : 'Open EJO',
     ctaUrl: welcome ? undefined : o.signInUrl,
     footerNote: welcome
       ? 'If you were not expecting this email, you can ignore it; nothing happens until a password is set.'

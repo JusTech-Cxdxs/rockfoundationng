@@ -1,4 +1,5 @@
 import { cleanForLog } from '@/lib/errors';
+import { dutyRoleSlugs } from '@/lib/duty-roles';
 import { orMasterAdmins } from '@/lib/master-fallback';
 import { portalBaseUrl } from '@/lib/portal-url';
 import { logFailure } from '@/lib/log';
@@ -20,8 +21,10 @@ export async function notifyGateOfRelease(jobCardId: string, actorId: string | n
       .then((j) => j && { number: j.jobNumber, collector: j.collectedByName, vehicle: j.vehicle, customer: j.customer.fullName, branch: j.branch });
     if (!rec) return;
     // The gate of THIS record's organisation only.
-    const officers = await prisma.user.findMany({ where: { isActive: true, organisationId: rec.branch.businessUnit.organisationId, roles: { some: { role: { slug: { in: ['security-officer', 'chief-security-officer'] } } } } }, select: { fullName: true, email: true } });
-    // Nobody at the gate yet: the master administrator is told (lib/master-fallback.ts).
+    // Security while that role is on; otherwise Front Desk, which covers the gate.
+    const gateRoles = await dutyRoleSlugs(rec.branch.businessUnit.organisationId, 'security');
+    const officers = await prisma.user.findMany({ where: { isActive: true, organisationId: rec.branch.businessUnit.organisationId, roles: { some: { role: { slug: { in: gateRoles } } } } }, select: { fullName: true, email: true } });
+    // Nobody at the gate yet: the Platform Administrator is told (lib/master-fallback.ts).
     const gate = await orMasterAdmins(officers, rec.branch.businessUnit.organisationId);
     if (gate.length === 0) return;
     const car = [rec.vehicle.make, rec.vehicle.model].filter(Boolean).join(' ') || 'Vehicle';

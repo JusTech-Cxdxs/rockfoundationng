@@ -1,5 +1,5 @@
 /**
- * EJO 100 — DATA INVENTORY (Architecture & Security Baseline v1, §8).
+ * EJO — DATA INVENTORY (Architecture & Security Baseline v1, §8).
  *
  * Every table in the database is declared here: who owns it (tenancy), how
  * sensitive it is, how a record ends, how long it is kept, and whether AI may
@@ -29,7 +29,7 @@ export type Classification =
   | 'SECRET' //         credentials and sessions — never displayed, exported or given to AI
   | 'AUDIT'; //         the immutable record of what happened
 
-/** How a record ends its life in EJO 100. */
+/** How a record ends its life in EJO. */
 export type Lifecycle =
   | 'STATE_MACHINE' //  never deleted — cancelled / closed through its workflow (with approval)
   | 'IMMUTABLE' //      never changed or deleted once written (append-only)

@@ -10,7 +10,7 @@ import { recordUrl, describeApiEntry, areaOf, AREA_LABEL } from '@/lib/notificat
 import { resolveRecords, resolveReferenceNumbers, REFERENCE_PATTERN } from '@/lib/record-resolver';
 
 /** The full audit trail — catalogue permission audit.view (Administrators;
- * Master Admin always; plus any grant added on the Roles page). */
+ * Platform Administrator always; plus any grant added on the Roles page). */
 export async function canSeeAuditLogs(): Promise<boolean> {
   await requireUser();
   return allows('audit.view');
@@ -27,7 +27,7 @@ const words = (model: string) => model.replace(/([a-z])([A-Z])/g, '$1 $2').repla
 /** One page (50) of the audit trail, newest first, cursor-paged so it stays
  * fast however large the trail grows. Append-only: nothing here changes it. */
 export async function getAuditLogPage(f: { kind?: string; q?: string; userId?: string; from?: string; to?: string; cursor?: string }) {
-  if (!(await canSeeAuditLogs())) throw new Error('The audit trail is for the Master Admin and Administrators.');
+  if (!(await canSeeAuditLogs())) throw new Error('The audit trail is for the Platform Administrator and Administrators.');
   const kind = (['business', 'data', 'api', 'system'].includes(f.kind ?? '') ? f.kind : 'all') as AuditKind;
   const q = f.q?.trim();
   const createdAt: { gte?: Date; lt?: Date } = {};

@@ -55,7 +55,7 @@ export function isReworkTransition(from: string, to: string): boolean {
 /**
  * Statuses a non-Master-Admin viewer may move this Job Card to directly.
  * Used for the dropdown options and by updateJobCardStatus to refuse
- * anything else server-side. Master Admin bypasses it.
+ * anything else server-side. Platform Administrator bypasses it.
  */
 export function getSelectableJobCardStatuses(
   currentStatus: JobCardStatus,

@@ -26,7 +26,7 @@ export type DashboardNotification = {
 /**
  * Pending items that need this viewer's attention: a Manager sees approvals
  * and requests waiting on them, a technician their pending assignments,
- * Master Admin everything pending in the branch.
+ * Platform Administrator everything pending in the branch.
  */
 export async function getDashboardNotifications(): Promise<DashboardNotification[]> {
   try {
@@ -53,7 +53,7 @@ async function getDashboardNotificationsInner(): Promise<DashboardNotification[]
   const fullUser = await prisma.user.findUnique({ where: { id: user.id }, select: { branchId: true } });
   const branchId = fullUser?.branchId ?? null;
 
-  // Management items: Master Admin, or an eligible Manager at their own
+  // Management items: Platform Administrator, or an eligible Manager at their own
   // branch. Never shown to other staff.
   let isEligibleManagerAnywhere = isMasterAdmin;
   if (!isMasterAdmin && branchId) {
@@ -196,7 +196,7 @@ export async function createAnnouncement(message: string, expiresAt: Date | null
 
 export async function deactivateAnnouncement(announcementId: string): Promise<void> {
   const user = await requireUser();
-  // Same people who may post one: a Manager of their branch (or Master Admin),
+  // Same people who may post one: a Manager of their branch (or Platform Administrator),
   // and only within their own organisation — or whoever posted it.
   const [a, me, isMasterAdmin] = await Promise.all([
     prisma.announcement.findUnique({ where: { id: announcementId }, select: { organisationId: true, createdById: true } }),

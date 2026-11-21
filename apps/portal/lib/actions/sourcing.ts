@@ -103,7 +103,7 @@ async function notifyTechnicianAndSupervisorOfPartRequestStatus(
 }
 
 /**
- * Separation of duties, with one exception: the master administrator may sign
+ * Separation of duties, with one exception: the Platform Administrator may sign
  * a second step (as the Workshop already allows) — so a new installation,
  * where nobody holds the Store, Finance or Manager roles yet, is never stuck.
  * Every such second signature is written to the audit log, and the integrity
@@ -112,7 +112,7 @@ async function notifyTechnicianAndSupervisorOfPartRequestStatus(
 async function signsAgainAsMaster(userId: string, entityType: string, entityId: string, step: string): Promise<boolean> {
   const master = await prisma.userRole.findFirst({ where: { userId, role: { isSuperAdmin: true } }, select: { userId: true } });
   if (!master) return false;
-  await writeAuditLog({ userId, action: 'separation_of_duties.waived', entityType, entityId, metadata: { step, by: 'master administrator' } });
+  await writeAuditLog({ userId, action: 'separation_of_duties.waived', entityType, entityId, metadata: { step, by: 'Platform Administrator' } });
   return true;
 }
 

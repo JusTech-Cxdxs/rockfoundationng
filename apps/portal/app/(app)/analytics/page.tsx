@@ -26,7 +26,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
   if (!(await canSeeMasterAnalytics())) {
     return (
       <div className="w-full p-4 sm:p-8">
-        <PageHeader hero icon="chart" title="Business analytics" description="This dashboard is for the Master Admin, Administrators, the Manager and Finance. Ask an administrator if you need access." />
+        <PageHeader hero icon="chart" title="Business analytics" description="This dashboard is for the Platform Administrator, Administrators, the Manager and Finance. Ask an administrator if you need access." />
       </div>
     );
   }
@@ -46,7 +46,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
   // Without the Store (lib/modules.ts) the parts cost is not recorded, so profit figures say so.
   const storeOn = moduleIsOn('inventory');
   const costNote = a.partsCostNote;
-  const historyFrom = 'the previous system';
+  const historyFrom = 'the old system';
   return (
     <div className="w-full p-4 sm:p-8">
       <PageHeader
@@ -205,10 +205,10 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
           <T as="h2" icon="star">Top customers in the period</T>
           {a.diagnostic.topCustomers.length === 0 ? <p className="flex items-center gap-2 text-sm text-[var(--ejo-text-muted)]"><Icon name="inbox" size={16} />No completed jobs in this period.</p> : (
             <div className="space-y-2">{a.diagnostic.topCustomers.map((m) => (
-              <BarRow key={m.id ?? m.name} label={<CustomerLink id={m.id} name={m.name} canView={canSeeCustomers} />} value={m.value} max={maxCust} note={'fromSap' in m && m.fromSap ? `${naira(m.value)} · incl. ${naira(m.fromSap)} earlier` : naira(m.value)} />
+              <BarRow key={m.id ?? m.name} label={<CustomerLink id={m.id} name={m.name} canView={canSeeCustomers} />} value={m.value} max={maxCust} note={'fromBefore' in m && m.fromBefore ? `${naira(m.value)} · incl. ${naira(m.fromBefore)} earlier` : naira(m.value)} />
             ))}</div>
           )}
-          {a.sapHistory.amount ? <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Includes invoices from {historyFrom} before EJO dated in the period ({naira(a.sapHistory.amount)} on {a.sapHistory.invoices} invoices) — history, not in the sales and margins above.</p> : null}
+          {a.historyBefore.amount ? <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Includes invoices from {historyFrom} before EJO dated in the period ({naira(a.historyBefore.amount)} on {a.historyBefore.invoices} invoices) — history, not in the sales and margins above.</p> : null}
         </div>
       </div>
     </div>

@@ -8,7 +8,7 @@ export type StaffNoticeEmailOptions = {
   logoUrl: string;
   companyName: string;
   branchName: string;
-  /** The button label; defaults to "Open in EJO 100". */
+  /** The button label; defaults to "Open in EJO". */
   actionLabel?: string;
   /** A small label above the heading, e.g. "Appointment" or "Security". */
   statusLabel?: string;
@@ -33,7 +33,7 @@ export function renderStaffNoticeEmail(o: StaffNoticeEmailOptions): string {
     status: o.statusLabel ? { label: o.statusLabel, tone: o.statusTone ?? 'info' } : undefined,
     heading: o.heading,
     bodyHtml,
-    ctaLabel: o.actionLabel ?? 'Open in EJO 100',
+    ctaLabel: o.actionLabel ?? 'Open in EJO',
     ctaUrl: o.actionUrl,
     audience: 'staff',
   });

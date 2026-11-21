@@ -50,7 +50,7 @@ normal deploy:
    the first time only, the workshop's seven months of records
    (\`npm run demo:ensure\`). A later deploy leaves what people did in the
    demo alone.
-2. **From the portal:** the platform team (the Master Administrator) opens
+2. **From the portal:** the platform team (the Platform Administrator) opens
    **IT control room → Demo organisation**: *Make the demo organisation*,
    then *Load / refresh the demo now*, or *Remove the demo records*. Typed
    words confirm each step; every step is audited.

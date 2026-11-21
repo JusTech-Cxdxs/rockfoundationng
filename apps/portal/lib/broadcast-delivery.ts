@@ -73,7 +73,7 @@ export async function deliverDueBroadcastEmails(now: Date = new Date()): Promise
       try {
         await sendEmail(u.email, `${meta.heading}: ${b.title}`, renderStaffNoticeEmail({
           recipientName: u.fullName, heading: b.title, lines: b.message.split(/\n+/).map((l: string) => l.trim()).filter(Boolean),
-          actionUrl: `${portal}/notifications?tab=broadcasts`, actionLabel: 'Read in EJO 100', statusLabel: meta.label,
+          actionUrl: `${portal}/notifications?tab=broadcasts`, actionLabel: 'Read in EJO', statusLabel: meta.label,
           statusTone: b.category === 'URGENT' || b.category === 'SECURITY_ALERT' ? 'danger' : b.category === 'IMPORTANT' ? 'warning' : 'info',
           logoUrl: `${portal}/brand/emblem.png`, companyName: b.organisation.name, branchName: '',
         }));

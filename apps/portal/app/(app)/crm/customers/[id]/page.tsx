@@ -22,14 +22,13 @@ import { SpendChart } from '@/components/crm/LazyCrmCharts';
 import { EditCustomerForm } from '@/components/crm/EditCustomerForm';
 import { RefineTextButton } from '@/components/enyo/RefineTextButton';
 import { ExportAction } from '@/components/ExportAction';
-import { oldSystemName } from '@/lib/modules';
 import { bookServiceHref, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
 import { WhatsAppSendButton } from '@/components/WhatsAppSendButton';
 import { customerCanWhatsApp } from '@/lib/whatsapp-messages';
 import { hasEmail } from '@/lib/customer-email';
 
 /** Where records from before EJO came from, in this edition's words. */
-const OLD_SYSTEM = 'the previous system';
+const OLD_SYSTEM = 'the old system';
 
 export const metadata = { title: 'Customer' };
 
@@ -120,7 +119,7 @@ export default async function Customer360Page({ params, searchParams }: { params
                 <li className="flex min-w-0 items-center gap-1.5"><CrmIcon name="mail" size={14} className="shrink-0 text-[var(--ejo-text-muted)]" /><a href={`mailto:${c.email}`} className="truncate hover:text-[var(--ejo-primary)]">{c.email}</a></li>
                 <li className="flex min-w-0 items-center gap-1.5"><CrmIcon name="map" size={14} className="shrink-0 text-[var(--ejo-text-muted)]" />{c.address ? <span className="break-words">{c.address}</span> : <span className="text-[var(--ejo-warning)]">No primary address</span>}</li>
               </ul>
-              <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Customer since {formatDateOnly(c.customerSince ?? c.createdAt)}{c.customerSince ? ` (from ${oldSystemName(c.externalSource)}${c.externalId ? `, customer ${c.externalId}` : ''}) · in EJO 100 since ${formatDateOnly(c.createdAt)}` : ''}{c.createdBy ? ` · registered by ${c.createdBy}` : ''}</p>
+              <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Customer since {formatDateOnly(c.customerSince ?? c.createdAt)}{c.customerSince ? ` (from ${OLD_SYSTEM}${c.externalId ? `, customer ${c.externalId}` : ''}) · in EJO since ${formatDateOnly(c.createdAt)}` : ''}{c.createdBy ? ` · registered by ${c.createdBy}` : ''}</p>
             </div>
           </div>
           {/* Quick actions */}
@@ -155,10 +154,10 @@ export default async function Customer360Page({ params, searchParams }: { params
 
       {/* KPIs */}
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Kpi icon="wallet" label="Lifetime spend" value={money.netPaid} format="naira" hint={money.fromSap ? `Incl. ${naira(money.fromSap)} from ${OLD_SYSTEM}, before EJO` : `Paid ${naira(money.paidIn)} in total`} delay={0} />
+        <Kpi icon="wallet" label="Lifetime spend" value={money.netPaid} format="naira" hint={money.fromBefore ? `Incl. ${naira(money.fromBefore)} from ${OLD_SYSTEM}, before EJO` : `Paid ${naira(money.paidIn)} in total`} delay={0} />
         <Kpi icon="alert" label="Outstanding" value={money.outstanding} format="naira" tone={money.outstanding > 0 ? 'warning' : undefined} hint="Still owed on finished work" href={`${base}?tab=jobs`} delay={40} />
         <Kpi icon="refund" label="Refunds" value={money.refunded} format="naira" hint="Money returned to them" href={`${base}?tab=payments`} delay={80} />
-        <Kpi icon="calendar" label="Visits" value={money.visits} hint={money.lastVisit ? `Last: ${formatDateOnly(money.lastVisit)}${money.sapInvoices ? ` · ${money.sapInvoices} before EJO` : ''}` : 'No visits yet'} href={`${base}?tab=jobs`} delay={120} />
+        <Kpi icon="calendar" label="Visits" value={money.visits} hint={money.lastVisit ? `Last: ${formatDateOnly(money.lastVisit)}${money.invoicesBefore ? ` · ${money.invoicesBefore} before EJO` : ''}` : 'No visits yet'} href={`${base}?tab=jobs`} delay={120} />
         <Kpi icon="car" label="Vehicles" value={data.vehicles.length} hint={data.vehicles.length ? data.vehicles.slice(0, 2).map((v) => v.plateNumber || v.make).filter(Boolean).join(', ') : 'None registered'} href={`${base}?tab=vehicles`} delay={160} />
         <Kpi icon="receipt" label="Average job" value={money.averageJob} format="naira" hint={`${pluralize(money.finishedJobs, 'finished job')}`} delay={200} />
         <Kpi icon="clock" label="Average turnaround" value={money.averageTurnaroundDays} format="days" hint="Received → completed" delay={240} />
@@ -250,14 +249,14 @@ export default async function Customer360Page({ params, searchParams }: { params
             <PastJobList rows={data.pastJobs} />
           </Section>
         ) : null}
-        {tab === 'jobs' && data.sapInvoices.length ? (
-          <Section icon="receipt" title={`From ${OLD_SYSTEM}, before EJO (${data.sapInvoices.length})`} subtitle={`Invoices brought in from ${OLD_SYSTEM}: read-only history, already settled there. ${naira(money.fromSap)} in all — counted in lifetime spend, visits and last visit.`} className="mt-6" action={<ExportAction kind="sap-invoices" params={{ customerId: id }} label="Export" />}>
-            <SapInvoiceList rows={data.sapInvoices} />
+        {tab === 'jobs' && data.invoicesBefore.length ? (
+          <Section icon="receipt" title={`From ${OLD_SYSTEM}, before EJO (${data.invoicesBefore.length})`} subtitle={`Invoices brought in from ${OLD_SYSTEM}: read-only history, already settled there. ${naira(money.fromBefore)} in all — counted in lifetime spend, visits and last visit.`} className="mt-6" action={<ExportAction kind="sap-invoices" params={{ customerId: id }} label="Export" />}>
+            <InvoicesBeforeList rows={data.invoicesBefore} />
           </Section>
         ) : null}
 
         {tab === 'payments' ? (
-          <Section icon="receipt" title="Payments & refunds" subtitle={`Paid ${naira(money.paidIn)} · refunded ${naira(money.refunded)} · net ${naira(money.netPaid - money.fromSap)}${money.fromSap ? ` · plus ${naira(money.fromSap)} invoiced ${''}before EJO (see Jobs)` : ''}`}>
+          <Section icon="receipt" title="Payments & refunds" subtitle={`Paid ${naira(money.paidIn)} · refunded ${naira(money.refunded)} · net ${naira(money.netPaid - money.fromBefore)}${money.fromBefore ? ` · plus ${naira(money.fromBefore)} invoiced before EJO (see Jobs)` : ''}`}>
             {data.ledger.length === 0 ? <Empty icon="receipt" title="No payments or refunds yet." /> : (
               <ul className="divide-y divide-[var(--ejo-border)]">
                 {data.ledger.map((p) => (
@@ -615,7 +614,7 @@ function PastJobList({ rows }: { rows: { id: string; number: string; service: bo
   );
 }
 
-function SapInvoiceList({ rows }: { rows: { id: string; number: string; date: string; amount: number; vehicleLabel: string | null; documentType: string | null; description: string | null; fiscalYear: number | null; companyCode: string | null }[] }) {
+function InvoicesBeforeList({ rows }: { rows: { id: string; number: string; date: string; amount: number; vehicleLabel: string | null; documentType: string | null; description: string | null }[] }) {
   return (
     <ul className="divide-y divide-[var(--ejo-border)]">
       {rows.slice(0, 500).map((h) => (
@@ -623,7 +622,7 @@ function SapInvoiceList({ rows }: { rows: { id: string; number: string; date: st
           <div className="flex min-w-0 items-start gap-3">
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--ejo-bg)] text-[var(--ejo-text-muted)]"><CrmIcon name="receipt" size={16} /></span>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-[var(--ejo-text)]">Invoice {h.number}{h.fiscalYear ? ` · ${h.fiscalYear}` : ''}{h.companyCode ? <span className="ml-1.5 text-xs font-normal text-[var(--ejo-text-muted)]">company {h.companyCode}</span> : null}{h.documentType ? <span className="ml-1.5 text-xs font-normal text-[var(--ejo-text-muted)]">({h.documentType})</span> : null} <Chip tone="muted">Before EJO</Chip></p>
+              <p className="text-sm font-medium text-[var(--ejo-text)]">Invoice {h.number}{h.documentType ? <span className="ml-1.5 text-xs font-normal text-[var(--ejo-text-muted)]">({h.documentType})</span> : null} <Chip tone="muted">Before EJO</Chip></p>
               <p className="text-xs text-[var(--ejo-text-muted)]">{formatDateOnly(new Date(`${h.date}T12:00:00+01:00`))}{h.vehicleLabel ? ` · ${h.vehicleLabel}` : ''}{h.description ? ` · ${h.description}` : ''}</p>
             </div>
           </div>

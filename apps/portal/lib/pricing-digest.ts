@@ -24,7 +24,7 @@ export type PricingAlertDigestGroup = {
 };
 
 /** Open pricing alerts grouped by branch, with each branch's Store Manager
- * and Store Officer recipients (or the Master Admin fallback).
+ * and Store Officer recipients (or the Platform Administrator fallback).
  * No requireUser(): only called from the pricing-alerts cron route, which
  * has no user session and checks the cron secret first. */
 export async function getOpenPricingAlertsForDigest(): Promise<PricingAlertDigestGroup[]> {
@@ -67,16 +67,18 @@ export async function getOpenPricingAlertsForDigest(): Promise<PricingAlertDiges
   const groups: PricingAlertDigestGroup[] = [];
   for (const branchId of branchIds) {
     const branchAlerts = openAlerts.filter((a: { part: { branchId: string } }) => a.part.branchId === branchId);
-    // Same eligibility and fallback as listEligibleStoreManagersForBranch(),
-    // inlined because those functions call requireUser().
-    const staff: { id: string; fullName: string; email: string }[] = await prisma.user.findMany({
+    // Price alerts show cost prices and margins, which only the Owner sees
+    // (store.cost.view), so the digest goes to the Owner of the branch's
+    // business; the platform team when there is none yet.
+    const org = await prisma.branch.findUnique({ where: { id: branchId }, select: { businessUnit: { select: { organisationId: true } } } });
+    const staff: { id: string; fullName: string; email: string }[] = org ? await prisma.user.findMany({
       where: {
-        branchId,
+        organisationId: org.businessUnit.organisationId,
         isActive: true,
-        roles: { some: { role: { slug: { in: ['store-manager', 'store-officer'] } } } },
+        roles: { some: { role: { slug: 'owner' } } },
       },
       select: { id: true, fullName: true, email: true },
-    });
+    }) : [];
     let recipients = staff;
     if (recipients.length === 0) {
       recipients = await prisma.user.findMany({

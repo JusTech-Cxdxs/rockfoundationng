@@ -60,8 +60,6 @@ type StatRow = { id: string; openJobs: number; lastVisit: Date | null; netPaid: 
 function hubStatsSql(organisationId: string | null, branchId: string | null, yearStart: Date, history = true): Prisma.Sql {
   const org = organisationId ? Prisma.sql`c."organisationId" = ${organisationId}` : Prisma.sql`TRUE`;
   const jb = branchId ? Prisma.sql`AND j."branchId" = ${branchId}` : Prisma.empty;
-  const vb = branchId ? Prisma.sql`AND v."branchId" = ${branchId}` : Prisma.empty;
-  const mb = branchId ? Prisma.sql`AND COALESCE(j."branchId", v."branchId") = ${branchId}` : Prisma.empty;
   const hb = branchId ? Prisma.sql`AND h."branchId" = ${branchId}` : Prisma.empty;
   return Prisma.sql`
     WITH cust AS (SELECT c.id FROM customers c WHERE ${org}),
@@ -71,28 +69,21 @@ function hubStatsSql(organisationId: string | null, branchId: string | null, yea
              MAX(j."createdAt") AS last
       FROM job_cards j WHERE j."customerId" IN (SELECT id FROM cust) ${jb} GROUP BY 1
     ),
-    vs AS (
-      SELECT v."customerId" AS cid,
-             COUNT(*) FILTER (WHERE v.status::text NOT IN ('SCHEDULED','CLOSED','COLLECTED','CANCELLED','ESCALATED'))::int AS open,
-             MAX(v."checkedInAt") AS last
-      FROM vehicle_services v WHERE v."customerId" IN (SELECT id FROM cust) ${vb} GROUP BY 1
-    ),
     moves AS (
-      SELECT p."jobCardId" AS jid, p."vehicleServiceId" AS vid, p.amount AS amount, p."recordedAt" AS at FROM payments p
+      SELECT p."jobCardId" AS jid, p.amount AS amount, p."recordedAt" AS at FROM payments p
       UNION ALL
-      SELECT r."jobCardId", r."vehicleServiceId", -r.amount, r."recordedAt" FROM refunds r
+      SELECT r."jobCardId", -r.amount, r."recordedAt" FROM refunds r
     ),
     money AS (
-      SELECT COALESCE(j."customerId", v."customerId") AS cid,
+      SELECT j."customerId" AS cid,
              SUM(m.amount) AS net,
              SUM(m.amount) FILTER (WHERE m.at >= ${yearStart}) AS year
       FROM moves m
-      LEFT JOIN job_cards j ON j.id = m.jid
-      LEFT JOIN vehicle_services v ON v.id = m.vid
-      WHERE COALESCE(j."customerId", v."customerId") IN (SELECT id FROM cust) ${mb}
+      JOIN job_cards j ON j.id = m.jid
+      WHERE j."customerId" IN (SELECT id FROM cust) ${jb}
       GROUP BY 1
     ),
-    -- Invoices from SAP before EJO 100 (v-A3): read-only history, counted as spend and as visits on their dates.
+    -- Invoices from before EJO: read-only history, counted as spend and as visits on their dates.
     hist AS (
       SELECT h."customerId" AS cid,
              SUM(h.amount) AS net,
@@ -106,8 +97,8 @@ function hubStatsSql(organisationId: string | null, branchId: string | null, yea
     sess AS (SELECT "customerId" AS cid, MAX("createdAt") AS last FROM customer_sessions WHERE "customerId" IN (SELECT id FROM cust) GROUP BY 1),
     acc AS (SELECT DISTINCT "customerId" AS cid FROM customer_accounts WHERE "providerId" = 'credential' AND "customerId" IN (SELECT id FROM cust))
     SELECT cust.id,
-           (COALESCE(jc.open, 0) + COALESCE(vs.open, 0))::int AS "openJobs",
-           GREATEST(jc.last, vs.last, hist.last) AS "lastVisit",
+           COALESCE(jc.open, 0)::int AS "openJobs",
+           GREATEST(jc.last, hist.last) AS "lastVisit",
            (COALESCE(money.net, 0) + COALESCE(hist.net, 0))::float8 AS "netPaid",
            (COALESCE(money.year, 0) + COALESCE(hist.year, 0))::float8 AS "netYear",
            COALESCE(veh.n, 0)::int AS vehicles,
@@ -115,7 +106,6 @@ function hubStatsSql(organisationId: string | null, branchId: string | null, yea
            (acc.cid IS NOT NULL) AS "hasAccount"
     FROM cust
     LEFT JOIN jc ON jc.cid = cust.id
-    LEFT JOIN vs ON vs.cid = cust.id
     LEFT JOIN money ON money.cid = cust.id
     LEFT JOIN hist ON hist.cid = cust.id
     LEFT JOIN veh ON veh.cid = cust.id
@@ -179,7 +169,7 @@ export async function getCrmHub(params: CrmHubParams = {}, opts: { all?: boolean
   const kpis = {
     total: all.length,
     active90: all.filter((r) => r.lastVisit && +r.lastVisit >= d90).length,
-    // New to the business, not new to the system: a customer imported from SAP counts from their SAP creation date.
+    // New to the business, not new to the system: an imported customer counts from the date the old system gives.
     newThisMonth: all.filter((r) => +(r.customerSince ?? r.createdAt) >= +monthStart).length,
     withPortal: all.filter((r) => r.isActive && r.hasPortalAccount).length,
     signedIn: all.filter((r) => r.lastSignIn).length,
@@ -264,7 +254,7 @@ export async function getCustomer360(customerId: string) {
   const pay = { select: { id: true, amount: true, method: true, notes: true, recordedAt: true, recordedBy: { select: { fullName: true } } } } as const;
   const ref = { select: { id: true, referenceNumber: true, amount: true, method: true, reason: true, recordedAt: true, recordedBy: { select: { fullName: true } } } } as const;
 
-  const [vehicles, jcs, link, branch, sapRows, pastRows] = await Promise.all([
+  const [vehicles, jcs, link, branch, beforeRows, pastRows] = await Promise.all([
     prisma.customerVehicle.findMany({ where: { customerId: customer.id }, orderBy: { createdAt: 'desc' }, select: { id: true, plateNumber: true, chassisNumber: true, make: true, model: true, year: true, vehicleType: true, mileage: true, createdAt: true } }),
     prisma.jobCard.findMany({
       where: jobWhere,
@@ -279,14 +269,14 @@ export async function getCustomer360(customerId: string) {
     }),
     prisma.customerVerification.findFirst({ where: { value: customer.id, identifier: { startsWith: 'reset-password:' }, expiresAt: { gt: new Date() } }, orderBy: { expiresAt: 'desc' }, select: { expiresAt: true, createdAt: true } }),
     branchId ? prisma.branch.findUnique({ where: { id: branchId }, select: { name: true } }) : Promise.resolve(null),
-    // Invoices from SAP before EJO (read-only history), within the same branch scope as the jobs.
+    // Invoices from before EJO (read-only history), within the same branch scope as the jobs.
     prisma.historicalInvoice.findMany({
       where: { customerId: customer.id, organisationId: customer.organisationId, voidedAt: null, ...(branchId ? { branchId } : {}) },
       orderBy: { invoiceDate: 'desc' },
       take: 2000,
-      select: { id: true, invoiceNumber: true, invoiceDate: true, amount: true, vehicleId: true, vin: true, documentType: true, description: true, branchId: true, fiscalYear: true, companyCode: true },
+      select: { id: true, invoiceNumber: true, invoiceDate: true, amount: true, vehicleId: true, vin: true, documentType: true, description: true, branchId: true },
     }),
-    // Job cards from before EJO (P4): read-only history, each a visit.
+    // Job cards from before EJO: read-only history, each a visit.
     prisma.historicalJob.findMany({
       where: { customerId: customer.id, organisationId: customer.organisationId, voidedAt: null, status: 'CLOSED', ...(branchId ? { branchId } : {}) },
       orderBy: { openedAt: 'desc' },
@@ -315,10 +305,10 @@ export async function getCustomer360(customerId: string) {
   const now = new Date();
   // A date-only invoice day counts at midday Lagos time (never the evening before in UTC).
   const midday = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T12:00:00+01:00`);
-  const sap = sapRows.map((h: (typeof sapRows)[number]) => ({ at: midday(h.invoiceDate), amount: num(h.amount), invoiceNumber: h.invoiceNumber }));
+  const before = beforeRows.map((h: (typeof beforeRows)[number]) => ({ at: midday(h.invoiceDate), amount: num(h.amount), invoiceNumber: h.invoiceNumber }));
   const past = pastRows.map((j: (typeof pastRows)[number]) => ({ at: midday(j.completedAt ?? j.openedAt), invoiceNumber: j.invoiceNumber }));
-  const money = customerMoney(jobs, now, sap, past);
-  const months = monthlySpend(jobs, now, 12, sap);
+  const money = customerMoney(jobs, now, before, past);
+  const months = monthlySpend(jobs, now, 12, before);
   const jobPaid = (j: JobRow) => j.payments.reduce((s, x) => s + x.amount, 0) - j.refunds.reduce((s, x) => s + x.amount, 0);
 
   const ledger = [
@@ -332,14 +322,14 @@ export async function getCustomer360(customerId: string) {
   const vehicleStats = vehicles.map((v: (typeof vehicles)[number]) => {
     const mine = jobs.filter((j) => j.vehicleId === v.id);
     const visited = mine.filter((j) => j.receivedAt).map((j) => j.receivedAt!) as Date[];
-    const hist = sapRows.filter((h: (typeof sapRows)[number]) => h.vehicleId === v.id);
+    const hist = beforeRows.filter((h: (typeof beforeRows)[number]) => h.vehicleId === v.id);
     const pastMine = pastRows.filter((j: (typeof pastRows)[number]) => j.vehicleId === v.id);
-    const histVisits = [...hist.map((h: (typeof sapRows)[number]) => midday(h.invoiceDate)), ...pastMine.map((j: (typeof pastRows)[number]) => midday(j.completedAt ?? j.openedAt))];
+    const histVisits = [...hist.map((h: (typeof beforeRows)[number]) => midday(h.invoiceDate)), ...pastMine.map((j: (typeof pastRows)[number]) => midday(j.completedAt ?? j.openedAt))];
     return {
       ...v, jobs: mine.length, openJobs: mine.filter((j) => j.open).length, pastJobs: pastMine.length,
       lastVisit: [...visited, ...histVisits].sort((a, b) => +b - +a)[0] ?? null,
-      netPaid: Math.round((mine.reduce((s, j) => s + jobPaid(j), 0) + hist.reduce((s: number, h: (typeof sapRows)[number]) => s + num(h.amount), 0)) * 100) / 100,
-      sapInvoices: hist.length,
+      netPaid: Math.round((mine.reduce((s, j) => s + jobPaid(j), 0) + hist.reduce((s: number, h: (typeof beforeRows)[number]) => s + num(h.amount), 0)) * 100) / 100,
+      invoicesBefore: hist.length,
     };
   });
 
@@ -371,10 +361,10 @@ export async function getCustomer360(customerId: string) {
     vehicles: vehicleStats,
     jobs: jobs.map((j) => ({ kind: j.kind, id: j.id, number: j.number, status: j.status, vehicleId: j.vehicleId, vehicleLabel: j.vehicleLabel, branchName: j.branchName, openedAt: j.openedAt, finishedAt: j.finishedAt, cancelled: j.cancelled, open: j.open, href: j.href, customerBilled: Math.round(j.customerBilled * 100) / 100, paid: Math.round(jobPaid(j) * 100) / 100 })),
     ledger,
-    /** Job cards from before EJO 100 (P4) — read-only history; a job card whose work was a service is marked so. */
+    /** Job cards from before EJO: read-only history; a job card whose work was a service is marked so. */
     pastJobs: pastRows.map((j: (typeof pastRows)[number]) => ({ id: j.id, number: j.jobNumber, service: j.kind === 'SERVICE', openedAt: j.openedAt.toISOString().slice(0, 10), completedAt: j.completedAt ? j.completedAt.toISOString().slice(0, 10) : null, mileage: j.mileage, vehicleLabel: j.vehicleId ? plate.get(j.vehicleId) ?? j.vin ?? j.plateNumber : j.vin ?? j.plateNumber, description: j.description, workDone: j.workDone, total: j.totalAmount === null ? null : num(j.totalAmount), invoiceNumber: j.invoiceNumber, technician: j.technician })),
-    /** Invoices from SAP before EJO 100 — read-only history (v-A3). */
-    sapInvoices: sapRows.map((h: (typeof sapRows)[number]) => ({ id: h.id, number: h.invoiceNumber, date: h.invoiceDate.toISOString().slice(0, 10), amount: num(h.amount), vehicleLabel: h.vehicleId ? plate.get(h.vehicleId) ?? h.vin : h.vin, documentType: h.documentType, description: h.description, fiscalYear: h.fiscalYear, companyCode: h.companyCode })),
+    /** Invoices from before EJO: read-only history. */
+    invoicesBefore: beforeRows.map((h: (typeof beforeRows)[number]) => ({ id: h.id, number: h.invoiceNumber, date: h.invoiceDate.toISOString().slice(0, 10), amount: num(h.amount), vehicleLabel: h.vehicleId ? plate.get(h.vehicleId) ?? h.vin : h.vin, documentType: h.documentType, description: h.description })),
     money,
     months,
     scope: branchId ? { branchOnly: true as const, branchName: branch?.name ?? 'your branch' } : { branchOnly: false as const, branchName: null },

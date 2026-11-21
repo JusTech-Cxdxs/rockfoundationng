@@ -20,7 +20,7 @@ export function ProvenanceCard({ p, className = '' }: { p: Provenance; className
           </div>
         ) : null}
         <div>
-          <dt className="text-xs text-[var(--ejo-text-muted)]">{p.source === 'ejo' ? 'Created' : 'Entered EJO 100'}</dt>
+          <dt className="text-xs text-[var(--ejo-text-muted)]">{p.source === 'ejo' ? 'Created' : 'Entered EJO'}</dt>
           <dd className="text-[var(--ejo-text)]">{formatDateTimeCompact(p.enteredAt)}{p.enteredBy ? <span className="block text-xs text-[var(--ejo-text-muted)]">by {p.enteredBy}</span> : null}</dd>
         </div>
         {p.external ? (

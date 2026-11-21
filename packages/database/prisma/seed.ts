@@ -1,7 +1,7 @@
 /**
  * Seeds the platform skeleton: the module registry, the first organisation's
  * hierarchy (down to its first branch and departments), baseline roles and
- * the Master Administrator. No business data.
+ * the Platform Administrator. No business data.
  *
  * Run with: npm run seed --workspace=packages/database
  * Requires DATABASE_URL (a migrated database) and MASTER_ADMIN_EMAIL /
@@ -13,7 +13,7 @@ import { hashPassword } from 'better-auth/crypto';
 const prisma = new PrismaClient();
 
 /**
- * The first Master Administrator, who bootstraps the platform. Everyone
+ * The first Platform Administrator, who bootstraps the platform. Everyone
  * else is created from the portal.
  *
  * No fallback credentials: MASTER_ADMIN_EMAIL and MASTER_ADMIN_PASSWORD must
@@ -33,7 +33,7 @@ function requireEnv(name: string): string {
 }
 
 const MASTER_ADMIN = {
-  name: process.env.MASTER_ADMIN_NAME ?? 'Master Administrator', // not a secret — harmless default
+  name: process.env.MASTER_ADMIN_NAME ?? 'Platform Administrator', // not a secret — harmless default
   email: requireEnv('MASTER_ADMIN_EMAIL'),
 };
 
@@ -165,7 +165,7 @@ async function main() {
     });
   }
 
-  // --- Master Administrator (bootstrap account) -----------------------------
+  // --- Platform Administrator (bootstrap account) -----------------------------
   // isSuperAdmin bypasses permission checks entirely: every current and future
   // permission without RolePermission rows.
   const superAdminRole = await prisma.role.upsert({
@@ -173,7 +173,7 @@ async function main() {
     update: { isSuperAdmin: true, isSystem: true },
     create: {
       organisationId: organisation.id,
-      name: 'Master Administrator',
+      name: 'Platform Administrator',
       slug: 'master-administrator',
       description: 'System owner. Unrestricted access to every organisation, module, and setting.',
       isSystem: true,
@@ -202,7 +202,7 @@ async function main() {
 
   // Better Auth credential row, hashed with Better Auth's hashPassword() so the
   // normal /login page verifies it. Set only when the account is created: once
-  // the Master Admin has changed their password in the portal, re-running the
+  // the Platform Administrator has changed their password in the portal, re-running the
   // seed must never put an older one back (SEC-01c). An existing password is
   // replaced only when RESET_MASTER_ADMIN_PASSWORD=yes is set for that run,
   // and then every open session of that account is signed out.
@@ -226,14 +226,14 @@ async function main() {
     await prisma.account.update({ where: { id: existingAccount.id }, data: { password: await hashPassword(password) } });
     await prisma.session.deleteMany({ where: { userId: masterAdminUser.id } });
     // eslint-disable-next-line no-console
-    console.log('Master Administrator password reset (RESET_MASTER_ADMIN_PASSWORD=yes); open sessions signed out.');
+    console.log('Platform Administrator password reset (RESET_MASTER_ADMIN_PASSWORD=yes); open sessions signed out.');
   } else {
     // eslint-disable-next-line no-console
-    console.log('Master Administrator already has a password; left unchanged.');
+    console.log('Platform Administrator already has a password; left unchanged.');
   }
 
   // eslint-disable-next-line no-console
-  console.log(`Seed complete: module registry + D'Phoenix Autocare hierarchy + Master Administrator (${MASTER_ADMIN.email}).`);
+  console.log(`Seed complete: module registry + D'Phoenix Autocare hierarchy + Platform Administrator (${MASTER_ADMIN.email}).`);
 }
 
 function slugify(value: string): string {

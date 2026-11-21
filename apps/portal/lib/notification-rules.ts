@@ -25,15 +25,15 @@ function recordIsOff(entityType: string): boolean {
   return Object.entries(AREA_MODULE).some(([area, mod]) => !moduleIsOn(mod) && AREAS[area]!.includes(entityType));
 }
 
-/** Heads see EVERYTHING in their area; administrators see everything.
+/** The people who run an area see EVERYTHING in it; the Owner sees everything.
  * Everyone else (supervisors and technicians included) hears about the
- * records they are part of — their own jobs, requests and passes. */
+ * records they are part of: their own jobs and requests. */
 export const ROLE_AREAS: Record<string, string[]> = {
-  'workshop-manager': ['WORKSHOP'],
-  'store-manager': ['STORE'],
-  'chief-security-officer': ['SECURITY'],
+  'front-desk': ['WORKSHOP'],
+  'store-keeper': ['STORE'],
+  security: ['SECURITY'],
 };
-export const ALL_ACTIVITY_ROLES = ['administrator'];
+export const ALL_ACTIVITY_ROLES = ['owner'];
 
 /** Bookkeeping entries that are never shown as activity. */
 /** Routine machinery — recorded for audit and health, never shown as people's activity. */

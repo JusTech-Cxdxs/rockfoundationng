@@ -12,7 +12,7 @@ const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 export async function canSeeMasterAnalytics(): Promise<boolean> {
   await requireUser();
   // The Authorization Catalogue: Administrator (organisation-wide), Workshop
-  // Manager and Finance Officer (their branch), Master Admin — plus any grant
+  // Manager and Finance Officer (their branch), Platform Administrator — plus any grant
   // added on the Roles page.
   return allows('analytics.business.view');
 }
@@ -43,7 +43,7 @@ const SLIP_JOB = { slipLine: { select: { slip: { select: { jobCardId: true } } }
 
 /** `opts.history` false: leave out the invoices from the old system before EJO (EJO's own figures only). */
 export async function getMasterAnalytics(periodKey?: string, custom?: { from?: string; to?: string }, opts: { history?: boolean } = {}) {
-  if (!(await canSeeMasterAnalytics())) throw new Error('The master dashboard is for the Master Admin, Administrators, the Manager and Finance.');
+  if (!(await canSeeMasterAnalytics())) throw new Error('The master dashboard is for the Platform Administrator, Administrators, the Manager and Finance.');
   const now = new Date();
   const key = ((PERIODS as readonly string[]).includes(periodKey ?? '') ? periodKey : 'this_month') as PeriodKey;
   const { from, to, label } = periodRange(key, now, custom);
@@ -119,29 +119,29 @@ export async function getMasterAnalytics(periodKey?: string, custom?: { from?: s
   const prevFrom = new Date(+from - (+to - +from));
   const fence = await orgWhere();
   const withHistory = opts.history !== false;
-  const sapRows = fence.organisationId && withHistory
+  const rowsBefore = fence.organisationId && withHistory
     ? await prisma.historicalInvoice.groupBy({
         by: ['customerId'],
         where: { organisationId: fence.organisationId, voidedAt: null, invoiceDate: { gte: day(from), lt: day(to) }, ...(reach.branchId ? { branchId: reach.branchId } : {}) },
         _sum: { amount: true }, _count: { _all: true },
       })
     : [];
-  const sapPrev = fence.organisationId && withHistory
+  const prevBefore = fence.organisationId && withHistory
     ? await prisma.historicalInvoice.aggregate({ where: { organisationId: fence.organisationId, voidedAt: null, invoiceDate: { gte: day(prevFrom), lt: day(from) }, ...(reach.branchId ? { branchId: reach.branchId } : {}) }, _sum: { amount: true } })
     : null;
-  const sapTotal = sapRows.reduce((t, r) => t + num(r._sum.amount), 0);
-  const sapHistory = { invoices: sapRows.reduce((t, r) => t + r._count._all, 0), amount: Math.round(sapTotal * 100) / 100, previous: Math.round(num(sapPrev?._sum.amount) * 100) / 100 };
-  let topCustomers: { id: string | null; name: string; value: number; fromSap?: number }[] = analytics.diagnostic.topCustomers;
-  if (sapRows.length) {
-    const by = new Map(topCustomers.map((c) => [c.id ?? c.name, { ...c, fromSap: 0 }]));
-    const names = new Map((await prisma.customer.findMany({ where: { id: { in: sapRows.map((r) => r.customerId) } }, select: { id: true, fullName: true } })).map((c) => [c.id, c.fullName]));
-    for (const r of sapRows) {
+  const totalBefore = rowsBefore.reduce((t, r) => t + num(r._sum.amount), 0);
+  const historyBefore = { invoices: rowsBefore.reduce((t, r) => t + r._count._all, 0), amount: Math.round(totalBefore * 100) / 100, previous: Math.round(num(prevBefore?._sum.amount) * 100) / 100 };
+  let topCustomers: { id: string | null; name: string; value: number; fromBefore?: number }[] = analytics.diagnostic.topCustomers;
+  if (rowsBefore.length) {
+    const by = new Map(topCustomers.map((c) => [c.id ?? c.name, { ...c, fromBefore: 0 }]));
+    const names = new Map((await prisma.customer.findMany({ where: { id: { in: rowsBefore.map((r) => r.customerId) } }, select: { id: true, fullName: true } })).map((c) => [c.id, c.fullName]));
+    for (const r of rowsBefore) {
       const amount = num(r._sum.amount);
-      const e = by.get(r.customerId) ?? { id: r.customerId, name: names.get(r.customerId) ?? 'Customer', value: 0, fromSap: 0 };
-      e.value = Math.round((e.value + amount) * 100) / 100; e.fromSap = Math.round((e.fromSap + amount) * 100) / 100;
+      const e = by.get(r.customerId) ?? { id: r.customerId, name: names.get(r.customerId) ?? 'Customer', value: 0, fromBefore: 0 };
+      e.value = Math.round((e.value + amount) * 100) / 100; e.fromBefore = Math.round((e.fromBefore + amount) * 100) / 100;
       by.set(r.customerId, e);
     }
     topCustomers = [...by.values()].sort((a, b) => b.value - a.value).slice(0, 8);
   }
-  return { ...analytics, diagnostic: { ...analytics.diagnostic, topCustomers }, sapHistory, partsCostNote, periodKey: key, periodLabel: label };
+  return { ...analytics, diagnostic: { ...analytics.diagnostic, topCustomers }, historyBefore, partsCostNote, periodKey: key, periodLabel: label };
 }

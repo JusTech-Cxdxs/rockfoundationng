@@ -43,9 +43,9 @@ async function leadsFor(t: TicketFacts): Promise<{ id: string; fullName: string;
   const leads = t.queueId ? await prisma.supportQueueMember.findMany({ where: { queueId: t.queueId, organisationId: t.organisationId, isLead: true }, select: { userId: true } }).catch(() => []) : [];
   const ids = leads.map((l) => l.userId);
   if (ids.length) return prisma.user.findMany({ where: { id: { in: ids }, organisationId: t.organisationId, isActive: true }, select: { id: true, fullName: true, email: true }, take: 10 });
-  // No leads: people whose roles set up the Support centre or head customer care — or, while nobody holds those, the master administrator.
+  // No leads: the Owner and Front Desk (customer care), or, while nobody holds those, the Platform Administrator.
   const heads = await prisma.user.findMany({
-    where: { organisationId: t.organisationId, isActive: true, roles: { some: { role: { slug: { in: ['customer-care-lead', 'administrator'] } } } } },
+    where: { organisationId: t.organisationId, isActive: true, roles: { some: { role: { slug: { in: ['owner', 'front-desk'] } } } } },
     select: { id: true, fullName: true, email: true }, take: 10, orderBy: { fullName: 'asc' },
   });
   return heads.length ? heads : (await masterAdminsFor(t.organisationId)).slice(0, 10);

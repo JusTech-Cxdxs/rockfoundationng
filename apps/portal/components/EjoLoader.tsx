@@ -13,7 +13,7 @@ const PULSE_DURATION = 1.8;
 const GLOW_COLOR = 'var(--ejo-accent)';
 
 /**
- * Full-screen loader with the EJO 100 mark (not the organisation's logo, so
+ * Full-screen loader with the EJO mark (not the organisation's logo, so
  * it is the same for every deployment). Used by app/loading.tsx.
  */
 export function EjoLoader() {

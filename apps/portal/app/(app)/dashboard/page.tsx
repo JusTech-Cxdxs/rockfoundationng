@@ -67,7 +67,7 @@ function greeting(): string {
 
 /**
  * Counts, trends and the "needs your attention" summary. The revenue trend
- * and announcement composer are for Master Admin and Managers only.
+ * and announcement composer are for Platform Administrator and Managers only.
  */
 export default async function DashboardPage() {
   // What this person works with — the dashboard shows only their areas.

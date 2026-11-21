@@ -39,7 +39,7 @@ export function BroadcastForm({ options, action, initialAudience, initialCustome
         </div>
         {category ? (
           <>
-            <div><label className={label}>Title</label><input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder={category === 'GREETING' ? 'e.g. Happy Independence Day!' : category === 'MAINTENANCE' ? 'e.g. EJO 100 maintenance on Saturday' : category === 'SECURITY_ALERT' ? 'e.g. Fire drill at 2 pm — assemble at the car park' : 'A short headline'} className={input} /></div>
+            <div><label className={label}>Title</label><input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder={category === 'GREETING' ? 'e.g. Happy Independence Day!' : category === 'MAINTENANCE' ? 'e.g. EJO maintenance on Saturday' : category === 'SECURITY_ALERT' ? 'e.g. Fire drill at 2 pm — assemble at the car park' : 'A short headline'} className={input} /></div>
             <div><label className={label}>Message</label><textarea id="broadcast-message" name="message" required rows={5} value={message} onChange={(e) => setMessage(e.target.value)} className={input} /><RefineTextButton targetId="broadcast-message" /></div>
             <div>
               <label className={label}>Who is it for?</label>

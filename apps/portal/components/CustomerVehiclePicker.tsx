@@ -180,7 +180,7 @@ export function CustomerVehiclePicker({
           )}
           {supervisorsState === 'success' && usingFallbackSupervisors ? (
             <p className="mt-1 text-[11px] text-[var(--ejo-warning)]">
-              No supervisor is set up for this vehicle&apos;s workshop department yet, so Master Administrators
+              No supervisor is set up for this vehicle&apos;s workshop department yet, so Platform Administrators
               are listed instead.
             </p>
           ) : (

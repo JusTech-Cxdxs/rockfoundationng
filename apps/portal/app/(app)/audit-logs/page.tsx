@@ -39,7 +39,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
         icon="history"
         title="Audit Logs"
       />
-        <p className="mt-3 max-w-xl text-sm text-[var(--ejo-text-muted)]">The full audit trail is for the Master Admin and Administrators. Each record&apos;s own history is on its page.</p>
+        <p className="mt-3 max-w-xl text-sm text-[var(--ejo-text-muted)]">The full audit trail is for the Platform Administrator and Administrators. Each record&apos;s own history is on its page.</p>
       </div>
     );
   }

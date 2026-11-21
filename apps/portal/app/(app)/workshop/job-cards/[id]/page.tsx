@@ -463,7 +463,7 @@ export default async function JobCardDetailPage({
   // Cancelled is terminal; the only step left is handing the vehicle back.
   const isCancelled = jobCard.status === 'CANCELLED';
   // Checked out is the end of a Job Card: nothing is actionable except
-  // printing and (Master Admin only) deletion.
+  // printing and (Platform Administrator only) deletion.
   const isCheckedOut = jobCard.status === 'CHECKED_OUT';
   // Check-out is only offered once payments cover the total (the same rule
   // the server enforces). A Job Card with nothing owed counts as paid.
@@ -500,7 +500,7 @@ export default async function JobCardDetailPage({
   // The customer's own answer to the estimate (approved by link, portal, phone or at the counter; or declined).
   const awaitingAnswer = jobCard.status === 'AWAITING_CUSTOMER_APPROVAL' && estimate?.status === 'MANAGER_APPROVED' && Boolean(estimate.customerNotifiedAt) && !estimate.customerApprovedAt;
   const mayTakeAnswer = isMasterAdmin || isCreator || isApprover || isEligibleManager || (await can('workshop.customer.notify', { branchId: jobCard.branchId })).allowed;
-  // Next steps for this viewer's role. Master Admin sees the normal steps;
+  // Next steps for this viewer's role. Platform Administrator sees the normal steps;
   // the override dropdown is separate. Handing a cancelled vehicle back is
   // a front-desk step (the server checks the same).
   const canFrontDesk = isCancelled ? (await can('workshop.job_card.create', { branchId: jobCard.branchId })).allowed : false;
@@ -1732,7 +1732,7 @@ export default async function JobCardDetailPage({
             {isMasterAdmin && !isCheckedOut ? (
               editStatus === 'true' ? (
                 <div className="mt-4 border-t border-[var(--ejo-border)] pt-3">
-                  <p className="text-[11px] font-medium text-[var(--ejo-warning)]">Master Admin override — bypasses the normal rules; use only to correct mistakes.</p>
+                  <p className="text-[11px] font-medium text-[var(--ejo-warning)]">Platform Administrator override — bypasses the normal rules; use only to correct mistakes.</p>
                   <JobCardStatusForm jobCardId={jobCard.id} currentStatus={jobCard.status} selectableStatuses={selectableStatuses} statusLabels={STATUS_LABEL} />
                 </div>
               ) : (
@@ -1740,7 +1740,7 @@ export default async function JobCardDetailPage({
                   href={`/workshop/job-cards/${jobCard.id}?editStatus=true#status-panel`}
                   className="mt-4 inline-block text-[11px] text-[var(--ejo-text-muted)] hover:text-[var(--ejo-primary)] hover:underline"
                 >
-                  Override status (Master Admin)
+                  Override status (Platform Administrator)
                 </LoadingLink>
               )
             ) : null}
