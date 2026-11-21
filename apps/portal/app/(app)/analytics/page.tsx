@@ -4,7 +4,7 @@ import { canSeeMasterAnalytics, getMasterAnalytics } from '@/lib/actions/master-
 import { pluralize } from '@/lib/utils/pluralize';
 import { PageHeader, HeaderAction, StatTile, PriorityActions, BarRow, PeriodPills, Icon, CHART, type IconName } from '@/components/ui';
 import { CustomerLink } from '@/components/CustomerLink';
-import { featureOn, moduleIsOn } from '@/lib/modules';
+import { moduleIsOn } from '@/lib/modules';
 
 const card = 'min-w-0 rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5';
 /** A card's title with its icon. */
@@ -43,11 +43,10 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
   const maxMix = Math.max(1, ...a.diagnostic.mix.map((m) => m.value));
   const maxCust = Math.max(1, ...a.diagnostic.topCustomers.map((m) => m.value));
   const agingTotal = Math.max(1, a.position.receivables);
-  // This edition's areas (lib/modules.ts): without the Store or outside purchases (EPR) part of
-  // the parts cost is not recorded, so profit figures say so; warranty rows only with Warranty on.
-  const storeOn = moduleIsOn('inventory'), eprOn = featureOn('externalProcurement'), warrantyOn = moduleIsOn('warranty');
+  // Without the Store (lib/modules.ts) the parts cost is not recorded, so profit figures say so.
+  const storeOn = moduleIsOn('inventory');
   const costNote = a.partsCostNote;
-  const historyFrom = featureOn('sap') ? 'SAP' : 'the previous system';
+  const historyFrom = 'the previous system';
   return (
     <div className="w-full p-4 sm:p-8">
       <PageHeader
@@ -79,7 +78,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
         <Kpi icon="money" money label="Sales" value={c.sales} change={a.changes.sales} />
         <Kpi icon="trend-up" money label="Gross profit" value={c.grossProfit} change={a.changes.grossProfit} hint={costNote ?? undefined} />
         <Kpi icon="percent" label="Gross margin" value={pct(c.grossMargin)} hint={costNote ?? (c.grossMargin !== null && a.previous.grossMargin !== null ? `was ${a.previous.grossMargin}%` : undefined)} />
-        <Kpi icon="check-circle" label="Jobs completed" value={c.jobsCompleted} change={a.changes.jobsCompleted} hint={`${pluralize(c.jobCardsCompleted, 'Job Card')} · ${pluralize(c.servicesCompleted, 'service')}`} />
+        <Kpi icon="check-circle" label="Jobs completed" value={c.jobsCompleted} change={a.changes.jobsCompleted} hint={pluralize(c.jobCardsCompleted, 'Job Card')} />
         <Kpi icon="clipboard" money label="Average job" value={c.averageJob} change={a.changes.averageJob} />
         <Kpi icon="receipt" money label="Collections" value={c.collections} change={a.changes.collections} hint="Payments less refunds" />
       </div>
@@ -95,16 +94,13 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
           <T icon="users">Who pays</T>
           <dl className="space-y-1 text-sm">
             <div className="flex justify-between"><dt className="text-[var(--ejo-text-muted)]">Customers</dt><dd className="text-[var(--ejo-text)]">{naira(c.customerSales)}</dd></div>
-            {warrantyOn ? <div className="flex justify-between"><dt className="text-[var(--ejo-text-muted)]">Warranty providers</dt><dd className="text-[var(--ejo-text)]">{naira(c.warrantySales)}</dd></div> : null}
             <div className="flex justify-between"><dt className="text-[var(--ejo-text-muted)]">Given away (goodwill / internal)</dt><dd className="text-[var(--ejo-text)]">{naira(c.givenAway)}</dd></div>
-            {warrantyOn ? <div className="flex justify-between border-t border-[var(--ejo-border)] pt-1"><dt className="text-[var(--ejo-text-muted)]">Warranty settled in period</dt><dd className="text-[var(--ejo-text)]">{naira(c.warrantySettled)}</dd></div> : null}
           </dl>
         </div>
         <div className={card}>
           <T icon="cart">Cost of sales</T>
           <dl className="space-y-1 text-sm">
             {storeOn ? <div className="flex justify-between"><dt className="text-[var(--ejo-text-muted)]">Parts (actual cost)</dt><dd className="text-[var(--ejo-text)]">{naira(c.partsCost)}</dd></div> : null}
-            {eprOn ? <div className="flex justify-between"><dt className="text-[var(--ejo-text-muted)]">Sublet (cash paid out)</dt><dd className="text-[var(--ejo-text)]">{naira(c.subletCost)}</dd></div> : null}
             <div className="flex justify-between border-t border-[var(--ejo-border)] pt-1 font-medium"><dt className="text-[var(--ejo-text)]">Total</dt><dd className="text-[var(--ejo-text)]">{naira(c.cost)}</dd></div>
             {storeOn ? <div className="flex justify-between pt-1"><dt className="text-[var(--ejo-text-muted)]">Store purchases in period</dt><dd className="text-[var(--ejo-text)]">{naira(c.purchases)}</dd></div> : null}
           </dl>
@@ -115,25 +111,23 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
       <div className="mb-8 grid gap-4 lg:grid-cols-2">
         <div className={card}>
           <T icon="trend-up" className="mb-1">How the money is earned</T>
-          <p className="mb-3 text-[11px] text-[var(--ejo-text-muted)]">Billed on completed jobs in the period ({warrantyOn ? 'warranty-covered lines included; ' : ''}goodwill and internal lines are given away, not earned).</p>
+          <p className="mb-3 text-[11px] text-[var(--ejo-text-muted)]">Billed on completed jobs in the period (goodwill and internal lines are given away, not earned).</p>
           <table className="w-full text-sm">
             <tbody>
-              {/* Store parts only with the Store on (a figure there still shows); EPR named only where outside purchases go through it. */}
-              {([['Labour', e.labour], ['Internal jobs (in-house work)', e.internalJobs], ...(storeOn || e.storeParts ? [['Store parts', e.storeParts]] : []), [eprOn ? 'Outside parts (bought through EPR)' : 'Parts', e.outsideParts], [eprOn ? 'Outside jobs (sublet through EPR)' : 'Outside jobs (sublet)', e.outsideJobs], ['Sundry', e.sundry]] as [string, number][]).map(([l, v]) => (
+              {/* Store parts only with the Store on (a figure there still shows). */}
+              {([['Labour', e.labour], ['Internal jobs (in-house work)', e.internalJobs], ...(storeOn || e.storeParts ? [['Store parts', e.storeParts]] : []), ['Outside parts', e.outsideParts], ['Outside jobs (sublet)', e.outsideJobs], ['Sundry', e.sundry]] as [string, number][]).map(([l, v]) => (
                 <tr key={l} className="border-t border-[var(--ejo-border)]"><td className="py-1.5 text-[var(--ejo-text)]">{l}</td><td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(v)}</td><td className="w-14 py-1.5 text-right text-xs text-[var(--ejo-text-muted)]">{Math.round((v / earnedTotal) * 100)}%</td></tr>
               ))}
               <tr className="border-t-2 border-[var(--ejo-border)] font-semibold"><td className="py-1.5 text-[var(--ejo-text)]">Total sales</td><td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(a.current.sales)}</td><td /></tr>
-              <tr className="border-t border-[var(--ejo-border)] text-xs"><td className="py-1.5 text-[var(--ejo-text-muted)]">From Job Cards / from Vehicle Services</td><td className="py-1.5 text-right text-[var(--ejo-text-muted)]" colSpan={2}>{naira(e.jobCards)} / {naira(e.vehicleServices)}</td></tr>
             </tbody>
           </table>
-          {eprOn ? <p className="mt-2 text-[11px] text-[var(--ejo-text-muted)]">Outside parts and jobs are billed to the customer and paid for in cash through EPR, so the business keeps only the difference — shown below as outside purchases.</p> : null}
         </div>
         <div className={card}>
           <T icon="trend-down" className="mb-1">Where the money goes</T>
           <p className="mb-3 text-[11px] text-[var(--ejo-text-muted)]">Costs of the jobs completed in the period, and money paid out in the period.</p>
           <table className="w-full text-sm">
             <tbody>
-              {([...(storeOn ? [['Store parts used (at their goods-receipt cost)', c.partsCost]] : []), ...(eprOn ? [['Outside purchases (EPR cash paid out)', c.subletCost]] : []), ['Refunds paid back to customers', c.refunds], ['Goodwill and internal work given away', c.givenAway]] as [string, number][]).map(([l, v]) => (
+              {([...(storeOn ? [['Store parts used (at their goods-receipt cost)', c.partsCost]] : []), ['Refunds paid back to customers', c.refunds], ['Goodwill and internal work given away', c.givenAway]] as [string, number][]).map(([l, v]) => (
                 <tr key={l} className="border-t border-[var(--ejo-border)]"><td className="py-1.5 text-[var(--ejo-text)]">{l}</td><td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(v)}</td></tr>
               ))}
               <tr className="border-t-2 border-[var(--ejo-border)] font-semibold"><td className="py-1.5 text-[var(--ejo-text)]">Gross profit on the work{costNote ? <span className="block text-[11px] font-normal text-[var(--ejo-text-muted)]">{costNote}</span> : null}</td><td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(c.grossProfit)} · {pct(c.grossMargin)}</td></tr>
@@ -145,7 +139,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
 
       <Group icon="gauge">Position right now</Group>
       <div className="mb-8 grid gap-4 lg:grid-cols-3">
-        <Kpi icon="wrench" money label="Work in progress" value={a.position.wipValue} hint={`${pluralize(a.position.wipJobCards, 'Job Card')} · ${pluralize(a.position.wipServices, 'service')} open`} href="/workshop/custody" />
+        <Kpi icon="wrench" money label="Work in progress" value={a.position.wipValue} hint={`${pluralize(a.position.wipJobCards, 'Job Card')} open`} href="/workshop/custody" />
         <div className={card}>
           <T icon="clock" className="mb-2">Receivables</T>
           <p className="text-2xl font-bold tabular-nums text-[var(--ejo-text)]">{naira(a.position.receivables)}</p>
@@ -214,7 +208,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
               <BarRow key={m.id ?? m.name} label={<CustomerLink id={m.id} name={m.name} canView={canSeeCustomers} />} value={m.value} max={maxCust} note={'fromSap' in m && m.fromSap ? `${naira(m.value)} · incl. ${naira(m.fromSap)} ${featureOn('sap') ? 'SAP' : 'earlier'}` : naira(m.value)} />
             ))}</div>
           )}
-          {a.sapHistory.amount ? <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Includes invoices from {historyFrom} before EJO 100 dated in the period ({naira(a.sapHistory.amount)} on {a.sapHistory.invoices} invoices) — history, not in the sales and margins above.</p> : null}
+          {a.sapHistory.amount ? <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Includes invoices from {historyFrom} before EJO dated in the period ({naira(a.sapHistory.amount)} on {a.sapHistory.invoices} invoices) — history, not in the sales and margins above.</p> : null}
         </div>
       </div>
     </div>

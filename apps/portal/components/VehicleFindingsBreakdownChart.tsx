@@ -1,7 +1,7 @@
 'use client';
 
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import type { VehicleFindingsBreakdown } from '@/lib/actions/vehicle-service';
+import type { VehicleFindingsBreakdown } from '@/lib/actions/service-tracking';
 
 // Same severity colours as the inspection workspace and prints.
 const SEVERITY_COLORS = {

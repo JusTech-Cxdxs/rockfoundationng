@@ -1,5 +1,5 @@
 // ============================================================================
-// EJO 100 — core database schema
+// EJO: the workshop platform's database schema
 // ============================================================================
 
 generator client {
@@ -206,7 +206,7 @@ model State {
 model City {
   id      String @id @default(cuid())
   stateId String
-  name    String // e.g. "Victoria Island"
+  name    String // e.g. "Ota"
 
   state    State    @relation(fields: [stateId], references: [id], onDelete: Cascade)
   branches Branch[]
@@ -230,8 +230,8 @@ model Branch {
   id             String   @id @default(cuid())
   businessUnitId String
   cityId         String
-  name           String   // e.g. "Victoria Island Workshop"
-  code           String?  // short code used in document numbering, e.g. "KWL-WS"
+  name           String   // e.g. "Ota Workshop"
+  code           String?  // short code used in document numbering, e.g. "OTA"
   type           BranchType @default(WORKSHOP)
   /// SAP plant code (WERKS) when the branch is a plant or stock point in SAP.
   sapPlant       String?
@@ -335,7 +335,7 @@ model User {
 
   isActive      Boolean     @default(true)
   lastLoginAt   DateTime?
-  // Brought in from another system (P7): where from (SAP HR, LEGACY), the
+  // Brought in from another system: where from (LEGACY), the
   // personnel number there (kept and searchable), the import, and when the
   // set-password invitation was sent (an imported account stays switched off
   // until an administrator sends it).
@@ -530,7 +530,7 @@ model Customer {
   // Primary address: one short line printed on the Job Card (max 80 characters,
   // enforced in the app). Extra addresses go in CustomerAddress.
   address       String?
-  // Optional (v-A0): customers brought in from SAP or old spreadsheets often
+  // Optional: customers brought in from QuickBooks or old spreadsheets often
   // have no email, or share a fleet address. Unique when present (Postgres
   // allows many NULLs under a unique index). Only a customer with a real,
   // verified email can use the customer portal; the others are full CRM
@@ -539,9 +539,9 @@ model Customer {
   emailVerified Boolean      @default(false)
   image         String?
   phone         String?
-  // v28 CRM: an optional second number. Primary address and phone are
-  // required for customers registered from v28 (enforced in the app; older
-  // records may lack them and are flagged in the CRM).
+  // An optional second number. Primary address and phone are required for
+  // customers registered in EJO (enforced in the app; imported records may
+  // lack them and are flagged in the CRM).
   altPhone      String?
   // Free labels the organisation uses to group customers ("Fleet", "VIP").
   tags          String[] @default([])
@@ -551,19 +551,19 @@ model Customer {
   isActive      Boolean  @default(true)
   lastLoginAt   DateTime?
 
-  // The number this customer has in another system (v-A0): externalSource is
-  // where it came from (SAP, LEGACY_EXCEL), externalId the number there (the
-  // SAP business partner / KUNNR). Unique per organisation and source, so an
+  // The number this customer has in another system: externalSource is where
+  // it came from (QUICKBOOKS, LEGACY_EXCEL), externalId the number there.
+  // Unique per organisation and source, so an
   // import matched on it never creates the same customer twice.
   externalSource String?
   externalId     String?
   // The import that created this customer (Data Exchange): "Undo this import" removes exactly these.
   importJobId    String?
-  // B: when this imported customer was invited to the customer portal from their import (once; a new link
+  // When this imported customer was invited to the customer portal from their import (once; a new link
   // after that is sent from their own page). Null: never invited that way.
   portalInvitedAt DateTime?
-  // v-A3: when they became a customer of the business — from SAP (the business
-  // partner's creation date, ERDAT) or the old system — which can be years
+  // When they became a customer of the business (from QuickBooks or the old
+  // system), which can be years
   // before this record was made (createdAt). Analytics read customerSince when
   // present, otherwise createdAt.
   customerSince  DateTime? @db.Date
@@ -588,7 +588,7 @@ model Customer {
   @@index([organisationId])
   @@unique([organisationId, externalSource, externalId])
   @@index([importJobId])
-  // Search by the SAP / old-system number alone.
+  // Search by the old-system number alone.
   @@index([organisationId, externalId])
   invoices        Invoice[]
   @@map("customers")
@@ -639,7 +639,7 @@ model CustomerVehicle {
   serviceIntervalKm   Int?
   serviceIntervalDays Int?
 
-  // The vehicle's number in another system (v-A0), e.g. SAP equipment number.
+  // The vehicle's number in another system (an old spreadsheet's fleet number).
   // Vehicles have no organisation column of their own (they belong through the
   // customer), so this is indexed, and the importer checks it within the
   // customer's organisation. The VIN and plate stay the real unique keys.
@@ -776,17 +776,16 @@ model JobCard {
   // Name of whoever collected the vehicle (the customer or someone they
   // sent). Free text: collectors usually have no account.
   collectedByName String?
-  // Opened as a routine service, not a repair (one Job Card for both). Once
-  // checked out (not cancelled), it starts the vehicle's next-service count
-  // like a completed Vehicle Service does: anchored on mileageAtCheckIn and
-  // checkedOutAt, with the vehicle's or organisation's interval. Always false
-  // on a Job Card escalated from a Vehicle Service (that row carries the count).
+  // Opened as a routine service, not only a repair (one Job Card for both).
+  // Once checked out (not cancelled), it starts the vehicle's next-service
+  // count: anchored on mileageAtCheckIn and checkedOutAt, with the vehicle's
+  // or organisation's interval.
   isService Boolean @default(false)
   // Staff marked this Job Card's next-service prediction handled (Attend To
-  // on the Service Tracker), as VehicleService.attendedAt does for services.
+  // on the Service Tracker).
   serviceAttendedAt DateTime?
-  // Brought in open from another system at the cut-over (P5): where from
-  // (SAP, LEGACY), its number there (kept and searchable) and the import.
+  // Brought in open from another system at the cut-over: where from
+  // (LEGACY), its number there (kept and searchable) and the import.
   externalSource String?
   externalId     String?
   importJobId    String?
@@ -998,9 +997,9 @@ model EstimateLineItem {
   @@index([estimateId])
   @@map("estimate_line_items")
   // Who pays for this line. CUSTOMER (default) counts towards what the
-  // customer owes; WARRANTY lines are covered by a specific warranty (and
-  // claimed from its provider); GOODWILL / INTERNAL are absorbed by the
-  // business. Only the Warranty HOD / Branch Manager set it; audited.
+  // customer owes; WARRANTY lines are covered by the workshop's own warranty
+  // (a comeback on earlier work or a part still under warranty); GOODWILL /
+  // INTERNAL are absorbed by the business. Only the Owner sets it; audited.
   billTo             EstimateBillTo @default(CUSTOMER)
   billToNote         String?
 }
@@ -1112,7 +1111,7 @@ model Invoice {
   @@map("invoices")
 }
 
-// D'Phoenix phase 6A: the secure link a WhatsApp message carries to a
+// The secure link a WhatsApp message carries to a
 // customer document (WhatsApp cannot attach a file from a link). The staff
 // portal's /d/<token> opens the PDF, drawn from the live record, without
 // signing in. The token is 32 random bytes (base64url), only in the
@@ -1275,7 +1274,7 @@ model CustomerAddress {
   id         String   @id @default(cuid())
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  // v28: when it was added (audit trail and CRM ordering).
+  // When it was added (audit trail and CRM ordering).
   createdAt  DateTime @default(now())
 
   label      String? // "Home", "Office"
@@ -1386,7 +1385,7 @@ model Verification {
   value      String
   expiresAt  DateTime
   createdAt  DateTime @default(now())
-  // v27: Better Auth writes updatedAt on every verification (password-reset
+  // Better Auth writes updatedAt on every verification (password-reset
   // and set-password links), so the column is required.
   updatedAt  DateTime @default(now()) @updatedAt
 
@@ -1395,7 +1394,7 @@ model Verification {
   @@map("verifications")
 }
 
-/// v28 — the customer portal's own reset / set-password links. Kept apart
+/// The customer portal's own reset / set-password links. Kept apart
 /// from staff `verifications` so a customer link can never be redeemed on the
 /// staff portal (or the reverse), whatever the token.
 model CustomerVerification {
@@ -1410,7 +1409,7 @@ model CustomerVerification {
   @@map("customer_verifications")
 }
 
-/// v28 CRM — a note staff keep on a customer (calls, preferences, follow-ups).
+/// A note staff keep on a customer (calls, preferences, follow-ups).
 /// Never shown to the customer.
 model CustomerNote {
   id         String   @id @default(cuid())
@@ -1428,7 +1427,7 @@ model CustomerNote {
   @@map("customer_notes")
 }
 
-/// v28 — what a customer has read in their portal notifications
+/// What a customer has read in their portal notifications
 /// ("bc:<broadcastId>", "jc:<id>:<event>", …).
 model CustomerNotificationRead {
   id         String   @id @default(cuid())
@@ -1501,7 +1500,7 @@ model Announcement {
 // STORE / INVENTORY: part catalogue, units of measure, stock and goods
 // receipts.
 //
-// Three tracking types (as in SAP's quantity / batch / serial split):
+// Three tracking types:
 //   QUANTITY   — a single running total, e.g. brake pads, filters, WD-40.
 //   BATCH      — stock grouped by delivery, e.g. engine oil, coolant, brake
 //                fluid, so a bad batch can be traced to the vehicles that
@@ -1558,13 +1557,12 @@ model Part {
   // request for a type can match every vehicle-specific part of that type.
   // Separate from the free-text `category` browsing field.
   partTypeId   String?
-  // Warranty issued with this part on release to a customer (null = none).
-  // Set on the Part page.
-  // The part's number in another system (v-A0): externalSource SAP and
-  // externalId the material number (MATNR). Unique per branch and source.
+  // The part's number in another system (QuickBooks or an old spreadsheet):
+  // externalSource is where from, externalId the item number there. Unique
+  // per branch and source.
   externalSource String?
   externalId     String?
-  // The import that created this part (Data Exchange, v-A2): Undo moves exactly these to the Recycle bin.
+  // The import that created this part (Data Exchange): Undo moves exactly these to the Recycle bin.
   importJobId    String?
   createdById  String
   createdAt    DateTime @default(now())
@@ -1647,8 +1645,8 @@ model PartBatch {
   @@map("part_batches")
 }
 
-// Which batch a released quantity came from, so a warranty or defect trace
-// can find the customers who received stock from a delivery.
+// Which batch a released quantity came from, so a faulty delivery can be
+// traced to the customers and vehicles that received it.
 model PartBatchConsumption {
   id            String   @id @default(cuid())
   batchId       String
@@ -1699,7 +1697,7 @@ model PartSerial {
   status             PartSerialStatus @default(IN_STOCK)
   receivedAt         DateTime         @default(now())
   goodsReceiptLineId String?
-  // The request line this unit was issued against, for warranty traces. A
+  // The request line this unit was issued against, for tracing a faulty unit. A
   // single link is enough because a unit is issued once (there is no
   // returns flow).
   issuedToSlipLineId String?
@@ -1726,12 +1724,12 @@ model GoodsReceipt {
   branchId        String
   referenceNumber String   @unique
   supplierName    String
-  // v-A2: the supplier from the organisation's supplier list, when the name matches one (the name stays as typed).
+  // The supplier from the organisation's supplier list, when the name matches one (the name stays as typed).
   supplierId      String?
   receivedById    String
   receivedAt      DateTime @default(now())
   notes           String?
-  // v-A2: the stock a branch already held when it started with EJO, brought in by an import (Data Exchange):
+  // The stock a branch already held when it started with EJO, brought in by an import (Data Exchange):
   // an opening-balance receipt dated at the cut-over, so FIFO costs, stock value and the inventory analytics
   // include it like any delivery. importJobId: the import that made it (its reversal removes exactly these).
   isOpeningBalance Boolean @default(false)
@@ -1944,9 +1942,9 @@ model PartRequestSlipLine {
 
 // ----------------------------------------------------------------------------
 // PART FITMENT: which vehicles a part fits. The compatibility key is the
-// engine, not the model name: different models can share an engine (Isuzu
-// NPR and NQR both use the 4HK1) and one model name can hide different
-// engines. A many-to-many table expresses "fits two models but not a third".
+// engine, not the model name: different models can share an engine (the
+// Toyota Hilux and Fortuner both use the 2GD) and one model name can hide
+// different engines. A many-to-many table expresses "fits two models but not a third".
 //
 // A part with no fitment rows fits everything (engine oil, coolant, brake
 // fluid…).
@@ -1983,8 +1981,8 @@ model PartFitment {
 //                                      └── Brake Fluid (PartType)
 //
 // The PartType ("Fuel Filter") is what appears on the estimate. One type can
-// cover several vehicle-specific Parts ("Fuel Filter — Foton Tunland",
-// "Fuel Filter — Foton TM3"); Store picks the one that fits.
+// cover several vehicle-specific Parts ("Fuel Filter — Toyota Corolla",
+// "Fuel Filter — Honda Accord"); the store picks the one that fits.
 // Separate from the free-text Part.category browsing field.
 // ----------------------------------------------------------------------------
 
@@ -2031,14 +2029,6 @@ model PartType {
   @@map("part_types")
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// WARRANTY — a generic, industry-neutral core. An ASSET warranty covers a
-// whole product a customer owns (in automotive: a vehicle); a PART
-// warranty covers one component issued to that customer's asset. Brands,
-// providers and terms are data (WarrantyProvider / WarrantyPolicy), never
-// code — so Foton, Isuzu or a different industry is configuration.
-// ─────────────────────────────────────────────────────────────────────────
-
 // Who pays for a Job Card estimate line.
 enum EstimateBillTo {
   CUSTOMER
@@ -2048,13 +2038,13 @@ enum EstimateBillTo {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// SECURITY — the gate. Visitors, Employee Exit Passes and vehicles cleared
-// to leave. Every step is audited and every email is logged
-// (SecurityEmailLog), so nothing that happened at the gate is ever missing.
+// SECURITY: the gate. Vehicles cleared to leave the compound. Every step is
+// audited and every email is logged (SecurityEmailLog), so nothing that
+// happened at the gate is ever missing.
 // ─────────────────────────────────────────────────────────────────────────
 
-// A vehicle released by the Workshop (Job Card checked out / Vehicle
-// Service collected) confirmed through the gate by security.
+// A vehicle released by the workshop (its Job Card checked out) confirmed
+// through the gate by security.
 model VehicleGateExit {
   id               String   @id @default(cuid())
   exitNumber       String   @unique
@@ -2092,11 +2082,6 @@ model SecurityEmailLog {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// SCHEDULING — appointments for officials. Who may keep a calendar is the
-// organisation's choice (role "Calendar User"); an official can let aides
-// book for them (CalendarDelegate); "Scheduling Admin" manages rooms and
-// delegations. Visitors on an appointment become a Security booking.
-// ─────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────
 // NOTIFICATIONS & BROADCASTS
@@ -2116,7 +2101,7 @@ enum BroadcastAudience {
   BRANCH
   DEPARTMENT
   ROLE
-  // v28 — messages to customers (portal dashboard + optional email):
+  // Messages to customers (portal dashboard + optional email):
   // every active customer of the organisation, or the customers in audienceIds.
   CUSTOMERS_ALL
   CUSTOMERS_SELECTED
@@ -2181,7 +2166,7 @@ model NotificationPreference {
   @@map("notification_preferences")
 }
 
-/// v29 — Every unexpected error a person sees carries a short reference
+/// Every unexpected error a person sees carries a short reference
 /// ("quote reference 3553129217"). The reference, where it happened and a
 /// secret-free summary are kept here so IT can look it up on the Error log
 /// page instead of searching server logs.
@@ -2207,10 +2192,10 @@ model ErrorEvent {
   @@map("error_events")
 }
 
-/// v30 — Recycle bin. A record created by mistake (a Job Card opened on the
+/// Recycle bin. A record created by mistake (a Job Card opened on the
 /// wrong vehicle, a duplicate customer) is moved here while nothing of
 /// consequence has happened to it: no payment, no approved estimate, no parts,
-/// no warranty, no gate exit. The live rows are deleted in the same
+/// no gate exit. The live rows are deleted in the same
 /// transaction, and `snapshot` keeps every deleted row (parent first) so the
 /// organisation's administrators can restore it exactly within the retention
 /// period. After `purgeAfter` the platform's clean-up removes the snapshot;
@@ -2220,10 +2205,10 @@ model ErrorEvent {
 model RecycleBinItem {
   id                String    @id @default(cuid())
   organisationId    String
-  // The branch of a branch-owned record (Job Card, Vehicle Service, part);
+  // The branch of a branch-owned record (Job Card, part);
   // null for customers and vehicles, which belong to the organisation.
   branchId          String?
-  // JobCard | VehicleService | Customer | CustomerVehicle | Part
+  // JobCard | Customer | CustomerVehicle | Part
   entityType        String
   entityId          String
   // The human reference without personal details ("JC-2026-000123").
@@ -2250,7 +2235,7 @@ model RecycleBinItem {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// v31 — Enyo 1.0 (AI), support tickets, reminders, mailbox. Additive only.
+// Enyo 1.0 (AI), support tickets, reminders, mailbox. Additive only.
 // Ids of people and records are plain strings (no foreign keys to existing
 // tables), like ErrorEvent and RecycleBinItem, so nothing existing changes.
 // ═══════════════════════════════════════════════════════════════════════
@@ -2268,11 +2253,11 @@ model EnyoSetting {
   predictionsMode   String   @default("SHADOW")
   // Display name and greeting shown to staff and customers (branding).
   displayName       String   @default("Enyo")
-  // v32: the automation level of each learning capability, e.g.
+  // The automation level of each learning capability, e.g.
   // {"JOB_DURATION":"SHADOW","PRICE_ANOMALY":"ASSIST"}. Missing = the
   // capability's default (OFF or SHADOW); see lib/enyo/ml/capabilities.ts.
   capabilityLevels  Json?
-  // v33: learn only from records opened on or after this day (Lagos). Set it
+  // Learn only from records opened on or after this day (Lagos). Set it
   // to the go-live date so test data typed while trying the system out is
   // never learned from. Null = all history (up to three years).
   learnFrom         DateTime? @db.Date
@@ -2360,7 +2345,7 @@ model EnyoMemory {
 enum SupportTicketStatus {
   OPEN
   WAITING_ON_CUSTOMER
-  // v36: waiting on someone else (manufacturer, supplier, insurer); the customer sees "With our team".
+  // Waiting on someone else (manufacturer, supplier, insurer); the customer sees "With our team".
   ON_HOLD
   RESOLVED
   CLOSED
@@ -2369,9 +2354,9 @@ enum SupportTicketStatus {
 enum SupportChannel {
   CUSTOMER_PORTAL
   WEBSITE
-  // v36: an email to a support address (support@, warranty@, technical@ …).
+  // An email to a support address (support@, service@ …).
   EMAIL
-  // v36: opened by a colleague (a phone call, a walk-in).
+  // Opened by a colleague (a phone call, a walk-in).
   STAFF
 }
 
@@ -2400,7 +2385,7 @@ model SupportTicket {
   resolvedAt      DateTime?
   replies         SupportReply[]
 
-  // ── v36: the Support centre ─────────────────────────────────────────
+  // ── The Support centre ─────────────────────────────────────────
   // Which team (queue) owns it, and the address it came in to / goes out from.
   queueId          String?
   mailboxId        String?
@@ -2447,12 +2432,12 @@ model SupportTicket {
   csatRequestedAt  DateTime?
   // The email that opened it (Message-ID), for threading replies.
   sourceMessageId  String?
-  // v37 — who is writing, as the Support centre recognised them from their
+  // Who is writing, as the Support centre recognised them from their
   // address or session: customer | staff | both (a colleague who is also a
   // customer) | unknown. And the colleague, when it is one.
   senderKind       String?
   senderUserId     String?
-  // v37 — a colleague's own request for help (Get help in the portal): only
+  // A colleague's own request for help (Get help in the portal): only
   // that colleague, the help queue's members and support managers see it.
   requesterUserId  String?
 
@@ -2466,13 +2451,13 @@ model SupportTicket {
   @@map("support_tickets")
 }
 
-/// v36 — a support team and its address(es): General, Warranty, Technical,
-/// Customer care, Parts, Sales … Each has its own targets and AI reply mode.
+/// A support team and its address(es): General, Customer care, Technical,
+/// Parts … Each has its own targets and AI reply mode.
 model SupportQueue {
   id             String   @id @default(cuid())
   organisationId String
   name           String
-  // general | warranty | technical | customer_care | parts | sales | other
+  // general | technical | customer_care | parts | other
   kind           String   @default("general")
   description    String?
   // A branch's own queue (null: the whole organisation).
@@ -2483,7 +2468,7 @@ model SupportQueue {
   // general questions itself when it is confident; everything else goes to people.
   aiMode         String   @default("SUGGEST")
   autoAcknowledge Boolean @default(true)
-  // v38 — the team's own words in its automatic reply (opening times, what
+  // The team's own words in its automatic reply (opening times, what
   // to include, an emergency number), shown above the reference and target.
   ackMessage     String?
   // Minutes per priority: { URGENT: { first, resolve }, … } (defaults when null).
@@ -2500,7 +2485,7 @@ model SupportQueue {
   @@map("support_queues")
 }
 
-/// v36 — who works a queue, how many open tickets they take, and whether they are away.
+/// Who works a queue, how many open tickets they take, and whether they are away.
 model SupportQueueMember {
   queueId        String
   queue          SupportQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
@@ -2508,7 +2493,7 @@ model SupportQueueMember {
   organisationId String
   capacity       Int      @default(15)
   away           Boolean  @default(false)
-  // v38 — a team lead is emailed when nobody on the team can take a new
+  // A team lead is emailed when nobody on the team can take a new
   // request (all away or full) and when a request misses its target.
   isLead         Boolean  @default(false)
   lastAssignedAt DateTime?
@@ -2519,7 +2504,7 @@ model SupportQueueMember {
   @@map("support_queue_members")
 }
 
-/// v36 — a shared support mailbox (support@, warranty@ …): read for new
+/// A shared support mailbox (support@, service@ …): read for new
 /// mail on a schedule, replies sent from it. The password is encrypted
 /// (AES-256-GCM, MAILBOX_ENCRYPTION_KEY) and never shown or logged.
 model SupportMailbox {
@@ -2553,7 +2538,7 @@ model SupportMailbox {
   @@map("support_mailboxes")
 }
 
-/// v36 — the organisation's support settings: opening hours, holidays and the AI threshold.
+/// The organisation's support settings: opening hours, holidays and the AI threshold.
 model SupportSetting {
   organisationId String   @id
   // { "1": ["08:00","17:00"], …, "6": ["09:00","13:00"] } (1 = Monday; missing = closed)
@@ -2566,7 +2551,7 @@ model SupportSetting {
   autoResolveDays Int     @default(7)
   closeAfterDays Int      @default(4)
   csatEnabled    Boolean  @default(true)
-  // v38 — public holidays come from a calendar worked out each year
+  // Public holidays come from a calendar worked out each year
   // ("NG": Nigeria's fixed dates, Easter dates and the Islamic holidays),
   // plus the extra days in `holidays`, minus any calendar days listed in
   // `holidaysOff` (e.g. the branch opens on Boxing Day). Null = no calendar.
@@ -2587,7 +2572,7 @@ model SupportReply {
   fromCustomer Boolean       @default(false)
   body         String
   createdAt    DateTime      @default(now())
-  // v36 — PUBLIC (the customer sees it) or INTERNAL (a colleague's note, never shown to the customer).
+  // PUBLIC (the customer sees it) or INTERNAL (a colleague's note, never shown to the customer).
   visibility   String        @default("PUBLIC")
   // CUSTOMER | AGENT | AI | SYSTEM (acknowledgement, nudge) | NOTE
   kind         String        @default("AGENT")
@@ -2600,14 +2585,14 @@ model SupportReply {
   attachments  Json?
   // Exactly-once intake of an email (mailbox + Message-ID hash).
   intakeKey    String?       @unique
-  // v37 — Enyo's own replies and drafts: how sure it was, the model, the
+  // Enyo's own replies and drafts: how sure it was, the model, the
   // approved answers it used, and what it knew about the sender (kind,
   // proven, the records and links it was given — never message text).
   aiConfidence Float?
   aiModel      String?
   aiSources    String[]      @default([])
   aiContext    Json?
-  // v37 — a person's check of Enyo's reply (the Support centre's "Enyo's
+  // A person's check of Enyo's reply (the Support centre's "Enyo's
   // replies" page): GOOD | FIXED (a corrected answer was written) | WRONG,
   // and for drafts automatically USED (sent nearly as written) | EDITED |
   // IGNORED. The reason is a fixed code (knowledge_gap, wrong_facts …).
@@ -2672,9 +2657,7 @@ model ReminderDelegate {
   @@map("reminder_delegates")
 }
 
-// v32 — Enyo machine learning: each organisation's own trained models. Additive only.
-
-// v35 — what Enyo has learned: answers people marked helpful (first question of
+// What Enyo has learned: answers people marked helpful (first question of
 // a chat, no records read), and replies colleagues wrote when Enyo handed a
 // question over. Personal details removed. An administrator approves each one
 // before Enyo uses it as an example or reuses it for the same question.
@@ -2705,9 +2688,8 @@ model EnyoLearnedAnswer {
   @@map("enyo_learned_answers")
 }
 
-// v37 — the integrity watch: unusual or risky activity found by the checks in
-// apps/portal/lib/integrity (money, parts and procurement, warranty, gate,
-// access, sign-ins) or raised by a colleague (Speak up). An administrator
+// The integrity watch: unusual or risky activity found by the checks in
+// apps/portal/lib/integrity (money, parts, gate, access, sign-ins). An administrator
 // reviews each one; nobody reviews an alert about themselves. A flag is a
 // reason to look, never proof: nothing is decided automatically.
 // Additive only.
@@ -2750,7 +2732,7 @@ model IntegrityAlert {
   @@map("integrity_alerts")
 }
 
-// ─── Data Exchange (v-A1): bringing existing data in from SAP and spreadsheets ───
+// ─── Data Exchange: bringing existing data in from QuickBooks and spreadsheets ───
 //
 // One import = one file for one kind of record (customers, vehicles, …).
 // The browser reads the file and sends its rows in blocks into ImportRow (a
@@ -2796,12 +2778,11 @@ model ImportJob {
   skippedRows    Int      @default(0)
   // Totals shown in the reconciliation report (e.g. stock quantity and value).
   totals         Json?
-  // Opening stock (v-A2): the cut-over date the stock was counted at — the date of its opening-balance receipts.
+  // Opening stock: the cut-over date the stock was counted at — the date of its opening-balance receipts.
   asOf           DateTime?
-  // Opening stock (v-A2): Finance confirms the loaded quantity and value (a second sign-off after the Store's approval).
+  // Opening stock: Finance confirms the loaded quantity and value (a second sign-off after the Store's approval).
   signedOffById  String?
   signedOffAt    DateTime?
-  // v-A3 registers: the register the whole file is (PRODUCTION | QC | PDI) when it has no column for it.
   defaultKind    String?
   // The staged copy of the file: bytes it takes (measured), and when it was
   // released (the summary, the report's outcomes, rejected rows and what undo
@@ -2845,7 +2826,7 @@ model ImportRow {
   issues    Json?
   // The keys the row is recognised by ("ext:1000123", "email:…", "vin:…"): finds duplicates across the whole file.
   keys      String[] @default([])
-  // An existing record this row matched (by SAP number, email, phone, VIN, plate…).
+  // An existing record this row matched (by its old-system number, email, phone, VIN, plate…).
   matchedId String?
   matchedBy String?
   // The record created or updated from this row, and (FILL_BLANKS) which fields were filled — what an undo reverses.
@@ -2862,7 +2843,7 @@ model ImportRow {
   @@map("import_rows")
 }
 
-/// A saved column matching ("SAP customer master", "Workshop Excel 2024"), offered for the next file of the same kind.
+/// A saved column matching ("QuickBooks customer list", "Workshop Excel 2024"), offered for the next file of the same kind.
 model ImportMappingProfile {
   id             String   @id @default(cuid())
   organisationId String
@@ -2881,8 +2862,8 @@ model ImportMappingProfile {
   @@map("import_mapping_profiles")
 }
 
-/// v-A2: the organisation's suppliers (SAP vendors), shared by every branch. Goods receipts keep the supplier's
-/// name as typed and link here when it matches; brought in from SAP (LIFNR) or typed in.
+/// The organisation's suppliers. Goods receipts keep the supplier's name as typed and link here when it
+/// matches; brought in from QuickBooks or a spreadsheet, or typed in.
 model Supplier {
   id             String   @id @default(cuid())
   organisationId String
@@ -2893,7 +2874,7 @@ model Supplier {
   address        String?
   taxId          String?
   isActive       Boolean  @default(true)
-  // The supplier's number in another system: externalSource SAP and externalId the vendor number (LIFNR).
+  // The supplier's number in another system: externalSource where from, externalId the vendor number there.
   externalSource String?
   externalId     String?
   importJobId    String?
@@ -2912,8 +2893,8 @@ model Supplier {
   @@map("suppliers")
 }
 
-// v-A3 Data Exchange: invoices from SAP (billing documents or customer line
-// items) from before EJO 100. Read-only history: never edited, never paid or
+// Data Exchange: invoices from QuickBooks or the old system (billing documents
+// or customer line items) from before EJO. Read-only history: never edited, never paid or
 // refunded here, never shown to the customer. Counted in the customer's total
 // spend and last visit and in the CRM and Headquarters analytics, always
 // labelled "from SAP, before EJO". The customer (and the vehicle, matched by
@@ -3020,8 +3001,7 @@ model HistoricalJob {
 }
 
 /// The demo organisation's demo records that carry no externalSource of their
-/// own (job cards, services, store receipts, warranties, security, scheduling,
-/// support, imports…): one row per record, so a reset removes exactly what
+/// own (job cards, store receipts, gate exits, support, imports…): one row per record, so a reset removes exactly what
 /// the last load made and never a record a person made. Written only by
 /// apps/portal/lib/workshop/demo/load.ts.
 model DemoRecord {

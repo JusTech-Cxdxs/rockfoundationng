@@ -1,30 +1,22 @@
 'use server';
 import { getDataExchangeDashboardItems } from '@/lib/actions/data-exchange';
-import { separateVehicleServiceOn } from '@/lib/service-entry';
 import { logFailure } from '@/lib/log';
 
 import { countOpenIntegrityAlerts } from './integrity';
 import { prisma } from '@ejo/database';
-import { jobCardActive, serviceInside } from '@/lib/custody';
-import { allows, getPrincipal, myOrganisationId, orgWhere, reachWhere } from '@/lib/authz/server';
+import { jobCardActive } from '@/lib/custody';
+import { allows, getPrincipal, myOrganisationId, reachWhere } from '@/lib/authz/server';
 import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
 import { reaches } from '@/lib/notification-rules';
-import { getWarrantyDashboardItems } from './warranty';
-import { getSecurityDashboardItems } from './security';
 import { getWorkflowActionItems } from './workflow-actions';
 import { getMyWorkItems } from './my-work';
-import { getSchedulingDashboardItems } from './scheduling';
-import { getWarrantyClaimDashboardItems } from './warranty-claims';
 import { requireUser, currentUserIsMasterAdmin, listEligibleManagersForBranch } from './workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
-import { getPlantDashboardItems } from '@/lib/actions/plant';
-import { getKitDashboardItems } from '@/lib/actions/plant-kits';
-import { getLineDashboardItems } from '@/lib/actions/plant-line';
-import { featureOn, moduleIsOn } from '@/lib/modules';
+import { moduleIsOn } from '@/lib/modules';
 
 export type DashboardNotification = {
   id: string;
-  kind: 'PRICING_ALERT' | 'CANCELLATION_REQUEST' | 'CLOSE_REQUEST' | 'JOB_CARD_APPROVAL' | 'TECHNICIAN_ASSIGNMENT' | 'VEHICLE_SERVICE_APPROVAL' | 'WARRANTY' | 'SECURITY' | 'SCHEDULING' | 'WORKFLOW';
+  kind: 'PRICING_ALERT' | 'CANCELLATION_REQUEST' | 'CLOSE_REQUEST' | 'JOB_CARD_APPROVAL' | 'TECHNICIAN_ASSIGNMENT' | 'WORKFLOW';
   title: string;
   detail: string;
   url: string;
@@ -51,14 +43,8 @@ async function getDashboardNotificationsInner(): Promise<DashboardNotification[]
   const user = await requireUser();
   // Each module's items start now and run alongside the Workshop checks
   // below, so the wait is the slowest module, not the sum. A module switched
-  // off in this edition (lib/modules.ts) is not even asked.
+  // off (lib/modules.ts) is not even asked.
   const storeOn = moduleIsOn('inventory');
-  const warrantyOn = moduleIsOn('warranty');
-  const plantOn = moduleIsOn('plant');
-  const warrantyP = warrantyOn ? getWarrantyDashboardItems().catch(() => []) : Promise.resolve([]);
-  const claimsP = warrantyOn ? getWarrantyClaimDashboardItems().catch(() => []) : Promise.resolve([]);
-  const securityP = getSecurityDashboardItems().catch(() => []);
-  const schedulingP = getSchedulingDashboardItems().catch(() => []);
   const workflowP = getWorkflowActionItems().catch(() => []);
   const myWorkP = getMyWorkItems().catch(() => []);
   const isMasterAdmin = await currentUserIsMasterAdmin();
@@ -76,7 +62,7 @@ async function getDashboardNotificationsInner(): Promise<DashboardNotification[]
   }
 
   if (isEligibleManagerAnywhere) {
-    const [openAlerts, pendingCancellations, pendingCloses, pendingServiceCloses, pendingServiceCancellations] = await Promise.all([
+    const [openAlerts, pendingCancellations, pendingCloses] = await Promise.all([
       // Pricing alerts are the Store's (parts at their goods-receipt cost): only where the Store is on.
       storeOn ? prisma.pricingAlert.findMany({
         where: { status: 'OPEN', part: isMasterAdmin ? undefined : { branchId: branchId ?? undefined } },
@@ -95,19 +81,6 @@ async function getDashboardNotificationsInner(): Promise<DashboardNotification[]
         orderBy: { requestedAt: 'desc' },
         take: 10,
         select: { id: true, requestedAt: true, jobCard: { select: { id: true, jobNumber: true } } },
-      }),
-      // Vehicle Service close requests — same Manager decision, same feed.
-      prisma.vehicleServiceCloseRequest.findMany({
-        where: { status: 'PENDING', vehicleService: isMasterAdmin ? undefined : { branchId: branchId ?? undefined } },
-        orderBy: { requestedAt: 'desc' },
-        take: 10,
-        select: { id: true, requestedAt: true, vehicleService: { select: { id: true, serviceNumber: true } } },
-      }),
-      prisma.vehicleServiceCancellationRequest.findMany({
-        where: { status: 'PENDING', vehicleService: isMasterAdmin ? undefined : { branchId: branchId ?? undefined } },
-        orderBy: { requestedAt: 'desc' },
-        take: 10,
-        select: { id: true, requestedAt: true, reason: true, vehicleService: { select: { id: true, serviceNumber: true } } },
       }),
     ]);
 
@@ -142,32 +115,12 @@ async function getDashboardNotificationsInner(): Promise<DashboardNotification[]
         createdAt: req.requestedAt,
       });
     }
-    for (const req of pendingServiceCancellations) {
-      notifications.push({
-        id: `service-cancel-${req.id}`,
-        kind: 'CANCELLATION_REQUEST',
-        title: `Cancellation requested — ${req.vehicleService.serviceNumber}`,
-        detail: req.reason,
-        url: `/workshop/vehicle-service/${req.vehicleService.id}#cancellation-request`,
-        createdAt: req.requestedAt,
-      });
-    }
-    for (const req of pendingServiceCloses) {
-      notifications.push({
-        id: `service-close-${req.id}`,
-        kind: 'CLOSE_REQUEST',
-        title: `Close requested — ${req.vehicleService.serviceNumber}`,
-        detail: 'Waiting on your approve or decline.',
-        url: `/workshop/vehicle-service/${req.vehicleService.id}#close-request`,
-        createdAt: req.requestedAt,
-      });
-    }
   }
 
   // Personal items: Job Cards waiting on this viewer's review as supervisor,
   // or on their accept/reject as assigned technician. Shown regardless of
   // management status.
-  const [pendingReviews, pendingAssignments, pendingServiceReviews, pendingServiceAssignments] = await Promise.all([
+  const [pendingReviews, pendingAssignments] = await Promise.all([
     prisma.jobCard.findMany({
       where: { supervisorId: user.id, approvalStatus: 'PENDING' },
       orderBy: { createdAt: 'desc' },
@@ -180,18 +133,6 @@ async function getDashboardNotificationsInner(): Promise<DashboardNotification[]
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: { id: true, jobNumber: true, createdAt: true },
-    }),
-    prisma.vehicleService.findMany({
-      where: { supervisorId: user.id, approvalStatus: 'PENDING', escalatedToJobCardId: null },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { id: true, serviceNumber: true, createdAt: true },
-    }),
-    prisma.vehicleService.findMany({
-      where: { assignedTechnicianId: user.id, technicianAcceptanceStatus: 'PENDING', escalatedToJobCardId: null, status: { notIn: ['COMPLETED', 'READY_FOR_COLLECTION', 'CLOSED', 'COLLECTED', 'CANCELLED', 'ESCALATED'] } },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: { id: true, serviceNumber: true, createdAt: true },
     }),
   ]);
   for (const jc of pendingReviews) {
@@ -214,67 +155,19 @@ async function getDashboardNotificationsInner(): Promise<DashboardNotification[]
       createdAt: jc.createdAt,
     });
   }
-  for (const sv of pendingServiceReviews) {
-    notifications.push({
-      id: `service-review-${sv.id}`,
-      kind: 'VEHICLE_SERVICE_APPROVAL',
-      title: `Review needed — ${sv.serviceNumber}`,
-      detail: 'This Vehicle Service is waiting on your own review.',
-      url: `/workshop/vehicle-service/${sv.id}#review-approval`,
-      createdAt: sv.createdAt,
-    });
-  }
-  for (const sv of pendingServiceAssignments) {
-    notifications.push({
-      id: `service-assign-${sv.id}`,
-      kind: 'TECHNICIAN_ASSIGNMENT',
-      title: `New assignment — ${sv.serviceNumber}`,
-      detail: 'Respond to accept or reject this Vehicle Service.',
-      url: `/workshop/vehicle-service/${sv.id}#technician-response`,
-      createdAt: sv.createdAt,
-    });
-  }
-
-  // Warranty work waiting on this viewer (verify registrations, approve
-  // policy deletions at their level in the chain).
-  const [warrantyA, warrantyB, securityItems, schedulingItems] = await Promise.all([warrantyP, claimsP, securityP, schedulingP]);
-  const warrantyItems = [...warrantyA, ...warrantyB];
-  for (const item of warrantyItems) {
-    notifications.push({ id: item.id, kind: 'WARRANTY', title: item.title, detail: item.detail, url: item.url, createdAt: item.createdAt });
-  }
-
-  // Security: visitors at reception for this host; exit passes waiting at
-  // this viewer's approval step.
-  for (const item of securityItems) {
-    notifications.push({ id: item.id, kind: 'SECURITY', title: item.title, detail: item.detail, url: item.url, createdAt: item.createdAt });
-  }
-
-  // Scheduling: today's appointments (host or participant) still to come.
   for (const w of await workflowP) notifications.push({ ...w, kind: 'WORKFLOW' });
   for (const w of await myWorkP) notifications.push({ ...w, kind: 'WORKFLOW' });
   // Data Exchange: imports waiting for this approver (never their own), and their own approved or sent back.
   for (const w of await getDataExchangeDashboardItems().catch(() => [])) notifications.push({ ...w, kind: 'WORKFLOW' });
-  // Assembly plant (only where that module is on): PDIs waiting for this approver (never one they inspected), and their own PDIs sent back to rework.
-  if (plantOn) {
-    for (const w of await getPlantDashboardItems().catch(() => [])) notifications.push({ ...w, kind: 'WORKFLOW' });
-    // Kits waiting for this supervisor's release (never one they checked), and the inspector's own kits on hold.
-    for (const w of await getKitDashboardItems().catch(() => [])) notifications.push({ ...w, kind: 'WORKFLOW' });
-    // The line: gates waiting for this inspector, reworked defects to verify, A-defects open.
-    for (const w of await getLineDashboardItems().catch(() => [])) notifications.push({ ...w, kind: 'WORKFLOW' });
-  }
   // Integrity watch reviewers: new alerts (never ones about themselves).
   const integrity = await countOpenIntegrityAlerts().catch(() => ({ open: 0, high: 0 }));
   if (integrity.open) {
     notifications.push({
       id: 'integrity-new', kind: 'WORKFLOW', url: '/integrity?status=NEW', createdAt: new Date(),
       title: `${integrity.open} new integrity alert${integrity.open === 1 ? '' : 's'} to review`,
-      detail: integrity.high ? `${integrity.high} high — unusual money, parts, gate or access activity` : warrantyOn ? 'Unusual money, parts, warranty, gate or access activity' : 'Unusual money, parts, gate or access activity',
+      detail: integrity.high ? `${integrity.high} high — unusual money, parts, gate or access activity` : 'Unusual money, parts, gate or access activity',
     });
   }
-  for (const item of schedulingItems) {
-    notifications.push({ id: item.id, kind: 'SCHEDULING', title: item.title, detail: item.detail, url: item.url, createdAt: item.createdAt });
-  }
-
   return notifications.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 }
 
@@ -332,7 +225,7 @@ export async function listActiveAnnouncements(organisationId: string) {
   });
 }
 
-export type DashboardTrendPoint = { label: string; jobCardsOpened: number; servicesOpened: number; collected: number; refunded: number; net: number };
+export type DashboardTrendPoint = { label: string; jobCardsOpened: number; collected: number; refunded: number; net: number };
 
 /** Day-by-day figures for the last 14 working days ending today (weekends
  * and Nigerian public holidays skipped). Money collected and refunded are
@@ -352,11 +245,10 @@ export async function getDashboardTrend(): Promise<DashboardTrendPoint[]> {
   // Amounts only for people allowed to see business figures; they are never
   // sent to anyone else's browser.
   const [reach, money] = await Promise.all([reachWhere('workshop.job_card.view'), allows('analytics.business.view')]);
-  const viaJob = reach.branchId ? { OR: [{ jobCard: reach }, { vehicleService: reach }] } : {};
+  const viaJob = reach.branchId ? { jobCard: reach } : {};
   const none = Promise.resolve([] as { recordedAt: Date; amount: unknown }[]);
-  const [jobCards, services, payments, refunds] = await Promise.all([
+  const [jobCards, payments, refunds] = await Promise.all([
     prisma.jobCard.findMany({ where: { ...reach, createdAt: { gte: start } }, select: { createdAt: true } }),
-    prisma.vehicleService.findMany({ where: { ...reach, createdAt: { gte: start } }, select: { createdAt: true } }),
     money ? prisma.payment.findMany({ where: { ...viaJob, recordedAt: { gte: start } }, select: { recordedAt: true, amount: true } }) : none,
     money ? prisma.refund.findMany({ where: { ...viaJob, recordedAt: { gte: start } }, select: { recordedAt: true, amount: true } }) : none,
   ]);
@@ -367,7 +259,6 @@ export async function getDashboardTrend(): Promise<DashboardTrendPoint[]> {
     return {
       label: new Date(`${ymd}T12:00:00+01:00`).toLocaleDateString('en-NG', { month: 'short', day: 'numeric', timeZone: 'Africa/Lagos' }),
       jobCardsOpened: jobCards.filter((j: { createdAt: Date }) => onDay(j.createdAt, ymd)).length,
-      servicesOpened: services.filter((v: { createdAt: Date }) => onDay(v.createdAt, ymd)).length,
       collected: Math.round(collected * 100) / 100,
       refunded: Math.round(refunded * 100) / 100,
       net: Math.round((collected - refunded) * 100) / 100,
@@ -402,26 +293,17 @@ export async function getPlatformGlance(): Promise<GlanceTile[]> {
   const dayEnd = new Date(dayStart.getTime() + 86400000);
   const n = (p: Promise<number>) => p.catch(() => 0);
   // Each tile counts what its list would show this person (same reach rules).
-  const [work, store, gate, me] = await Promise.all([
+  const [work, store, me] = await Promise.all([
     reachWhere('workshop.job_card.view'),
     reachWhere('store.view'),
-    reachWhere('security.view'),
     requireUser().then((u) => prisma.user.findUnique({ where: { id: u.id }, select: { id: true, organisationId: true, branchId: true, departmentId: true, roles: { select: { role: { select: { slug: true } } } } } })),
   ]);
-  const claimReach = typeof work.branchId === 'string' ? { OR: [{ jobCard: work }, { vehicleService: work }] } : { customer: await orgWhere() };
-  // Areas switched off in this edition (lib/modules.ts): their counts are not run and their tiles not shown.
-  const storeOn = moduleIsOn('inventory'), eprOn = featureOn('externalProcurement'), warrantyOn = moduleIsOn('warranty');
+  // The Store's tiles only while it is on (lib/modules.ts).
+  const storeOn = moduleIsOn('inventory');
   const off = Promise.resolve(0);
-  const [jcActive, svActive, prsOpen, eprOpen, claimsOpen, visitors, incidents, apptsToday, broadcasts, grnsToday] = await Promise.all([
+  const [jcActive, prsOpen, broadcasts, grnsToday] = await Promise.all([
     n(prisma.jobCard.count({ where: { ...work, ...jobCardActive() } })),
-    n(prisma.vehicleService.count({ where: { ...work, ...serviceInside() } })),
     storeOn ? n(prisma.partRequestSlip.count({ where: { ...store, status: { in: ['PENDING_HOD_APPROVAL', 'PENDING_STORE_APPROVAL', 'APPROVED'] } } })) : off,
-    eprOn ? n(prisma.externalProcurementRequest.count({ where: { ...store, status: { in: ['PENDING_FINANCE_REVIEW', 'PENDING_MANAGER_APPROVAL', 'APPROVED'] } } })) : off,
-    warrantyOn ? n(prisma.warrantyClaim.count({ where: { ...claimReach, status: { in: ['DRAFT', 'PENDING_HOD', 'PENDING_MANAGER', 'APPROVED_TO_SUBMIT', 'SUBMITTED'] } } })) : off,
-    n(prisma.visit.count({ where: { ...gate, status: 'CHECKED_IN' } })),
-    n(prisma.securityIncident.count({ where: { ...gate, status: { in: ['OPEN', 'UNDER_REVIEW'] } } })),
-    // The scheduling admin: every calendar in reach; everyone else: their own calendar.
-    n(allows('schedule.manage').then(async (all) => prisma.appointment.count({ where: { ...(all ? await reachWhere('schedule.manage') : { ownerId: me?.id ?? '__none__' }), status: 'SCHEDULED', startsAt: { gte: dayStart, lt: dayEnd } } }))),
     // Only the broadcasts addressed to this person (never customers' ones),
     // matching what their bell shows.
     n(prisma.broadcast.findMany({ where: { organisationId: me?.organisationId ?? '__none__', isActive: true, startsAt: { lte: new Date() }, OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }] }, select: { audience: true, audienceIds: true }, take: 500 })
@@ -430,19 +312,12 @@ export async function getPlatformGlance(): Promise<GlanceTile[]> {
   ]);
   const p = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
   // Each tile only for the people whose work it is (same rule as its page).
-  const [cw, cs, cwa, csec, csch, ccost] = await Promise.all([allows('workshop.view'), allows('store.view'), allows('warranty.view'), allows('security.view'), allows('schedule.view'), Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k))).then((xs) => xs.some(Boolean))]);
-  // No separate Vehicle Service in this edition: its custody tile shows only while old ones are still in the workshop.
-  const NEED: Record<string, boolean> = { '/workshop/custody': cw, '/workshop/vehicle-service-custody': cw && (separateVehicleServiceOn() || svActive > 0), '/workshop/parts-requests': cs && storeOn, '/workshop/external-procurement': cs && eprOn, '/inventory/goods-receipts': ccost && storeOn, '/warranty/claims': cwa && warrantyOn, '/security/on-premises': csec, '/security/incidents?tab=open': csec, '/schedule/appointments?show=today': csch, '/notifications?tab=broadcasts': true };
+  const [cw, cs, ccost] = await Promise.all([allows('workshop.view'), allows('store.view'), Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k))).then((xs) => xs.some(Boolean))]);
+  const NEED: Record<string, boolean> = { '/workshop/custody': cw, '/workshop/parts-requests': cs && storeOn, '/inventory/goods-receipts': ccost && storeOn, '/notifications?tab=broadcasts': true };
   const tiles: GlanceTile[] = [
     { label: 'Job Cards in progress', value: jcActive, hint: 'Open, not yet checked out', href: '/workshop/custody', tone: 'primary' },
-    { label: 'Vehicle Services in custody', value: svActive, hint: 'Still in the workshop (cancelled ones awaiting hand-back included)', href: '/workshop/vehicle-service-custody', tone: 'info' },
     { label: 'Parts requests open', value: prsOpen, hint: 'Awaiting approval or release', href: '/workshop/parts-requests', tone: prsOpen ? 'warning' : 'muted' },
-    { label: 'Outside purchases (EPR) open', value: eprOpen, hint: 'Awaiting review, approval or cash', href: '/workshop/external-procurement', tone: eprOpen ? 'warning' : 'muted' },
     { label: 'Goods received today', value: grnsToday, hint: p(grnsToday, 'goods receipt', 'goods receipts'), href: '/inventory/goods-receipts', tone: 'success' },
-    { label: 'Warranty claims open', value: claimsOpen, hint: 'Not yet settled or closed', href: '/warranty/claims', tone: claimsOpen ? 'warning' : 'muted' },
-    { label: 'Visitors on premises', value: visitors, hint: 'Checked in, not yet out', href: '/security/on-premises', tone: 'info' },
-    { label: 'Open incidents', value: incidents, hint: 'Open or under review', href: '/security/incidents?tab=open', tone: incidents ? 'error' : 'muted' },
-    { label: "Today's appointments", value: apptsToday, hint: 'Still scheduled', href: '/schedule/appointments?show=today', tone: 'primary' },
     { label: 'Live broadcasts', value: broadcasts, hint: 'Running now', href: '/notifications?tab=broadcasts', tone: 'success' },
   ];
   return tiles.filter((t) => NEED[t.href] ?? true);

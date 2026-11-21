@@ -8,11 +8,16 @@ import { billingTotals, depositFractionFor, depositOf, vatSettingFor, type Billi
 
 export { vatIsFixed, vatSettingFor, billingTotals, balanceDue, depositOf, depositFractionFor, depositPercentOf, paymentApproves, workMayStart, discountNeedsManager, discountPercent, paidInFull, toKobo, type BillingTotals, type DepositSetting, type VatSetting } from '@ejo/utils/billing';
 
-/** Who pays for a line: the customer, or the business (goodwill or internal). */
-export type BillTo = 'CUSTOMER' | 'GOODWILL' | 'INTERNAL';
+/**
+ * Who pays for a line: the customer, or the workshop itself — under the
+ * workshop's own warranty (its guarantee on earlier work or parts), as
+ * goodwill, or as an internal cost.
+ */
+export type BillTo = 'CUSTOMER' | 'WARRANTY' | 'GOODWILL' | 'INTERNAL';
 
 export const BILL_TO_LABEL: Record<BillTo, string> = {
   CUSTOMER: 'Customer',
+  WARRANTY: 'Under warranty',
   GOODWILL: 'Goodwill',
   INTERNAL: 'Internal',
 };
@@ -57,13 +62,15 @@ export function jobCardTotals(estimate: EstimateForTotals, settings: VatSetting 
 export function billingSplit(lines: { amount: unknown; billTo?: string | null }[]) {
   const by = (b: BillTo) => Math.round(lines.filter((li) => (li.billTo ?? 'CUSTOMER') === b).reduce((s, li) => s + amt(li), 0) * 100) / 100;
   const customer = customerTotal(lines);
+  const warranty = by('WARRANTY');
   const goodwill = by('GOODWILL');
   const internal = by('INTERNAL');
-  return { customer, goodwill, internal, covered: Math.round((goodwill + internal) * 100) / 100, total: Math.round((customer + goodwill + internal) * 100) / 100 };
+  return { customer, warranty, goodwill, internal, covered: Math.round((warranty + goodwill + internal) * 100) / 100, total: Math.round((customer + warranty + goodwill + internal) * 100) / 100 };
 }
 
 /** Text shown in place of a price for a covered line. */
 export function coveredLabel(billTo: string | null | undefined): string {
+  if (billTo === 'WARRANTY') return 'Under warranty — not charged';
   if (billTo === 'GOODWILL') return 'Goodwill — not charged';
   if (billTo === 'INTERNAL') return 'Internal — not charged';
   return '';

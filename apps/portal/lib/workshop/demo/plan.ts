@@ -8,10 +8,9 @@
  * discounts, the customer's answer (by link, in the portal, by phone or by
  * paying the deposit at the counter), deposits, invoices and receipts for
  * finished work, fleet invoices on credit (paid, not yet due, and past due),
- * a refund after a cancellation, rework and road tests; the Service Tracker
- * (vehicles due and overdue, the reminders sent); security (visitors, exit
- * passes, road tests, incidents, deliveries, a contractor); scheduling,
- * broadcasts, support tickets; and the Zoho and spreadsheet imports of the
+ * a refund after a cancellation and rework; the Service Tracker (vehicles
+ * due and overdue, the reminders sent); gate exits, broadcasts, support
+ * tickets; and the Zoho and spreadsheet imports of the
  * cut-over, with exports made since.
  *
  * Nothing of the Store, Warranty or the assembly plant: those modules are
@@ -149,15 +148,8 @@ export type DemoJobCard = {
   close: { requestedAt: Date; decidedAt: Date | null; status: 'PENDING' | 'APPROVED' } | null;
   refund: { amount: number; method: 'BANK_TRANSFER' | 'CASH'; at: Date; paidToName: string; reason: string } | null;
   gateExit: { at: Date; driverName: string } | null;
-  roadTest: { key: string; status: 'PENDING_MANAGER' | 'APPROVED' | 'OUT' | 'RETURNED'; requestedAt: Date; approvedAt: Date | null; outAt: Date | null; inAt: Date | null; startOdometer: number; endOdometer: number | null; purpose: string } | null;
   audit: AuditEntry[];
 };
-export type DemoVisit = { key: string; status: 'EXPECTED' | 'CHECKED_IN' | 'CHECKED_OUT' | 'CANCELLED'; visitorName: string; company: string | null; phone: string; purpose: string; hostKey: string; expectedAt: Date; durationMinutes: number; vehicleType: string; plate: string | null; checkedInAt: Date | null; checkedOutAt: Date | null; walkIn: boolean; createdAt: Date };
-export type DemoExitPass = { key: string; status: 'PENDING_HEAD' | 'PENDING_MANAGER' | 'APPROVED' | 'OUT' | 'RETURNED' | 'CLOSED' | 'DECLINED'; requestedByKey: string; reason: string; returning: boolean; createdAt: Date; expectedOutAt: Date; expectedReturnAt: Date | null; durationMinutes: number; headAt: Date | null; managerAt: Date | null; gateOutAt: Date | null; gateInAt: Date | null; declinedAt: Date | null; declineReason: string | null; people: { key: string; name: string; employeeId: string; designation: string }[] };
-export type DemoIncident = { key: string; type: string; severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; status: 'OPEN' | 'UNDER_REVIEW' | 'CLOSED'; occurredAt: Date; location: string; description: string; actionTaken: string; reportedByKey: string; assignedToKey: string | null; closedAt: Date | null; resolution: string | null };
-export type DemoDelivery = { key: string; status: 'EXPECTED' | 'AT_GATE' | 'RECEIVED' | 'LEFT'; supplierName: string; items: string; expectedAt: Date; arrivedAt: Date | null; receivedAt: Date | null; leftAt: Date | null; driverName: string; plate: string; createdAt: Date };
-export type DemoContractor = { key: string; status: 'APPROVED'; company: string; work: string; workArea: string; leadName: string; teamSize: number; validFrom: Date; validUntil: Date; hostKey: string; requestedByKey: string; managerAt: Date; attendance: { date: Date; workers: number; inAt: Date; outAt: Date | null }[] };
-export type DemoAppointment = { key: string; title: string; agenda: string | null; ownerKey: string; participantKeys: string[]; startsAt: Date; endsAt: Date; status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW'; roomKey: string | null; location: string | null; createdAt: Date };
 export type DemoTicket = { key: string; channel: 'CUSTOMER_PORTAL' | 'WEBSITE' | 'EMAIL' | 'STAFF'; subject: string; summary: string; priority: string; status: 'OPEN' | 'WAITING_ON_CUSTOMER' | 'ON_HOLD' | 'RESOLVED' | 'CLOSED'; createdAt: Date; customerKey: string | null; contactName: string; contactPhone: string | null; contactEmail: string | null; assignedToKey: string | null; requesterKey: string | null; tags: string[]; firstResponseAt: Date | null; resolvedAt: Date | null; closedAt: Date | null; dueFirstResponseAt: Date; dueResolutionAt: Date; csat: number | null; replies: { at: Date; kind: 'CUSTOMER' | 'AGENT' | 'AI' | 'NOTE'; body: string; authorKey: string | null }[] };
 export type DemoImport = { key: string; entity: string; fileName: string; rows: number; created: number; warnings: number; rejected: number; createdAt: Date; createdByKey: string; approvedByKey: string; signedOffByKey: string | null; totals: Record<string, unknown> | null };
 export type DemoExport = { key: string; kind: string; format: 'xlsx' | 'csv'; summary: string; rows: number; createdAt: Date; createdByKey: string };
@@ -168,8 +160,6 @@ export type WorkshopDemoPlan = {
   customers: DemoCustomer[]; vehicles: DemoVehicle[];
   jobCards: DemoJobCard[];
   reminders: DemoReminder[];
-  visits: DemoVisit[]; exitPasses: DemoExitPass[]; incidents: DemoIncident[]; deliveries: DemoDelivery[]; contractors: DemoContractor[];
-  rooms: { key: string; name: string; location: string; capacity: number }[]; appointments: DemoAppointment[];
   broadcasts: { key: string; category: string; title: string; message: string; audience: string; startsAt: Date; endsAt: Date; createdAt: Date; byKey: string }[];
   announcement: { message: string; expiresAt: Date; createdAt: Date; byKey: string };
   tickets: DemoTicket[]; imports: DemoImport[]; exports: DemoExport[];
@@ -315,7 +305,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
       key: `jc${jobCards.length + 1}`, vehicleKey: v.key, customerKey: v.customerKey, dept, kind, service, openedAt: o.openedAt, status: 'CHECKED_IN', complaints, diagnosis: null, notes: null, mileage,
       technicianKey: who(tech), supervisorKey: who(sup), approvalStatus: 'PENDING', approvedAt: null, technicianAcceptance: 'PENDING', technicianRespondedAt: null,
       workStartedAt: null, completedAt: null, readyForCollectionAt: null, closedAt: null, checkedOutAt: null, collectedByName: null, estimate: null, payments: [], invoice: null, onCredit,
-      rework: null, cancellation: null, close: null, refund: null, gateExit: null, roadTest: null, audit,
+      rework: null, cancellation: null, close: null, refund: null, gateExit: null, audit,
     };
     log('job_card.created', o.openedAt, P.frontdesk, { jobNumber: '{number}', isService: service });
     if (o.target === 'CHECKED_IN') return jc;
@@ -423,13 +413,6 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
       t = wm(rwAt, int(r, 90, 400)); if (t > now) return jc;
       jc.status = 'QUALITY_CHECK'; log('job_card.status_updated', t, tech, { status: 'QUALITY_CHECK' });
       if (o.target === 'QUALITY_CHECK') return jc;
-    }
-    if (['brakes', 'clutch', 'steering', 'suspension', 'spring', 'propshaft', 'gearbox'].includes(kind)) {
-      const reqAt = wm(t, q(5, 30));
-      const appAt = wm(reqAt, int(r, 10, 60)); const outAt = wm(appAt, int(r, 10, 40)); const inAt = wm(outAt, int(r, 25, 50));
-      jc.roadTest = { key: `rt-${jc.key}`, status: inAt <= now ? 'RETURNED' : outAt <= now ? 'OUT' : appAt <= now ? 'APPROVED' : 'PENDING_MANAGER', requestedAt: reqAt, approvedAt: appAt <= now ? appAt : null, outAt: outAt <= now ? outAt : null, inAt: inAt <= now ? inAt : null, startOdometer: mileage, endOdometer: inAt <= now ? mileage + int(r, 6, 14) : null, purpose: `Road test after: ${complaints[0]!.toLowerCase()}` };
-      if (inAt > now) return jc;
-      t = inAt;
     }
     t = wm(t, q(20, 90)); if (t > now) return jc;
     jc.status = 'COMPLETED'; jc.completedAt = t; log('job_card.status_updated', t, sup, { status: 'COMPLETED' });
@@ -547,93 +530,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     reminders.push({ vehicleKey: j.vehicleKey, sentAt, byKey: who(P.frontdesk), dueOdometer: due.km, dueDate: due.date, odometerAtSend: vehicleByKey.get(j.vehicleKey)!.mileage, reminderNumber: status === 'OVERDUE' ? 3 : 1, trigger: status === 'OVERDUE' ? 'OVERDUE' : 'DUE_SOON' });
   }
 
-  // ── Security ───────────────────────────────────────────────────────────
-  const visits: DemoVisit[] = [];
-  const hostOf = () => pick(r, [P.frontdesk, P.supCars, P.supFleet, P.manager, P.finance]);
-  const visitorNames = ['Mr Adeniyi', 'Mrs Okafor-Ude', 'Alhaji Musa', 'Ms Ekanem', 'Mr Ogbonna', 'Chief Olatunji', 'Mrs Bassey-Edet', 'Mr Uchenna', 'Engr. Bala', 'Dr Nwosu-Ike', 'Mr Ademola', 'Mrs Ahmed-Sule'];
-  for (let d = plus(from, 3 * DAY); d <= today; d = plus(d, DAY)) {
-    if (!isWorkDay(d)) continue;
-    const n = d.getTime() === today.getTime() ? 5 : int(r, 0, 2);
-    for (let i = 0; i < n; i += 1) {
-      const expectedAt = at(d, int(r, 8, 15), pick(r, [0, 15, 30, 45]));
-      const purposeIdx = int(r, 0, VISITOR_PURPOSES.length - 1);
-      const onFoot = chance(r, 0.3);
-      const vis: DemoVisit = { key: `vis${visits.length + 1}`, status: 'EXPECTED', visitorName: pick(r, visitorNames), company: VISITOR_COMPANIES[purposeIdx] || null, phone: `0800 000 0${String(600 + (visits.length % 400)).padStart(3, '0')}`, purpose: VISITOR_PURPOSES[purposeIdx]!, hostKey: who(hostOf()), expectedAt, durationMinutes: pick(r, [30, 60, 60, 90, 120]), vehicleType: onFoot ? 'ON_FOOT' : pick(r, ['CAR', 'CAR', 'TRUCK', 'MOTORCYCLE']), plate: onFoot ? null : plate(), checkedInAt: null, checkedOutAt: null, walkIn: chance(r, 0.25), createdAt: plus(expectedAt, -int(r, 60, 2_000) * 60_000) };
-      const inAt = plus(expectedAt, int(r, -10, 40) * 60_000);
-      const outAt = plus(inAt, (vis.durationMinutes + int(r, -20, 30)) * 60_000);
-      if (inAt <= now) { vis.status = 'CHECKED_IN'; vis.checkedInAt = inAt; }
-      if (outAt <= now && vis.status === 'CHECKED_IN') { vis.status = 'CHECKED_OUT'; vis.checkedOutAt = outAt; }
-      if (vis.status === 'EXPECTED' && chance(r, 0.08) && expectedAt < plus(now, -DAY)) vis.status = 'CANCELLED';
-      if (vis.createdAt > now) vis.createdAt = plus(now, -int(r, 10, 120) * 60_000);
-      visits.push(vis);
-    }
-  }
-  // Today, deliberately: one visitor long overdue, one just in, two still expected.
-  visits.push({ key: `vis${visits.length + 1}`, status: 'CHECKED_IN', visitorName: 'Mr Ibikunle (insurance assessor)', company: 'Insurance assessor (demo)', phone: '0800 000 0699', purpose: 'Insurance assessor inspection', hostKey: who(P.supFleet), expectedAt: plus(now, -3.5 * HOUR), durationMinutes: 60, vehicleType: 'CAR', plate: plate(), checkedInAt: plus(now, -3.2 * HOUR), checkedOutAt: null, walkIn: false, createdAt: plus(now, -26 * HOUR) });
-  visits.push({ key: `vis${visits.length + 1}`, status: 'CHECKED_IN', visitorName: 'Mrs Okoye-Bello', company: null, phone: '0800 000 0698', purpose: 'Collecting a vehicle', hostKey: who(P.frontdesk), expectedAt: plus(now, -40 * 60_000), durationMinutes: 60, vehicleType: 'ON_FOOT', plate: null, checkedInAt: plus(now, -25 * 60_000), checkedOutAt: null, walkIn: true, createdAt: plus(now, -25 * 60_000) });
-  visits.push({ key: `vis${visits.length + 1}`, status: 'EXPECTED', visitorName: 'Fleet Manager, RCL Africa', company: 'RCL Africa', phone: '0800 000 0311', purpose: 'Fleet account meeting', hostKey: who(P.manager), expectedAt: plus(now, 1.5 * HOUR), durationMinutes: 90, vehicleType: 'CAR', plate: plate(), checkedInAt: null, checkedOutAt: null, walkIn: false, createdAt: plus(now, -2 * DAY) });
-  visits.push({ key: `vis${visits.length + 1}`, status: 'EXPECTED', visitorName: 'Accounts officer, Dori Construction', company: 'Dori Construction', phone: '0800 000 0324', purpose: 'Paying an invoice', hostKey: who(P.finance), expectedAt: plus(now, 3 * HOUR), durationMinutes: 45, vehicleType: 'CAR', plate: plate(), checkedInAt: null, checkedOutAt: null, walkIn: false, createdAt: plus(now, -DAY) });
-
-  const exitPasses: DemoExitPass[] = [];
-  const staffFor = (s: DemoStaff) => ({ key: who(s), name: s.name, employeeId: s.employeeId, designation: s.jobTitle });
-  for (let i = 0; i < 18; i += 1) {
-    const d = workingDayBack(int(r, 2, 200));
-    const by = pick(r, [P.tech1, P.tech2, P.tech3, P.finance, P.frontdesk]);
-    const createdAt = at(d, int(r, 8, 12), int(r, 0, 59));
-    const outAt = plus(createdAt, int(r, 60, 150) * 60_000);
-    const dur = pick(r, [60, 90, 120, 180]);
-    const returning = chance(r, 0.85);
-    const inAt = plus(outAt, (dur + int(r, -20, 25)) * 60_000);
-    exitPasses.push({ key: `ep${exitPasses.length + 1}`, status: 'CLOSED', requestedByKey: who(by), reason: pick(r, EXIT_REASONS), returning, createdAt, expectedOutAt: outAt, expectedReturnAt: returning ? plus(outAt, dur * 60_000) : null, durationMinutes: dur, headAt: plus(createdAt, int(r, 10, 40) * 60_000), managerAt: plus(createdAt, int(r, 45, 90) * 60_000), gateOutAt: outAt, gateInAt: returning ? inAt : null, declinedAt: null, declineReason: null, people: [staffFor(by)] });
-  }
-  // Today: one out and overdue, one waiting for the department head, one waiting for the Manager, one declined last week.
-  exitPasses.push({ key: `ep${exitPasses.length + 1}`, status: 'OUT', requestedByKey: who(P.tech3), reason: 'Buy parts at Ladipo market (urgent: a radiator for the Hilux in the bay)', returning: true, createdAt: plus(now, -4 * HOUR), expectedOutAt: plus(now, -3.5 * HOUR), expectedReturnAt: plus(now, -1.5 * HOUR), durationMinutes: 120, headAt: plus(now, -3.8 * HOUR), managerAt: plus(now, -3.6 * HOUR), gateOutAt: plus(now, -3.4 * HOUR), gateInAt: null, declinedAt: null, declineReason: null, people: [staffFor(P.tech3)] });
-  exitPasses.push({ key: `ep${exitPasses.length + 1}`, status: 'PENDING_HEAD', requestedByKey: who(P.tech3), reason: 'Roadside call-out: a fleet bus will not start in Lekki', returning: true, createdAt: plus(now, -50 * 60_000), expectedOutAt: plus(now, 40 * 60_000), expectedReturnAt: plus(now, 4 * HOUR), durationMinutes: 180, headAt: null, managerAt: null, gateOutAt: null, gateInAt: null, declinedAt: null, declineReason: null, people: [staffFor(P.tech3)] });
-  exitPasses.push({ key: `ep${exitPasses.length + 1}`, status: 'PENDING_MANAGER', requestedByKey: who(P.finance), reason: 'Bank: lodge the day’s cash', returning: true, createdAt: plus(now, -2 * HOUR), expectedOutAt: plus(now, 30 * 60_000), expectedReturnAt: plus(now, 2 * HOUR), durationMinutes: 90, headAt: plus(now, -1.5 * HOUR), managerAt: null, gateOutAt: null, gateInAt: null, declinedAt: null, declineReason: null, people: [staffFor(P.finance)] });
-  exitPasses.push({ key: `ep${exitPasses.length + 1}`, status: 'DECLINED', requestedByKey: who(P.tech1), reason: 'Personal errand', returning: true, createdAt: plus(today, -6 * DAY + 10 * HOUR), expectedOutAt: plus(today, -6 * DAY + 11 * HOUR), expectedReturnAt: plus(today, -6 * DAY + 13 * HOUR), durationMinutes: 120, headAt: plus(today, -6 * DAY + 10.3 * HOUR), managerAt: null, gateOutAt: null, gateInAt: null, declinedAt: plus(today, -6 * DAY + 10.8 * HOUR), declineReason: 'Two vehicles waiting in the cars bay; take it after 15:00.', people: [staffFor(P.tech1)] });
-  for (const e of exitPasses) if (e.createdAt > now) { const shift = e.createdAt.getTime() - now.getTime() + HOUR; for (const k of ['createdAt', 'expectedOutAt', 'expectedReturnAt', 'headAt', 'managerAt', 'gateOutAt', 'gateInAt', 'declinedAt'] as const) if (e[k]) (e as Record<string, unknown>)[k] = new Date((e[k] as Date).getTime() - shift); }
-
-  const incidents: DemoIncident[] = INCIDENTS.map((inc, i) => {
-    const occurredAt = i === 0 ? plus(now, -5 * HOUR) : i === 1 ? plus(now, -2 * DAY) : plus(today, -int(r, 10, 190) * DAY + 11 * HOUR);
-    const status = i === 0 ? 'OPEN' : i === 1 ? 'UNDER_REVIEW' : 'CLOSED';
-    return { key: `inc${i + 1}`, type: inc.type, severity: inc.severity, status, occurredAt, location: inc.location, description: inc.text, actionTaken: inc.action, reportedByKey: who(P.gate), assignedToKey: status === 'OPEN' ? null : who(P.cso), closedAt: status === 'CLOSED' ? plus(occurredAt, int(r, 1, 3) * DAY) : null, resolution: status === 'CLOSED' ? 'Reviewed with the Manager; no further action.' : null };
-  });
-  // Parts bought outside arrive at the gate (the Store is off: they go straight to the bay).
-  const deliveries: DemoDelivery[] = [];
-  const vendors = ['Ladipo parts vendor (demo)', 'Toyota parts dealer (demo)', 'Tyre distributor (demo)', 'Lubricants distributor (demo)'];
-  for (let i = 0; i < 24; i += 1) {
-    const d = workingDayBack(int(r, 1, 200));
-    const arrivedAt = at(d, int(r, 9, 15), int(r, 0, 59));
-    const supplierName = pick(r, vendors);
-    deliveries.push({ key: `dlv${i + 1}`, status: 'LEFT', supplierName, items: supplierName.startsWith('Tyre') ? `${int(r, 4, 12)} tyres` : supplierName.startsWith('Lubricants') ? `Engine oil, ${int(r, 10, 40)} litres` : `${int(r, 1, 6)} parts for job cards in the bay`, expectedAt: plus(arrivedAt, -30 * 60_000), arrivedAt, receivedAt: plus(arrivedAt, 10 * 60_000), leftAt: plus(arrivedAt, 25 * 60_000), driverName: pick(r, ['Mr Sule', 'Mr Chukwu', 'Mr Bako', 'Mr Ikenna']), plate: plate(), createdAt: plus(arrivedAt, -DAY) });
-  }
-  deliveries.push({ key: 'dlv-today-1', status: 'AT_GATE', supplierName: 'Toyota parts dealer (demo)', items: 'Radiator and thermostat for the Hilux in the fleet bay', expectedAt: plus(now, -20 * 60_000), arrivedAt: plus(now, -8 * 60_000), receivedAt: null, leftAt: null, driverName: 'Mr Chukwu', plate: plate(), createdAt: plus(now, -DAY) });
-  deliveries.push({ key: 'dlv-today-2', status: 'EXPECTED', supplierName: 'Tyre distributor (demo)', items: 'Eight 17-inch tyres', expectedAt: plus(now, 2.5 * HOUR), arrivedAt: null, receivedAt: null, leftAt: null, driverName: 'Mr Bako', plate: plate(), createdAt: plus(now, -2 * DAY) });
-  for (const d of deliveries) if (d.createdAt > now) d.createdAt = plus(now, -HOUR);
-  const contractors: DemoContractor[] = [{
-    key: 'ctr1', status: 'APPROVED', company: 'Roofing contractor (demo)', work: 'Replace the roof sheets over the wash bay', workArea: 'Wash bay and bays 5–6', leadName: 'Mr Okeke', teamSize: 4, validFrom: plus(today, -3 * DAY), validUntil: plus(today, 4 * DAY), hostKey: who(P.manager), requestedByKey: who(P.manager), managerAt: plus(today, -4 * DAY + 14 * HOUR),
-    attendance: ([1, 2, 3].map((k) => { const d = plus(today, -k * DAY); return { date: d, workers: 4, inAt: at(d, 8, 5), outAt: at(d, 16, 40) as Date | null }; }).filter((a) => isWorkDay(a.date))).concat(isWorkDay(today) && at(today, 8, 10) <= now ? [{ date: today, workers: 3, inAt: at(today, 8, 10), outAt: null }] : []),
-  }];
-  // The team is still on site: on a day it does not work, the last day's sign-out is open.
-  if (contractors[0]!.attendance.length && contractors[0]!.attendance.at(-1)!.outAt) contractors[0]!.attendance.at(-1)!.outAt = null;
-
-  // ── Scheduling, broadcasts, support ────────────────────────────────────
-  const rooms = [{ key: 'room1', name: 'Manager’s meeting room', location: 'Admin block, first floor', capacity: 8 }, { key: 'room2', name: 'Customer lounge', location: 'Reception, ground floor', capacity: 12 }];
-  const appointments: DemoAppointment[] = [];
-  for (let d = plus(from, DAY); d <= plus(today, 10 * DAY); d = plus(d, DAY)) {
-    if (!isWorkDay(d)) continue;
-    const n = d.getTime() === today.getTime() ? 3 : chance(r, 0.4) ? 1 : 0;
-    for (let i = 0; i < n; i += 1) {
-      const startsAt = at(d, pick(r, [9, 10, 11, 14, 15]), pick(r, [0, 30]));
-      const endsAt = plus(startsAt, pick(r, [30, 60, 60, 90]) * 60_000);
-      const owner = pick(r, [P.manager, P.supCars, P.supFleet, P.finance, P.scheduling, P.careLead, P.cso]);
-      const others = [P.manager, P.supCars, P.supFleet, P.finance, P.frontdesk, P.calendar].filter((p) => p !== owner && chance(r, 0.35));
-      const status = endsAt <= now ? (chance(r, 0.9) ? 'COMPLETED' : chance(r, 0.5) ? 'CANCELLED' : 'NO_SHOW') : 'SCHEDULED';
-      const room = chance(r, 0.6) ? pick(r, rooms) : null;
-      const createdAt = plus(startsAt, -int(r, 1, 7) * DAY);
-      appointments.push({ key: `apt${appointments.length + 1}`, title: pick(r, APPOINTMENT_TITLES), agenda: chance(r, 0.5) ? 'Agenda circulated by email; minutes to follow.' : null, ownerKey: who(owner), participantKeys: others.map(who), startsAt, endsAt, status, roomKey: room?.key ?? null, location: room ? null : pick(r, ['Front desk', 'Fleet bay office', 'Finance office']), createdAt: createdAt > now ? plus(now, -HOUR) : createdAt });
-    }
-  }
+  // ── Broadcasts and support ─────────────────────────────────────────────
   const broadcasts = BROADCASTS.map((b, i) => { const createdAt = plus(now, -b.daysAgo * DAY); return { key: `bc${i + 1}`, category: b.category, title: b.title, message: b.message, audience: b.audience, startsAt: createdAt, endsAt: plus(createdAt, b.days * DAY), createdAt, byKey: who(b.audience === 'BRANCH' ? P.manager : b.category === 'SECURITY_ALERT' ? P.cso : P.broadcaster) }; });
   const announcement = { message: 'Fleet customers: book December preventive maintenance with the front desk before the 15th.', expiresAt: plus(now, 14 * DAY), createdAt: plus(now, -2 * DAY), byKey: who(P.manager) };
   const tickets: DemoTicket[] = TICKETS.map((t, i) => {
@@ -663,8 +560,8 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     discounts: jobCards.filter((j) => j.estimate && (j.estimate.discountAmount > 0 || j.estimate.lines.some((l) => l.discount > 0))).length,
     approvedByLink: jobCards.filter((j) => j.estimate?.approval?.via === 'LINK').length, approvedInPortal: jobCards.filter((j) => j.estimate?.approval?.via === 'PORTAL').length, approvedByPhone: jobCards.filter((j) => j.estimate?.approval?.via === 'PHONE').length, approvedByDeposit: jobCards.filter((j) => j.estimate?.approval?.via === 'DEPOSIT').length,
     serviceDueSoon: tracker.filter((x) => x.status === 'DUE_SOON').length, serviceOverdue: tracker.filter((x) => x.status === 'OVERDUE').length, reminders: reminders.length,
-    visits: visits.length, tickets: tickets.length,
+    tickets: tickets.length,
     ...Object.fromEntries(Object.entries(byStatus(jobCards)).map(([k, v]) => [`jc_${k}`, v])),
   };
-  return { anchor, from, customers, vehicles, jobCards, reminders, visits, exitPasses, incidents, deliveries, contractors, rooms, appointments, broadcasts, announcement, tickets, imports, exports: exportsOut, figures };
+  return { anchor, from, customers, vehicles, jobCards, reminders, broadcasts, announcement, tickets, imports, exports: exportsOut, figures };
 }

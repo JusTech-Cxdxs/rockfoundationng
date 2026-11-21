@@ -8,6 +8,7 @@ type Billing = NonNullable<Awaited<ReturnType<typeof getJobCardBilling>>>;
 const naira = (n: number | null) => (n === null ? '—' : `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const CHIP: Record<BillTo, string> = {
   CUSTOMER: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]',
+  WARRANTY: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]',
   GOODWILL: 'bg-[var(--ejo-info)]/15 text-[var(--ejo-info)]',
   INTERNAL: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]',
 };
@@ -16,9 +17,9 @@ const CHIP: Record<BillTo, string> = {
  * Who pays for each estimate line, shown only when there is something to decide:
  *  • nothing on the estimate → nothing;
  *  • settled (paid in full or job closed) and all customer-paid → nothing;
- *  • settled with goodwill or internal lines → a read-only summary;
- *  • not settled, all customer-paid → one quiet link ("Goodwill or internal work?");
- *  • not settled with goodwill or internal lines → the summary and the editor.
+ *  • settled with lines the workshop covers → a read-only summary;
+ *  • not settled, all customer-paid → one quiet link ("Under warranty, goodwill or internal?");
+ *  • not settled with covered lines → the summary and the editor.
  */
 export function JobCardBillingPanel({ jobCardId, billing }: { jobCardId: string; billing: Billing }) {
   const { lines, split } = billing;
@@ -33,6 +34,7 @@ export function JobCardBillingPanel({ jobCardId, billing }: { jobCardId: string;
   const summary = (
     <div className="flex flex-wrap gap-2 text-xs">
       <span className="rounded-full bg-[var(--ejo-primary)]/10 px-3 py-1 font-semibold text-[var(--ejo-primary)]">Customer {naira(owes)}</span>
+      {split.warranty > 0 ? <span className={`rounded-full px-3 py-1 font-medium ${CHIP.WARRANTY}`}>Under warranty {naira(split.warranty)}</span> : null}
       {split.goodwill > 0 ? <span className={`rounded-full px-3 py-1 font-medium ${CHIP.GOODWILL}`}>Goodwill {naira(split.goodwill)}</span> : null}
       {split.internal > 0 ? <span className={`rounded-full px-3 py-1 font-medium ${CHIP.INTERNAL}`}>Internal {naira(split.internal)}</span> : null}
     </div>
@@ -74,7 +76,7 @@ export function JobCardBillingPanel({ jobCardId, billing }: { jobCardId: string;
             <select name="billTo" required defaultValue={bt(l)} aria-label="Who pays" className={input}>
               {choices.map((k) => <option key={k} value={k}>{BILL_TO_LABEL[k]}</option>)}
             </select>
-            <input name="note" defaultValue={l.billToNote ?? ''} placeholder="Reason (goodwill / internal)" aria-label="Reason" className={`${input} w-44`} />
+            <input name="note" defaultValue={l.billToNote ?? ''} placeholder="Reason (what it covers or why)" aria-label="Reason" className={`${input} w-44`} />
             <SubmitButton label="Save" pendingLabel="Saving…" className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-3 py-1 text-xs font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]" />
           </form>
         </li>
@@ -86,8 +88,8 @@ export function JobCardBillingPanel({ jobCardId, billing }: { jobCardId: string;
   if (covered.length === 0) {
     return (
       <details id="who-pays" className={`${box} px-5 py-3`}>
-        <summary className="cursor-pointer text-xs font-medium text-[var(--ejo-primary)]">Goodwill or internal work? Change who pays</summary>
-        <p className="mt-2 text-[11px] text-[var(--ejo-text-muted)]">Lines marked goodwill or internal are never charged to the customer. A reason is required.</p>
+        <summary className="cursor-pointer text-xs font-medium text-[var(--ejo-primary)]">Under warranty, goodwill or internal? Change who pays</summary>
+        <p className="mt-2 text-[11px] text-[var(--ejo-text-muted)]">Lines the workshop covers — under its own warranty, as goodwill or internally — are never charged to the customer. A reason is required.</p>
         {editor}
       </details>
     );

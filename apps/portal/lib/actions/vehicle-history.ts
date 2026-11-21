@@ -32,7 +32,7 @@ export async function listPartsFittedToVehicle(vehicleId: string) {
 }
 
 /** Value of work on this vehicle NOT charged to the customer — Job Card
- * lines covered as goodwill or internally (cancelled jobs excluded). */
+ * lines covered under warranty, as goodwill or internally (cancelled jobs excluded). */
 export async function getVehicleCoveredValue(vehicleId: string): Promise<number> {
   await requireUser();
   await seeVehicle(vehicleId, 'getVehicleCoveredValue');

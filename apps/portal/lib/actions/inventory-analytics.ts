@@ -9,10 +9,10 @@ const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
 
 /** The price charged for one issued unit: the Job Card estimate line it was released against. */
 function priceOf(slipLine: { estimateLineItem: { unitPrice: unknown; billTo?: string | null } | null } | null): number | null {
-  // A part given away (goodwill) or used internally earns nothing — the same
-  // rule as Business Analytics.
+  // A part fitted under the workshop's warranty, given away (goodwill) or
+  // used internally earns nothing — the same rule as Business Analytics.
   const billTo = slipLine?.estimateLineItem?.billTo;
-  if (billTo === 'GOODWILL' || billTo === 'INTERNAL') return 0;
+  if (billTo === 'WARRANTY' || billTo === 'GOODWILL' || billTo === 'INTERNAL') return 0;
   return num(slipLine?.estimateLineItem?.unitPrice);
 }
 

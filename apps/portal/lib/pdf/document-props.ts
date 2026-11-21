@@ -1,13 +1,12 @@
 /**
  * What goes into each customer document, worked out in one place (pure): the
- * estimate a customer is sent for a Job Card or a Vehicle Service, and the
- * inspection report. The email to the customer and the bulk copies for the
+ * estimate a customer is sent for a Job Card, and the inspection report. The email to the customer and the bulk copies for the
  * records (A4c2) are built from these, so a copy made later is the document
  * the customer was sent — the same lines, figures, deposit and bank details.
  *
  * The customer sees three figures: Parts & Services, Labour and Sundry —
- * never the internal line types. Lines the business absorbs (goodwill or
- * internal) are never charged, and say so.
+ * never the internal line types. Lines the workshop covers (under its own
+ * warranty, goodwill or internal) are never charged, and say so.
  */
 import { BILL_TO_LABEL, balanceDue, billingTotals, coveredLabel, depositOf, depositPercentOf, isCustomerLine, type BillTo, type VatSetting } from '../estimate-billing';
 import { pluralizeWord } from '../utils/pluralize';
@@ -103,60 +102,18 @@ export function jobEstimatePdfProps(p: { letterhead: Letterhead; bank: Bank; job
   };
 }
 
-export type ServiceEstimateLine = { type: string; description: string; quantity: unknown; amount: unknown; unitOfMeasure: string | null };
-
-/** A Vehicle Service estimate's customer figures: Labour, Sundry, and everything else as Parts & Services. */
-export function serviceEstimateTotals(lines: { type: string; amount: unknown }[], depositFraction = 0) {
-  let services = 0, labour = 0, sundry = 0;
-  for (const li of lines) {
-    const amount = Number(li.amount ?? 0);
-    if (li.type === 'LABOUR') labour += amount;
-    else if (li.type === 'SUNDRY') sundry += amount;
-    else services += amount;
-  }
-  const total = lines.reduce((sum, li) => sum + Number(li.amount ?? 0), 0);
-  return { services, labour, sundry, total, minimumDeposit: minimumDepositOf(total, depositFraction) };
-}
-
-const serviceVehicle = (v: Vehicle) => [v.year, v.make, v.model].filter(Boolean).join(' ') || [v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
-
-export function serviceEstimatePdfProps(p: { letterhead: Letterhead; bank: Bank; serviceNumber: string; customer: Customer; vehicle: Vehicle; lineItems: ServiceEstimateLine[]; depositFraction?: number }): EstimatePdfProps {
-  const t = serviceEstimateTotals(p.lineItems, p.depositFraction ?? 0);
-  return {
-    ...p.letterhead,
-    jobNumber: p.serviceNumber,
-    referenceLabel: 'VEHICLE SERVICE',
-    customerName: p.customer.fullName,
-    customerAddress: p.customer.address,
-    vehicleDescription: serviceVehicle(p.vehicle),
-    plateNumber: p.vehicle.plateNumber,
-    chassisNumber: p.vehicle.chassisNumber,
-    lineItems: p.lineItems.map((li) => ({
-      description: li.description,
-      quantity: Number(li.quantity),
-      unitLabel: li.unitOfMeasure ? pluralizeWord(Number(li.quantity), li.unitOfMeasure) : null,
-      amount: nairaForPdf(Number(li.amount ?? 0)),
-    })),
-    servicesSubtotal: t.services > 0 ? nairaForPdf(t.services) : null,
-    labourSubtotal: t.labour > 0 ? nairaForPdf(t.labour) : null,
-    sundrySubtotal: t.sundry > 0 ? nairaForPdf(t.sundry) : null,
-    totalAmount: nairaForPdf(t.total),
-    minimumDepositAmount: t.minimumDeposit > 0 ? nairaForPdf(t.minimumDeposit) : null,
-    depositPercent: t.minimumDeposit > 0 ? depositPercentOf(p.depositFraction ?? 0) : null,
-    ...p.bank,
-    paymentRemarkSuggestion: [p.serviceNumber, [p.vehicle.make, p.vehicle.model].filter(Boolean).join(' ') || 'Vehicle', p.vehicle.plateNumber].filter(Boolean).join(' '),
-  };
-}
+/** "2024 Toyota Hilux", or the make and model without a year. */
+const vehicleWithYear = (v: Vehicle) => [v.year, v.make, v.model].filter(Boolean).join(' ') || 'Vehicle';
 
 export type InspectionItem = { section: string; name: string; condition: string | null; severity: string | null; action: string | null };
 
 /** The customer's inspection report: reviewed items only (the customer copy never lists what was not checked). */
-export function inspectionPdfProps(p: { letterhead: Letterhead; serviceNumber: string; customerName: string; vehicle: Vehicle; inspectedByName: string; completedOnLabel: string; items: InspectionItem[] }): InspectionPdfProps {
+export function inspectionPdfProps(p: { letterhead: Letterhead; jobNumber: string; customerName: string; vehicle: Vehicle; inspectedByName: string; completedOnLabel: string; items: InspectionItem[] }): InspectionPdfProps {
   return {
     ...p.letterhead,
-    serviceNumber: p.serviceNumber,
+    jobNumber: p.jobNumber,
     customerName: p.customerName,
-    vehicleDescription: serviceVehicle(p.vehicle),
+    vehicleDescription: vehicleWithYear(p.vehicle),
     plateNumber: p.vehicle.plateNumber,
     chassisNumber: p.vehicle.chassisNumber,
     inspectedByName: p.inspectedByName,

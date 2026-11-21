@@ -66,7 +66,7 @@ const SEVERITY_COLOR: Record<string, string> = {
  */
 export function InspectionPdf(props: InspectionPdfProps) {
   registerPdfFonts();
-  const { organisation, branch, logoUrl, serviceNumber, customerName, vehicleDescription, plateNumber, chassisNumber, inspectedByName, completedOnLabel, reviewedItems } = props;
+  const { organisation, branch, logoUrl, jobNumber, customerName, vehicleDescription, plateNumber, chassisNumber, inspectedByName, completedOnLabel, reviewedItems } = props;
 
   const nameWords = organisation.name.trim().split(/\s+/);
   const wordmarkTop = nameWords[0] ?? organisation.name;
@@ -99,7 +99,7 @@ export function InspectionPdf(props: InspectionPdfProps) {
           </View>
           <View style={styles.docTitleWrap}>
             <Text style={styles.docTitle}>Vehicle Inspection Report</Text>
-            <Text style={styles.docRef}>{serviceNumber}</Text>
+            <Text style={styles.docRef}>{jobNumber}</Text>
           </View>
         </View>
 
@@ -127,8 +127,8 @@ export function InspectionPdf(props: InspectionPdfProps) {
 
         <View style={styles.fieldGrid}>
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>VEHICLE SERVICE</Text>
-            <Text style={styles.fieldValue}>{serviceNumber}</Text>
+            <Text style={styles.fieldLabel}>JOB CARD</Text>
+            <Text style={styles.fieldValue}>{jobNumber}</Text>
           </View>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>CUSTOMER</Text>

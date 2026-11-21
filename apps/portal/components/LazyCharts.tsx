@@ -13,4 +13,5 @@ function Placeholder({ height = 240 }: { height?: number }) {
 
 export const DashboardTrendChart = dynamic(() => import('./DashboardTrendChart').then((m) => m.DashboardTrendChart), { ssr: false, loading: () => <Placeholder /> });
 export const VehicleMileageTrendChart = dynamic(() => import('./VehicleMileageTrendChart').then((m) => m.VehicleMileageTrendChart), { ssr: false, loading: () => <Placeholder /> });
+export const VehicleFindingsBreakdownChart = dynamic(() => import('./VehicleFindingsBreakdownChart').then((m) => m.VehicleFindingsBreakdownChart), { ssr: false, loading: () => <Placeholder /> });
 export const VehicleVisitHistoryChart = dynamic(() => import('./VehicleVisitHistoryChart').then((m) => m.VehicleVisitHistoryChart), { ssr: false, loading: () => <Placeholder /> });

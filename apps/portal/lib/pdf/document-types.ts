@@ -52,9 +52,6 @@ export type EstimatePdfProps = {
   accountName: string;
   accountNumber: string;
   paymentRemarkSuggestion: string;
-  /** Label above the reference number. Defaults to "JOB CARD"; Vehicle
-   * Service passes "VEHICLE SERVICE". */
-  referenceLabel?: string;
 };
 
 export type InspectionPdfItem = {
@@ -83,7 +80,7 @@ export type InspectionPdfProps = {
     email: string | null;
   };
   logoUrl: string;
-  serviceNumber: string;
+  jobNumber: string;
   customerName: string;
   vehicleDescription: string;
   plateNumber: string | null;

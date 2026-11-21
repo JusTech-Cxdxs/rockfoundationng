@@ -9,7 +9,7 @@ import { BILL_TO_LABEL, billingOf, billingSplit, jobCardTotals, JOB_CARD_BILLING
 
 class BillingError extends Error {}
 
-const BILL_TOS: BillTo[] = ['CUSTOMER', 'GOODWILL', 'INTERNAL'];
+const BILL_TOS: BillTo[] = ['CUSTOMER', 'WARRANTY', 'GOODWILL', 'INTERNAL'];
 const CLOSED = ['CHECKED_OUT', 'CANCELLED'];
 
 // Who decides who pays: whoever gives the estimate its final approval.
@@ -59,9 +59,10 @@ export async function getJobCardBilling(jobCardId: string) {
 }
 
 /**
- * Decide who pays for one estimate line: the customer, or the business as
- * goodwill or an internal cost (both need a reason). Final approvers only;
- * not once the Job Card is checked out or cancelled. Audited on the Job Card.
+ * Decide who pays for one estimate line: the customer, or the workshop —
+ * under its own warranty, as goodwill or as an internal cost (each needs a
+ * reason). Final approvers only; not once the Job Card is checked out or
+ * cancelled. Audited on the Job Card.
  */
 export async function setEstimateLineBillTo(lineId: string, billTo: BillTo, note: string): Promise<void> {
   const user = await requireUser();
@@ -76,8 +77,8 @@ export async function setEstimateLineBillTo(lineId: string, billTo: BillTo, note
   if (CLOSED.includes(jc.status)) throw new BillingError('This Job Card is closed — who pays can no longer change.');
   // The Job Card must also be within this person's reach (its branch).
   await authorizeOnJobCard(WHO_PAYS_KEY, jc.id, 'setEstimateLineBillTo');
-  if ((billTo === 'GOODWILL' || billTo === 'INTERNAL') && !why) {
-    throw new BillingError(`Give the reason this line is ${billTo === 'GOODWILL' ? 'goodwill' : 'an internal cost'}.`);
+  if (billTo !== 'CUSTOMER' && !why) {
+    throw new BillingError(billTo === 'WARRANTY' ? 'Say what the warranty covers (for example, the earlier Job Card or part).' : `Give the reason this line is ${billTo === 'GOODWILL' ? 'goodwill' : 'an internal cost'}.`);
   }
   if (line.billTo === billTo) throw new BillingError('That is already who pays for this line.');
   // Read before saving, so the audit's "from" is the prior value.

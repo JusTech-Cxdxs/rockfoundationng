@@ -71,7 +71,6 @@ export function EstimatePdf(props: EstimatePdfProps) {
     vehicleDescription, plateNumber, chassisNumber, lineItems,
     servicesSubtotal, labourSubtotal, sundrySubtotal, discountAmount, vatLabel, vatAmount, totalAmount,
     minimumDepositAmount, depositPercent, bankName, accountName, accountNumber, paymentRemarkSuggestion,
-    referenceLabel = 'JOB CARD',
   } = props;
 
   const nameWords = organisation.name.trim().split(/\s+/);
@@ -130,7 +129,7 @@ export function EstimatePdf(props: EstimatePdfProps) {
 
         <View style={styles.fieldGrid}>
           <View style={styles.field}>
-            <Text style={styles.fieldLabel}>{referenceLabel}</Text>
+            <Text style={styles.fieldLabel}>JOB CARD</Text>
             <Text style={styles.fieldValue}>{jobNumber}</Text>
           </View>
           <View style={styles.field}>

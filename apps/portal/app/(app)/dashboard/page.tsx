@@ -28,8 +28,7 @@ import { EmptyState, Icon, PageHeader, SectionCard, StatTile, type IconName, typ
 import { ACTION_ICON, CATEGORY_ICON, CATEGORY_TILE } from '@/components/ui/notify-icons';
 import { APPROVAL_PERMISSIONS, type PermissionKey } from '@/lib/authz/catalogue';
 import { isOffPermission, permissionShown } from '@/lib/edition';
-import { featureOn, moduleIsOn } from '@/lib/modules';
-import { separateVehicleServiceOn, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
+import { moduleIsOn } from '@/lib/modules';
 
 /** The shortcuts a person sees — only for what they may do. */
 const QUICK: { key: PermissionKey; label: string; href: string; icon: IconName }[] = [
@@ -44,18 +43,10 @@ const QUICK: { key: PermissionKey; label: string; href: string; icon: IconName }
   { key: 'audit.view', label: 'Error log', href: '/audit-logs/errors', icon: 'alert' },
   { key: 'admin.settings.manage', label: 'System health', href: '/settings#health', icon: 'activity' },
   { key: 'workshop.job_card.create', label: 'Open a Job Card', href: '/workshop/job-cards', icon: 'clipboard' },
-  // No separate Vehicle Service in this edition: a service is a Job Card with Service chosen.
-  separateVehicleServiceOn()
-    ? { key: 'workshop.job_card.create', label: 'Book a service', href: '/workshop/vehicle-service/book', icon: 'droplet' }
-    : { key: 'workshop.job_card.create', label: OPEN_SERVICE_JOB_CARD, href: '/workshop/job-cards?service=1#open-job-card', icon: 'droplet' },
   { key: 'workshop.view', label: 'Vehicles in custody', href: '/workshop/custody', icon: 'garage' },
-  // Store and Warranty: shown only where those modules are on (isOffPermission, below).
+  // The Store: shown only while the module is on (isOffPermission, below).
   { key: 'store.grn.record', label: 'Record goods receipt', href: '/inventory/goods-receipts/new', icon: 'receipt' },
   { key: 'store.view', label: 'Parts catalog', href: '/inventory/parts', icon: 'package' },
-  { key: 'warranty.manage', label: 'Start a warranty claim', href: '/warranty/claims/new', icon: 'shield-check' },
-  { key: 'security.reception.operate', label: 'Visitors', href: '/security/visitors', icon: 'badge' },
-  { key: 'security.exit_pass.request', label: 'Request an exit pass', href: '/security/exit-passes/new', icon: 'exit' },
-  { key: 'schedule.view', label: 'New appointment', href: '/schedule/new', icon: 'calendar' },
   { key: 'notifications.broadcast.send', label: 'New broadcast', href: '/notifications/broadcasts/new', icon: 'megaphone' },
   // Everyone: their own help desk and features guide.
   { key: 'security.exit_pass.request', label: 'Get help', href: '/support/help', icon: 'help' },
@@ -64,9 +55,7 @@ const QUICK: { key: PermissionKey; label: string; href: string; icon: IconName }
 
 /** The "at a glance" tiles: an icon per destination; colour only when it means something. */
 const GLANCE_ICON: Record<string, IconName> = {
-  '/workshop/custody': 'clipboard', '/workshop/vehicle-service-custody': 'droplet', '/workshop/parts-requests': 'package', '/workshop/external-procurement': 'cart',
-  '/inventory/goods-receipts': 'receipt', '/warranty/claims': 'shield-check', '/security/on-premises': 'badge', '/security/incidents?tab=open': 'alert',
-  '/schedule/appointments?show=today': 'calendar', '/notifications?tab=broadcasts': 'megaphone',
+  '/workshop/custody': 'clipboard', '/workshop/parts-requests': 'package', '/inventory/goods-receipts': 'receipt', '/notifications?tab=broadcasts': 'megaphone',
 };
 const GLANCE_TONE: Record<string, Tone> = { warning: 'warning', error: 'error', muted: 'neutral' };
 const TONE_CHIP: Record<string, string> = {
@@ -88,20 +77,20 @@ export default async function DashboardPage() {
   // A session that just ended (account switched off) goes to sign-in quietly,
   // like the layout does, instead of a render error.
   const me = await requireUser().catch(() => redirect('/signed-out'));
-  // Shortcuts and approval steps of areas switched off in this edition (Store, Warranty, the plant) are left out (lib/edition.ts).
+  // Shortcuts and approval steps of a module that is switched off (the Store) are left out (lib/edition.ts).
   const [seesWorkshop, seesMoney, quickAllowed, approverFlags, worksJobs] = await Promise.all([
     allows('workshop.view'), allows('analytics.business.view'), Promise.all(QUICK.map((q) => (isOffPermission(q.key) ? false : allows(q.key)))), Promise.all(APPROVAL_PERMISSIONS.filter(permissionShown).map((k) => allows(k))),
     Promise.all([allows('workshop.job.work'), allows('workshop.job.supervise')]).then((xs) => xs.some(Boolean)),
   ]);
   const approver = approverFlags.some(Boolean);
   // What the approvals card names: only the kinds of decision this edition has.
-  const decisionKinds = ['Estimates', 'closes', moduleIsOn('inventory') && 'parts', featureOn('externalProcurement') && 'purchases', moduleIsOn('warranty') && 'claims'].filter(Boolean).join(', ');
+  const decisionKinds = ['Estimates', 'closes', moduleIsOn('inventory') && 'parts'].filter(Boolean).join(', ');
   // Managers and others may look at support for their branch; logging calls is the support team's work.
   const principal = await getPrincipal();
   // A demo organisation gets today's working day the first time anyone looks (after the page is sent; never in its way).
   after(() => ensureDemoPulse(principal.organisationId));
   const doesSupport = principal.isSuperAdmin || ['customer-care', 'customer-care-lead'].some((s) => principal.roleSlugs.includes(s));
-  // Tiles and shortcuts only into areas the branch in view has (the plant has no store; a workshop has no line).
+  // Tiles and shortcuts only into areas the branch in view has.
   const view = await getBranchView().catch(() => ({}));
   const inView = (href: string) => hrefInView(principal, href, view);
   const overviews = await overviewsFor();
@@ -129,8 +118,6 @@ export default async function DashboardPage() {
   const stats: { label: string; value: number; href: string; icon: IconName }[] = [
     { label: 'Active Job Cards', value: counts.activeJobCards, href: '/workshop/custody', icon: 'clipboard' },
     { label: 'Job Cards in custody', value: counts.inWorkshop, href: '/workshop/custody', icon: 'garage' },
-    // Only while old Vehicle Services are still in the workshop when the separate Vehicle Service is off.
-    ...(separateVehicleServiceOn() || counts.servicesInWorkshop > 0 ? [{ label: 'Vehicle Services in custody', value: counts.servicesInWorkshop, href: '/workshop/vehicle-service-custody', icon: 'droplet' as IconName }] : []),
     { label: 'Total Customers', value: counts.totalCustomers, href: canCrm ? '/crm' : '/workshop/customers', icon: 'users' },
     { label: 'Vehicles registered', value: counts.totalVehicles, href: '/workshop/vehicles', icon: 'car' },
   ];
@@ -192,7 +179,7 @@ export default async function DashboardPage() {
       ) : null}
 
       {worksJobs ? (
-        <SectionCard id="my-jobs" icon="wrench" title={<>My jobs {myJobs.length ? <span className="ml-1 rounded-full bg-[var(--ejo-bg)] px-2 py-0.5 text-xs text-[var(--ejo-text-muted)] ring-1 ring-[var(--ejo-border)]">{myJobs.length}</span> : null}</>} description="Open Job Cards and Vehicle Services where you are the technician or the supervisor." className="mb-6">
+        <SectionCard id="my-jobs" icon="wrench" title={<>My jobs {myJobs.length ? <span className="ml-1 rounded-full bg-[var(--ejo-bg)] px-2 py-0.5 text-xs text-[var(--ejo-text-muted)] ring-1 ring-[var(--ejo-border)]">{myJobs.length}</span> : null}</>} description="Open Job Cards where you are the technician or the supervisor." className="mb-6">
           {myJobs.length === 0 ? <p className="text-sm text-[var(--ejo-text-muted)]">No open jobs are assigned to you right now.</p> : (
             <ul className="divide-y divide-[var(--ejo-border)]">
               {myJobs.map((j) => (
@@ -313,13 +300,6 @@ export default async function DashboardPage() {
             )}
           </SectionCard>
 
-          {/* The roadmap tile only where the roadmap is part of the edition. */}
-          {featureOn('roadmap') ? <LoadingLink href="/roadmap" className="ejo-hero ejo-lift group relative block overflow-hidden rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] p-5 hover:border-[var(--ejo-primary)]/50">
-            <div className="ejo-orb pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[var(--ejo-primary)]/20 blur-2xl" aria-hidden="true" />
-            <p className="relative flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--ejo-warning-text)]"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--ejo-warning)]" />Coming next</p>
-            <p className="relative mt-2 text-sm font-semibold text-[var(--ejo-text)]">One platform for the whole enterprise</p>
-            <p className="relative mt-1 text-xs text-[var(--ejo-text-muted)]">Workshop is live for <OrgTrail upTo="unit" />. See what the next modules will do →</p>
-          </LoadingLink> : null}
         </div>
       </div>
     </div>

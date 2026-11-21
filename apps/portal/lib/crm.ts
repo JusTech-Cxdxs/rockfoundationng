@@ -6,7 +6,7 @@
  *    printed on Job Cards) and a primary phone are required from v28 on.
  *    Older customers without them still work everywhere; the CRM flags them
  *    as "profile gaps".
- *  • Money: what the CUSTOMER paid or owes — never goodwill or
+ *  • Money: what the CUSTOMER paid or owes — never warranty, goodwill or
  *    internal lines. Paid = payments − refunds. Owed = customer-billed lines
  *    of finished, not-cancelled jobs − what was paid on those jobs.
  *  • Audit: every change is recorded as { field: { from, to } } — never a

@@ -47,17 +47,17 @@ const SEVERITY_DOT: Record<Severity, string> = {
 const Dot = ({ className }: { className: string }) => <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full align-middle ${className}`} aria-hidden="true" />;
 
 export function InspectionWorkspace({
-  vehicleServiceId,
+  jobCardId,
   vehicleId,
-  serviceNumber,
+  jobNumber,
   vehicleDescription,
   vehicleType,
   template,
   inspection,
 }: {
-  vehicleServiceId: string;
+  jobCardId: string;
   vehicleId: string;
-  serviceNumber: string;
+  jobNumber: string;
   vehicleDescription: string;
   vehicleType: 'PASSENGER' | 'COMMERCIAL';
   template: InspectionTemplateSection[];
@@ -125,8 +125,8 @@ export function InspectionWorkspace({
         <div>
           <h1 className="text-xl font-bold text-[var(--ejo-text)] sm:text-2xl">Vehicle inspection</h1>
           <p className="mt-1 text-sm">
-            <LoadingLink href={`/workshop/vehicle-service/${vehicleServiceId}`} className="text-[var(--ejo-primary)] hover:underline">
-              {serviceNumber}
+            <LoadingLink href={`/workshop/job-cards/${jobCardId}`} className="text-[var(--ejo-primary)] hover:underline">
+              {jobNumber}
             </LoadingLink>
             {' — '}
             <LoadingLink href={`/workshop/vehicles/${vehicleId}/edit`} className="text-[var(--ejo-primary)] hover:underline">
@@ -142,8 +142,8 @@ export function InspectionWorkspace({
         </div>
         {inspection && inspection.status !== 'SKIPPED' ? (
           <PrintMenu
-            orgHref={`/print/vehicle-inspections/${vehicleServiceId}`}
-            clientHref={`/print/vehicle-inspections/${vehicleServiceId}?variant=client`}
+            orgHref={`/print/vehicle-inspections/${jobCardId}`}
+            clientHref={`/print/vehicle-inspections/${jobCardId}?variant=client`}
             clientLabel="Customer Copy"
             align="right"
           />
@@ -158,15 +158,15 @@ export function InspectionWorkspace({
           </p>
           {inspection.skipReason ? <p className="mt-2 text-[var(--ejo-text-muted)]">Reason: {inspection.skipReason}</p> : null}
           <LoadingLink
-            href={`/workshop/vehicle-service/${vehicleServiceId}`}
+            href={`/workshop/job-cards/${jobCardId}`}
             className="mt-3 inline-block text-xs font-medium text-[var(--ejo-primary)] hover:underline"
           >
-            Need to raise an estimate anyway? Go to {serviceNumber} →
+            Need to raise an estimate anyway? Go to {jobNumber} →
           </LoadingLink>
           <form action={cancelVehicleInspectionFormAction} className="mt-4">
             <FormPendingOverlay />
-            <input type="hidden" name="vehicleServiceId" value={vehicleServiceId} />
-            <input type="hidden" name="redirectTo" value={`/workshop/vehicle-service/${vehicleServiceId}/inspection`} />
+            <input type="hidden" name="jobCardId" value={jobCardId} />
+            <input type="hidden" name="redirectTo" value={`/workshop/job-cards/${jobCardId}/inspection`} />
             <SubmitButton label="Reopen — Inspect or Skip Again" pendingLabel="Reopening…" className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2.5 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]" />
           </form>
         </div>
@@ -177,7 +177,7 @@ export function InspectionWorkspace({
             <p className="mt-2 text-sm text-[var(--ejo-text-muted)]">Generates the checklist for this vehicle&apos;s own type.</p>
             <form action={startVehicleInspectionFormAction} className="mt-4">
               <FormPendingOverlay />
-              <input type="hidden" name="vehicleServiceId" value={vehicleServiceId} />
+              <input type="hidden" name="jobCardId" value={jobCardId} />
               <SubmitButton label="Start Inspection" pendingLabel="Starting…" className="w-full rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90" />
             </form>
           </div>
@@ -186,7 +186,7 @@ export function InspectionWorkspace({
             <p className="mt-2 text-sm text-[var(--ejo-text-muted)]">Who skipped it, when and why are recorded.</p>
             <form action={skipVehicleInspectionFormAction} className="mt-4 space-y-2">
               <FormPendingOverlay />
-              <input type="hidden" name="vehicleServiceId" value={vehicleServiceId} />
+              <input type="hidden" name="jobCardId" value={jobCardId} />
               <input name="reason" placeholder="Reason (optional)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2.5 text-sm text-[var(--ejo-text)]" />
               <SubmitButton label="Skip Inspection" pendingLabel="Skipping…" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2.5 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]" />
             </form>
@@ -218,7 +218,7 @@ export function InspectionWorkspace({
           <form action={saveInspectionFormAction}>
             <FormPendingOverlay />
             <input type="hidden" name="inspectionId" value={inspection.id} />
-            <input type="hidden" name="vehicleServiceId" value={vehicleServiceId} />
+            <input type="hidden" name="jobCardId" value={jobCardId} />
             <input type="hidden" name="itemIds" value={allItemIds.join(',')} />
 
             {/* Reviewed items, by category. */}
@@ -336,7 +336,7 @@ export function InspectionWorkspace({
                   : "Marks the inspection as done. Items you haven't reviewed stay Not Reviewed, and nothing is locked."}
               </p>
               <input type="hidden" name="inspectionId" value={inspection.id} />
-              <input type="hidden" name="vehicleServiceId" value={vehicleServiceId} />
+              <input type="hidden" name="jobCardId" value={jobCardId} />
               <textarea id="inspectionworkspace-text-1"
                 name="notes"
                 rows={2}
@@ -356,10 +356,10 @@ export function InspectionWorkspace({
                     Completed by {inspection.inspectedBy.fullName} on {new Date(inspection.completedAt).toLocaleString('en-NG')}.
                   </p>
                   <LoadingLink
-                    href={`/workshop/vehicle-service/${vehicleServiceId}`}
+                    href={`/workshop/job-cards/${jobCardId}`}
                     className="mt-2 inline-block text-xs font-medium text-[var(--ejo-primary)] hover:underline"
                   >
-                    Back to the Vehicle Service to prepare the estimate →
+                    Back to the Job Card to prepare the estimate →
                   </LoadingLink>
                 </>
               ) : null}
@@ -367,8 +367,8 @@ export function InspectionWorkspace({
 
             <form action={cancelVehicleInspectionFormAction}>
               <FormPendingOverlay />
-              <input type="hidden" name="vehicleServiceId" value={vehicleServiceId} />
-              <input type="hidden" name="redirectTo" value={`/workshop/vehicle-service/${vehicleServiceId}/inspection`} />
+              <input type="hidden" name="jobCardId" value={jobCardId} />
+              <input type="hidden" name="redirectTo" value={`/workshop/job-cards/${jobCardId}/inspection`} />
               <SubmitButton
                 label="Cancel This Inspection"
                 pendingLabel="Cancelling…"

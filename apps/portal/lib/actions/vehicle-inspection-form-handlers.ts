@@ -13,46 +13,46 @@ function str(formData: FormData, key: string): string {
 }
 
 export async function startVehicleInspectionFormAction(formData: FormData) {
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
+  const jobCardId = str(formData, 'jobCardId');
   try {
-    await startVehicleInspection(vehicleServiceId);
+    await startVehicleInspection(jobCardId);
   } catch (err) {
     const message = friendlyError(err, 'Could not start this inspection.', 'vehicle-inspection-form-handlers');
-    redirect(`/workshop/vehicle-service/${vehicleServiceId}/inspection?error=${encodeURIComponent(message)}`);
+    redirect(`/workshop/job-cards/${jobCardId}/inspection?error=${encodeURIComponent(message)}`);
   }
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}/inspection`);
-  redirect(`/workshop/vehicle-service/${vehicleServiceId}/inspection`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}/inspection`);
+  redirect(`/workshop/job-cards/${jobCardId}/inspection`);
 }
 
 export async function skipVehicleInspectionFormAction(formData: FormData) {
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
+  const jobCardId = str(formData, 'jobCardId');
   try {
-    await skipVehicleInspection(vehicleServiceId, str(formData, 'reason') || undefined);
+    await skipVehicleInspection(jobCardId, str(formData, 'reason') || undefined);
   } catch (err) {
     const message = friendlyError(err, 'Could not skip this inspection.', 'vehicle-inspection-form-handlers');
-    redirect(`/workshop/vehicle-service/${vehicleServiceId}/inspection?error=${encodeURIComponent(message)}`);
+    redirect(`/workshop/job-cards/${jobCardId}/inspection?error=${encodeURIComponent(message)}`);
   }
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}/inspection`);
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
-  redirect(`/workshop/vehicle-service/${vehicleServiceId}/inspection?status=skipped`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}/inspection`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}`);
+  redirect(`/workshop/job-cards/${jobCardId}/inspection?status=skipped`);
 }
 
-/** Used from both the Vehicle Service page and the inspection page; a
+/** Used from both the Job Card page and the inspection page; a
  * hidden `redirectTo` field says where to go afterwards. */
 export async function cancelVehicleInspectionFormAction(formData: FormData) {
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
+  const jobCardId = str(formData, 'jobCardId');
   // Only ever back inside the workshop — never an address taken as-is from the form.
-  const fallback = `/workshop/vehicle-service/${vehicleServiceId}/inspection`;
+  const fallback = `/workshop/job-cards/${jobCardId}/inspection`;
   const raw = str(formData, 'redirectTo');
   const redirectTo = raw.startsWith('/workshop/') && !raw.startsWith('//') && !raw.includes('://') && !raw.includes('\\') ? (raw.split('?')[0] ?? fallback) : fallback;
   try {
-    await cancelVehicleInspection(vehicleServiceId, str(formData, 'reason') || undefined);
+    await cancelVehicleInspection(jobCardId, str(formData, 'reason') || undefined);
   } catch (err) {
     const message = friendlyError(err, 'Could not cancel this inspection.', 'vehicle-inspection-form-handlers');
     redirect(`${redirectTo}?error=${encodeURIComponent(message)}`);
   }
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}/inspection`);
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}/inspection`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}`);
   redirect(`${redirectTo}?status=inspection_cancelled`);
 }
 
@@ -60,7 +60,7 @@ export async function cancelVehicleInspectionFormAction(formData: FormData) {
  * a hidden comma-separated list. */
 export async function saveInspectionFormAction(formData: FormData) {
   const inspectionId = str(formData, 'inspectionId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
+  const jobCardId = str(formData, 'jobCardId');
   const itemIds = str(formData, 'itemIds').split(',').filter(Boolean);
   const items: InspectionItemInput[] = itemIds.map((itemId) => ({
     itemId,
@@ -73,40 +73,40 @@ export async function saveInspectionFormAction(formData: FormData) {
     await updateInspectionItems(inspectionId, items);
   } catch (err) {
     const message = friendlyError(err, 'Could not save these changes.', 'vehicle-inspection-form-handlers');
-    redirect(`/workshop/vehicle-service/${vehicleServiceId}/inspection?error=${encodeURIComponent(message)}`);
+    redirect(`/workshop/job-cards/${jobCardId}/inspection?error=${encodeURIComponent(message)}`);
   }
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}/inspection`);
-  redirect(`/workshop/vehicle-service/${vehicleServiceId}/inspection?status=saved`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}/inspection`);
+  redirect(`/workshop/job-cards/${jobCardId}/inspection?status=saved`);
 }
 
 export async function completeVehicleInspectionFormAction(formData: FormData) {
   const inspectionId = str(formData, 'inspectionId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
+  const jobCardId = str(formData, 'jobCardId');
   try {
     await completeVehicleInspection(inspectionId, str(formData, 'notes') || undefined);
   } catch (err) {
     const message = friendlyError(err, 'Could not complete this inspection.', 'vehicle-inspection-form-handlers');
-    redirect(`/workshop/vehicle-service/${vehicleServiceId}/inspection?error=${encodeURIComponent(message)}`);
+    redirect(`/workshop/job-cards/${jobCardId}/inspection?error=${encodeURIComponent(message)}`);
   }
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}/inspection`);
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
-  redirect(`/workshop/vehicle-service/${vehicleServiceId}/inspection?status=completed`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}/inspection`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}`);
+  redirect(`/workshop/job-cards/${jobCardId}/inspection?status=completed`);
 }
 
 /**
- * "Complete" from the Vehicle Service page: the same action as on the
- * inspection page, redirecting back to the service.
+ * "Complete" from the Job Card page: the same action as on the
+ * inspection page, redirecting back to the Job Card.
  */
-export async function completeVehicleInspectionFromServicePageFormAction(formData: FormData) {
+export async function completeVehicleInspectionFromJobCardPageFormAction(formData: FormData) {
   const inspectionId = str(formData, 'inspectionId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
+  const jobCardId = str(formData, 'jobCardId');
   try {
     await completeVehicleInspection(inspectionId, str(formData, 'notes') || undefined);
   } catch (err) {
     const message = friendlyError(err, 'Could not complete this inspection.', 'vehicle-inspection-form-handlers');
-    redirect(`/workshop/vehicle-service/${vehicleServiceId}?error=${encodeURIComponent(message)}`);
+    redirect(`/workshop/job-cards/${jobCardId}?error=${encodeURIComponent(message)}`);
   }
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}/inspection`);
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
-  redirect(`/workshop/vehicle-service/${vehicleServiceId}?status=inspection_completed`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}/inspection`);
+  revalidatePath(`/workshop/job-cards/${jobCardId}`);
+  redirect(`/workshop/job-cards/${jobCardId}?status=inspection_completed`);
 }

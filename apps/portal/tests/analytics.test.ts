@@ -24,7 +24,7 @@ const JOBS: Job[] = [
   // Finished 10 Oct: ₦20,000 labour (customer), ₦10,000 part (warranty pays), ₦5,000 sundry given as goodwill; parts cost ₦6,000; customer paid ₦10,000.
   job({ id: 'J2', kind: 'JC', customerId: 'c2', customer: 'Ada', finishedAt: at('2026-10-10T10:00:00'), lines: [{ type: 'LABOUR', amount: 20000, billTo: 'CUSTOMER' }, { type: 'STORE_PART', amount: 10000, billTo: 'WARRANTY' }, { type: 'SUNDRY', amount: 5000, billTo: 'GOODWILL' }], partsCost: 6000, payments: [{ at: at('2026-10-10T10:00:00'), amount: 10000 }] }),
   // A booking for next week — not work in progress.
-  job({ id: 'S1', kind: 'SV', status: 'SCHEDULED', openedAt: at('2026-10-14T09:00:00') }),
+  job({ id: 'S1', kind: 'JC', status: 'SCHEDULED', openedAt: at('2026-10-14T09:00:00') }),
   // Being worked on since 1 September — work in progress, and stalled.
   job({ id: 'J4', kind: 'JC', status: 'IN_PROGRESS', openedAt: at('2026-09-01T09:00:00'), lines: [{ type: 'LABOUR', amount: 12000, billTo: 'CUSTOMER' }] }),
   // Cancelled after a ₦5,000 deposit on 2 Oct, not yet refunded: owed back.
@@ -43,7 +43,7 @@ test('one job: customer, warranty and given-away money are kept apart', () => {
 });
 
 test('business analytics reconcile to the hand-worked answers', () => {
-  const a = computeMasterAnalytics({ jobs: JOBS, purchases: [{ at: at('2026-10-04T09:00:00'), cost: 40000 }], settlements: [{ at: at('2026-10-11T09:00:00'), amount: 10000 }], from: FROM, to: TO, now: NOW });
+  const a = computeMasterAnalytics({ jobs: JOBS, purchases: [{ at: at('2026-10-04T09:00:00'), cost: 40000 }], from: FROM, to: TO, now: NOW });
   const c = a.current;
   assert.equal(c.sales, 110000, '₦80,000 + ₦30,000');
   assert.equal(c.customerSales, 100000);
@@ -57,10 +57,8 @@ test('business analytics reconcile to the hand-worked answers', () => {
   assert.equal(c.collections, 92000, 'payments ₦95,000 − refund ₦3,000 recorded in October');
   assert.equal(c.refunds, 3000);
   assert.equal(c.purchases, 40000);
-  assert.equal(c.warrantySettled, 10000);
   // Position now
   assert.equal(a.position.wipJobs, 1, 'the booking is not work in progress');
-  assert.equal(a.position.wipServices, 0);
   assert.equal(a.position.wipValue, 12000);
   assert.equal(a.position.receivables, 10000, 'J2’s balance');
   assert.equal(a.position.receivableJobs, 1);
@@ -80,7 +78,7 @@ test('forecast ignores the unfinished current week', () => {
   const monday = at('2026-10-12T10:00:00');
   for (let w = 1; w <= 11; w += 1) jobs.push(job({ id: `W${w}`, kind: 'JC', finishedAt: new Date(+monday - w * 7 * 86400000), lines: [{ type: 'LABOUR', amount: 5_000_000, billTo: 'CUSTOMER' }] }));
   jobs.push(job({ id: 'NOW', kind: 'JC', finishedAt: monday, lines: [{ type: 'LABOUR', amount: 700_000, billTo: 'CUSTOMER' }] }));
-  const a = computeMasterAnalytics({ jobs, purchases: [], settlements: [], from: FROM, to: TO, now: at('2026-10-12T12:00:00') });
+  const a = computeMasterAnalytics({ jobs, purchases: [], from: FROM, to: TO, now: at('2026-10-12T12:00:00') });
   assert.equal(a.predictive.trendPerWeek, 0, 'flat history = flat trend');
   assert.equal(a.predictive.forecast[0]!.expected, 5_000_000);
 });

@@ -1,9 +1,7 @@
 'use server';
 import { logFailure } from '@/lib/log';
 
-import { authorizeOnService, seeService } from '@/lib/authz/server';
-
-import { assertServiceNotEscalated } from '@/lib/vehicle-service-cycle';
+import { authorizeOnJobCard, seeJobCard } from '@/lib/authz/server';
 import { prisma } from '@ejo/database';
 import { requireUser } from './workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
@@ -12,50 +10,54 @@ import { sendLoggedEmail } from '@/lib/logged-email';
 
 class VehicleInspectionActionError extends Error {}
 
-/** Logs each inspection event against both the inspection and its Vehicle
- * Service, so it shows on both timelines. */
+/** Logs each inspection event against both the inspection and its Job
+ * Card, so it shows on both timelines. */
 async function logInspectionEvent(params: {
   userId: string;
   action: string;
   inspectionId: string;
-  vehicleServiceId: string;
+  jobCardId: string;
   metadata?: Record<string, unknown>;
 }): Promise<void> {
   await Promise.all([
     writeAuditLog({ userId: params.userId, action: params.action, entityType: 'VehicleInspection', entityId: params.inspectionId, metadata: params.metadata }),
-    writeAuditLog({ userId: params.userId, action: params.action, entityType: 'VehicleService', entityId: params.vehicleServiceId, metadata: params.metadata }),
+    writeAuditLog({ userId: params.userId, action: params.action, entityType: 'JobCard', entityId: params.jobCardId, metadata: params.metadata }),
   ]);
 }
 
+/** Statuses after which the inspection is history and can no longer change. */
+const FINISHED = ['CHECKED_OUT', 'CLOSED', 'CANCELLED'];
+
+/** The Job Card the inspection belongs to, refused once the vehicle has left or the job was cancelled. */
+async function openJobCard(jobCardId: string) {
+  const jc = await prisma.jobCard.findUnique({ where: { id: jobCardId }, select: { jobNumber: true, status: true, vehicle: { select: { vehicleType: true } } } });
+  if (!jc) throw new VehicleInspectionActionError('Job Card not found.');
+  if (FINISHED.includes(jc.status)) throw new VehicleInspectionActionError(`Job Card ${jc.jobNumber} is ${jc.status.toLowerCase().replace(/_/g, ' ')} — its inspection can no longer change.`);
+  return jc;
+}
+
 /**
- * Creates the Vehicle Service's inspection with items from the
- * vehicle-type template. Called the first time the inspection is opened;
- * calling it again returns the existing record.
+ * Creates the Job Card's check-in inspection with items from the
+ * vehicle-type template (one per Job Card). Called the first time the
+ * inspection is opened; calling it again returns the existing record.
  */
-export async function startVehicleInspection(vehicleServiceId: string): Promise<{ id: string }> {
-  await authorizeOnService('workshop.inspection.perform', vehicleServiceId, 'startVehicleInspection');
-  await assertServiceNotEscalated({ vehicleServiceId });
+export async function startVehicleInspection(jobCardId: string): Promise<{ id: string }> {
+  await authorizeOnJobCard('workshop.inspection.perform', jobCardId, 'startVehicleInspection');
   const user = await requireUser();
-  const existing = await prisma.vehicleInspection.findUnique({ where: { vehicleServiceId }, select: { id: true } });
+  const existing = await prisma.vehicleInspection.findUnique({ where: { jobCardId }, select: { id: true } });
   if (existing) return existing;
 
-  const service = await prisma.vehicleService.findUnique({
-    where: { id: vehicleServiceId },
-    select: { serviceNumber: true, vehicle: { select: { vehicleType: true } } },
-  });
-  if (!service) {
-    throw new VehicleInspectionActionError('Vehicle Service record not found.');
-  }
-  if (!service.vehicle.vehicleType) {
+  const jc = await openJobCard(jobCardId);
+  if (!jc.vehicle.vehicleType) {
     throw new VehicleInspectionActionError(
       'This vehicle has no Passenger/Commercial type on file yet — set it on the Vehicles page before starting an inspection.',
     );
   }
 
-  const template = getApplicableTemplate(service.vehicle.vehicleType);
+  const template = getApplicableTemplate(jc.vehicle.vehicleType);
   const inspection = await prisma.$transaction(async (tx) => {
     const created = await tx.vehicleInspection.create({
-      data: { vehicleServiceId, inspectedById: user.id, status: 'IN_PROGRESS', startedAt: new Date() },
+      data: { jobCardId, inspectedById: user.id, status: 'IN_PROGRESS', startedAt: new Date() },
     });
     await tx.vehicleInspectionItem.createMany({
       data: template.flatMap((s) => s.items.map((i) => ({ inspectionId: created.id, section: s.section, name: i.name }))),
@@ -67,8 +69,8 @@ export async function startVehicleInspection(vehicleServiceId: string): Promise<
     userId: user.id,
     action: 'vehicle_inspection.started',
     inspectionId: inspection.id,
-    vehicleServiceId,
-    metadata: { serviceNumber: service.serviceNumber },
+    jobCardId,
+    metadata: { jobNumber: jc.jobNumber },
   });
   return { id: inspection.id };
 }
@@ -84,51 +86,46 @@ export type InspectionItemInput = {
 /** Records that the inspection was skipped, so a skip is as visible in the
  * audit trail as a completed inspection. Refused if the inspection was
  * already started or decided; cancelVehicleInspection undoes that first. */
-export async function skipVehicleInspection(vehicleServiceId: string, reason?: string): Promise<{ id: string }> {
-  await authorizeOnService('workshop.inspection.perform', vehicleServiceId, 'skipVehicleInspection');
-  await assertServiceNotEscalated({ vehicleServiceId });
+export async function skipVehicleInspection(jobCardId: string, reason?: string): Promise<{ id: string }> {
+  await authorizeOnJobCard('workshop.inspection.perform', jobCardId, 'skipVehicleInspection');
   const user = await requireUser();
-  const existing = await prisma.vehicleInspection.findUnique({ where: { vehicleServiceId }, select: { id: true, status: true } });
+  const existing = await prisma.vehicleInspection.findUnique({ where: { jobCardId }, select: { id: true, status: true } });
   if (existing) {
     throw new VehicleInspectionActionError(`This inspection is already ${existing.status.toLowerCase().replace('_', ' ')} — it can't be skipped now.`);
   }
-  const service = await prisma.vehicleService.findUnique({ where: { id: vehicleServiceId }, select: { serviceNumber: true } });
-  if (!service) {
-    throw new VehicleInspectionActionError('Vehicle Service record not found.');
-  }
+  const jc = await openJobCard(jobCardId);
   const inspection = await prisma.vehicleInspection.create({
-    data: { vehicleServiceId, inspectedById: user.id, status: 'SKIPPED', skippedAt: new Date(), skipReason: reason?.trim() || null },
+    data: { jobCardId, inspectedById: user.id, status: 'SKIPPED', skippedAt: new Date(), skipReason: reason?.trim() || null },
   });
   await logInspectionEvent({
     userId: user.id,
     action: 'vehicle_inspection.skipped',
     inspectionId: inspection.id,
-    vehicleServiceId,
-    metadata: { serviceNumber: service.serviceNumber, reason: reason?.trim() || undefined },
+    jobCardId,
+    metadata: { jobNumber: jc.jobNumber, reason: reason?.trim() || undefined },
   });
   return { id: inspection.id };
 }
 
 /**
  * Undoes a start, completion or skip by deleting the inspection, so the
- * service is back at the Start/Skip choice. Logged against the Vehicle
- * Service (and the inspection id) before the delete.
+ * Job Card is back at the Start/Skip choice. Logged against the Job Card
+ * (and the inspection id) before the delete.
  */
-export async function cancelVehicleInspection(vehicleServiceId: string, reason?: string): Promise<void> {
-  await authorizeOnService('workshop.inspection.perform', vehicleServiceId, 'cancelVehicleInspection');
-  await assertServiceNotEscalated({ vehicleServiceId });
+export async function cancelVehicleInspection(jobCardId: string, reason?: string): Promise<void> {
+  await authorizeOnJobCard('workshop.inspection.perform', jobCardId, 'cancelVehicleInspection');
   const user = await requireUser();
-  const inspection = await prisma.vehicleInspection.findUnique({ where: { vehicleServiceId }, select: { id: true, status: true } });
+  const inspection = await prisma.vehicleInspection.findUnique({ where: { jobCardId }, select: { id: true, status: true } });
   if (!inspection) {
-    throw new VehicleInspectionActionError('No inspection exists yet for this Vehicle Service.');
+    throw new VehicleInspectionActionError('No inspection exists yet for this Job Card.');
   }
-  const service = await prisma.vehicleService.findUnique({ where: { id: vehicleServiceId }, select: { serviceNumber: true } });
+  const jc = await openJobCard(jobCardId);
   await logInspectionEvent({
     userId: user.id,
     action: 'vehicle_inspection.cancelled',
     inspectionId: inspection.id,
-    vehicleServiceId,
-    metadata: { serviceNumber: service?.serviceNumber, previousStatus: inspection.status, reason: reason?.trim() || undefined },
+    jobCardId,
+    metadata: { jobNumber: jc.jobNumber, previousStatus: inspection.status, reason: reason?.trim() || undefined },
   });
   await prisma.vehicleInspection.delete({ where: { id: inspection.id } });
 }
@@ -138,13 +135,13 @@ export async function cancelVehicleInspection(vehicleServiceId: string, reason?:
  * record); clearing an item's severity moves it back to Not Reviewed. */
 export async function updateInspectionItems(inspectionId: string, items: InspectionItemInput[]): Promise<void> {
   {
-    const owner = await prisma.vehicleInspection.findUnique({ where: { id: inspectionId }, select: { vehicleServiceId: true } });
+    const owner = await prisma.vehicleInspection.findUnique({ where: { id: inspectionId }, select: { jobCardId: true } });
     if (!owner) throw new Error('This inspection no longer exists — refresh the page.');
-    await authorizeOnService('workshop.inspection.perform', owner.vehicleServiceId, 'updateInspectionItems');
+    await authorizeOnJobCard('workshop.inspection.perform', owner.jobCardId, 'updateInspectionItems');
+    await openJobCard(owner.jobCardId);
   }
-  await assertServiceNotEscalated({ inspectionId });
   const user = await requireUser();
-  const inspection = await prisma.vehicleInspection.findUnique({ where: { id: inspectionId }, select: { vehicleServiceId: true, status: true } });
+  const inspection = await prisma.vehicleInspection.findUnique({ where: { id: inspectionId }, select: { jobCardId: true, status: true } });
   if (!inspection) {
     throw new VehicleInspectionActionError('Inspection record not found.');
   }
@@ -171,7 +168,7 @@ export async function updateInspectionItems(inspectionId: string, items: Inspect
     userId: user.id,
     action: 'vehicle_inspection.items_updated',
     inspectionId,
-    vehicleServiceId: inspection.vehicleServiceId,
+    jobCardId: inspection.jobCardId,
     metadata: { count: items.length },
   });
 }
@@ -179,13 +176,13 @@ export async function updateInspectionItems(inspectionId: string, items: Inspect
 /** Can be called again after further edits; updates completedAt and notes. */
 export async function completeVehicleInspection(inspectionId: string, notes?: string): Promise<void> {
   {
-    const owner = await prisma.vehicleInspection.findUnique({ where: { id: inspectionId }, select: { vehicleServiceId: true } });
+    const owner = await prisma.vehicleInspection.findUnique({ where: { id: inspectionId }, select: { jobCardId: true } });
     if (!owner) throw new Error('This inspection no longer exists — refresh the page.');
-    await authorizeOnService('workshop.inspection.perform', owner.vehicleServiceId, 'completeVehicleInspection');
+    await authorizeOnJobCard('workshop.inspection.perform', owner.jobCardId, 'completeVehicleInspection');
+    await openJobCard(owner.jobCardId);
   }
-  await assertServiceNotEscalated({ inspectionId });
   const user = await requireUser();
-  const inspection = await prisma.vehicleInspection.findUnique({ where: { id: inspectionId }, select: { vehicleServiceId: true, status: true } });
+  const inspection = await prisma.vehicleInspection.findUnique({ where: { id: inspectionId }, select: { jobCardId: true, status: true } });
   if (!inspection) {
     throw new VehicleInspectionActionError('Inspection record not found.');
   }
@@ -196,21 +193,21 @@ export async function completeVehicleInspection(inspectionId: string, notes?: st
     where: { id: inspectionId },
     data: { status: 'COMPLETED', completedAt: new Date(), notes: notes?.trim() || null },
   });
-  await logInspectionEvent({ userId: user.id, action: 'vehicle_inspection.completed', inspectionId, vehicleServiceId: inspection.vehicleServiceId });
-  // Tell the supervisor (and the service technician): the estimate is next.
+  await logInspectionEvent({ userId: user.id, action: 'vehicle_inspection.completed', inspectionId, jobCardId: inspection.jobCardId });
+  // Tell the supervisor (and the technician): the estimate is next.
   try {
-    const sv = await prisma.vehicleService.findUnique({ where: { id: inspection.vehicleServiceId }, select: { serviceNumber: true, supervisor: { select: { fullName: true, email: true } }, assignedTechnician: { select: { fullName: true, email: true } } } });
-    if (sv) await sendLoggedEmail({ entityType: 'VehicleService', entityId: inspection.vehicleServiceId, recipients: [sv.supervisor, sv.assignedTechnician].filter((x): x is { fullName: string; email: string } => Boolean(x?.email)), subject: `Inspection completed — ${sv.serviceNumber}`, heading: 'The vehicle inspection is complete', lines: [sv.serviceNumber, 'The findings are recorded — the estimate can now be prepared.'], path: `/workshop/vehicle-service/${inspection.vehicleServiceId}`, actorId: user.id });
+    const jc = await prisma.jobCard.findUnique({ where: { id: inspection.jobCardId }, select: { jobNumber: true, supervisor: { select: { fullName: true, email: true } }, assignedTechnician: { select: { fullName: true, email: true } } } });
+    if (jc) await sendLoggedEmail({ entityType: 'JobCard', entityId: inspection.jobCardId, recipients: [jc.supervisor, jc.assignedTechnician].filter((x): x is { fullName: string; email: string } => Boolean(x?.email)), subject: `Inspection completed — ${jc.jobNumber}`, heading: 'The vehicle inspection is complete', lines: [jc.jobNumber, 'The findings are recorded — the estimate can now be prepared.'], path: `/workshop/job-cards/${inspection.jobCardId}`, actorId: user.id });
   } catch (err) {
     logFailure('Inspection completed email failed', err);
   }
 }
 
-export async function getVehicleInspection(vehicleServiceId: string) {
+export async function getVehicleInspection(jobCardId: string) {
   await requireUser();
-  await seeService(vehicleServiceId, 'getVehicleInspection');
+  await seeJobCard(jobCardId, 'getVehicleInspection');
   const inspection = await prisma.vehicleInspection.findUnique({
-    where: { vehicleServiceId },
+    where: { jobCardId },
     include: {
       inspectedBy: { select: { fullName: true } },
       items: true,

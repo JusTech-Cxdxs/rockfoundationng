@@ -78,11 +78,16 @@ export async function getVehicleServiceHealth(vehicleId: string): Promise<Vehicl
 export type VehicleMileagePoint = { date: Date; mileage: number; label: string };
 export type VehicleVisitMonth = { month: string; jobCardCount: number };
 export type VehicleSpendPoint = { date: Date; amount: number; label: string };
+export type VehicleFindingsBreakdown = { good: number; attention: number; serviceRequired: number; critical: number };
 
 export type VehicleAnalytics = {
   mileageTimeline: VehicleMileagePoint[];
   visitHistory: VehicleVisitMonth[];
   spendTimeline: VehicleSpendPoint[];
+  /** Every inspection finding ever recorded for this vehicle. */
+  findingsBreakdown: VehicleFindingsBreakdown;
+  /** The most recent completed inspection: the vehicle's current condition. */
+  latestInspection: { jobNumber: string; completedAt: Date | null; breakdown: VehicleFindingsBreakdown } | null;
   totalVisits: number;
   /** What the customer was asked to pay on approved estimates. */
   totalSpend: number;
@@ -92,13 +97,13 @@ export type VehicleAnalytics = {
 
 /**
  * A vehicle's history across its Job Cards: odometer readings, approved
- * amounts and payments, as recorded. The next-service prediction comes from
+ * amounts, payments and inspection findings, as recorded. The next-service prediction comes from
  * getVehicleServiceHealth().
  */
 export async function getVehicleAnalytics(vehicleId: string): Promise<VehicleAnalytics> {
   await requireUser();
   await seeVehicle(vehicleId, 'getVehicleAnalytics');
-  const [jobCards, payments, refunds] = await Promise.all([
+  const [jobCards, payments, refunds, inspections] = await Promise.all([
     prisma.jobCard.findMany({
       where: { vehicleId, status: { not: 'CANCELLED' } },
       orderBy: { createdAt: 'asc' },
@@ -107,6 +112,11 @@ export async function getVehicleAnalytics(vehicleId: string): Promise<VehicleAna
     prisma.payment.findMany({ where: { jobCard: { vehicleId } }, select: { amount: true } }),
     // Refunds (cancelled after a deposit): "paid" means money kept.
     prisma.refund.findMany({ where: { jobCard: { vehicleId } }, select: { amount: true } }),
+    prisma.vehicleInspection.findMany({
+      where: { jobCard: { vehicleId } },
+      orderBy: { completedAt: 'desc' },
+      select: { status: true, completedAt: true, jobCard: { select: { jobNumber: true } }, items: { select: { severity: true } } },
+    }),
   ]);
 
   const mileageTimeline: VehicleMileagePoint[] = jobCards
@@ -124,6 +134,18 @@ export async function getVehicleAnalytics(vehicleId: string): Promise<VehicleAna
   }
   const visitHistory = [...visitsByMonth.entries()].sort(([a], [b]) => (a < b ? -1 : 1)).map(([, v]) => v);
 
+  const tally = (items: { severity: string | null }[]): VehicleFindingsBreakdown => {
+    const b: VehicleFindingsBreakdown = { good: 0, attention: 0, serviceRequired: 0, critical: 0 };
+    for (const item of items) {
+      if (item.severity === 'GOOD') b.good += 1;
+      else if (item.severity === 'ATTENTION') b.attention += 1;
+      else if (item.severity === 'SERVICE_REQUIRED') b.serviceRequired += 1;
+      else if (item.severity === 'CRITICAL') b.critical += 1;
+    }
+    return b;
+  };
+  const latestDone = inspections.find((i) => i.status === 'COMPLETED') ?? null;
+
   // An estimate counts once it has its final approval; only what the
   // customer pays (goodwill and internal lines are not their spend).
   const spendTimeline: VehicleSpendPoint[] = jobCards
@@ -135,6 +157,8 @@ export async function getVehicleAnalytics(vehicleId: string): Promise<VehicleAna
     mileageTimeline,
     visitHistory,
     spendTimeline,
+    findingsBreakdown: tally(inspections.flatMap((i) => i.items)),
+    latestInspection: latestDone ? { jobNumber: latestDone.jobCard.jobNumber, completedAt: latestDone.completedAt, breakdown: tally(latestDone.items) } : null,
     totalVisits: jobCards.length,
     totalSpend,
     totalPaid,

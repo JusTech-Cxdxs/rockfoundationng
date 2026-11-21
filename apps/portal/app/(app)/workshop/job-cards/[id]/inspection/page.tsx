@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation';
-import { serviceVisible, guardAnyPage } from '@/lib/authz/server';
+import { jobCardVisible, guardAnyPage } from '@/lib/authz/server';
 import { getVehicleInspection } from '@/lib/actions/vehicle-inspection';
-import { getVehicleService } from '@/lib/actions/vehicle-service';
+import { getJobCard } from '@/lib/actions/workshop';
 import { InspectionWorkspace } from '@/components/InspectionWorkspace';
 import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
 import { getApplicableTemplate } from '@/lib/vehicle-inspection-template';
 import { BackLink } from '@/components/ui';
 
-/** Loads the data; the interactive checklist is InspectionWorkspace. */
+/** The Job Card's check-in inspection. Loads the data; the interactive checklist is InspectionWorkspace. */
 export default async function VehicleInspectionPage({
   params,
   searchParams,
@@ -16,22 +16,22 @@ export default async function VehicleInspectionPage({
   searchParams: Promise<{ error?: string; status?: string }>;
 }) {
   await guardAnyPage(['workshop.view'], '/workshop');
-  const { id: vehicleServiceId } = await params;
+  const { id: jobCardId } = await params;
   // An id the viewer can't see is a 404.
-  if (!(await serviceVisible(vehicleServiceId, 'page'))) notFound();
+  if (!(await jobCardVisible(jobCardId, 'page'))) notFound();
   const { error, status } = await searchParams;
-  const [service, inspection] = await Promise.all([
-    getVehicleService(vehicleServiceId),
-    getVehicleInspection(vehicleServiceId),
+  const [jobCard, inspection] = await Promise.all([
+    getJobCard(jobCardId),
+    getVehicleInspection(jobCardId),
   ]);
-  if (!service) notFound();
+  if (!jobCard) notFound();
 
-  const vehicleType = service.vehicle.vehicleType;
+  const vehicleType = jobCard.vehicle.vehicleType;
   const template = vehicleType ? getApplicableTemplate(vehicleType) : [];
 
   return (
     <div className="p-4 sm:p-8">
-      <BackLink href={`/workshop/vehicle-service/${vehicleServiceId}`} label={<>Back to {service.serviceNumber}</>} className="mb-4" />
+      <BackLink href={`/workshop/job-cards/${jobCardId}`} label={<>Back to {jobCard.jobNumber}</>} className="mb-4" />
 
       {error ? (
         <div className="mb-6 max-w-xl">
@@ -66,10 +66,10 @@ export default async function VehicleInspectionPage({
         </div>
       ) : (
         <InspectionWorkspace
-          vehicleServiceId={vehicleServiceId}
-          vehicleId={service.vehicle.id}
-          serviceNumber={service.serviceNumber}
-          vehicleDescription={[service.vehicle.year, service.vehicle.make, service.vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
+          jobCardId={jobCardId}
+          vehicleId={jobCard.vehicle.id}
+          jobNumber={jobCard.jobNumber}
+          vehicleDescription={[jobCard.vehicle.year, jobCard.vehicle.make, jobCard.vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
           vehicleType={vehicleType}
           template={template}
           inspection={inspection}

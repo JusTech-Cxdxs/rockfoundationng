@@ -182,7 +182,7 @@ export async function recordRefund(input: RecordRefundInput): Promise<{ id: stri
   }
 
   // An active Job Card can refund an overpayment only (the customer paid more
-  // than they now owe, e.g. lines moved to goodwill after a deposit).
+  // than they now owe, e.g. lines moved under warranty after a deposit).
   const owes = t.customerOwes;
   const isOverpaymentRefund = t.status !== 'CANCELLED' && position(t.payments, t.refunds, owes).remaining > 0;
   if (t.status !== 'CANCELLED' && !isOverpaymentRefund && t.refunds.length > 0) {
@@ -209,7 +209,7 @@ export async function recordRefund(input: RecordRefundInput): Promise<{ id: stri
   if (!paidToName) {
     throw new RefundActionError('Enter the name of the person who received the refund.');
   }
-  const reason = input.reason?.trim() || (isOverpaymentRefund ? 'Overpayment — lines now covered as goodwill or internally' : t.cancellationReason) || '';
+  const reason = input.reason?.trim() || (isOverpaymentRefund ? 'Overpayment — lines now covered under warranty, as goodwill or internally' : t.cancellationReason) || '';
   if (!reason) {
     throw new RefundActionError('Enter the reason for this refund.');
   }

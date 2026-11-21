@@ -1,7 +1,7 @@
 import { portalBaseUrl } from '@/lib/portal-url';
 import { notFound } from 'next/navigation';
-import { serviceVisible } from '@/lib/authz/server';
-import { getVehicleService } from '@/lib/actions/vehicle-service';
+import { jobCardVisible } from '@/lib/authz/server';
+import { getJobCard } from '@/lib/actions/workshop';
 import { getVehicleInspection } from '@/lib/actions/vehicle-inspection';
 import { getOrganisation } from '@/lib/actions/organisation';
 import { DocumentHeader, SignatureBlock, DocumentFooter } from '@/components/print/DocumentHeader';
@@ -108,18 +108,18 @@ export default async function PrintVehicleInspectionPage({
   const isOrgCopy = variant !== 'client';
 
   // An id the viewer can't see is a 404.
-  if (!(await serviceVisible(id, '[id]'))) notFound();
-  const [service, inspection, organisation] = await Promise.all([
-    getVehicleService(id),
+  if (!(await jobCardVisible(id, '[id]'))) notFound();
+  const [jobCard, inspection, organisation] = await Promise.all([
+    getJobCard(id),
     getVehicleInspection(id),
     getOrganisation(),
   ]);
-  if (!service || !organisation) notFound();
+  if (!jobCard || !organisation) notFound();
   if (!inspection || inspection.status === 'SKIPPED') notFound();
 
   const portalUrl = portalBaseUrl();
   const logoUrl = `${portalUrl}/images/logo/logo.png`;
-  const vehicleSummary = [service.vehicle.year, service.vehicle.make, service.vehicle.model].filter(Boolean).join(' ') || '—';
+  const vehicleSummary = [jobCard.vehicle.year, jobCard.vehicle.make, jobCard.vehicle.model].filter(Boolean).join(' ') || '—';
   const statusLabel = inspection.status === 'COMPLETED' ? 'Completed' : 'In Progress';
 
   const reviewedItems = inspection.items.filter((i: InspectionItem) => i.severity);
@@ -130,25 +130,25 @@ export default async function PrintVehicleInspectionPage({
       <PrintOnLoad />
       <DocumentHeader
         organisation={organisation}
-        branch={service.branch}
+        branch={jobCard.branch}
         logoUrl={logoUrl}
         documentTitle="Vehicle Inspection Report"
-        referenceNumber={service.serviceNumber}
+        referenceNumber={jobCard.jobNumber}
         statusLabel={statusLabel}
         accentColor="#D6890B"
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', marginTop: '20px' }}>
-        <Field label="CUSTOMER" value={service.customer.fullName} />
-        {service.customer.address ? <Field label="CUSTOMER ADDRESS" value={service.customer.address} /> : null}
+        <Field label="CUSTOMER" value={jobCard.customer.fullName} />
+        {jobCard.customer.address ? <Field label="CUSTOMER ADDRESS" value={jobCard.customer.address} /> : null}
         <Field label="VEHICLE" value={vehicleSummary} />
-        <Field label="PLATE NO." value={service.vehicle.plateNumber ?? '—'} />
-        <Field label="VIN / CHASSIS" value={service.vehicle.chassisNumber ?? '—'} />
-        <Field label="MILEAGE AT CHECK-IN" value={service.odometerAtService != null ? `${service.odometerAtService.toLocaleString('en-NG')} km` : '—'} />
-        <Field label="DEPARTMENT" value={service.department?.name ?? '—'} />
-        <Field label="SUPERVISOR IN CHARGE" value={service.supervisor?.fullName ?? 'Not yet assigned'} />
+        <Field label="PLATE NO." value={jobCard.vehicle.plateNumber ?? '—'} />
+        <Field label="VIN / CHASSIS" value={jobCard.vehicle.chassisNumber ?? '—'} />
+        <Field label="MILEAGE AT CHECK-IN" value={jobCard.mileageAtCheckIn != null ? `${jobCard.mileageAtCheckIn.toLocaleString('en-NG')} km` : '—'} />
+        <Field label="DEPARTMENT" value={jobCard.department?.name ?? '—'} />
+        <Field label="SUPERVISOR IN CHARGE" value={jobCard.supervisor?.fullName ?? 'Not yet assigned'} />
         <Field label="INSPECTED BY" value={inspection.inspectedBy.fullName} />
-        <Field label="TECHNICIAN IN CHARGE" value={service.assignedTechnician?.fullName ?? 'Not yet assigned'} />
+        <Field label="TECHNICIAN IN CHARGE" value={jobCard.assignedTechnician?.fullName ?? 'Not yet assigned'} />
         <Field
           label={inspection.status === 'COMPLETED' ? 'COMPLETED ON' : 'STARTED ON'}
           value={inspection.status === 'COMPLETED' && inspection.completedAt ? formatDateTime(inspection.completedAt) : formatDateTime(new Date())}
