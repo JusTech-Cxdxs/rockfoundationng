@@ -30,7 +30,7 @@ const data: BriefData = {
   name: 'Ada', greeting: 'Good morning', periodLabel: 'right now', from: null, to: '2026-10-16T08:00:00Z',
   sections: [
     { key: 'decisions', title: 'Decisions waiting for you', count: 2, overdue: 1, href: '/approvals', items: [{ title: 'Approve estimate JC-2026-000412', href: '/workshop/job-cards/abc', overdue: true }] },
-    { key: 'mail', title: 'Unread mail', count: 0, items: [], href: '/mail' },
+    { key: 'reminders', title: 'Reminders due', count: 0, items: [], href: '/reminders' },
   ],
 };
 
@@ -39,7 +39,7 @@ test('the plain brief lists what is waiting with links; nothing waiting says so'
   assert.match(t, /^Good morning, Ada\./);
   assert.match(t, /\*\*Decisions waiting for you\*\* — 2 \(1 overdue\)/);
   assert.match(t, /\[Approve estimate JC-2026-000412\]\(\/workshop\/job-cards\/abc\)/);
-  assert.doesNotMatch(t, /Unread mail/);
+  assert.doesNotMatch(t, /Reminders due/);
   assert.match(plainBrief({ ...data, sections: [] }), /Nothing is waiting for you right now/);
 });
 
@@ -52,11 +52,8 @@ test('Enyo’s brief keeps only links we gave it', () => {
 test('wiring: brief on the dashboard and in chat; work profile; conversation learning is scrubbed, approved and fenced', () => {
   assert.match(read('app/(app)/dashboard/page.tsx'), /<EnyoBriefCard userKey=\{me\.id\} \/>/);
   assert.match(read('lib/enyo/tools/work.ts'), /collectBrief\(period\)/);
-  const collect = read('lib/brief/collect.ts');
-  assert.match(collect, /assisting \? Promise\.resolve\(null\) : mailFor/, 'never a colleague’s mail during an assisted session');
-  assert.match(collect, /currentAssist\(\)\.then\(Boolean\)\.catch\(\(\) => true\)/, 'fails closed');
   const route = read('app/api/enyo/chat/route.ts');
-  assert.match(route, /const profile = ctx\.assisted \? null : await workProfile\(userId, organisationId\)/);
+  assert.match(route, /const profile = await workProfile\(userId, organisationId\)/);
   const conv = read('lib/enyo/conversations.ts');
   assert.match(conv, /status: 'PENDING'/);
   assert.match(conv, /if \(handedOver\.has\(c\.id\)\) continue;/);
@@ -66,16 +63,15 @@ test('wiring: brief on the dashboard and in chat; work profile; conversation lea
   assert.match(conv, /where: \{ organisationId, status: 'APPROVED' \}/);
   const exp = read('app/(app)/enyo/learning/conversations/route.ts');
   assert.match(exp, /allows\('enyo\.manage'\)/);
-  assert.match(exp, /currentAssist\(\)/);
   assert.match(exp, /enyo\.conversation_training_exported/);
 });
 
 import { mdText } from '../lib/brief/core';
 import { parseMarkdown } from '../lib/enyo/markdown';
-test('a mail subject can never become a link in the brief', () => {
+test('a title can never become a link in the brief', () => {
   const evil = 'Verify](https://evil.example/x) now';
-  const text = plainBrief({ ...data, sections: [{ key: 'mail', title: 'Unread mail', count: 1, href: '/mail', items: [{ title: evil, href: '/mail?m=1' }] }] });
-  assert.match(text, /\[Verify\\\]\\\(https:\/\/evil\.example\/x\\\) now\]\(\/mail\?m=1\)/);
+  const text = plainBrief({ ...data, sections: [{ key: 'reminders', title: 'Reminders due', count: 1, href: '/reminders', items: [{ title: evil, href: '/reminders?focus=1' }] }] });
+  assert.match(text, /\[Verify\\\]\\\(https:\/\/evil\.example\/x\\\) now\]\(\/reminders\?focus=1\)/);
   const blocks = JSON.stringify(parseMarkdown(text));
   assert.doesNotMatch(blocks, /"href":"https:\/\/evil/);
   assert.equal(mdText('a*b_c'), 'a\\*b\\_c');
@@ -94,12 +90,12 @@ test('the card: decisions and overdue first, notifications last; the summary is 
     ...data,
     sections: [
       { key: 'activity', title: 'New notifications this week', count: 60, href: '/notifications', items: [] },
-      { key: 'mail', title: 'Unread mail', count: 3, href: '/mail', items: [] },
+      { key: 'reminders', title: 'Reminders due', count: 3, href: '/reminders', items: [] },
       { key: 'decisions', title: 'Decisions waiting for you', count: 2, overdue: 1, href: '/approvals', items: [] },
     ],
   };
-  assert.deepEqual(orderedSections(d).map((s) => s.key), ['decisions', 'mail', 'activity']);
-  assert.equal(briefHeadline(d), '2 decisions waiting for you (1 overdue) · 3 unread mail');
+  assert.deepEqual(orderedSections(d).map((s) => s.key), ['decisions', 'reminders', 'activity']);
+  assert.equal(briefHeadline(d), '2 decisions waiting for you (1 overdue) · 3 reminders due');
   assert.match(plainSummary(d), /1 item is overdue — start with decisions waiting for you/);
   assert.equal(briefHeadline({ ...d, sections: [d.sections[0]!] }), 'Nothing needs you — only new notifications.');
   // Whatever the model writes, no links, bracketed paths or markdown reach the card.

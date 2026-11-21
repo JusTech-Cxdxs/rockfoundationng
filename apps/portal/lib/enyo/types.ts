@@ -14,8 +14,6 @@ export type StaffCtx = {
   isSuperAdmin: boolean;
   /** The person's full name, for greetings and drafts. */
   name: string;
-  /** Set while a Branch Assistant is helping this person (assisted session). */
-  assisted: boolean;
   /** The page the person had open when they asked, e.g. "/workshop/job-cards/abc". */
   page?: string;
   /**

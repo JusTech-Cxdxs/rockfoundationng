@@ -4,34 +4,16 @@ import { claimed, lockExisting } from '@/lib/integrity';
 import { prisma } from '@ejo/database';
 import { requireUser } from './workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
-import { getWarrantyRoles } from './warranty';
 import { allows, authorizeOnJobCard, seeJobCard } from '@/lib/authz/server';
-import { warrantyCoverage } from '@/lib/warranty-state';
 import { BILL_TO_LABEL, billingOf, billingSplit, jobCardTotals, JOB_CARD_BILLING_SELECT, type BillTo } from '@/lib/estimate-billing';
-import { moduleIsOn } from '@/lib/modules';
 
 class BillingError extends Error {}
 
-const BILL_TOS: BillTo[] = ['CUSTOMER', 'WARRANTY', 'GOODWILL', 'INTERNAL'];
+const BILL_TOS: BillTo[] = ['CUSTOMER', 'GOODWILL', 'INTERNAL'];
 const CLOSED = ['CHECKED_OUT', 'CANCELLED'];
 
-// Who decides who pays: the Warranty HOD or a Branch Manager while Warranty
-// is on; with Warranty switched off, the Manager (final approval of estimates).
-const WHO_PAYS_KEY = () => (moduleIsOn('warranty') ? 'warranty.claim.approve' : 'workshop.estimate.final_approve') as 'warranty.claim.approve' | 'workshop.estimate.final_approve';
-
-/** Warranties that can cover work on this Job Card's vehicle right now:
- * active and still covering (by date and odometer). */
-async function eligibleWarranties(vehicleId: string, mileage: number | null) {
-  const rows = await prisma.warranty.findMany({
-    where: { vehicleId, status: 'ACTIVE' },
-    orderBy: { issuedAt: 'desc' },
-    select: { id: true, warrantyNumber: true, kind: true, status: true, subjectDescription: true, startsAt: true, endsAt: true, startReading: true, distanceLimit: true, statusReason: true, provider: { select: { name: true } } },
-  });
-  return rows.filter((w: (typeof rows)[number]) => {
-    const cov = warrantyCoverage(w, mileage);
-    return cov.state === 'COVERED' || cov.state === 'EXPIRING_SOON';
-  });
-}
+// Who decides who pays: whoever gives the estimate its final approval.
+const WHO_PAYS_KEY = 'workshop.estimate.final_approve' as const;
 
 /** Everything the Job Card's "Who pays" panel needs. */
 export async function getJobCardBilling(jobCardId: string) {
@@ -40,7 +22,7 @@ export async function getJobCardBilling(jobCardId: string) {
   const jc = await prisma.jobCard.findUnique({
     where: { id: jobCardId },
     select: {
-      id: true, status: true, vehicleId: true, mileageAtCheckIn: true, branchId: true,
+      id: true, status: true, branchId: true,
       payments: { select: { amount: true } },
       refunds: { select: { amount: true } },
       estimate: {
@@ -49,7 +31,7 @@ export async function getJobCardBilling(jobCardId: string) {
           vatRate: true,
           lineItems: {
             orderBy: { createdAt: 'asc' },
-            select: { id: true, type: true, description: true, amount: true, discountAmount: true, billTo: true, billToNote: true, coveringWarranty: { select: { id: true, warrantyNumber: true } } },
+            select: { id: true, type: true, description: true, amount: true, discountAmount: true, billTo: true, billToNote: true },
           },
         },
       },
@@ -57,12 +39,7 @@ export async function getJobCardBilling(jobCardId: string) {
     },
   });
   if (!jc) return null;
-  // With Warranty switched off no warranty is offered to cover a line.
-  const warrantyOn = moduleIsOn('warranty');
-  const [warranties, canDecide] = await Promise.all([
-    warrantyOn ? eligibleWarranties(jc.vehicleId, jc.mileageAtCheckIn) : Promise.resolve([]),
-    warrantyOn ? getWarrantyRoles().then((r) => r.canApprove) : allows(WHO_PAYS_KEY(), { branchId: jc.branchId }),
-  ]);
+  const canDecide = await allows(WHO_PAYS_KEY, { branchId: jc.branchId });
   const lines = jc.estimate?.lineItems ?? [];
   const split = billingSplit(lines);
   // What the customer owes after discounts and VAT: the one shared calculation.
@@ -76,85 +53,46 @@ export async function getJobCardBilling(jobCardId: string) {
     settings: { vatEnabled: settings.vatEnabled, vatRate: Number(settings.vatRate), vatNumber: settings.vatNumber ?? null, discountApprovalPercent: settings.discountApprovalPercent ?? null },
     netPaid: Math.round(paid * 100) / 100,
     overpaid: Math.max(0, Math.round((paid - totals.total) * 100) / 100),
-    warranties: warranties.map((w: (typeof warranties)[number]) => ({ id: w.id, warrantyNumber: w.warrantyNumber, kind: w.kind, subject: w.subjectDescription, provider: w.provider.name })),
     canEdit: canDecide && !CLOSED.includes(jc.status),
     isClosed: CLOSED.includes(jc.status),
   };
 }
 
 /**
- * Decide who pays for one estimate line. WARRANTY needs an active warranty
- * that covers THIS vehicle right now; GOODWILL / INTERNAL need a reason.
- * Warranty HOD / Branch Manager only; not once the Job Card is checked out
- * or cancelled. Audited on the Job Card (and the warranty).
+ * Decide who pays for one estimate line: the customer, or the business as
+ * goodwill or an internal cost (both need a reason). Final approvers only;
+ * not once the Job Card is checked out or cancelled. Audited on the Job Card.
  */
-export async function setEstimateLineBillTo(lineId: string, billTo: BillTo, warrantyId: string | null, note: string): Promise<void> {
+export async function setEstimateLineBillTo(lineId: string, billTo: BillTo, note: string): Promise<void> {
   const user = await requireUser();
-  if (moduleIsOn('warranty') && !(await getWarrantyRoles()).canApprove) throw new BillingError('Only the Warranty HOD or a Branch Manager can decide who pays for a line.');
   if (!BILL_TOS.includes(billTo)) throw new BillingError('Choose who pays for this line.');
-  // Warranty switched off: Customer, Goodwill or Internal only.
-  if (billTo === 'WARRANTY' && !moduleIsOn('warranty')) throw new BillingError('Warranty is not used here. Choose Customer, Goodwill or Internal.');
   const why = note.trim();
   const line = await prisma.estimateLineItem.findUnique({
     where: { id: lineId },
-    select: { id: true, description: true, amount: true, billTo: true, coveringWarrantyId: true, estimate: { select: { jobCard: { select: { id: true, jobNumber: true, status: true, vehicleId: true, mileageAtCheckIn: true } } } } },
+    select: { id: true, description: true, amount: true, billTo: true, estimate: { select: { jobCard: { select: { id: true, jobNumber: true, status: true } } } } },
   });
   if (!line) throw new BillingError('Estimate line not found.');
   const jc = line.estimate.jobCard;
   if (CLOSED.includes(jc.status)) throw new BillingError('This Job Card is closed — who pays can no longer change.');
   // The Job Card must also be within this person's reach (its branch).
-  await authorizeOnJobCard(WHO_PAYS_KEY(), jc.id, 'setEstimateLineBillTo');
-  let coveringWarrantyId: string | null = null;
-  let warrantyNumber: string | null = null;
-  if (billTo === 'WARRANTY') {
-    if (!warrantyId) throw new BillingError('Choose the warranty that covers this line.');
-    const eligible = await eligibleWarranties(jc.vehicleId, jc.mileageAtCheckIn);
-    const w = eligible.find((x: { id: string }) => x.id === warrantyId);
-    if (!w) throw new BillingError('That warranty does not cover this vehicle right now (it must be active and within its dates and km).');
-    coveringWarrantyId = w.id;
-    warrantyNumber = w.warrantyNumber;
-  } else if ((billTo === 'GOODWILL' || billTo === 'INTERNAL') && !why) {
+  await authorizeOnJobCard(WHO_PAYS_KEY, jc.id, 'setEstimateLineBillTo');
+  if ((billTo === 'GOODWILL' || billTo === 'INTERNAL') && !why) {
     throw new BillingError(`Give the reason this line is ${billTo === 'GOODWILL' ? 'goodwill' : 'an internal cost'}.`);
   }
-  if (line.billTo === billTo && (line.coveringWarrantyId ?? null) === coveringWarrantyId) throw new BillingError('That is already who pays for this line.');
+  if (line.billTo === billTo) throw new BillingError('That is already who pays for this line.');
   // Read before saving, so the audit's "from" is the prior value.
-  const previous = BILL_TO_LABEL[(line.billTo ?? 'CUSTOMER') as BillTo];
+  const previous = BILL_TO_LABEL[(line.billTo ?? 'CUSTOMER') as BillTo] ?? line.billTo;
   // Who pays changes what the customer owes, so it takes the same Job Card
   // lock as recording a payment: the two are decided one after the other.
   await prisma.$transaction(async (tx) => {
     await lockExisting(tx, 'jobCard', [jc.id]);
-    claimed(await tx.estimateLineItem.updateMany({ where: { id: lineId, billTo: line.billTo, coveringWarrantyId: line.coveringWarrantyId }, data: { billTo, coveringWarrantyId, billToNote: why || null } }), 'Who pays for this line was just changed by someone else — refresh the page.');
+    claimed(await tx.estimateLineItem.updateMany({ where: { id: lineId, billTo: line.billTo }, data: { billTo, billToNote: why || null } }), 'Who pays for this line was just changed by someone else — refresh the page.');
   });
-  const metadata = {
-    line: line.description,
-    amount: line.amount === null ? null : Number(line.amount),
-    from: previous,
-    to: `${BILL_TO_LABEL[billTo]}${warrantyNumber ? ` (${warrantyNumber})` : ''}`,
-    note: why || undefined,
-  };
-  await writeAuditLog({ userId: user.id, action: 'job_card.line_bill_to_set', entityType: 'JobCard', entityId: jc.id, metadata: { jobNumber: jc.jobNumber, ...metadata } });
-  if (coveringWarrantyId) {
-    await writeAuditLog({ userId: user.id, action: 'warranty.covers_job_card_line', entityType: 'Warranty', entityId: coveringWarrantyId, metadata: { jobNumber: jc.jobNumber, ...metadata } });
-  }
-}
-
-/** For "Start a claim" from a Job Card: the lines billed to one warranty,
- * split into parts / labour / other for the claim form. */
-export async function getCoveredAmountsForClaim(jobCardId: string, warrantyId: string): Promise<{ parts: number; labour: number; other: number; lines: string[] } | null> {
-  await requireUser();
-  if (!moduleIsOn('warranty')) return null;
-  await authorizeOnJobCard('warranty.manage', jobCardId, 'getCoveredAmountsForClaim');
-  const lines = await prisma.estimateLineItem.findMany({
-    where: { estimate: { jobCardId }, billTo: 'WARRANTY', coveringWarrantyId: warrantyId },
-    select: { type: true, description: true, amount: true },
+  await writeAuditLog({
+    userId: user.id,
+    action: 'job_card.line_bill_to_set',
+    entityType: 'JobCard',
+    entityId: jc.id,
+    metadata: { jobNumber: jc.jobNumber, line: line.description, amount: line.amount === null ? null : Number(line.amount), from: previous, to: BILL_TO_LABEL[billTo], note: why || undefined },
   });
-  if (lines.length === 0) return null;
-  const r2 = (n: number) => Math.round(n * 100) / 100;
-  const sumOf = (types: string[]) => r2(lines.filter((l: { type: string }) => types.includes(l.type)).reduce((s: number, l: { amount: unknown }) => s + Number(l.amount ?? 0), 0));
-  return {
-    parts: sumOf(['STORE_PART', 'EXTERNAL_PART']),
-    labour: sumOf(['LABOUR']),
-    other: sumOf(['EXTERNAL_JOB', 'INTERNAL_JOB', 'SUNDRY']),
-    lines: lines.map((l: { description: string }) => l.description),
-  };
 }

@@ -3,7 +3,6 @@ import { loadNotices } from '@/lib/customer-portal/notifications';
 import { timeAgo } from '@/lib/customer-portal/format';
 import { PageHero } from '@/components/customer/ui';
 import { NoticeList } from '@/components/customer/NoticeList';
-import { moduleOn } from '@/lib/edition';
 
 export const metadata = { title: 'Notifications' };
 
@@ -14,7 +13,7 @@ export default async function NotificationsPage() {
   const now = new Date();
   return (
     <div className="space-y-6">
-      <PageHero eyebrow="Notifications" icon="bell" title="Updates for you" subtitle={`Estimates, progress, payments, collection${moduleOn('warranty') ? ' and warranty news' : ' and notices'} — newest first. You’ll hear a soft chime when something new arrives (you can turn it off in Profile & settings).`} />
+      <PageHero eyebrow="Notifications" icon="bell" title="Updates for you" subtitle={`Estimates, progress, payments, collection and notices — newest first. You’ll hear a soft chime when something new arrives (you can turn it off in Profile & settings).`} />
       <NoticeList
         initial={notices.map((n) => ({ key: n.key, title: n.title, body: n.body, at: n.at.toISOString(), when: timeAgo(n.at, now), href: n.href, icon: n.icon, tone: n.tone, read: n.read, broadcast: n.key.startsWith('bc:') }))}
       />

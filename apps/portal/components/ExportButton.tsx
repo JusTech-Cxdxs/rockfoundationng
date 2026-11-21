@@ -5,21 +5,14 @@ import Link from 'next/link';
 import { FloatingLayer } from '@/components/ui/FloatingLayer';
 import { Icon } from '@/components/ui';
 import { createExport, getExportProgress, type ExportProgress } from '@/lib/actions/exports';
-import { sapLayoutOffered, type Layout } from '@/lib/exports/sap-layout';
 
 type Params = Record<string, string | string[] | undefined>;
 
-/** The menu: Excel and CSV with EJO's column names, and — with the SAP link on, for lists SAP also holds — the same with SAP's field names. */
-function choices(kind: string): ['xlsx' | 'csv', Layout, string, string][] {
-  return [
-    ['xlsx', 'ejo', 'Excel (.xlsx)', 'Real dates and numbers, ready to sort and total'],
-    ['csv', 'ejo', 'CSV', 'For other systems; opens in Excel too'],
-    ...(sapLayoutOffered(kind) ? ([
-      ['xlsx', 'sap', 'Excel, SAP field names', 'KUNNR, NAME1, MATNR… for the SAP team'],
-      ['csv', 'sap', 'CSV, SAP field names', 'Line 1 is the header, as SAP load tools expect'],
-    ] as ['xlsx' | 'csv', Layout, string, string][]) : []),
-  ];
-}
+/** The menu: Excel and CSV, with plain-English column names. */
+const CHOICES: ['xlsx' | 'csv', string, string][] = [
+  ['xlsx', 'Excel (.xlsx)', 'Real dates and numbers, ready to sort and total'],
+  ['csv', 'CSV', 'For other systems; opens in Excel too'],
+];
 
 /**
  * Export this list — Excel or CSV, exactly as the list is filtered, searched
@@ -47,12 +40,11 @@ export function ExportButton({ kind, params = {}, label = 'Export', align = 'rig
     a.remove();
   };
 
-  const start = async (format: 'xlsx' | 'csv', layout: Layout = 'ejo') => {
+  const start = async (format: 'xlsx' | 'csv') => {
     setOpen(false); setBusy(true); setError(null); setProgress(null);
     try {
       const flat: Record<string, string> = {};
       for (const [k, v] of Object.entries(params)) { const s = Array.isArray(v) ? v[0] : v; if (s) flat[k] = s; }
-      if (layout === 'sap') flat.layout = 'sap'; else delete flat.layout;
       const r = await createExport({ kind, format, params: flat });
       if (!r.ok) { setError(r.error); setBusy(false); return; }
       partsSeen.current = 0;
@@ -103,15 +95,15 @@ export function ExportButton({ kind, params = {}, label = 'Export', align = 'rig
       </button>
       <FloatingLayer anchor={button} open={open} onClose={close} align={align} width="16rem" label={label}>
         <div>
-          {choices(kind).map(([f, layout, title, hint], i) => (
+          {CHOICES.map(([f, title, hint], i) => (
             <button
-              key={`${f}-${layout}`}
+              key={f}
               type="button"
               role="menuitem"
-              onClick={() => void start(f, layout)}
+              onClick={() => void start(f)}
               className={`flex min-h-12 w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)] ${i ? 'border-t border-[var(--ejo-border)]' : ''}`}
             >
-              <Icon name={f === 'xlsx' ? 'grid' : 'file'} size={16} className={layout === 'sap' ? 'text-[var(--ejo-text-muted)]' : 'text-[var(--ejo-primary)]'} />
+              <Icon name={f === 'xlsx' ? 'grid' : 'file'} size={16} className="text-[var(--ejo-primary)]" />
               <span>
                 <span className="block font-medium">{title}</span>
                 <span className="block text-xs text-[var(--ejo-text-muted)]">{hint}</span>

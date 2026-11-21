@@ -9,15 +9,11 @@
  */
 
 /** Record types a reminder can point at (each has its own page). */
-export const REMINDER_RECORD_TYPES = [
-  'JobCard', 'VehicleService', 'Customer', 'CustomerVehicle', 'Part', 'Warranty', 'WarrantyClaim',
-  'PartRequestSlip', 'ExternalProcurementRequest', 'Appointment',
-] as const;
+export const REMINDER_RECORD_TYPES = ['JobCard', 'Customer', 'CustomerVehicle', 'Part', 'PartRequestSlip'] as const;
 export type ReminderRecordType = (typeof REMINDER_RECORD_TYPES)[number];
 
 export const REMINDER_RECORD_LABEL: Record<ReminderRecordType, string> = {
-  JobCard: 'Job Card', VehicleService: 'Vehicle Service', Customer: 'Customer', CustomerVehicle: 'Vehicle', Part: 'Part',
-  Warranty: 'Warranty', WarrantyClaim: 'Warranty claim', PartRequestSlip: 'Parts request', ExternalProcurementRequest: 'Outside purchase', Appointment: 'Appointment',
+  JobCard: 'Job Card', Customer: 'Customer', CustomerVehicle: 'Vehicle', Part: 'Part', PartRequestSlip: 'Parts request',
 };
 
 export const TITLE_MAX = 160;

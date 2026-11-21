@@ -6,7 +6,7 @@
  *  • the registry offers every tool file;
  *  • drafts pre-fill forms through validated, clipped parameters only;
  *  • the routes and actions keep their safety checks (origin, rate limit,
- *    length cap, readiness, settings audit, assisted-session refusals).
+ *    length cap, readiness, settings audit).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -341,22 +341,18 @@ test('the chat route checks origin, session, length, readiness and rate before a
   assert.match(read('app/api/enyo/status/route.ts'), /requireUser\(\)[\s\S]*status: 401/);
 });
 
-test('Enyo actions: settings are audited and validated; nothing personal changes during an assisted session', () => {
+test('Enyo actions: settings are audited and validated; conversations and memory are the person\'s own', () => {
   const a = read('lib/actions/enyo.ts');
-  assert.match(a, /export async function saveEnyoSettings[\s\S]{0,300}authorize\('enyo\.manage'[\s\S]{0,200}refuseDuringAssist\(/);
+  assert.match(a, /export async function saveEnyoSettings[\s\S]{0,300}authorize\('enyo\.manage'/);
   assert.match(a, /name\.length > 30/);
-  assert.match(a, /const MODES = \['SHADOW', 'SUGGEST', 'OFF'\] as const;/);
   assert.match(a, /action: 'enyo\.settings_changed'/);
   assert.match(a, /export async function testEnyoConnection[\s\S]{0,200}authorize\('enyo\.manage'/);
-  assert.match(a, /export async function deleteEnyoConversation[\s\S]{0,200}refuseDuringAssist\(/);
-  assert.match(a, /export async function deleteEnyoMemory[\s\S]{0,200}refuseDuringAssist\(/);
   for (const fn of ['listEnyoConversations', 'getEnyoConversation', 'renameEnyoConversation', 'rateEnyoMessage']) {
-    assert.match(a, new RegExp(`export async function ${fn}[\\s\\S]{0,900}userId: user\\.id[\\s\\S]{0,200}assistWindow\\(\\)`), `${fn}: own conversations, assisted-session window`);
+    assert.match(a, new RegExp(`export async function ${fn}[\\s\\S]{0,900}userId: user\\.id`), `${fn}: own conversations`);
   }
   const personal = read('lib/enyo/tools/personal.ts');
   assert.match(personal, /MAX_FACTS = 50/);
   assert.match(personal, /MAX_FACT_CHARS = 200/);
-  assert.equal((personal.match(/if \(await currentAssist\(\)\) return refused\(/g) ?? []).length, 3, 'remember, forget and recent activity refuse during an assisted session');
 });
 
 test('old Enyo chats are removed by the daily job, each run recorded', () => {

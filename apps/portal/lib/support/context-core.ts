@@ -1,8 +1,8 @@
 /**
  * Who is writing to the Support centre, and what is going on for them (pure
  * parts, tested): customer, colleague, or both; whether we may talk about
- * their records; why they cannot sign in; their Job Cards, service visits and
- * warranties in the words the customer portal uses; a colleague's role,
+ * their records; why they cannot sign in; their Job Cards in the words the
+ * customer portal uses; a colleague's role,
  * recent errors and the how-to guides that fit — each with the link to the
  * exact page.
  *
@@ -41,9 +41,6 @@ export type CustomerFacts = {
   name: string;
   portal: PortalAccess;
   jobs: { id: string; number: string; status: string; vehicle: string; plate: string | null; updatedAt: Date }[];
-  services: { id: string; number: string; status: string; vehicle: string; plate: string | null; updatedAt: Date }[];
-  warranties: { id: string; number: string; status: string; subject: string; endsAt: Date }[];
-  claims: { number: string; status: string; updatedAt: Date }[];
   /** Website errors this customer saw in the last 7 days (reference and page). */
   errors: { ref: string; path: string | null; at: Date }[];
   openRequests: number;
@@ -211,35 +208,16 @@ const JOB_WORDS: Record<string, [string, string]> = {
   CHECKED_OUT: ['Collected', 'the vehicle has left the workshop'],
   CANCELLED: ['Cancelled', 'this Job Card was cancelled'],
 };
-const SERVICE_WORDS: Record<string, [string, string]> = {
-  SCHEDULED: ['Booked', 'the service is booked'],
-  CHECKED_IN: ['Checked in', 'the vehicle is with us and being prepared'],
-  IN_SERVICE: ['Being serviced', 'technicians are servicing the vehicle'],
-  COMPLETED: ['Service completed', 'we will say when it is ready to collect'],
-  READY_FOR_COLLECTION: ['Ready for collection', 'settle any balance and collect the vehicle'],
-  CLOSED: ['Signed off', 'everything is settled; the vehicle can leave'],
-  COLLECTED: ['Collected', 'the vehicle has left'],
-  CANCELLED: ['Cancelled', 'this service was cancelled'],
-  ESCALATED: ['Moved to a Job Card', 'the visit continues as a Job Card'],
-};
-const CLAIM_WORDS: Record<string, string> = {
-  DRAFT: 'being prepared', PENDING_HOD: 'being reviewed by us', PENDING_MANAGER: 'being reviewed by us', APPROVED_TO_SUBMIT: 'about to be sent to the provider',
-  SUBMITTED: 'with the warranty provider', ACCEPTED: 'accepted by the provider', PARTIALLY_ACCEPTED: 'partly accepted by the provider', REJECTED: 'not accepted by the provider',
-  SETTLED: 'settled', CANCELLED: 'cancelled',
-};
-
 const title = (s: string) => s.toLowerCase().replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 export const jobWords = (s: string): [string, string] => JOB_WORDS[s] ?? [title(s), ''];
-export const serviceWords = (s: string): [string, string] => SERVICE_WORDS[s] ?? [title(s), ''];
-export const claimWords = (s: string): string => CLAIM_WORDS[s] ?? title(s).toLowerCase();
 
 const day = (d: Date) => d.toLocaleDateString('en-GB', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'short', year: 'numeric' });
 
 // ─────────────────────────────────────────────────────────── links
 
 export type CustomerLinkSet = {
-  signIn: string; forgotPassword: string; dashboard: string; services: string; payments: string; warranties: string; profile: string; support: string; help: string;
-  jobCard: (id: string) => string; service: (id: string) => string; warranty: (id: string) => string;
+  signIn: string; forgotPassword: string; dashboard: string; services: string; payments: string; profile: string; support: string; help: string;
+  jobCard: (id: string) => string;
 };
 
 export function linksForCustomer(c: CustomerFacts | null, l: CustomerLinkSet): Link[] {
@@ -249,10 +227,8 @@ export function linksForCustomer(c: CustomerFacts | null, l: CustomerLinkSet): L
     { label: 'Help and contact', url: l.help },
   ];
   if (!c) return out;
-  out.push({ label: 'Your dashboard', url: l.dashboard }, { label: 'Your services and repairs', url: l.services }, { label: 'Your payments', url: l.payments }, { label: 'Your warranties', url: l.warranties }, { label: 'Your profile (password, contact details)', url: l.profile }, { label: 'Your support requests', url: l.support });
+  out.push({ label: 'Your dashboard', url: l.dashboard }, { label: 'Your services and repairs', url: l.services }, { label: 'Your payments', url: l.payments }, { label: 'Your profile (password, contact details)', url: l.profile }, { label: 'Your support requests', url: l.support });
   for (const j of c.jobs) out.push({ label: `Job Card ${j.number}`, url: l.jobCard(j.id) });
-  for (const s of c.services) out.push({ label: `Service ${s.number}`, url: l.service(s.id) });
-  for (const w of c.warranties) out.push({ label: `Warranty ${w.number}`, url: l.warranty(w.id) });
   return out;
 }
 
@@ -278,7 +254,7 @@ export function senderFacts(ctx: SenderContext, now = new Date()): { text: strin
   const lines: string[] = [];
   const links: Link[] = [];
   if (!ctx.proven) {
-    lines.push('The sender could NOT be confirmed. Do not say whether they have an account or any record with us, and do not discuss any vehicle, job, payment or warranty. You may point them to signing in to the customer portal or to "Forgot password", and say a colleague will help.');
+    lines.push('The sender could NOT be confirmed. Do not say whether they have an account or any record with us, and do not discuss any vehicle, job or payment. You may point them to signing in to the customer portal or to "Forgot password", and say a colleague will help.');
     links.push(...ctx.customerLinks.slice(0, 3));
     return { text: lines.join('\n'), links };
   }
@@ -291,13 +267,7 @@ export function senderFacts(ctx: SenderContext, now = new Date()): { text: strin
       const [label, explain] = jobWords(j.status);
       lines.push(`- Job Card ${j.number} (${j.vehicle}${j.plate ? `, ${j.plate}` : ''}): ${label}${explain ? ` — ${explain}` : ''}; last update ${day(j.updatedAt)}.`);
     }
-    for (const s of c.services) {
-      const [label, explain] = serviceWords(s.status);
-      lines.push(`- Service ${s.number} (${s.vehicle}${s.plate ? `, ${s.plate}` : ''}): ${label}${explain ? ` — ${explain}` : ''}; last update ${day(s.updatedAt)}.`);
-    }
-    for (const w of c.warranties) lines.push(`- Warranty ${w.number} for ${w.subject}: ${w.endsAt < now ? `ended ${day(w.endsAt)}` : `${w.status === 'ACTIVE' ? 'active' : title(w.status).toLowerCase()} until ${day(w.endsAt)}`}.`);
-    for (const cl of c.claims) lines.push(`- Warranty claim ${cl.number}: ${claimWords(cl.status)} (updated ${day(cl.updatedAt)}).`);
-    if (!c.jobs.length && !c.services.length) lines.push('- No open or recent Job Cards or services.');
+    if (!c.jobs.length) lines.push('- No open or recent Job Cards.');
     if (c.errors.length) lines.push(`- They hit an error on the website recently (reference ${c.errors[0]!.ref}${c.errors[0]!.path ? ` on ${c.errors[0]!.path}` : ''}); a colleague can trace it with that reference.`);
     links.push(...ctx.customerLinks);
   }
@@ -319,7 +289,7 @@ export function senderFacts(ctx: SenderContext, now = new Date()): { text: strin
 }
 
 /** Topics Enyo may answer by itself from a PROVEN sender's own records (still never money, complaints or safety). */
-export const RECORD_ANSWERABLE = ['job_status', 'account_access', 'warranty', 'how_to', 'service_booking'];
+export const RECORD_ANSWERABLE = ['job_status', 'account_access', 'how_to', 'service_booking'];
 
 /**
  * Enyo has what it needs to answer this sender from their own records: they
@@ -330,15 +300,14 @@ export function recordsReadyFor(ctx: SenderContext | null | undefined, topic: st
   if (!ctx?.proven || !topic || !RECORD_ANSWERABLE.includes(topic)) return false;
   if (topic === 'how_to') return (ctx.staff?.guides.length ?? 0) > 0 && ctx.kind !== 'customer';
   if (topic === 'account_access') return Boolean(ctx.login);
-  if (topic === 'warranty') return (ctx.customer?.warranties.length ?? 0) + (ctx.customer?.claims.length ?? 0) > 0;
-  return (ctx.customer?.jobs.length ?? 0) + (ctx.customer?.services.length ?? 0) > 0;
+  return (ctx.customer?.jobs.length ?? 0) > 0;
 }
 
 /** The ticket context kept on Enyo's reply (no message text, no reasons). */
 export function contextSnapshot(ctx: SenderContext): Record<string, unknown> {
   return {
     kind: ctx.kind, proven: ctx.proven, how: ctx.provenHow, login: ctx.login?.code ?? null,
-    records: ctx.customer ? { jobs: ctx.customer.jobs.map((j) => j.number), services: ctx.customer.services.map((s) => s.number), warranties: ctx.customer.warranties.map((w) => w.number) } : null,
+    records: ctx.customer ? { jobs: ctx.customer.jobs.map((j) => j.number) } : null,
     staff: ctx.staff ? { roles: ctx.staff.roles, errors: ctx.staff.errors.map((e) => e.ref), guides: ctx.staff.guides.map((g) => g.title) } : null,
   };
 }
@@ -379,9 +348,6 @@ export function senderView(ctx: SenderContext, o: { canSeeErrors: boolean; now?:
   if (c) {
     const byLabel = new Map(ctx.customerLinks.map((l) => [l.label, l.url]));
     for (const j of c.jobs) records.push({ key: `jc-${j.id}`, label: `Job Card ${j.number}`, detail: `${jobWords(j.status)[0]} · ${j.vehicle}${j.plate ? ` (${j.plate})` : ''}`, href: `/workshop/job-cards/${j.id}`, customerUrl: byLabel.get(`Job Card ${j.number}`) ?? null });
-    for (const s of c.services) records.push({ key: `vs-${s.id}`, label: `Service ${s.number}`, detail: `${serviceWords(s.status)[0]} · ${s.vehicle}${s.plate ? ` (${s.plate})` : ''}`, href: `/workshop/vehicle-service/${s.id}`, customerUrl: byLabel.get(`Service ${s.number}`) ?? null });
-    for (const w of c.warranties) records.push({ key: `w-${w.id}`, label: `Warranty ${w.number}`, detail: `${w.endsAt < now ? 'Ended' : 'Until'} ${day(w.endsAt)} · ${w.subject}`, href: `/warranty/${w.id}`, customerUrl: byLabel.get(`Warranty ${w.number}`) ?? null });
-    for (const cl of c.claims) records.push({ key: `wc-${cl.number}`, label: `Claim ${cl.number}`, detail: claimWords(cl.status), href: `/warranty/claims?q=${encodeURIComponent(cl.number)}`, customerUrl: null });
   }
   const s = ctx.staff;
   return {

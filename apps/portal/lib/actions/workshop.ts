@@ -3515,7 +3515,7 @@ export async function approveCancellationRequest(requestId: string, decisionNote
     action: 'cancellation.approved',
     entityType: 'JobCard',
     entityId: request.jobCardId,
-    metadata: { withdrawn: withdrawn && (withdrawn.slips.length || withdrawn.procurements.length) ? withdrawn : undefined,  reason: request.reason, notes: decisionNotes?.trim() || undefined },
+    metadata: { withdrawn: withdrawn && withdrawn.slips.length ? withdrawn : undefined, reason: request.reason, notes: decisionNotes?.trim() || undefined },
   });
 
   try {
@@ -3845,7 +3845,7 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
     action: 'job_card.status_updated',
     entityType: 'JobCard',
     entityId: request.jobCardId,
-    metadata: { withdrawn: withdrawn && (withdrawn.slips.length || withdrawn.procurements.length) ? withdrawn : undefined,  from: 'READY_FOR_COLLECTION', to: 'CLOSED', notes: decisionNotes?.trim() || undefined, ...(credit ? { onCredit: { balance: credit.balance, owedIncludingThis: credit.owedIncludingThis, limit: credit.limit } } : {}) },
+    metadata: { withdrawn: withdrawn && withdrawn.slips.length ? withdrawn : undefined, from: 'READY_FOR_COLLECTION', to: 'CLOSED', notes: decisionNotes?.trim() || undefined, ...(credit ? { onCredit: { balance: credit.balance, owedIncludingThis: credit.owedIncludingThis, limit: credit.limit } } : {}) },
   });
   if (credit && !credit.withinLimit) {
     await writeAuditLog({ userId: user.id, action: 'credit.closed_over_limit', entityType: 'JobCard', entityId: request.jobCardId, metadata: { owedIncludingThis: credit.owedIncludingThis, limit: credit.limit, notes: decisionNotes?.trim() || undefined } });

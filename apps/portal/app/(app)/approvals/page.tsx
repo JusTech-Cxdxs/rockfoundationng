@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/actions/workshop';
-import { currentAssist } from '@/lib/authz/server';
 import { getDashboardNotifications } from '@/lib/actions/dashboard';
 import { approvalArea, approvalAreaOn, APPROVAL_AREAS, type ApprovalArea } from '@/lib/approvals';
 import { LoadingLink } from '@/components/LoadingLink';
@@ -30,9 +29,7 @@ const AREA_HINT: Record<ApprovalArea, string> = {
  */
 export default async function ApprovalsPage() {
   await requireUser().catch(() => redirect('/signed-out'));
-  // Nothing is decided during an assisted session, so nothing is listed.
-  const assisting = await currentAssist();
-  const [notes, waiting] = assisting ? [[], []] : await Promise.all([getDashboardNotifications(), getMyPending().catch(() => [])]);
+  const [notes, waiting] = await Promise.all([getDashboardNotifications(), getMyPending().catch(() => [])]);
   const items = notes
     .map((n) => ({ ...n, area: approvalArea(n) }))
     // Only the areas this edition has (APPROVAL_AREAS): the count in the header matches the groups below.

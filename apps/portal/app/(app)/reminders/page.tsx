@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { listMyReminders, listReminderDelegates } from '@/lib/actions/reminders';
 import { grantDelegateFormAction, withdrawDelegateFormAction } from '@/lib/actions/reminders-form-handlers';
 import { searchStaffOptions, loadStaffOptions } from '@/lib/actions/security';
-import { currentAssist, myOrganisationId } from '@/lib/authz/server';
+import { myOrganisationId } from '@/lib/authz/server';
 import { PageHeader, HeaderAction, SectionCard, EmptyState, RevealPanel } from '@/components/ui';
 import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
 import { FormPendingOverlay } from '@/components/FormPendingOverlay';
@@ -37,7 +37,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
       </div>
     );
   }
-  const [lists, people, assist] = await Promise.all([listMyReminders(), listReminderDelegates(), currentAssist()]);
+  const [lists, people] = await Promise.all([listMyReminders(), listReminderDelegates()]);
   const { overdue, upcoming, done } = lists;
   const open = overdue.length + upcoming.length;
   return (
@@ -85,21 +85,16 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                       <p className="truncate text-sm font-medium text-[var(--ejo-text)]">{d.fullName}</p>
                       <p className="text-xs text-[var(--ejo-text-muted)]">Since {formatDateOnly(d.since)}</p>
                     </div>
-                    {assist ? null : (
-                      <form action={withdrawDelegateFormAction}>
-                        <FormPendingOverlay />
-                        <input type="hidden" name="delegateId" value={d.userId} />
-                        <SubmitButton label="Withdraw" pendingLabel="…" ariaLabel={`Withdraw ${d.fullName}`} className="min-h-10 px-2 text-xs font-medium text-[var(--ejo-error)] hover:underline" />
-                      </form>
-                    )}
+                    <form action={withdrawDelegateFormAction}>
+                      <FormPendingOverlay />
+                      <input type="hidden" name="delegateId" value={d.userId} />
+                      <SubmitButton label="Withdraw" pendingLabel="…" ariaLabel={`Withdraw ${d.fullName}`} className="min-h-10 px-2 text-xs font-medium text-[var(--ejo-error)] hover:underline" />
+                    </form>
                   </li>
                 ))}
               </ul>
             ) : <p className="mb-4 text-sm text-[var(--ejo-text-muted)]">Nobody yet — only you can set your reminders.</p>}
-            {assist ? (
-              <p className="text-xs text-[var(--ejo-text-muted)]">This can only be changed by the person themselves, not during an assisted session.</p>
-            ) : (
-              <RevealPanel label="Allow a colleague" icon="user-plus" open={Boolean(error)}>
+            <RevealPanel label="Allow a colleague" icon="user-plus" open={Boolean(error)}>
               <form action={grantDelegateFormAction} className="space-y-3">
                 <FormPendingOverlay />
                 <div>
@@ -108,8 +103,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                 </div>
                 <SubmitButton label="Allow" pendingLabel="Saving…" className="min-h-11 w-full rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2.5 text-sm font-medium text-white hover:brightness-110" />
               </form>
-              </RevealPanel>
-            )}
+            </RevealPanel>
           </SectionCard>
           {people.canSetFor.length ? (
             <SectionCard icon="user-plus" title="You can set reminders for" description="These colleagues allowed you.">

@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@ejo/database';
-import { allows, authorize, refuseDuringAssist, seeJobCard } from '@/lib/authz/server';
+import { allows, authorize, seeJobCard } from '@/lib/authz/server';
 import { writeAuditLog, workshopContactFor } from '@/lib/workshop-core';
 import { issueDocumentLink } from '@/lib/document-links';
 import { isDocumentKind, type DocumentKind } from '@/lib/document-links-core';
@@ -131,7 +131,6 @@ async function receiptWhatsApp(paymentId: string): Promise<string> {
 /** The drafted message for one document, as a wa.me address. */
 export async function makeWhatsAppMessage(input: { kind: DocumentKind; id: string }): Promise<WhatsAppPrepared> {
   try {
-    await refuseDuringAssist('makeWhatsAppMessage');
     const id = typeof input?.id === 'string' ? input.id.trim() : '';
     if (!isDocumentKind(input?.kind) || !id) throw new WhatsAppError('Nothing to send.');
     if (input.kind === 'ESTIMATE') {

@@ -104,7 +104,7 @@ export type Money = {
  * customer has been notified of — the callers enforce both. The total is
  * the staff portal's own calculation (@ejo/utils billingTotals): line
  * discounts, the estimate's discount, then VAT when the organisation
- * charges it. A Vehicle Service has neither, so its lines simply add up.
+ * charges it.
  * `depositFraction` is the one deposit rule's answer for this customer
  * (@ejo/utils depositFractionFor): 0 when the deposit is off and always 0
  * for an organisation customer.
@@ -146,6 +146,6 @@ export function initials(fullName: string): string {
 }
 
 /** What the customer sees a visit called: a Job Card opened as a service is a "Service". */
-export function itemKindLabel(i: { kind: 'jc' | 'vs'; isServiceJobCard: boolean }): string {
-  return i.kind === 'vs' ? 'Vehicle service' : i.isServiceJobCard ? 'Service' : 'Job Card';
+export function itemKindLabel(i: { isServiceJobCard: boolean }): string {
+  return i.isServiceJobCard ? 'Service' : 'Job Card';
 }

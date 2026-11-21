@@ -1,8 +1,7 @@
 /**
  * The integrity watch and the audit trail, as tools — read-only, and only
  * through the same authorised code as the pages: integrity.review for alerts
- * (never alerts about the person asking), audit.view for the trail. Not
- * during an assisted session (the colleague being helped is not a reviewer).
+ * (never alerts about the person asking), audit.view for the trail.
  */
 import type { ToolResult } from '@ejo/enyo';
 import { allows } from '@/lib/authz/server';
@@ -10,7 +9,6 @@ import { getIntegrityOverview } from '@/lib/actions/integrity';
 import { getAuditLogPage } from '@/lib/actions/audit-logs';
 import { NOT_PERMITTED, type StaffTool } from '../types';
 
-const nothing = (message: string): ToolResult => ({ ok: false, message });
 
 export const integrityTools: StaffTool[] = [
   {
@@ -19,8 +17,7 @@ export const integrityTools: StaffTool[] = [
     status: 'Checking the integrity watch…',
     description: 'The integrity watch for a reviewer: open alerts about unusual or risky activity (same person asking and approving, refunds above what was paid, split purchases, repeat warranty claims, vehicles leaving with work open, out-of-hours money, password guessing, activity spikes, Speak up concerns) — counts, by check, and the newest. A flag is a reason to look, never proof: never call anyone dishonest. Use for "anything suspicious?", "fraud alerts", "integrity".',
     parameters: { type: 'object', properties: { severity: { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'] } }, additionalProperties: false },
-    run: async (args, ctx) => {
-      if (ctx.assisted) return nothing('The integrity watch is not available during an assisted session.');
+    run: async (args) => {
       if (!(await allows('integrity.review'))) return NOT_PERMITTED;
       const o = await getIntegrityOverview({ status: 'open', severity: typeof args.severity === 'string' ? args.severity : undefined });
       return {
@@ -48,8 +45,7 @@ export const integrityTools: StaffTool[] = [
       },
       additionalProperties: false,
     },
-    run: async (args, ctx) => {
-      if (ctx.assisted) return nothing('The audit trail is not available during an assisted session.');
+    run: async (args) => {
       if (!(await allows('audit.view'))) return NOT_PERMITTED;
       const page = await getAuditLogPage({ kind: 'business', q: typeof args.q === 'string' ? args.q.slice(0, 60) : undefined, from: typeof args.from === 'string' ? args.from : undefined, to: typeof args.to === 'string' ? args.to : undefined });
       return {

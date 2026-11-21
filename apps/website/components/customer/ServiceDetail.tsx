@@ -6,11 +6,9 @@ import { Badge, BackLink, Card, KeyValue, Notice, SectionTitle, Stepper, Timelin
 import { PayHow, type BankDetails } from './PayHow';
 import { Meter } from './Charts';
 import { Icon } from './Icon';
-import { moduleOn } from '@/lib/edition';
 
 export type EstimateLine = { id: string; type: string; description: string; quantity: number; unitPrice: number | null; amount: number | null; unit: string | null; discount?: number };
 export type BranchInfo = { name: string; address: string | null; hotlines: string[]; email: string | null; bank: BankDetails };
-export type LinkedWarranty = { id: string; number: string; subject: string; endsAt: Date; status: string };
 
 const LINE_GROUP: Record<string, string> = {
   STORE_PART: 'Parts & services', EXTERNAL_PART: 'Parts & services', EXTERNAL_JOB: 'Parts & services', INTERNAL_JOB: 'Parts & services',
@@ -22,8 +20,7 @@ const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: '
 function timelineFor(i: ServiceItem): TimelineEntry[] {
   const e: TimelineEntry[] = [];
   const current = (on: boolean): 'current' | undefined => (on ? 'current' : undefined);
-  if (i.kind === 'vs') e.push({ label: 'Booked', at: i.createdAt, icon: 'calendarCheck', text: 'Your service was booked.' });
-  e.push({ label: 'Checked in', at: i.kind === 'jc' ? i.createdAt : i.checkedInAt, icon: 'car', text: 'Your vehicle arrived at the workshop.' });
+  e.push({ label: 'Checked in', at: i.createdAt, icon: 'car', text: 'Your vehicle arrived at the workshop.' });
   if (i.estimateNotifiedAt) e.push({ label: 'Estimate sent to you', at: i.estimateNotifiedAt, icon: 'receipt', text: i.money.estimateTotal !== null ? `Total ${naira(i.money.estimateTotal)}.` : undefined, tone: current(i.awaitingApproval) });
   for (const p of i.payments) e.push({ label: `Payment received — ${naira(p.amount)}`, at: p.recordedAt, icon: 'wallet', text: METHOD[p.method] ?? undefined });
   if (i.phase === 'cancelled') {
@@ -31,11 +28,7 @@ function timelineFor(i: ServiceItem): TimelineEntry[] {
     for (const r of i.refunds) e.push({ label: `Refund recorded — ${naira(r.amount)}`, at: r.recordedAt, icon: 'refund', text: `Reference ${r.reference}` });
     return inTimeOrder(e);
   }
-  if (i.linked?.relation === 'continued-as') {
-    e.push({ label: `Moved to Job Card ${i.linked.number}`, at: i.escalatedAt, icon: 'route', text: 'We found something that needs a fuller repair, so the work continues on a Job Card.' });
-    return inTimeOrder(e);
-  }
-  const working = i.status === 'IN_PROGRESS' || i.status === 'AWAITING_PARTS' || i.status === 'QUALITY_CHECK' || i.status === 'IN_SERVICE';
+  const working = i.status === 'IN_PROGRESS' || i.status === 'AWAITING_PARTS' || i.status === 'QUALITY_CHECK';
   e.push({ label: i.status === 'AWAITING_PARTS' ? 'Work started — now waiting for parts' : 'Work started', at: i.workStartedAt, icon: 'wrench', tone: current(working && !i.completedAt), text: i.status === 'AWAITING_PARTS' ? i.info.explain : undefined });
   e.push({ label: 'Work completed', at: i.completedAt, icon: 'checkCircle', tone: current(i.status === 'COMPLETED') });
   e.push({ label: 'Ready for collection', at: i.readyAt, icon: 'parking', tone: current(i.waitingForCollection && !i.closedAt) });
@@ -54,21 +47,20 @@ function inTimeOrder(e: TimelineEntry[]): TimelineEntry[] {
 }
 
 /**
- * The full, customer-friendly picture of one Job Card or Vehicle Service:
+ * The full, customer-friendly picture of one Job Card:
  * status with a plain explanation, progress, timeline, what was reported,
  * the estimate (once sent to the customer), payments and balance, how to
  * pay, collection details and who to call.
  */
-export function ServiceDetail({ item, complaints, lines, branch, mileage, warranties }: {
+export function ServiceDetail({ item, complaints, lines, branch, mileage }: {
   item: ServiceItem;
   complaints: string[];
   lines: EstimateLine[] | null;
   branch: BranchInfo | null;
   mileage: number | null;
-  warranties: LinkedWarranty[];
 }) {
   const m = item.money;
-  const owe = item.phase === 'cancelled' || item.status === 'ESCALATED' ? 0 : (m.balance ?? 0);
+  const owe = item.phase === 'cancelled' ? 0 : (m.balance ?? 0);
   const reference = `${item.number} — ${item.vehicle.label}${item.vehicle.plate ? ` — ${item.vehicle.plate}` : ''}`;
   const groups = new Map<string, number>();
   for (const l of lines ?? []) groups.set(LINE_GROUP[l.type] ?? 'Other', (groups.get(LINE_GROUP[l.type] ?? 'Other') ?? 0) + (l.amount ?? 0));
@@ -94,7 +86,7 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage, warran
       </section>
 
       {/* What needs doing now */}
-      {item.awaitingApproval && item.kind === 'jc' ? (
+      {item.awaitingApproval ? (
         <Notice tone="attention" icon="receipt">
           {item.answer?.approvedAt ? (
             <><strong>Thank you — you approved the estimate on {fmtDate(item.answer.approvedAt)}.</strong> Work starts as soon as the deposit of <strong>{naira(m.depositDue ?? 0)}</strong> ({m.depositPercent}% of the estimate) is received. Details on how to pay are below.</>
@@ -105,10 +97,6 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage, warran
               <div className="mt-4"><EstimateAnswerForm jobCardId={item.id} declined={Boolean(item.answer?.declinedAt)} /></div>
             </>
           )}
-        </Notice>
-      ) : item.awaitingApproval ? (
-        <Notice tone="attention" icon="receipt">
-          <strong>Your approval is needed.</strong>{(m.depositDue ?? 0) > 0 ? <> Pay the deposit of <strong>{naira(m.depositDue ?? 0)}</strong> ({m.depositPercent}% of the estimate)</> : <> Pay towards the estimate, or call us to approve it,</>}{item.approvalDeadline ? <> by <strong>{fmtDate(item.approvalDeadline)}</strong></> : null} and we’ll start straight away. Details on how to pay are below.
         </Notice>
       ) : null}
       {item.waitingForCollection ? (
@@ -125,12 +113,6 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage, warran
             ? m.refunded >= m.paid ? <>Your refund of {naira(m.refunded)} has been recorded.</> : <>You paid {naira(m.paid)}{m.refunded > 0 ? <> and {naira(m.refunded)} has been refunded so far</> : null}. Our team will contact you about the refund.</>
             : 'No payment was taken.'}
           {item.inCustody ? ' Your vehicle is still with us — please arrange to collect it.' : ''}
-        </Notice>
-      ) : null}
-      {item.linked ? (
-        <Notice tone="info" icon="route">
-          {item.linked.relation === 'continued-as' ? <>This service continues as <Link className="font-semibold text-[var(--ejo-primary)] underline" href={`/customer-portal/dashboard/services/jc/${item.linked.id}`}>Job Card {item.linked.number}</Link> — all work, payments and collection happen there.</>
-            : <>This Job Card started as <Link className="font-semibold text-[var(--ejo-primary)] underline" href={`/customer-portal/dashboard/services/vs/${item.linked.id}`}>service {item.linked.number}</Link>.</>}
         </Notice>
       ) : null}
 
@@ -197,7 +179,7 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage, warran
                   {m.vatRate > 0 ? <div className="flex justify-between gap-3 text-[var(--ejo-text-muted)]"><dt>VAT ({m.vatRate}%)</dt><dd className="shrink-0 tabular-nums">{naira(m.vatAmount)}</dd></div> : null}
                   <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-[var(--ejo-border)] pt-2.5 text-base font-bold text-[var(--ejo-text)]"><dt>Total estimate</dt><dd className="tabular-nums">{naira(m.estimateTotal)}</dd></div>
                 </dl>
-                {item.kind === 'jc' ? <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Only the items you pay for are shown. Anything covered by a warranty or by us is not included.</p> : null}
+                <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Only the items you pay for are shown. Anything we cover ourselves is not included.</p>
               </div>
             ) : (
               <p className="text-sm text-[var(--ejo-text-muted)]">{item.phase === 'cancelled' ? 'No estimate was sent for this visit.' : 'Your estimate will appear here as soon as it’s ready — we’ll let you know.'}</p>
@@ -266,22 +248,11 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage, warran
             <dl className="grid grid-cols-2 gap-4">
               <KeyValue label="Opened">{fmtDate(item.createdAt)}</KeyValue>
               <KeyValue label="Branch">{item.branchName ?? '—'}</KeyValue>
-              {mileage ? <KeyValue label={item.kind === 'jc' ? 'Mileage at check-in' : 'Odometer'}>{mileage.toLocaleString('en-NG')} km</KeyValue> : null}
+              {mileage ? <KeyValue label="Mileage at check-in">{mileage.toLocaleString('en-NG')} km</KeyValue> : null}
               {item.nextServiceDueDate || item.nextServiceDueOdometer ? (
                 <KeyValue label="Next service due">{[item.nextServiceDueDate ? fmtDate(item.nextServiceDueDate) : null, item.nextServiceDueOdometer ? `${item.nextServiceDueOdometer.toLocaleString('en-NG')} km` : null].filter(Boolean).join(' or ')}</KeyValue>
               ) : null}
             </dl>
-            {/* Warranties from the visit show only while the warranty module is on (lib/edition.ts). */}
-            {moduleOn('warranty') && warranties.length ? (
-              <div className="mt-4 border-t border-[var(--ejo-border)] pt-3">
-                <p className="text-xs font-medium text-[var(--ejo-text-muted)]">Warranties from this visit</p>
-                <ul className="mt-2 space-y-1.5">
-                  {warranties.map((w) => (
-                    <li key={w.id}><Link href={`/customer-portal/dashboard/warranties/${w.id}`} className="flex items-start justify-between gap-2 text-sm text-[var(--ejo-text)] hover:text-[var(--ejo-primary)]"><span className="flex min-w-0 items-start gap-2"><span className="mt-0.5 shrink-0 text-[var(--ejo-primary)]"><Icon name="shield" size={14} /></span><span className="line-clamp-2 break-words">{w.subject}</span></span><span className="mt-0.5 shrink-0 whitespace-nowrap text-xs text-[var(--ejo-text-muted)]">to {fmtDate(w.endsAt)}</span></Link></li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
           </Card>
 
           {branch ? <BranchCard branch={branch} /> : null}

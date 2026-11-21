@@ -16,7 +16,7 @@ import { retryOnNumberClash } from '@/lib/integrity-core';
 import { sendEmail } from '@/lib/email';
 import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
 import { logFailure } from '@/lib/log';
-import { connectionSettings, type StoredAccount } from '@/lib/mail/account';
+import { connectionSettings, type StoredAccount } from '@/lib/mail/connection';
 import { smtpTransport, withTimeout } from '@/lib/mail/transport';
 import { htmlToText } from '@/lib/email-templates/layout';
 import { PLATFORM } from '@/lib/brand';

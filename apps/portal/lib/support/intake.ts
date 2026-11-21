@@ -28,7 +28,7 @@ import { logFailure } from '@/lib/log';
 import { closeImap, MailConnectError, openImap, withTimeout } from '@/lib/mail/transport';
 import { MailCryptoError } from '@/lib/mail/crypto';
 import { cleanBody, flattenAddresses, type AttachmentInfo } from '@/lib/mail/parse-core';
-import { fetchChunk } from '@/lib/mail/sync';
+import { fetchChunk } from '@/lib/mail/connection';
 import { htmlToText } from '@/lib/email-templates/layout';
 import { renderSupportAcknowledgement } from '@/lib/email-templates/support-centre';
 import {

@@ -1,19 +1,16 @@
 /**
- * A4c2 — customer documents in bulk. Pure, with no Node modules (the form
+ * Customer documents in bulk. Pure, with no Node modules (the form
  * imports it): the kinds of document, the period rules, how many go in one
  * zip, and the names of the files.
  *
- * The documents are the PDFs customers are sent — the estimate for a Job
- * Card or a Vehicle Service, and the inspection report — built from the
- * records as they stand at the moment of download, by the same code that
- * builds the copy emailed to the customer.
+ * The documents are the PDFs customers are sent — the estimate for each Job
+ * Card — built from the records as they stand at the moment of download, by
+ * the same code that builds the copy emailed to the customer.
  */
-export const DOCUMENT_KINDS = ['JOB_ESTIMATE', 'SERVICE_ESTIMATE', 'INSPECTION'] as const;
+export const DOCUMENT_KINDS = ['JOB_ESTIMATE'] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 export const DOCUMENT_KIND: Record<DocumentKind, { label: string; what: string; dated: string; prefix: string }> = {
   JOB_ESTIMATE: { label: 'Job Card estimates', what: 'The estimate each customer was sent for a Job Card.', dated: 'the day the customer was sent it', prefix: 'Estimate' },
-  SERVICE_ESTIMATE: { label: 'Vehicle Service estimates', what: 'The estimate each customer was sent for a Vehicle Service.', dated: 'the day the customer was sent it', prefix: 'Estimate' },
-  INSPECTION: { label: 'Inspection reports', what: 'The customer’s report of each completed vehicle inspection.', dated: 'the day the inspection was completed', prefix: 'Inspection' },
 };
 export const isDocumentKind = (k: unknown): k is DocumentKind => typeof k === 'string' && (DOCUMENT_KINDS as readonly string[]).includes(k);
 
@@ -44,6 +41,6 @@ export const partsOf = (count: number) => Math.max(1, Math.ceil(count / DOCUMENT
 export const documentFileName = (kind: DocumentKind, number: string) => `${DOCUMENT_KIND[kind].prefix}-${number.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 60)}.pdf`;
 /** The zip's name: what, where from, the period, which part. */
 export function zipFileName(kind: DocumentKind, from: string, to: string, part: number, parts: number): string {
-  const what = kind === 'JOB_ESTIMATE' ? 'job-card-estimates' : kind === 'SERVICE_ESTIMATE' ? 'vehicle-service-estimates' : 'inspection-reports';
+  const what = DOCUMENT_KIND[kind].label.toLowerCase().replace(/\s+/g, '-');
   return `EJO-${what}-${from}-to-${to}${parts > 1 ? `-part-${part}-of-${parts}` : ''}.zip`;
 }

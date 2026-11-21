@@ -37,12 +37,12 @@ const CONTEXT_WORDS = /\b(this|that|these|those|here|there|it|its|my|mine|me|our
 const RECORD_PAGE = /\/[a-z0-9]{20,}(?:\/|$)|\/\d+(?:\/|$)/i;
 
 /**
- * May a learned answer be given verbatim here? Never in an assisted session,
- * never once the chat has history, never on a record page and never when the
- * question refers to its context ("this", "my", "here"…).
+ * May a learned answer be given verbatim here? Never once the chat has
+ * history, never on a record page and never when the question refers to its
+ * context ("this", "my", "here"…).
  */
-export function reuseAllowed(o: { question: string; historyLength: number; assisted: boolean; page?: string }): boolean {
-  if (o.assisted || o.historyLength > 0) return false;
+export function reuseAllowed(o: { question: string; historyLength: number; page?: string }): boolean {
+  if (o.historyLength > 0) return false;
   if (o.page && RECORD_PAGE.test(o.page)) return false;
   return !CONTEXT_WORDS.test(o.question);
 }

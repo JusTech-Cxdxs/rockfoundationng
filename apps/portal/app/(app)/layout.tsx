@@ -1,11 +1,9 @@
-import { signedInSession } from '@/lib/assist/server';
+import { signedInSession } from '@/lib/session';
 import { Suspense, type ReactNode } from 'react';
-import { cookies, headers } from 'next/headers';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { prisma } from '@ejo/database';
-import { auth } from '@/lib/auth';
-import { currentAssist, getBranchView, getPrincipal } from '@/lib/authz/server';
-import { AssistBanner } from '@/components/AssistBanner';
+import { getBranchView, getPrincipal } from '@/lib/authz/server';
 import { navigationFor } from '@/lib/authz/navigation';
 import { AppShell } from '@/components/AppShell';
 import { NotificationProvider } from '@/components/NotificationProvider';
@@ -32,7 +30,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   // The person and their permissions are read in parallel (one round trip, not two).
-  const [userResult, principalResult, assistResult] = await Promise.allSettled([prisma.user.findUnique({
+  const [userResult, principalResult] = await Promise.allSettled([prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
       fullName: true,
@@ -43,7 +41,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       branch: { select: { name: true } },
       department: { select: { name: true } },
     },
-  }), getPrincipal(), currentAssist()]);
+  }), getPrincipal()]);
   // Deactivated (or removed) while signed in: out, immediately.
   if (userResult.status === 'rejected') throw userResult.reason;
   const user = userResult.value;
@@ -51,12 +49,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // (A switched-off person never reaches this: their permissions are not loaded.)
   if (principalResult.status === 'rejected') throw principalResult.reason;
   const principal = principalResult.value;
-  // Working on a colleague's behalf: the menu is theirs, and a banner says so on every page.
-  const assist = assistResult.status === 'fulfilled' ? assistResult.value : null;
 
-
-  // Headquarters roles: the branch bar (all branches, or one) — not while working for a colleague.
-  const lens = assist ? null : await getBranchLensOptions().catch(() => null);
+  // Organisation-wide roles: the branch bar (all branches, or one).
+  const lens = await getBranchLensOptions().catch(() => null);
   // The kind of branch in view: the menu offers only the areas that branch has (a plant has no Inventory; a workshop has no line).
   const view = await getBranchView().catch(() => ({}));
 
@@ -72,14 +67,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const collapsed = (await cookies()).get('ejo-sidebar')?.value === 'collapsed';
 
   return (
-    <NotificationProvider userId={session?.user?.id ? (assist ? `${session.user.id}.assist.${assist.subject.id}` : session.user.id) : null}>
+    <NotificationProvider userId={session.user.id}>
       <AppShell
-        items={assist ? navigationFor(principal, view).filter((i) => i.key !== 'mail') : navigationFor(principal, view)}
+        items={navigationFor(principal, view)}
         organisationName={user.organisation?.name ?? portalConfig.companyName}
         userName={user?.fullName ?? 'Unknown user'}
         roleName={roleName}
         initialCollapsed={collapsed}
-        banner={assist ? <AssistBanner colleague={assist.subject.name} role={assist.subject.roleLabel} expiresAt={assist.expiresAt.toISOString()} /> : null}
         lensBar={lens && lens.branches.length ? <BranchLensBar options={lens} /> : null}
       >
         {children}

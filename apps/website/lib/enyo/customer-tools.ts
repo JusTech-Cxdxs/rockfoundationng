@@ -7,14 +7,12 @@
  * no internal notes, costs or staff names. Another customer's number is
  * answered exactly like a number that does not exist.
  */
-import { loadContact, loadOwnEstimate, loadServices, loadVehicles, loadWarranties, nextServiceFor, outstanding, type ServiceItem } from '@/lib/customer-portal/data';
+import { loadContact, loadOwnEstimate, loadServices, loadVehicles, nextServiceFor, outstanding, type ServiceItem } from '@/lib/customer-portal/data';
 import { fmtDate, fmtDateTime, naira, round2 } from '@/lib/customer-portal/format';
-import { CLAIM_STATUS, WARRANTY_STATE_INFO } from '@/lib/customer-portal/status';
 import { loadCompanyInfo } from './company';
 import { openHandover } from './handover';
 import { findOwnJob, nextStepFor, NOT_FOUND_MESSAGE, plural } from './rules';
 import type { WebCtx, WebTool } from './types';
-import { moduleOn } from '@/lib/edition';
 
 const SIGNED_OUT = { ok: false as const, refused: true, message: 'The customer is not signed in. Ask them to sign in to the customer portal.' };
 
@@ -29,10 +27,10 @@ function jobSummary(i: ServiceItem) {
   const estimateReady = i.estimateNotifiedAt !== null;
   return {
     number: i.number,
-    type: i.kind === 'jc' ? (i.isServiceJobCard ? 'Job Card (service)' : 'Job Card (repair)') : 'Vehicle Service',
+    type: i.isServiceJobCard ? 'Job Card (service)' : 'Job Card (repair)',
     status: i.info.label,
     meaning: i.info.explain,
-    nextStep: nextStepFor({ kind: i.kind, status: i.status, awaitingApproval: i.awaitingApproval, waitingForCollection: i.waitingForCollection, balance: i.money.balance, estimateReady }),
+    nextStep: nextStepFor({ status: i.status, awaitingApproval: i.awaitingApproval, waitingForCollection: i.waitingForCollection, balance: i.money.balance, estimateReady }),
     vehicle: i.vehicle.plate ? `${i.vehicle.label} (${i.vehicle.plate})` : i.vehicle.label,
     branch: i.branchName,
     openedOn: fmtDate(i.createdAt),
@@ -84,7 +82,7 @@ const myVehicles: WebTool = {
 
 const myJobs: WebTool = {
   name: 'my_jobs',
-  description: 'Lists the signed-in customer\'s own Job Cards and Vehicle Services (newest first) with a friendly status, what happens next, and the money picture when an estimate has been sent. Use active_only to skip finished ones.',
+  description: 'Lists the signed-in customer\'s own Job Cards (newest first) with a friendly status, what happens next, and the money picture when an estimate has been sent. Use active_only to skip finished ones.',
   parameters: { type: 'object', properties: { active_only: { type: 'boolean', description: 'Only jobs still in progress or waiting for collection.' } }, additionalProperties: false },
   kind: 'read',
   status: 'Checking your jobs…',
@@ -103,8 +101,8 @@ const myJobs: WebTool = {
 
 const jobStatus: WebTool = {
   name: 'job_status',
-  description: 'The status of ONE of the customer\'s own Job Cards or Vehicle Services by its number (for example JC-2026-000412 or SV-2026-000031): status, what it means, next step, dates and the money picture.',
-  parameters: { type: 'object', properties: { number: { type: 'string', description: 'The Job Card or service number, e.g. JC-2026-000412.', maxLength: 40 } }, required: ['number'], additionalProperties: false },
+  description: 'The status of ONE of the customer\'s own Job Cards by its number (for example JC-2026-000412): status, what it means, next step, dates and the money picture.',
+  parameters: { type: 'object', properties: { number: { type: 'string', description: 'The Job Card number, e.g. JC-2026-000412.', maxLength: 40 } }, required: ['number'], additionalProperties: false },
   kind: 'read',
   status: 'Checking that job…',
   async run(args, ctx) {
@@ -119,7 +117,7 @@ const jobStatus: WebTool = {
 const myEstimate: WebTool = {
   name: 'my_estimate',
   description: 'The estimate for one of the customer\'s own jobs, line by line, once it has been sent to them. Give the job number; without one, the latest job with an estimate is used.',
-  parameters: { type: 'object', properties: { number: { type: 'string', description: 'The Job Card or service number. Optional.', maxLength: 40 } }, additionalProperties: false },
+  parameters: { type: 'object', properties: { number: { type: 'string', description: 'The Job Card number. Optional.', maxLength: 40 } }, additionalProperties: false },
   kind: 'read',
   status: 'Reading your estimate…',
   async run(args, ctx) {
@@ -184,38 +182,6 @@ const myPayments: WebTool = {
   },
 };
 
-const myWarranties: WebTool = {
-  name: 'my_warranties',
-  description: 'The customer\'s warranties: what is covered, from when to when, whether it is active or expiring, and any claims.',
-  parameters: { type: 'object', properties: {}, additionalProperties: false },
-  kind: 'read',
-  status: 'Checking your warranties…',
-  async run(_args, ctx) {
-    const me = needCustomer(ctx);
-    if (!me) return SIGNED_OUT;
-    const ws = await loadWarranties(me.id);
-    return {
-      ok: true,
-      data: {
-        count: plural(ws.length, 'warranty', 'warranties'),
-        warranties: ws.slice(0, 20).map((w) => ({
-          number: w.number,
-          covers: w.subject,
-          policy: w.policyName,
-          state: WARRANTY_STATE_INFO[w.state].label,
-          from: fmtDate(w.startsAt),
-          until: fmtDate(w.endsAt),
-          distanceLimit: w.distanceLimit ? `${w.distanceLimit.toLocaleString('en-NG')} km` : null,
-          vehicle: w.vehicle ? w.vehicle.label : null,
-          claims: w.claims.map((c) => ({ number: c.number, status: CLAIM_STATUS[c.status]?.label ?? c.status, openedOn: fmtDate(c.createdAt) })),
-          link: `/customer-portal/dashboard/warranties/${w.id}`,
-        })),
-      },
-      sources: [{ label: 'Warranties', href: '/customer-portal/dashboard/warranties' }],
-    };
-  },
-};
-
 const howToPay: WebTool = {
   name: 'how_to_pay',
   description: 'How the customer can pay: the bank account of their branch (the branch of their latest visit) and the reference to use, or "call your branch" when no account is set up.',
@@ -236,7 +202,7 @@ const howToPay: WebTool = {
       data: {
         branch: contact?.name ?? null,
         bankTransfer: usable ? { bank: b!.bankName, accountName: b!.accountName, accountNumber: b!.accountNumber } : null,
-        reference: job ? job.number : 'Your Job Card or service number',
+        reference: job ? job.number : 'Your Job Card number',
         ifNoBankDetails: usable ? null : 'Please call your branch for the bank details.',
         branchPhones: phones,
         inPerson: 'Or pay in person at the office; the cashier confirms it on the spot.',
@@ -249,7 +215,7 @@ const howToPay: WebTool = {
 
 const companyInfo: WebTool = {
   name: 'organisation_info',
-  description: 'The organisation\'s contact details: the customer\'s own branch, other branches with addresses, phone numbers and emails, opening hours if listed, the businesses and services described on the website, its leadership and other people it publishes (titles and public profiles), and how to book. Check this first for a "who is …" question about one of the organisation\'s people.',
+  description: 'The organisation\'s contact details: the customer\'s own branch, other branches with addresses, phone numbers and emails, opening hours if listed, the businesses and services described on the website, and how to book.',
   parameters: { type: 'object', properties: {}, additionalProperties: false },
   kind: 'read',
   status: 'Looking up our contact details…',
@@ -290,10 +256,7 @@ const requestHandover: WebTool = {
   },
 };
 
-/** my_warranties only while the warranty module is on (lib/edition.ts). */
 export const customerTools: WebTool[] = [
-  myVehicles, myJobs, jobStatus, myEstimate, myPayments,
-  ...(moduleOn('warranty') ? [myWarranties] : []),
-  howToPay,
+  myVehicles, myJobs, jobStatus, myEstimate, myPayments, howToPay,
   companyInfo, requestHandover,
 ];

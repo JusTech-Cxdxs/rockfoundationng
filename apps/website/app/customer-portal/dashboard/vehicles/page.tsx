@@ -4,7 +4,6 @@ import { loadServices, loadVehicles, nextServiceFor } from '@/lib/customer-porta
 import { fmtDate } from '@/lib/customer-portal/format';
 import { Badge, EmptyState, PageHero } from '@/components/customer/ui';
 import { Icon } from '@/components/customer/Icon';
-import { moduleOn } from '@/lib/edition';
 
 export const metadata = { title: 'My vehicles' };
 
@@ -18,8 +17,8 @@ export default async function VehiclesPage() {
       {vehicles.length ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {vehicles.map((v, idx) => {
-            const visits = items.filter((i) => i.vehicle.id === v.id && i.status !== 'ESCALATED');
-            const custody = visits.find((i) => i.inCustody && i.status !== 'SCHEDULED');
+            const visits = items.filter((i) => i.vehicle.id === v.id);
+            const custody = visits.find((i) => i.inCustody);
             const last = visits[0];
             const next = nextServiceFor(v.id, items);
             return (
@@ -37,7 +36,7 @@ export default async function VehiclesPage() {
                   <div><dt className="text-xs text-[var(--ejo-text-muted)]">Next service</dt><dd className="font-medium text-[var(--ejo-text)]">{next?.date ? fmtDate(next.date) : next?.odometer ? `${next.odometer.toLocaleString('en-NG')} km` : '—'}</dd></div>
                 </dl>
                 {custody ? <p className="mt-4 rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)]/[0.07] px-3 py-2 text-xs text-[var(--ejo-text)]"><strong>{custody.number}:</strong> {custody.info.label}</p> : null}
-                <p className="mt-auto pt-4 text-sm font-medium text-[var(--ejo-primary)]">{moduleOn('warranty') ? 'History & warranties' : 'Service history'} <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span></p>
+                <p className="mt-auto pt-4 text-sm font-medium text-[var(--ejo-primary)]">Service history <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span></p>
               </Link>
             );
           })}

@@ -7,21 +7,18 @@ import { Icon } from '@/components/customer/Icon';
 import { SupportReplyForm } from '@/components/customer/SupportReplyForm';
 import { NewSupportRequestForm } from '@/components/customer/NewSupportRequestForm';
 import { APPROVAL_DEADLINE_WORKING_DAYS, READY_FOR_COLLECTION_GRACE_WORKING_DAYS } from '@/lib/customer-portal/format';
-import { moduleOn } from '@/lib/edition';
 
 export const metadata = { title: 'Help & support' };
 
 const FAQS: { q: string; a: string }[] = [
   { q: 'How do I approve my estimate?', a: `When your estimate is ready we’ll email you and it appears under My services. Open it and press “Approve the estimate”, use the secure link in our email, or call your branch. If a deposit is shown on your estimate, the work starts once it is paid too. Please approve within ${APPROVAL_DEADLINE_WORKING_DAYS} working days so we can keep your slot.` },
-  { q: 'How do I pay?', a: 'By bank transfer to the account shown on your estimate (use your Job Card or service number as the reference), or in person at our office. Payments show here as soon as our cashier records them.' },
+  { q: 'How do I pay?', a: 'By bank transfer to the account shown on your estimate (use your Job Card number as the reference), or in person at our office. Payments show here as soon as our cashier records them.' },
   { q: 'What does “Waiting for parts” mean?', a: 'We’re waiting for a part to arrive. Nothing is needed from you — work carries on the moment it’s here, and you’ll see the status change.' },
   { q: 'When should I collect my vehicle?', a: `As soon as it’s ready. Please collect within ${READY_FOR_COLLECTION_GRACE_WORKING_DAYS} working days of the ready-for-collection notice — after that, storage charges may apply. Any balance must be settled before collection.` },
   { q: 'Someone else is collecting my vehicle — is that OK?', a: 'Yes. Let your branch know their name in advance; they’ll need to show ID at the gate.' },
-  // Only while the warranty module is on (lib/edition.ts); filtered out below otherwise.
-  { q: 'How do warranties work?', a: 'Parts and work that come with a warranty are listed under Warranties with their dates and what they cover. If something covered goes wrong, contact your branch — we handle the claim with the provider for you.' },
   { q: 'I didn’t get an email from you.', a: 'Check your spam or junk folder, and make sure “Email me updates too” is on in Profile & settings. Everything we send also appears here under Notifications.' },
   { q: 'How do I change my name or email?', a: 'Please contact your branch — we confirm these in person to keep your account safe. You can change your phone numbers and addresses yourself in Profile & settings.' },
-].filter((f) => moduleOn('warranty') || f.q !== 'How do warranties work?');
+];
 
 
 /** Who to call, the customer's support requests (with replies), and answers to common questions. */
@@ -32,7 +29,7 @@ export default async function SupportPage() {
   const emails = c ? [...new Set([c.email, c.orgEmail].filter((x): x is string => Boolean(x)))] : [];
   return (
     <div className="space-y-6">
-      <PageHero eyebrow="Help & support" icon="help" title="We’re here to help" subtitle="Ask the assistant any time, follow your support requests, or talk to your branch about anything — your vehicle, an estimate, a payment or a warranty." />
+      <PageHero eyebrow="Help & support" icon="help" title="We’re here to help" subtitle="Ask the assistant any time, follow your support requests, or talk to your branch about anything — your vehicle, an estimate or a payment." />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-6">

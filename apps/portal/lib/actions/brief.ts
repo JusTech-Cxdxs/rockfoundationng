@@ -4,7 +4,7 @@ import { asData, complete } from '@ejo/enyo';
 import { myOrganisationId } from '@/lib/authz/server';
 import { requireUser } from './workshop';
 import { enyoReady } from '@/lib/enyo/settings';
-import { withinLimit } from '@/lib/mail/account';
+import { withinLimit } from '@/lib/rate-limit';
 import { logFailure } from '@/lib/log';
 import { collectBrief } from '@/lib/brief/collect';
 import { briefCount, briefHeadline, briefPeriod, cleanSummary, plainSummary, summaryMessages, type BriefData } from '@/lib/brief/core';

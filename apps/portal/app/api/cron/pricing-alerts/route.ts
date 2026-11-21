@@ -5,16 +5,13 @@ import { isCronRequest } from '@/lib/cron-auth';
 import { setAuditActor } from '@ejo/database';
 import { recordJobRun } from '@/lib/job-runs';
 import { purgeOldErrorEvents } from '@/lib/error-events';
-import { purgeOldSiteVisits } from '@/lib/site-visits-retention';
 import { purgeExpiredOnSchedule } from '@/lib/recycle-bin/server';
 import { releaseExpiredStagedRows } from '@/lib/data-exchange/staging-server';
 import { purgeOldEnyoConversations } from '@/lib/enyo/retention';
 import { getOpenPricingAlertsForDigest } from '@/lib/pricing-digest';
 import { sendEmail } from '@/lib/email';
 import { renderPricingAlertsDigestEmail } from '@/lib/email-templates/pricing-alerts-digest';
-import { purgeOldMailMessages } from '@/lib/mail/sync';
 import { purgeOldReminders } from '@/lib/reminders';
-import { resolveDurations } from '@/lib/enyo/ml/models';
 import { harvestPublicConversations } from '@/lib/enyo/conversations';
 import { prisma } from '@ejo/database';
 import { runDemoPulseForAll } from '@/lib/demo/pulse';
@@ -100,19 +97,9 @@ export async function GET(request: NextRequest) {
 
   const chats = await purgeOldEnyoConversations().catch((err) => { logFailure('Enyo conversation clean-up failed', err); return null; });
   if (chats !== null) await recordJobRun('enyo-cleanup', { conversationsRemoved: chats.staffAndCustomer + chats.publicChats, staffAndCustomer: chats.staffAndCustomer, publicChats: chats.publicChats });
-  // Stored copies of connected mailboxes are kept 90 days (data inventory: MailMessage).
-  const mailPurged = await purgeOldMailMessages().catch((err) => { logFailure('Mail clean-up failed', err); return null; });
-  if (mailPurged !== null) await recordJobRun('mail-retention', { messagesRemoved: mailPurged });
   // Done and cancelled reminders are kept 12 months (data inventory: Reminder).
   const remindersPurged = await purgeOldReminders().catch((err) => { logFailure('Reminder clean-up failed', err); return null; });
   if (remindersPurged !== null) await recordJobRun('reminder-retention', { remindersRemoved: remindersPurged });
-  // Website page views are kept 13 months (data inventory: SiteVisit). A database before v40 simply has none.
-  const visitsPurged = await purgeOldSiteVisits(400).catch(() => null);
-  if (visitsPurged !== null) await recordJobRun('site-visit-retention', { pageViewsRemoved: visitsPurged });
-
-  // Enyo: score yesterday's job time estimates against when the vehicles were actually ready.
-  const durations = await resolveDurations().catch((err) => { logFailure('Enyo job time scoring failed', err); return null; });
-  if (durations !== null) await recordJobRun('enyo-duration-scoring', { estimatesScored: durations });
 
   // Enyo: yesterday's customer and website chats → answers waiting for approval (Enyo learning page).
   let harvested = 0;

@@ -15,27 +15,11 @@ import {
   approvePartRequestSlipByStore,
   releasePartRequestSlip,
   rejectPartRequestSlip,
-  requestServiceEstimatePartRequestSlip,
-  requestExternalProcurementBatch,
-  addExternalProcurementSupplementaryLine,
-  removeExternalProcurementSupplementaryLine,
-  editExternalProcurementSupplementaryLine,
-  sendExternalProcurementToManager,
-  approveExternalProcurementRequest,
-  disburseExternalProcurementRequest,
-  rejectExternalProcurementRequest,
 } from './sourcing';
 
 function str(formData: FormData, key: string): string {
   const value = formData.get(key);
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function num(formData: FormData, key: string): number | undefined {
-  const raw = str(formData, key);
-  if (!raw) return undefined;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 export async function requestPartRequestSlipFormAction(formData: FormData) {
@@ -51,26 +35,9 @@ export async function requestPartRequestSlipFormAction(formData: FormData) {
   redirect(`/workshop/job-cards/${jobCardId}?status=parts_requested`);
 }
 
-/** Vehicle Service version of requestPartRequestSlipFormAction; redirects
- * back to the service estimate page. */
-export async function requestServiceEstimatePartRequestSlipFormAction(formData: FormData) {
-  const serviceEstimateId = str(formData, 'serviceEstimateId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
-  try {
-    await requestServiceEstimatePartRequestSlip(serviceEstimateId);
-  } catch (err) {
-    const message = friendlyError(err, 'Could not raise the parts request.', 'sourcing-form-handlers');
-    redirect(`/workshop/vehicle-service/${vehicleServiceId}/request-parts?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
-  revalidatePath('/workshop/parts-requests');
-  redirect(`/workshop/vehicle-service/${vehicleServiceId}?status=parts_requested`);
-}
-
 export async function approvePartRequestSlipByHodFormAction(formData: FormData) {
   const slipId = str(formData, 'slipId');
   const jobCardId = str(formData, 'jobCardId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
   try {
     await approvePartRequestSlipByHod(slipId, str(formData, 'notes') || undefined);
   } catch (err) {
@@ -80,14 +47,12 @@ export async function approvePartRequestSlipByHodFormAction(formData: FormData) 
   revalidatePath(`/workshop/parts-requests/${slipId}`);
   revalidatePath('/workshop/parts-requests');
   if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  if (vehicleServiceId) revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
   redirect(`/workshop/parts-requests/${slipId}?status=hod_approved`);
 }
 
 export async function approvePartRequestSlipByStoreFormAction(formData: FormData) {
   const slipId = str(formData, 'slipId');
   const jobCardId = str(formData, 'jobCardId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
   try {
     await approvePartRequestSlipByStore(slipId, str(formData, 'notes') || undefined);
   } catch (err) {
@@ -97,14 +62,12 @@ export async function approvePartRequestSlipByStoreFormAction(formData: FormData
   revalidatePath(`/workshop/parts-requests/${slipId}`);
   revalidatePath('/workshop/parts-requests');
   if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  if (vehicleServiceId) revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
   redirect(`/workshop/parts-requests/${slipId}?status=store_approved`);
 }
 
 export async function releasePartRequestSlipFormAction(formData: FormData) {
   const slipId = str(formData, 'slipId');
   const jobCardId = str(formData, 'jobCardId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
   try {
     const serializedLineIds = formData.getAll('serializedLineId').map((v) => (typeof v === 'string' ? v : ''));
     const lineSerials: Record<string, string[]> = {};
@@ -125,14 +88,12 @@ export async function releasePartRequestSlipFormAction(formData: FormData) {
   revalidatePath('/workshop/parts-requests');
   revalidatePath('/inventory/parts');
   if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  if (vehicleServiceId) revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
   redirect(`/workshop/parts-requests/${slipId}?status=released`);
 }
 
 export async function rejectPartRequestSlipFormAction(formData: FormData) {
   const slipId = str(formData, 'slipId');
   const jobCardId = str(formData, 'jobCardId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
   try {
     await rejectPartRequestSlip(slipId, str(formData, 'reason'));
   } catch (err) {
@@ -142,121 +103,5 @@ export async function rejectPartRequestSlipFormAction(formData: FormData) {
   revalidatePath(`/workshop/parts-requests/${slipId}`);
   revalidatePath('/workshop/parts-requests');
   if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  if (vehicleServiceId) revalidatePath(`/workshop/vehicle-service/${vehicleServiceId}`);
   redirect(`/workshop/parts-requests/${slipId}?status=rejected`);
-}
-
-export async function requestExternalProcurementFormAction(formData: FormData) {
-  const jobCardId = str(formData, 'jobCardId');
-  try {
-    await requestExternalProcurementBatch(jobCardId);
-  } catch (err) {
-    const message = friendlyError(err, 'Could not raise the procurement request.', 'sourcing-form-handlers');
-    redirect(`/workshop/job-cards/${jobCardId}/request-procurement?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  revalidatePath('/workshop/external-procurement');
-  redirect(`/workshop/job-cards/${jobCardId}?status=procurement_requested`);
-}
-
-export async function approveExternalProcurementRequestFormAction(formData: FormData) {
-  const requestId = str(formData, 'requestId');
-  const jobCardId = str(formData, 'jobCardId');
-  try {
-    await approveExternalProcurementRequest(requestId, str(formData, 'notes') || undefined);
-  } catch (err) {
-    const message = friendlyError(err, 'Could not approve this request.', 'sourcing-form-handlers');
-    redirect(`/workshop/external-procurement/${requestId}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/external-procurement/${requestId}`);
-  revalidatePath('/workshop/external-procurement');
-  if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  redirect(`/workshop/external-procurement/${requestId}?status=approved`);
-}
-
-export async function disburseExternalProcurementRequestFormAction(formData: FormData) {
-  const requestId = str(formData, 'requestId');
-  const jobCardId = str(formData, 'jobCardId');
-  try {
-    await disburseExternalProcurementRequest(requestId, {
-      paymentMethod: str(formData, 'paymentMethod'),
-      paymentReference: str(formData, 'paymentReference') || undefined,
-      disbursementNotes: str(formData, 'disbursementNotes') || undefined,
-    });
-  } catch (err) {
-    const message = friendlyError(err, 'Could not disburse this request.', 'sourcing-form-handlers');
-    redirect(`/workshop/external-procurement/${requestId}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/external-procurement/${requestId}`);
-  revalidatePath('/workshop/external-procurement');
-  if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  redirect(`/workshop/external-procurement/${requestId}?status=disbursed`);
-}
-
-export async function addExternalProcurementSupplementaryLineFormAction(formData: FormData) {
-  const requestId = str(formData, 'requestId');
-  try {
-    await addExternalProcurementSupplementaryLine(requestId, str(formData, 'description'), num(formData, 'amount') ?? 0);
-  } catch (err) {
-    const message = friendlyError(err, 'Could not add this line.', 'sourcing-form-handlers');
-    redirect(`/workshop/external-procurement/${requestId}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/external-procurement/${requestId}`);
-  redirect(`/workshop/external-procurement/${requestId}?status=line_added`);
-}
-
-export async function removeExternalProcurementSupplementaryLineFormAction(formData: FormData) {
-  const requestId = str(formData, 'requestId');
-  const lineId = str(formData, 'lineId');
-  try {
-    await removeExternalProcurementSupplementaryLine(lineId);
-  } catch (err) {
-    const message = friendlyError(err, 'Could not remove this line.', 'sourcing-form-handlers');
-    redirect(`/workshop/external-procurement/${requestId}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/external-procurement/${requestId}`);
-  redirect(`/workshop/external-procurement/${requestId}?status=line_removed`);
-}
-
-export async function editExternalProcurementSupplementaryLineFormAction(formData: FormData) {
-  const requestId = str(formData, 'requestId');
-  const lineId = str(formData, 'lineId');
-  try {
-    await editExternalProcurementSupplementaryLine(lineId, str(formData, 'description'), num(formData, 'amount') ?? 0);
-  } catch (err) {
-    const message = friendlyError(err, 'Could not update this line.', 'sourcing-form-handlers');
-    redirect(`/workshop/external-procurement/${requestId}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/external-procurement/${requestId}`);
-  redirect(`/workshop/external-procurement/${requestId}?status=line_edited`);
-}
-
-export async function sendExternalProcurementToManagerFormAction(formData: FormData) {
-  const requestId = str(formData, 'requestId');
-  const jobCardId = str(formData, 'jobCardId');
-  try {
-    await sendExternalProcurementToManager(requestId);
-  } catch (err) {
-    const message = friendlyError(err, 'Could not send this request to the Manager.', 'sourcing-form-handlers');
-    redirect(`/workshop/external-procurement/${requestId}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/external-procurement/${requestId}`);
-  revalidatePath('/workshop/external-procurement');
-  if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  redirect(`/workshop/external-procurement/${requestId}?status=sent_to_manager`);
-}
-
-export async function rejectExternalProcurementRequestFormAction(formData: FormData) {
-  const requestId = str(formData, 'requestId');
-  const jobCardId = str(formData, 'jobCardId');
-  try {
-    await rejectExternalProcurementRequest(requestId, str(formData, 'reason'));
-  } catch (err) {
-    const message = friendlyError(err, 'Could not reject this request.', 'sourcing-form-handlers');
-    redirect(`/workshop/external-procurement/${requestId}?error=${encodeURIComponent(message)}`);
-  }
-  revalidatePath(`/workshop/external-procurement/${requestId}`);
-  revalidatePath('/workshop/external-procurement');
-  if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
-  redirect(`/workshop/external-procurement/${requestId}?status=rejected`);
 }

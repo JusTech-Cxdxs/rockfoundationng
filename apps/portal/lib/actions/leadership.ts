@@ -1,16 +1,14 @@
 'use server';
 
 import { prisma } from '@ejo/database';
-import { allows, authorize, getPrincipal, myOrganisationId, reachWhere, typedReach } from '@/lib/authz/server';
-import { AREA_BRANCH_TYPES } from '@/lib/branch-types';
-import { minutesBetween, stationTimes } from '@/lib/plant/line';
+import { allows, authorize, getPrincipal, myOrganisationId, reachWhere } from '@/lib/authz/server';
 import { scopeFor } from '@/lib/authz/catalogue';
 import { lagosYmd } from '@/lib/nigeria-calendar';
 import { jobIsLate, jobStatuses } from '@/lib/job-runs';
 import { schemaHealth } from '@/lib/schema-health';
 import { enyoReady } from '@/lib/enyo/settings';
 import type { SchemaVerdict } from '@/lib/schema-health-core';
-import { featureOn, moduleIsOn } from '@/lib/modules';
+import { moduleIsOn } from '@/lib/modules';
 
 /**
  * The two overview panels on the dashboard for the people who run the
@@ -26,7 +24,6 @@ import { featureOn, moduleIsOn } from '@/lib/modules';
  */
 
 const OPEN_JC = ['CLOSED', 'CHECKED_OUT', 'CANCELLED'] as const;
-const OPEN_VS = ['CLOSED', 'COLLECTED', 'CANCELLED', 'ESCALATED'] as const;
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 const hoursSince = (d: Date | null | undefined, now: number) => (d ? Math.max(0, Math.round((now - d.getTime()) / 3_600_000)) : null);
 
@@ -46,7 +43,7 @@ export type BranchRow = { id: string; name: string; inWorkshop: number; ready: n
 export type LeadershipPulse = {
   asOf: Date;
   scope: 'organisation' | 'branch';
-  workshop: { jobCardsIn: number; servicesIn: number; ready: number; awaitingParts: number; awaitingCustomer: number; turnaroundHours: number | null; checkedOut30d: number };
+  workshop: { jobCardsIn: number; ready: number; awaitingParts: number; awaitingCustomer: number; turnaroundHours: number | null; checkedOut30d: number };
   waiting: Waiting[];
   support: { open: number; late: number; unassigned: number; csat: number | null; csatResponses: number } | null;
   branches: BranchRow[];
@@ -62,37 +59,25 @@ export async function getLeadershipPulse(): Promise<LeadershipPulse> {
   const since30 = new Date(now - 30 * 86_400_000);
   const inB = { branchId: { in: branchIds } };
   const jcOpen = { ...inB, status: { notIn: [...OPEN_JC] } };
-  const vsOpen = { ...inB, status: { notIn: [...OPEN_VS] } };
-  // Queues of areas switched off in this edition (lib/modules.ts) are not counted, nor listed.
-  const storeOn = moduleIsOn('inventory'), eprOn = featureOn('externalProcurement'), warrantyOn = moduleIsOn('warranty');
+  // Queues of a module that is switched off (lib/modules.ts) are not counted, nor listed.
+  const storeOn = moduleIsOn('inventory');
   const none = Promise.resolve({ _count: { _all: 0 }, _min: { createdAt: null as Date | null } });
 
-  const [jcIn, vsIn, jcReady, vsReady, parts, customer, out30, estSup, estMgr, prsHod, prsStore, eprFin, eprMgr, claimHod, claimMgr, passHead, passMgr, branches, jcByBranch, vsByBranch, readyByBranch, openedJc, openedVs, payJc, payVs] = await Promise.all([
+  const [jcIn, jcReady, parts, customer, out30, estSup, estMgr, prsHod, prsStore, branches, jcByBranch, readyByBranch, openedJc, payJc] = await Promise.all([
     prisma.jobCard.count({ where: jcOpen }),
-    prisma.vehicleService.count({ where: vsOpen }),
     prisma.jobCard.count({ where: { ...inB, status: 'READY_FOR_COLLECTION' } }),
-    prisma.vehicleService.count({ where: { ...inB, status: 'READY_FOR_COLLECTION' } }),
     prisma.jobCard.count({ where: { ...inB, status: 'AWAITING_PARTS' } }),
     prisma.jobCard.count({ where: { ...inB, status: 'AWAITING_CUSTOMER_APPROVAL' } }),
     prisma.jobCard.findMany({ where: { ...inB, checkedOutAt: { gte: since30 } }, select: { createdAt: true, checkedOutAt: true }, take: 2000 }),
     prisma.estimate.aggregate({ where: { status: 'SUBMITTED', jobCard: inB }, _count: { _all: true }, _min: { submittedAt: true } }),
     prisma.estimate.aggregate({ where: { status: 'APPROVED', jobCard: inB }, _count: { _all: true }, _min: { approvedAt: true } }),
-    storeOn ? prisma.partRequestSlip.aggregate({ where: { status: 'PENDING_HOD_APPROVAL', OR: [{ jobCard: inB }, { vehicleService: inB }] }, _count: { _all: true }, _min: { createdAt: true } }) : none,
-    storeOn ? prisma.partRequestSlip.aggregate({ where: { status: 'PENDING_STORE_APPROVAL', OR: [{ jobCard: inB }, { vehicleService: inB }] }, _count: { _all: true }, _min: { createdAt: true } }) : none,
-    eprOn ? prisma.externalProcurementRequest.aggregate({ where: { ...inB, status: 'PENDING_FINANCE_REVIEW' }, _count: { _all: true }, _min: { createdAt: true } }) : none,
-    eprOn ? prisma.externalProcurementRequest.aggregate({ where: { ...inB, status: 'PENDING_MANAGER_APPROVAL' }, _count: { _all: true }, _min: { createdAt: true } }) : none,
-    warrantyOn ? prisma.warrantyClaim.aggregate({ where: { status: 'PENDING_HOD', OR: [{ jobCard: inB }, { vehicleService: inB }, { customer: { organisationId: org ?? '__none__' }, jobCardId: null, vehicleServiceId: null }] }, _count: { _all: true }, _min: { createdAt: true } }) : none,
-    warrantyOn ? prisma.warrantyClaim.aggregate({ where: { status: 'PENDING_MANAGER', OR: [{ jobCard: inB }, { vehicleService: inB }, { customer: { organisationId: org ?? '__none__' }, jobCardId: null, vehicleServiceId: null }] }, _count: { _all: true }, _min: { createdAt: true } }) : none,
-    prisma.exitPass.aggregate({ where: { ...inB, status: 'PENDING_HEAD' }, _count: { _all: true }, _min: { createdAt: true } }),
-    prisma.exitPass.aggregate({ where: { ...inB, status: 'PENDING_MANAGER' }, _count: { _all: true }, _min: { createdAt: true } }),
+    storeOn ? prisma.partRequestSlip.aggregate({ where: { status: 'PENDING_HOD_APPROVAL', jobCard: inB }, _count: { _all: true }, _min: { createdAt: true } }) : none,
+    storeOn ? prisma.partRequestSlip.aggregate({ where: { status: 'PENDING_STORE_APPROVAL', jobCard: inB }, _count: { _all: true }, _min: { createdAt: true } }) : none,
     prisma.branch.findMany({ where: { id: { in: branchIds }, isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
     prisma.jobCard.groupBy({ by: ['branchId'], where: jcOpen, _count: { _all: true } }),
-    prisma.vehicleService.groupBy({ by: ['branchId'], where: vsOpen, _count: { _all: true } }),
     prisma.jobCard.groupBy({ by: ['branchId'], where: { ...inB, status: 'READY_FOR_COLLECTION' }, _count: { _all: true } }),
     prisma.jobCard.groupBy({ by: ['branchId'], where: { ...inB, createdAt: { gte: monthStart } }, _count: { _all: true } }),
-    prisma.vehicleService.groupBy({ by: ['branchId'], where: { ...inB, createdAt: { gte: monthStart } }, _count: { _all: true } }),
     prisma.payment.findMany({ where: { recordedAt: { gte: monthStart }, jobCard: inB }, select: { amount: true, jobCard: { select: { branchId: true } } }, take: 20000 }),
-    prisma.payment.findMany({ where: { recordedAt: { gte: monthStart }, vehicleService: inB }, select: { amount: true, vehicleService: { select: { branchId: true } } }, take: 20000 }),
   ]);
 
   const turn = out30.filter((j) => j.checkedOutAt).map((j) => (j.checkedOutAt!.getTime() - j.createdAt.getTime()) / 3_600_000).sort((a, b) => a - b);
@@ -103,17 +88,12 @@ export async function getLeadershipPulse(): Promise<LeadershipPulse> {
     w('estimate_supervisor', 'Estimates waiting for the supervisor', estSup, '/approvals'),
     w('estimate_manager', 'Estimates waiting for final approval', estMgr, '/approvals'),
     ...(storeOn ? [w('prs_hod', 'Parts requests waiting for the manager', prsHod, '/workshop/parts-requests'), w('prs_store', 'Parts requests waiting for the Store', prsStore, '/workshop/parts-requests')] : []),
-    ...(eprOn ? [w('epr_finance', 'Outside purchases waiting for Finance', eprFin, '/workshop/external-procurement'), w('epr_manager', 'Outside purchases waiting for the manager', eprMgr, '/workshop/external-procurement')] : []),
-    ...(warrantyOn ? [w('claim_hod', 'Warranty claims waiting for the head of warranty', claimHod, '/warranty/claims'), w('claim_manager', 'Warranty claims waiting for the manager', claimMgr, '/warranty/claims')] : []),
-    w('pass_head', 'Exit passes waiting for the head of department', passHead, '/security/exit-passes'),
-    w('pass_manager', 'Exit passes waiting for the manager', passMgr, '/security/exit-passes'),
   ];
 
   const count = (rows: { branchId: string; _count: { _all: number } }[]) => new Map(rows.map((r) => [r.branchId, r._count._all]));
-  const jcB = count(jcByBranch), vsB = count(vsByBranch), readyB = count(readyByBranch), oJc = count(openedJc), oVs = count(openedVs);
+  const jcB = count(jcByBranch), readyB = count(readyByBranch), oJc = count(openedJc);
   const collected = new Map<string, number>();
   for (const p of payJc) { const b = p.jobCard?.branchId; if (b) collected.set(b, (collected.get(b) ?? 0) + num(p.amount)); }
-  for (const p of payVs) { const b = p.vehicleService?.branchId; if (b) collected.set(b, (collected.get(b) ?? 0) + num(p.amount)); }
 
   // Support: the requests within the viewer's reach (counts only); for those who also work it, the same numbers they see there.
   let support: LeadershipPulse['support'] = null;
@@ -133,10 +113,10 @@ export async function getLeadershipPulse(): Promise<LeadershipPulse> {
   return {
     asOf: new Date(),
     scope: typeof reach.branchId === 'string' ? 'branch' : 'organisation',
-    workshop: { jobCardsIn: jcIn, servicesIn: vsIn, ready: jcReady + vsReady, awaitingParts: parts, awaitingCustomer: customer, turnaroundHours: median, checkedOut30d: out30.length },
+    workshop: { jobCardsIn: jcIn, ready: jcReady, awaitingParts: parts, awaitingCustomer: customer, turnaroundHours: median, checkedOut30d: out30.length },
     waiting,
     support,
-    branches: branches.map((b) => ({ id: b.id, name: b.name, inWorkshop: (jcB.get(b.id) ?? 0) + (vsB.get(b.id) ?? 0), ready: readyB.get(b.id) ?? 0, openedThisMonth: (oJc.get(b.id) ?? 0) + (oVs.get(b.id) ?? 0), collectedThisMonth: Math.round(collected.get(b.id) ?? 0) })),
+    branches: branches.map((b) => ({ id: b.id, name: b.name, inWorkshop: jcB.get(b.id) ?? 0, ready: readyB.get(b.id) ?? 0, openedThisMonth: oJc.get(b.id) ?? 0, collectedThisMonth: Math.round(collected.get(b.id) ?? 0) })),
   };
 }
 
@@ -199,41 +179,4 @@ export async function overviewsFor(): Promise<{ leadership: boolean; it: boolean
   const orgWide = (k: 'analytics.business.view' | 'audit.view') => p.isSuperAdmin || scopeFor(p, k) === 'ALL';
   const [audit, users] = await Promise.all([allows('audit.view'), allows('admin.users.manage')]);
   return { leadership: orgWide('analytics.business.view'), it: audit && users && orgWide('audit.view') };
-}
-
-
-export type PlantPulse = {
-  /** The plant(s) in view. */
-  plants: string[];
-  kitsOpen: number; releaseWaiting: number; onLine: number; inPdi: number; inYard: number;
-  /** The station running furthest over its standard time in the last 14 days (median, at least three vehicles). */
-  bottleneck: { name: string; median: number; standard: number; vehicles: number } | null;
-} | null;
-
-/**
- * The assembly plant on leadership's dashboard: where its vehicles are now
- * (the line, PDI, the yard), the kits waiting, and the station holding the
- * line up. Null for anyone who may not see the plant, and when the branch in
- * view is not a plant (typedReach: within the person's organisation, the
- * branch bar respected).
- */
-export async function getPlantPulse(): Promise<PlantPulse> {
-  // Quietly nothing where the plant is switched off in this edition, and for people who do not see it (a workshop manager's dashboard asks too).
-  if (!moduleIsOn('plant') || !(await allows('plant.view'))) return null;
-  const reach = await typedReach('plant.view', AREA_BRANCH_TYPES.plant);
-  if (reach.reason !== 'ok' || !reach.branchIds.length) return null;
-  const since = new Date(Date.now() - 14 * 86_400_000);
-  const [stages, kitsOpen, releaseWaiting, visits] = await Promise.all([
-    prisma.plantVehicle.groupBy({ by: ['stage'], where: reach.where, _count: { _all: true } }),
-    prisma.plantKit.count({ where: { ...reach.where, status: { in: ['ARRIVED', 'INSPECTING', 'SUBMITTED', 'ON_HOLD'] } } }),
-    prisma.plantKit.count({ where: { ...reach.where, status: 'SUBMITTED' } }),
-    prisma.plantStationVisit.findMany({ where: { ...reach.where, finishedAt: { gte: since }, startedAt: { not: null } }, orderBy: { finishedAt: 'desc' }, take: 5000, select: { code: true, name: true, standardMinutes: true, startedAt: true, finishedAt: true } }),
-  ]);
-  const n = (st: string[]) => stages.filter((x) => st.includes(x.stage)).reduce((sum, x) => sum + x._count._all, 0);
-  const slowest = stationTimes(visits.map((v) => ({ code: v.code, name: v.name, standardMinutes: v.standardMinutes, minutes: minutesBetween(v.startedAt, v.finishedAt) })))
-    .filter((t) => t.n >= 3 && t.median !== null && t.over > 0).sort((a, b) => b.over - a.over)[0];
-  return {
-    plants: reach.branches.map((b) => b.name), kitsOpen, releaseWaiting, onLine: n(['LINE', 'QA']), inPdi: n(['PDI']), inYard: n(['YARD']),
-    bottleneck: slowest ? { name: slowest.name, median: slowest.median!, standard: slowest.standard, vehicles: slowest.n } : null,
-  };
 }

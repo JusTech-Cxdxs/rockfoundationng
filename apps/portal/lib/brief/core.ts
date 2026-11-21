@@ -1,7 +1,7 @@
 /**
  * Enyo's brief — what a person has waiting, put together from the same lists
- * as the dashboard, the bell, Mail, Reminders, the calendar and the Support
- * centre (pure parts: periods, the plain-text brief, the prompt, link checks).
+ * as the dashboard, the bell, Reminders and the Support centre (pure parts:
+ * periods, the plain-text brief, the prompt, link checks).
  */
 
 export const BRIEF_SCOPES = ['now', 'today', 'since_last', 'week', 'custom'] as const;
@@ -60,7 +60,7 @@ export function briefPeriod(input: { scope?: unknown; since?: unknown; from?: un
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** Text from mail subjects, names and titles must never become markdown (a subject like "x](https://evil)" stays text). */
+/** Text from subjects, names and titles must never become markdown (a subject like "x](https://evil)" stays text). */
 export function mdText(v: string): string {
   // Exactly the characters the chat's markdown reader un-escapes (lib/enyo/markdown.ts).
   return v.replace(/[\\*_`[\]()]/g, (c) => `\\${c}`).replace(/\s+/g, ' ').trim();
@@ -114,13 +114,13 @@ export function allowedLinks(d: BriefData): Set<string> {
 export const briefCount = (d: BriefData) => d.sections.reduce((n, s) => n + s.count, 0);
 
 /** What needs the person, in order: things they must decide or answer first, notifications last. */
-const ORDER = ['decisions', 'support', 'reminders', 'appointments', 'steps', 'mail', 'jobs', 'waiting', 'broadcasts', 'activity'];
+const ORDER = ['decisions', 'support', 'reminders', 'steps', 'jobs', 'waiting', 'broadcasts', 'activity'];
 export function orderedSections(d: BriefData): BriefSection[] {
   const rank = (k: string) => { const i = ORDER.indexOf(k); return i < 0 ? ORDER.length : i; };
   return d.sections.filter((s) => s.count > 0).sort((a, b) => (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0) || rank(a.key) - rank(b.key));
 }
 
-/** "2 decisions (1 overdue) · 3 support requests · 5 unread emails" — the line on the closed card. */
+/** "2 decisions (1 overdue) · 3 support requests · 5 reminders due": the line on the closed card. */
 export function briefHeadline(d: BriefData): string {
   const parts = orderedSections(d).filter((s) => s.key !== 'activity').slice(0, 4).map((s) => `${countText(s)} ${s.title.toLowerCase()}${s.overdue ? ` (${s.overdue} overdue)` : ''}`);
   if (!parts.length) return d.sections.some((s) => s.key === 'activity' && s.count) ? 'Nothing needs you — only new notifications.' : 'Nothing is waiting for you.';

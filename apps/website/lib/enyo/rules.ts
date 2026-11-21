@@ -2,8 +2,8 @@
  * Enyo on the website — the pure rules (no database, no framework), so the
  * unit tests run them directly (apps/website/tests). Relative imports only.
  *
- *  - ownership: a customer only ever finds their own Job Cards and Vehicle
- *    Services; another customer's number reads exactly like "not found";
+ *  - ownership: a customer only ever finds their own Job Cards; another
+ *    customer's number reads exactly like "not found";
  *  - message size, rate limits and the visitor cookie;
  *  - support ticket numbers SUP-<Lagos year>-<6 digits>;
  *  - the hand-over contact check;
@@ -14,18 +14,18 @@
 export const MESSAGE_MAX = 2000;
 
 /** The words used whenever a number is not one of the customer's own — the same for "does not exist" and "someone else's". */
-export const NOT_FOUND_MESSAGE = 'No Job Card or service with that number was found on this customer\'s account. Ask them to check the number, or offer to list their jobs.';
+export const NOT_FOUND_MESSAGE = 'No Job Card with that number was found on this customer\'s account. Ask them to check the number, or offer to list their jobs.';
 
 // ── References and ownership ────────────────────────────────────────────
 
 /**
- * "jc 2026 412", "JC-2026-000412", " sv-2026-12 " → "JC-2026-000412" / "SV-2026-000012".
- * Anything that is not a Job Card or Vehicle Service number → null.
+ * "jc 2026 412", "JC-2026-000412", " jc-2026-12 " → "JC-2026-000412" / "JC-2026-000012".
+ * Anything that is not a Job Card number → null.
  */
 export function normaliseJobNumber(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const s = raw.trim().toUpperCase().replace(/[\s_./]+/g, '-').replace(/-+/g, '-');
-  const m = /^(JC|SV)-?(\d{4})-?(\d{1,6})$/.exec(s);
+  const m = /^(JC)-?(\d{4})-?(\d{1,6})$/.exec(s);
   if (!m) return null;
   return `${m[1]}-${m[2]}-${m[3]!.padStart(6, '0')}`;
 }
@@ -43,14 +43,12 @@ export function findOwnJob<T extends { number: string }>(items: readonly T[], ra
 }
 
 /** What happens next on a job, in the customer's words. */
-export function nextStepFor(i: { kind: 'jc' | 'vs'; status: string; awaitingApproval: boolean; waitingForCollection: boolean; balance: number | null; estimateReady: boolean }): string {
+export function nextStepFor(i: { status: string; awaitingApproval: boolean; waitingForCollection: boolean; balance: number | null; estimateReady: boolean }): string {
   if (i.status === 'CANCELLED') return 'Nothing more is needed. If you paid anything, the branch will talk to you about a refund.';
-  if (i.status === 'ESCALATED') return 'This visit continues as a Job Card; follow that one instead.';
   if (i.awaitingApproval) return 'Your estimate is ready. Approve it on your Job Card page, with the link in our email, or by calling us, and we can start (pay the deposit first if one is shown).';
   if (i.waitingForCollection) return (i.balance ?? 0) > 0 ? 'Settle the balance, then come and collect your vehicle.' : 'Your vehicle is ready. Come and collect it.';
-  if (['CHECKED_OUT', 'COLLECTED'].includes(i.status)) return 'Nothing more is needed. Thank you for choosing us.';
-  if (i.status === 'SCHEDULED') return 'Bring your vehicle in at the booked time.';
-  if (!i.estimateReady && (i.status === 'CHECKED_IN')) return 'Nothing is needed from you yet. We will send your estimate as soon as it is ready.';
+  if (i.status === 'CHECKED_OUT') return 'Nothing more is needed. Thank you for choosing us.';
+  if (!i.estimateReady && i.status === 'CHECKED_IN') return 'Nothing is needed from you yet. We will send your estimate as soon as it is ready.';
   return 'Nothing is needed from you right now. We will let you know when it is ready.';
 }
 

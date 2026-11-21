@@ -12,7 +12,6 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { csvLine, csvValue, excelDaySerial, excelSerial, exportFileName, lagosDay, lagosDateTime, safeText, EXCEL_MAX_DATA_ROWS } from '../lib/exports/format';
 import { cleanParams, describeParams, isExportFormat, EXPORT_LINK_HOURS, PART_BUDGET_MS, PART_IN_FLIGHT_MS } from '../lib/exports/describe';
 import { exportStream, xlsxCell } from '../lib/exports/stream';
-import { parseWarrantyFilter, warrantyMatchesFilter } from '../lib/warranty-list';
 import { PERMISSIONS, ROLE_GRANTS } from '../lib/authz/catalogue';
 
 const ROOT = join(__dirname, '..', '..');
@@ -147,19 +146,6 @@ test('Excel: past 1,048,575 rows the list carries on on a numbered next sheet', 
   assert.match(strFromU8(files['xl/worksheets/sheet1.xml']!), /Excel holds 1,048,575 rows a sheet/);
 });
 
-test('the warranty register and its export share one filter', () => {
-  assert.equal(parseWarrantyFilter('expired'), 'expired');
-  assert.equal(parseWarrantyFilter('nonsense'), 'all');
-  const r = { kind: 'ASSET', state: 'EXPIRING_SOON' as const, reminderDue: true };
-  assert.ok(warrantyMatchesFilter('covered', r));
-  assert.ok(warrantyMatchesFilter('expiring', r));
-  assert.ok(warrantyMatchesFilter('asset', r));
-  assert.ok(!warrantyMatchesFilter('part', r));
-  assert.ok(warrantyMatchesFilter('reminder', r));
-  assert.ok(!warrantyMatchesFilter('expired', r));
-  assert.match(read('app/(app)/warranty/page.tsx'), /warrantyMatchesFilter\(filter,/);
-});
-
 test('permissions: exporting is its own grant; contact details and payments need the sensitive one too', () => {
   assert.ok(PERMISSIONS['dataexchange.export.run']);
   assert.ok(PERMISSIONS['dataexchange.export.sensitive']);
@@ -170,27 +156,26 @@ test('permissions: exporting is its own grant; contact details and payments need
   assert.ok(!ROLE_GRANTS['receptionist']?.['dataexchange.export.run'], 'the front desk does not export');
   const kinds = read('lib/exports/kinds.ts');
   for (const m of kinds.matchAll(/view: \[([^\]]+)\]/g)) for (const k of m[1]!.match(/'([a-z_.]+)'/g) ?? []) assert.ok(PERMISSIONS[k.slice(1, -1) as keyof typeof PERMISSIONS], `unknown permission ${k}`);
-  // Customers and SAP invoices (contact details and payments) and the audit trail (sign-in addresses) are sensitive.
-  for (const key of ['customers', 'sap-invoices', 'invoices', 'audit-log']) assert.match(kinds, new RegExp(`key: '${key}'[^\\n]*sensitive: true`), key);
+  // Customers and old invoices (contact details and payments) and the audit trail (sign-in addresses) are sensitive.
+  for (const key of ['customers', 'history-invoices', 'invoices', 'audit-log']) assert.match(kinds, new RegExp(`key: '${key}'[^\\n]*sensitive: true`), key);
 });
 
 test('every Export button names a real list; the file is built at download, for the person downloading it', () => {
   const kinds = read('lib/exports/kinds.ts');
   const keys = new Set([...kinds.matchAll(/key: '([a-z-]+)', label:/g)].map((m) => m[1]!));
-  assert.ok(keys.size >= 16, `${keys.size} lists`);
+  assert.ok(keys.size >= 14, `${keys.size} lists`);
   const pages: string[] = [];
   const walk = (dir: string) => { for (const f of readdirSync(dir)) { const p = join(dir, f); if (statSync(p).isDirectory()) walk(p); else if (f === 'page.tsx') pages.push(p); } };
   walk(join(ROOT, 'app', '(app)'));
   const used = new Set<string>();
   for (const p of pages) for (const m of readFileSync(p, 'utf8').matchAll(/<Export(?:Action|Button) kind="([a-z-]+)"/g)) used.add(m[1]!);
   for (const k of used) assert.ok(keys.has(k), `${k} is not an export`);
-  for (const k of ['customers', 'vehicles', 'parts', 'stock', 'suppliers', 'goods-receipts', 'job-cards', 'invoices', 'vehicle-services', 'warranties', 'imports', 'exports', 'users', 'audit-log', 'security-register', 'headquarters']) assert.ok(used.has(k), `no Export button for ${k}`);
+  for (const k of ['customers', 'vehicles', 'parts', 'stock', 'suppliers', 'goods-receipts', 'job-cards', 'invoices', 'imports', 'exports', 'users', 'audit-log']) assert.ok(used.has(k), `no Export button for ${k}`);
   // Every list ends its rows with a link back to the record, except the summary-only lists.
   const route = read('app/(app)/data-exchange/exports/[id]/download/route.ts');
   assert.match(route, /claimPart\(id\)/);
   assert.match(route, /'Cache-Control': 'no-store'/);
   const server = read('lib/exports/download-server.ts');
-  assert.match(server, /refuseDuringAssist/);
   // The file is written after the response has started: every read stays in the downloader's request (their session).
   assert.match(server, /AsyncLocalStorage\.snapshot\(\)/);
   assert.match(server, /rows: inThisRequest\(limited\(\)\)/);

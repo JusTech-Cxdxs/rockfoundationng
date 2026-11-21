@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma, type Prisma } from '@ejo/database';
-import { authorize, myOrganisationId, refuseDuringAssist, allows } from '@/lib/authz/server';
+import { authorize, myOrganisationId, allows } from '@/lib/authz/server';
 import { requireUser } from './workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { logFailure } from '@/lib/log';
@@ -9,7 +9,7 @@ import { encryptSecret, secretAad } from '@/lib/mail/crypto';
 import { mailAllowInsecure, mailKey } from '@/lib/mail/config';
 import { validateConnect } from '@/lib/mail/rules';
 import { MailConnectError, testMailbox } from '@/lib/mail/transport';
-import { withinLimit } from '@/lib/mail/account';
+import { withinLimit } from '@/lib/rate-limit';
 import {
   AI_MODES, asAiMode, asQueueKind, DEFAULT_HOURS, DEFAULT_TARGETS, PRIORITIES, readHours, readTargets,
   type AiMode, type Hours, type QueueKind, type Targets,
@@ -95,7 +95,6 @@ export async function saveSupportQueue(input: {
   targets?: Partial<Record<string, { first?: number; resolve?: number }>>;
 }): Promise<{ id: string }> {
   const { organisationId, userId } = await supportOrg('saveSupportQueue');
-  await refuseDuringAssist('support.queue.save');
   const name = str(input.name, 60);
   if (name.length < 2) throw new SupportSetupError('Give the team a name, like “Warranty” or “Customer care”.');
   if (/[<>{}]/.test(name)) throw new SupportSetupError('Use letters, numbers and simple punctuation in the name.');
@@ -130,7 +129,6 @@ export async function saveSupportQueue(input: {
 /** Who works a team, how many open requests each takes at a time (1–100), and who leads it (emailed when nobody is free or a request is late). */
 export async function setSupportQueueMembers(queueId: string, members: { userId: string; capacity?: number; isLead?: boolean }[]): Promise<void> {
   const { organisationId, userId } = await supportOrg('setSupportQueueMembers');
-  await refuseDuringAssist('support.queue.members');
   const queue = await prisma.supportQueue.findFirst({ where: { id: String(queueId ?? ''), organisationId }, select: { id: true, name: true } });
   if (!queue) throw new SupportSetupError('That team is not available.');
   const list = (Array.isArray(members) ? members : []).slice(0, 200);
@@ -153,7 +151,6 @@ export async function setSupportQueueMembers(queueId: string, members: { userId:
 export async function setMySupportAway(away: boolean): Promise<void> {
   await authorize('support.tickets.manage', undefined, 'setMySupportAway');
   const user = await requireUser();
-  await refuseDuringAssist('support.away');
   const organisationId = await myOrganisationId();
   await prisma.supportQueueMember.updateMany({ where: { userId: user.id, organisationId: organisationId ?? '__no_organisation__' }, data: { away: Boolean(away) } });
   await writeAuditLog({ userId: user.id, organisationId, action: away ? 'support.agent_away' : 'support.agent_back', entityType: 'User', entityId: user.id, metadata: {} });
@@ -173,7 +170,6 @@ export async function getMySupportAway(): Promise<{ member: boolean; away: boole
  */
 export async function connectSupportMailbox(input: Record<string, unknown> & { queueId?: string }): Promise<{ id: string }> {
   const { organisationId, userId } = await supportOrg('connectSupportMailbox');
-  await refuseDuringAssist('support.mailbox.connect');
   const key = mailKey();
   if (!key) throw new SupportSetupError('Email is not set up for this installation yet (MAILBOX_ENCRYPTION_KEY). JusTech sets it in the server environment.');
   const queue = await prisma.supportQueue.findFirst({ where: { id: String(input.queueId ?? ''), organisationId }, select: { id: true, name: true } });
@@ -209,7 +205,6 @@ export async function connectSupportMailbox(input: Record<string, unknown> & { q
 /** Pause (stop reading and sending from it), resume, or remove a support mailbox. Removing deletes the stored password. */
 export async function changeSupportMailbox(id: string, action: 'pause' | 'resume' | 'remove'): Promise<void> {
   const { organisationId, userId } = await supportOrg('changeSupportMailbox');
-  await refuseDuringAssist('support.mailbox.change');
   const box = await prisma.supportMailbox.findFirst({ where: { id: String(id ?? ''), organisationId }, select: { id: true, address: true } });
   if (!box) throw new SupportSetupError('That mailbox is not available.');
   if (action === 'remove') await prisma.supportMailbox.delete({ where: { id: box.id } });
@@ -229,7 +224,6 @@ export async function saveSupportSettings(input: {
   aiThreshold?: number; nudgeAfterHours?: number; autoResolveDays?: number; closeAfterDays?: number; csatEnabled?: boolean;
 }): Promise<void> {
   const { organisationId, userId } = await supportOrg('saveSupportSettings');
-  await refuseDuringAssist('support.settings');
   const days = (v: unknown, max: number) => [...new Set((Array.isArray(v) ? v : []).map((d) => String(d).trim()).filter(isIsoDay))].sort().slice(0, max);
   const num = (v: unknown, lo: number, hi: number, dflt: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt; };
   const data: Prisma.SupportSettingUncheckedUpdateInput = {};

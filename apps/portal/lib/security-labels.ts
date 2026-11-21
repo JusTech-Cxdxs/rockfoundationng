@@ -59,8 +59,6 @@ export function securityActionLabel(action: string): string {
 export function securityActionDetail(action: string, meta: Record<string, unknown> | null): string | null {
   if (!meta) return null;
   const s = (k: string) => (typeof meta[k] === 'string' ? (meta[k] as string) : null);
-  /** Text, numbers and yes/no values, as words (counts and flags). */
-  const v = (k: string) => (typeof meta[k] === 'string' || typeof meta[k] === 'number' || typeof meta[k] === 'boolean' ? String(meta[k]) : null);
   switch (action) {
     case 'support.ticket_opened':
     case 'support.sla_warning':

@@ -1,7 +1,15 @@
 import { prisma } from '@ejo/database';
 import { allows, orgWhere } from '@/lib/authz/server';
 import { globalSearch } from '@/lib/actions/search';
-import { normalisePlate, type MailRef } from './brief-core';
+
+/** A reference found in an email: a reference number, a number plate or an email address. */
+export type MailRef = { kind: 'ref' | 'plate' | 'email'; value: string };
+
+/** Nigerian number plates in one form: "KJA 453 GX" → "KJA-453GX". */
+function normalisePlate(p: string): string {
+  const m = /^([A-Z]{3})[-\s]?(\d{2,3})[-\s]?([A-Z]{2})$/.exec(p.trim().toUpperCase());
+  return m ? `${m[1]}-${m[2]}${m[3]}` : p.trim().toUpperCase();
+}
 
 /**
  * References found in an email → links, worked out for the person reading,

@@ -2,7 +2,7 @@
 
 import { prisma } from '@ejo/database';
 import { requireUser } from './workshop';
-import { myOrganisationId, refuseDuringAssist } from '@/lib/authz/server';
+import { myOrganisationId } from '@/lib/authz/server';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { recordLinks, recordVisibleToMe } from '@/lib/reminders';
 import { resolveRecords } from '@/lib/record-resolver';
@@ -223,7 +223,6 @@ export async function listReminderDelegates(): Promise<{ delegates: DelegateRow[
 
 /** Allow a colleague (in my organisation) to set reminders for me. */
 export async function grantReminderDelegate(delegateUserId: string): Promise<void> {
-  await refuseDuringAssist('reminders.delegate');
   const m = await me();
   const delegate = isId(delegateUserId) ? await prisma.user.findFirst({ where: { id: delegateUserId, organisationId: m.organisationId, roles: { none: { role: { isSuperAdmin: true } } } }, select: { id: true, isActive: true, organisationId: true, fullName: true } }) : null;
   const refusal = delegateRefusal(m.id, delegate, m.organisationId);
@@ -236,7 +235,6 @@ export async function grantReminderDelegate(delegateUserId: string): Promise<voi
 
 /** Withdraw it. Reminders they already set for me stay (they are mine). */
 export async function withdrawReminderDelegate(delegateUserId: string): Promise<void> {
-  await refuseDuringAssist('reminders.delegate');
   const m = await me();
   if (!isId(delegateUserId)) return;
   const removed = await prisma.reminderDelegate.deleteMany({ where: { ownerId: m.id, delegateId: delegateUserId, organisationId: m.organisationId } });

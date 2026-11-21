@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { allows, currentAssist, getPrincipal, myOrganisationId } from '@/lib/authz/server';
+import { allows, getPrincipal, myOrganisationId } from '@/lib/authz/server';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { conversationTrainingSet } from '@/lib/enyo/conversations';
 import { lagosDayKey } from '@/lib/utils/format-date';
@@ -14,13 +14,12 @@ const NO_STORE = { 'Cache-Control': 'private, no-store, max-age=0' };
  * GET /enyo/learning/conversations — Enyo's conversation training set (JSONL,
  * chat fine-tuning format): approved answers and helpful-rated first answers
  * that read nobody's records, scrubbed of names and contact details, tagged
- * with channel and role. "Manage Enyo" only, never in an assisted session,
- * every export in the audit trail.
+ * with channel and role. "Manage Enyo" only, every export in the audit
+ * trail.
  */
 export async function GET() {
   const allowed = await allows('enyo.manage').catch(() => false);
   if (!allowed) return NextResponse.json({ error: 'You do not have permission to export Enyo training data.' }, { status: 403, headers: NO_STORE });
-  if (await currentAssist().catch(() => null)) return NextResponse.json({ error: 'This is not available during an assisted session.' }, { status: 403, headers: NO_STORE });
   try {
     const p = await getPrincipal();
     const organisationId = p.organisationId ?? (await myOrganisationId());

@@ -91,9 +91,9 @@ test('the parts and the names', () => {
   assert.equal(DOCUMENTS_PER_ZIP, 40);
   assert.deepEqual([partsOf(0), partsOf(1), partsOf(40), partsOf(41), partsOf(121)], [1, 1, 1, 2, 4]);
   assert.equal(documentFileName('JOB_ESTIMATE', 'JC-2026-000123'), 'Estimate-JC-2026-000123.pdf');
-  assert.equal(documentFileName('INSPECTION', 'SV 1/2'), 'Inspection-SV_1_2.pdf');
-  assert.ok(!documentFileName('INSPECTION', '../../etc/passwd').includes('/'));
-  assert.equal(zipFileName('SERVICE_ESTIMATE', '2026-11-01', '2026-11-12', 1, 1), 'EJO-vehicle-service-estimates-2026-11-01-to-2026-11-12.zip');
+  assert.equal(documentFileName('JOB_ESTIMATE', 'JC 1/2'), 'Estimate-JC_1_2.pdf');
+  assert.ok(!documentFileName('JOB_ESTIMATE', '../../etc/passwd').includes('/'));
+  assert.equal(zipFileName('JOB_ESTIMATE', '2026-11-01', '2026-11-12', 1, 1), 'EJO-job-card-estimates-2026-11-01-to-2026-11-12.zip');
   assert.equal(zipFileName('JOB_ESTIMATE', '2026-11-01', '2026-11-12', 2, 3), 'EJO-job-card-estimates-2026-11-01-to-2026-11-12-part-2-of-3.zip');
 });
 
@@ -106,7 +106,7 @@ test('wired in: the email and the bulk copies use the same builders; both rights
   assert.match(svc, /EstimatePdf\(serviceEstimatePdfProps\(\{/);
   assert.match(svc, /InspectionPdf\(inspectionPdfProps\(\{/);
   const srv = read('lib/exports/documents-server.ts');
-  for (const b of ['jobEstimatePdfProps', 'serviceEstimatePdfProps', 'inspectionPdfProps']) assert.match(srv, new RegExp(`${b}\\(\\{ letterhead: head`));
+  assert.match(srv, /jobEstimatePdfProps\(\{ letterhead: head/);
   assert.match(srv, /branch: \{ businessUnit: \{ organisationId: s\.organisationId \} \}/, 'every query hangs on the branch inside the organisation');
   assert.match(srv, /orderBy: \[\{ customerNotifiedAt: 'asc' \}, \{ id: 'asc' \}\]/, 'a fixed order, so the parts never overlap');
   const route = read('app/(app)/data-exchange/documents/download/route.ts');

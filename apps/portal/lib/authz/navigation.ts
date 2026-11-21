@@ -1,4 +1,4 @@
-import { featureOn, moduleIsOn, platformModules } from '../modules';
+import { platformModules } from '../modules';
 import { branchHostsModule, moduleOfPath } from '../branch-types';
 import { APPROVAL_PERMISSIONS, decide, PAGE_PERMISSIONS, scopeFor, type PermissionKey, type Principal } from './catalogue';
 
@@ -9,23 +9,22 @@ const MODULE_NEEDS: Record<string, PermissionKey[]> = {
   ...Object.fromEntries(Object.entries(PAGE_PERMISSIONS).map(([k, v]) => [k, [v]])),
   workshop: ['workshop.view'],
   inventory: ['store.view'],
-  warranty: ['warranty.view'],
-  scheduling: ['schedule.view', 'schedule.manage'],
+  security: ['security.view'],
 };
 /** Areas everyone signed in uses. */
-const EVERYONE = new Set(['dashboard', 'notifications', 'security']);
+const EVERYONE = new Set(['dashboard', 'notifications']);
 
 /** The kind of branch a person belongs to, and the kind they are looking at through the branch bar (when one branch is chosen). */
 export type BranchView = { ownBranchType?: string | null; lensBranchType?: string | null };
 
 /**
- * Is this area part of the branch in view? Workshop, Inventory, Warranty and
- * the Assembly plant exist only on branches of the right kind:
+ * Is this area part of the branch in view? The Workshop and Inventory exist
+ * only on branches of the right kind:
  *  - looking at ONE branch through the branch bar: only that branch's areas;
  *  - someone who sees the whole organisation in the area (and has not chosen
  *    a branch): always — the organisation has every kind of branch;
  *  - someone whose access is to their own branch: only the areas their
- *    branch has (the plant has no store; a workshop has no line).
+ *    branch has.
  * It only ever hides a menu entry; what a person may do is decided by their
  * permissions, as before.
  */
@@ -36,7 +35,7 @@ export function moduleInView(p: Principal, key: string, needs: PermissionKey[], 
 }
 
 /** The permission that opens each branch-bound area. */
-export const AREA_VIEW: Record<string, PermissionKey> = { workshop: 'workshop.view', inventory: 'store.view', warranty: 'warranty.view', plant: 'plant.view' };
+export const AREA_VIEW: Record<string, PermissionKey> = { workshop: 'workshop.view', inventory: 'store.view' };
 
 /** Is the page at this address part of the branch in view? (For dashboard tiles and shortcuts: never a link into an area the branch does not have.) */
 export function hrefInView(p: Principal, href: string, view: BranchView): boolean {
@@ -45,10 +44,8 @@ export function hrefInView(p: Principal, href: string, view: BranchView): boolea
 }
 
 /**
- * The menu for one person — the same rule the pages enforce, so nobody is
- * shown a door they cannot open. Security: the desk for security staff and
- * reception; for everyone else, their own exit passes and visitors. Modules not
- * yet live are not shown at all (version 1 scope).
+ * The menu for one person: the same rule the pages enforce, so nobody is
+ * shown a door they cannot open.
  */
 export function navigationFor(p: Principal, view: BranchView = {}): NavItem[] {
   const can = (k: PermissionKey) => decide(p, k).allowed;
@@ -59,20 +56,8 @@ export function navigationFor(p: Principal, view: BranchView = {}): NavItem[] {
     if (m.status !== 'LIVE') continue;
     if (m.key === 'dashboard') {
       out.push({ key: m.key, name: m.name, href: m.href, status: m.status });
-      // Leadership with the whole organisation in view: every branch side by side.
-      if (p.isSuperAdmin || scopeFor(p, 'analytics.business.view') === 'ALL') out.push({ key: 'headquarters', name: 'Headquarters', href: '/headquarters', status: m.status });
       // People who decide things get one list of everything waiting for them.
       if (p.isSuperAdmin || APPROVAL_PERMISSIONS.some(can)) out.push({ key: 'approvals', name: 'Approvals', href: '/approvals', status: m.status });
-      continue;
-    }
-    if (m.key === 'security') {
-      if (can('security.view')) out.push({ key: m.key, name: m.name, href: m.href, status: m.status });
-      else {
-        // Not on the Security desk: their own exit passes and visitors, and (Store, where this edition has one) the deliveries they receive.
-        out.push({ key: 'exit-passes', name: 'My exit passes', href: '/security/exit-passes', status: m.status });
-        out.push({ key: 'my-visitors', name: 'My visitors', href: '/security/my-visitors', status: m.status });
-        if (moduleIsOn('inventory') && can('store.grn.record')) out.push({ key: 'deliveries', name: 'Deliveries', href: '/security/deliveries', status: m.status });
-      }
       continue;
     }
     if (EVERYONE.has(m.key)) { out.push({ key: m.key, name: m.name, href: m.href, status: m.status }); continue; }
@@ -81,25 +66,15 @@ export function navigationFor(p: Principal, view: BranchView = {}): NavItem[] {
     // Customers handed over by Enyo, right under Customers.
     if (m.key === 'crm' && can('support.tickets.manage')) out.push({ key: 'support-inbox', name: 'Support centre', href: '/crm/support', status: m.status });
   }
-  // Everyone's own: reminders, and their work mailbox (the layout hides Mail during an assisted session).
+  // Everyone's own reminders.
   out.push({ key: 'reminders', name: 'Reminders', href: '/reminders', status: 'LIVE' });
-  out.push({ key: 'mail', name: 'Mail', href: '/mail', status: 'LIVE' });
   // Everyone in an organisation can ask for help (the platform team answers, it does not ask).
   if (!p.isSuperAdmin) out.push({ key: 'get-help', name: 'Get help', href: '/support/help', status: 'LIVE' });
-  // IT: the control room, for those who read the audit trail across the organisation.
-  if (p.isSuperAdmin || scopeFor(p, 'audit.view') === 'ALL') out.push({ key: 'it', name: 'IT control room', href: '/it', status: 'LIVE' });
-  // News & media: the communications team publishes to the public website (editions with news, lib/modules.ts).
-  if (featureOn('news') && can('website.news.manage')) out.push({ key: 'news', name: 'News & media', href: '/news', status: 'LIVE' });
   // Data Exchange: those who bring existing records in from other systems and spreadsheets, and those who approve it.
   if (can('dataexchange.import.run') || can('dataexchange.import.approve')) out.push({ key: 'data-exchange', name: 'Data Exchange', href: '/data-exchange', status: 'LIVE' });
   // Exports: everyone else who may export lists finds their files (Data Exchange shows them to its own people).
   else if (can('dataexchange.export.run')) out.push({ key: 'exports', name: 'Exports', href: '/data-exchange/exports', status: 'LIVE' });
-  // Customers' data requests (NDPA 2023), in editions that take them through the portal.
-  if (featureOn('dataRequests') && can('privacy.requests.manage')) out.push({ key: 'data-requests', name: 'Data requests', href: '/data-requests', status: 'LIVE' });
   // The integrity watch: reviewers only.
   if (can('integrity.review')) out.push({ key: 'integrity', name: 'Integrity watch', href: '/integrity', status: 'LIVE' });
-  // Assisted sessions: the Branch Assistant starts them; user administrators review them.
-  if (!p.isSuperAdmin && can('support.assist')) out.push({ key: 'assist', name: 'Assist a colleague', href: '/support/assist', status: 'LIVE' });
-  else if (can('admin.users.manage')) out.push({ key: 'assist', name: 'Assisted sessions', href: '/support/assist', status: 'LIVE' });
   return out;
 }

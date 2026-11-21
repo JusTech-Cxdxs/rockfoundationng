@@ -51,9 +51,8 @@ test('learning is safe: first turn only, no memories, never from a reused answer
 });
 
 test('a learned answer is given verbatim only for a general first question, never in context', () => {
-  const base = { question: 'How do I open a Job Card?', historyLength: 0, assisted: false, page: '/dashboard' };
+  const base = { question: 'How do I open a Job Card?', historyLength: 0, page: '/dashboard' };
   assert.equal(reuseAllowed(base), true);
-  assert.equal(reuseAllowed({ ...base, assisted: true }), false);
   assert.equal(reuseAllowed({ ...base, historyLength: 2 }), false);
   assert.equal(reuseAllowed({ ...base, page: '/job-cards/cm9x0abcdefghijklmnopqrs' }), false);
   assert.equal(reuseAllowed({ ...base, question: 'How do I close this job?' }), false);

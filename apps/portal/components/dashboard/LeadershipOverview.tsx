@@ -1,4 +1,4 @@
-import { getLeadershipPulse, getPlantPulse } from '@/lib/actions/leadership';
+import { getLeadershipPulse } from '@/lib/actions/leadership';
 import { getMasterAnalytics } from '@/lib/actions/master-analytics';
 import { LoadingLink } from '@/components/LoadingLink';
 import { AskEnyoButton } from '@/components/enyo/AskEnyoButton';
@@ -6,7 +6,6 @@ import { Icon, SectionCard, StatTile, StatusChip } from '@/components/ui';
 import { formatDateTime } from '@/lib/utils/format-date';
 import { pluralize } from '@/lib/utils/pluralize';
 import { moduleIsOn } from '@/lib/modules';
-import { separateVehicleServiceOn } from '@/lib/service-entry';
 
 const naira = (n: number | null | undefined) => (n === null || n === undefined ? '—' : `₦${Math.round(n).toLocaleString('en-NG')}`);
 const age = (h: number | null) => (h === null ? '' : h < 1 ? 'under an hour' : h < 48 ? `${h} h` : `${Math.round(h / 24)} days`);
@@ -18,7 +17,7 @@ const age = (h: number | null) => (h === null ? '' : h < 1 ? 'under an hour' : h
  * it. For directors and managers (analytics.business.view), within their reach.
  */
 export async function LeadershipOverview() {
-  const [p, a, plant] = await Promise.all([getLeadershipPulse(), getMasterAnalytics('this_month').catch(() => null), moduleIsOn('plant') ? getPlantPulse().catch(() => null) : null]);
+  const [p, a] = await Promise.all([getLeadershipPulse(), getMasterAnalytics('this_month').catch(() => null)]);
   const waiting = p.waiting.filter((w) => w.count > 0).sort((x, y) => (y.oldestHours ?? 0) - (x.oldestHours ?? 0));
   const totalWaiting = waiting.reduce((n, w) => n + w.count, 0);
   const stale = waiting.filter((w) => (w.oldestHours ?? 0) >= 48);
@@ -33,7 +32,6 @@ export async function LeadershipOverview() {
         </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <AskEnyoButton send speak icon="speaker" label="Brief me" question={`Give me a short spoken briefing on ${p.scope === 'branch' && p.branches.length === 1 ? p.branches[0]!.name : 'the business'} today (use branch_briefing): the verdict, money, the workshop, decisions waiting and what I should do first.`} />
-          {p.scope === 'organisation' ? <LoadingLink href="/headquarters" className="font-medium text-[var(--ejo-primary)] hover:underline">Headquarters: every branch →</LoadingLink> : null}
           <LoadingLink href="/analytics" className="font-medium text-[var(--ejo-primary)] hover:underline">Full business analytics →</LoadingLink>
         </div>
       </div>
@@ -49,34 +47,11 @@ export async function LeadershipOverview() {
         </div>
       ) : null}
 
-      {plant ? (
-        <SectionCard icon="garage" title={`On the line now · ${plant.plants.join(', ')}`} data-testid="plant-pulse"
-          description={plant.bottleneck ? `Holding the line up: ${plant.bottleneck.name} — a median of ${plant.bottleneck.median} minutes against a standard of ${plant.bottleneck.standard}, over ${pluralize(plant.bottleneck.vehicles, 'vehicle')} in the last 14 days.` : 'No station is running over its standard time in the last 14 days.'}
-          actions={<LoadingLink href="/plant/line" className="font-medium text-[var(--ejo-primary)] hover:underline">The line board →</LoadingLink>}>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {[
-              { label: 'Kits being checked', value: plant.kitsOpen, href: '/plant/kits' },
-              { label: 'Kits waiting for release', value: plant.releaseWaiting, href: '/plant/kits' },
-              { label: 'Vehicles on the line', value: plant.onLine, href: '/plant/line' },
-              { label: 'In PDI', value: plant.inPdi, href: '/plant/pdi' },
-              { label: 'In the yard', value: plant.inYard, href: '/plant/vehicles' },
-            ].map((t) => (
-              <LoadingLink key={t.label} href={t.href} className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] p-3 hover:border-[var(--ejo-primary)]/50">
-                <span className="block text-2xl font-semibold tabular-nums text-[var(--ejo-text)]">{t.value}</span>
-                <span className="block text-xs text-[var(--ejo-text-muted)]">{t.label}</span>
-              </LoadingLink>
-            ))}
-          </div>
-        </SectionCard>
-      ) : null}
-
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
         <SectionCard icon="garage" title="In the workshop now" description={`Median turnaround ${p.workshop.turnaroundHours !== null ? age(p.workshop.turnaroundHours) : '—'} from check-in to check-out (last 30 days, ${pluralize(p.workshop.checkedOut30d, 'vehicle')})`}>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { label: 'Job Cards in', value: p.workshop.jobCardsIn, href: '/workshop/custody' },
-              // No separate Vehicle Service in this edition: shown only while old ones are still in.
-              ...(separateVehicleServiceOn() || p.workshop.servicesIn > 0 ? [{ label: 'Services in', value: p.workshop.servicesIn, href: '/workshop/vehicle-service-custody' }] : []),
               { label: 'Ready to collect', value: p.workshop.ready, href: '/workshop/custody' },
               // The parts requests list is the Store's: without it, the jobs themselves.
               { label: 'Waiting for parts', value: p.workshop.awaitingParts, href: moduleIsOn('inventory') ? '/workshop/parts-requests' : '/workshop/custody' },

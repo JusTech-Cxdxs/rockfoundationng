@@ -11,25 +11,21 @@ import { ThemeSwitch } from './ThemeSwitch';
 import { NotificationBell } from './NotificationBell';
 import { Icon, type IconName } from './Icon';
 import { EnyoChat } from '@/components/enyo/EnyoChat';
-import { moduleOn } from '@/lib/edition';
 
 const BASE = '/customer-portal/dashboard';
 
 type NavItem = { href: string; label: string; icon: IconName; exact?: boolean };
 
-const ALL_NAV: NavItem[] = [
+/** The sidebar. */
+export const NAV: NavItem[] = [
   { href: BASE, label: 'Overview', icon: 'home', exact: true },
   { href: `${BASE}/vehicles`, label: 'My vehicles', icon: 'car' },
   { href: `${BASE}/services`, label: 'My services', icon: 'wrench' },
   { href: `${BASE}/payments`, label: 'Payments', icon: 'wallet' },
-  { href: `${BASE}/warranties`, label: 'Warranties', icon: 'shield' },
   { href: `${BASE}/notifications`, label: 'Notifications', icon: 'bell' },
   { href: `${BASE}/profile`, label: 'Profile & settings', icon: 'user' },
   { href: `${BASE}/support`, label: 'Help & support', icon: 'help' },
 ];
-
-/** The sidebar. Warranties shows only while the warranty module is on (lib/edition.ts). */
-export const NAV: NavItem[] = ALL_NAV.filter((n) => n.href !== `${BASE}/warranties` || moduleOn('warranty'));
 
 const QUICK: { href: string; label: string; icon: IconName; exact?: boolean }[] = [
   { href: BASE, label: 'Home', icon: 'home', exact: true },

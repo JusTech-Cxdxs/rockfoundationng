@@ -6,16 +6,13 @@ import { ModuleStatusBadge } from '@ejo/ui';
 import type { NavItem } from '@/lib/authz/navigation';
 import { Wordmark } from './Wordmark';
 import { PoweredByEjo } from './PoweredByEjo';
-import { ROADMAP } from '@/lib/roadmap';
-import { RoadmapIcon } from './RoadmapIcon';
 import { Icon, MODULE_ICON } from './ui/Icon';
 import { useNotifications } from './NotificationProvider';
 import { isApproval } from '@/lib/approvals';
-import { featureOn } from '@/lib/modules';
 
 /** The menu's sections. A module not listed here goes under "Operations". */
 const GROUPS: { title: string; keys: string[] }[] = [
-  { title: 'Overview', keys: ['dashboard', 'approvals', 'notifications', 'mail', 'reminders', 'analytics'] },
+  { title: 'Overview', keys: ['dashboard', 'approvals', 'notifications', 'reminders', 'analytics'] },
   { title: 'Operations', keys: [] },
   { title: 'Administration', keys: ['organisation', 'structure', 'branches', 'users', 'roles', 'permissions', 'audit-logs', 'recycle-bin', 'settings'] },
 ];
@@ -119,36 +116,6 @@ export function Sidebar({
           </div>
         ))}
 
-        {/* What is planned next — shown to everyone, so nobody mistakes "not yet" for "never".
-            Editions without a roadmap page (lib/modules.ts) leave the section out. */}
-        {!featureOn('roadmap') ? null : mini ? (
-          <Link href="/roadmap" title="Coming next — the roadmap" className={`${linkBase} justify-center py-2.5 ${pathname.startsWith('/roadmap') ? 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]' : 'text-[var(--ejo-text-muted)] hover:bg-[var(--ejo-bg)] hover:text-[var(--ejo-text)]'}`}>
-            <Icon name="roadmap" size={20} /><span className="sr-only">Coming next</span>
-            <span className="absolute right-3 top-2 h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--ejo-warning)]" aria-hidden="true" />
-          </Link>
-        ) : (
-          <details open className="group mt-1 border-t border-[var(--ejo-border)] pt-3">
-            <summary className="flex cursor-pointer list-none items-center justify-between rounded-[var(--ejo-radius-md)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--ejo-text-muted)] hover:text-[var(--ejo-text)]">
-              <span className="flex items-center gap-2"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--ejo-warning)]" />Coming next</span>
-              <span className="transition-transform group-open:rotate-90" aria-hidden="true"><Icon name="chevron-right" size={14} /></span>
-            </summary>
-            <div className="mt-1 space-y-0.5" aria-label="Roadmap">
-              <Link href="/roadmap" onClick={onNavigate} className={`flex items-center gap-2 rounded-[var(--ejo-radius-md)] px-3 py-1.5 text-xs font-medium ${pathname === '/roadmap' ? 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]' : 'text-[var(--ejo-text-muted)] hover:bg-[var(--ejo-bg)] hover:text-[var(--ejo-text)]'}`}>The full roadmap →</Link>
-              {ROADMAP.map((m) => {
-                const href = `/roadmap/${m.key}`;
-                const active = pathname === href;
-                return (
-                  <Link key={m.key} href={href} onClick={onNavigate} className={`flex items-center justify-between gap-2 rounded-[var(--ejo-radius-md)] px-3 py-1.5 text-[13px] transition-colors ${active ? 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]' : 'text-[var(--ejo-text-muted)] hover:bg-[var(--ejo-bg)] hover:text-[var(--ejo-text)]'}`}>
-                    <span className="flex min-w-0 items-center gap-2"><RoadmapIcon icon={m.icon} size={15} className="shrink-0 opacity-70" /><span className="truncate">{m.name}</span></span>
-                    {m.live
-                      ? <span className="shrink-0 rounded-full border border-[var(--ejo-success)]/40 bg-[var(--ejo-success)]/10 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-[var(--ejo-success)]">Live</span>
-                      : <span className="shrink-0 rounded-full border border-[var(--ejo-warning)]/40 px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide text-[var(--ejo-warning-text)]">Soon</span>}
-                  </Link>
-                );
-              })}
-            </div>
-          </details>
-        )}
       </nav>
 
       <div className={`shrink-0 border-t border-[var(--ejo-border)] ${mini ? 'flex flex-col items-center gap-2 px-2 py-3' : 'flex items-center justify-between gap-2 px-4 py-3'}`}>

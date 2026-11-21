@@ -1,14 +1,12 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@ejo/database';
 import { requireCustomer } from '@/lib/customer-portal/session';
-import { loadServices, loadWarranties, nextServiceFor } from '@/lib/customer-portal/data';
+import { loadServices, nextServiceFor } from '@/lib/customer-portal/data';
 import { DAY_MS, fmtDate, vehicleLabel } from '@/lib/customer-portal/format';
-import { WARRANTY_STATE_INFO } from '@/lib/customer-portal/status';
 import { BackLink, Badge, Card, EmptyState, KeyValue, Notice, SectionTitle } from '@/components/customer/ui';
 import { ServiceCard } from '@/components/customer/ServiceCard';
 import { Icon } from '@/components/customer/Icon';
 import Link from 'next/link';
-import { moduleOn } from '@/lib/edition';
 
 export const metadata = { title: 'Vehicle' };
 
@@ -22,13 +20,10 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
     select: { id: true, make: true, model: true, year: true, plateNumber: true, chassisNumber: true, engineType: true, mileage: true, vehicleType: true, createdAt: true },
   });
   if (!v) notFound();
-  // Warranties are read and shown only while the warranty module is on (lib/edition.ts).
-  const warrantyOn = moduleOn('warranty');
-  const [items, warranties] = await Promise.all([loadServices(me.id), warrantyOn ? loadWarranties(me.id) : Promise.resolve([] as Awaited<ReturnType<typeof loadWarranties>>)]);
+  const items = await loadServices(me.id);
   const history = items.filter((i) => i.vehicle.id === v.id);
-  const mine = warranties.filter((w) => w.vehicle?.id === v.id);
   const next = nextServiceFor(v.id, items);
-  const custody = history.find((i) => i.inCustody && i.status !== 'SCHEDULED');
+  const custody = history.find((i) => i.inCustody);
   const overdue = next?.date ? next.date.getTime() < Date.now() : false;
   const soon = next?.date ? !overdue && next.date.getTime() - Date.now() < 30 * DAY_MS : false;
 
@@ -73,22 +68,6 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
           <p className="text-sm text-[var(--ejo-text-muted)]">We’ll show the next service date after this vehicle’s first routine service with us.</p>
         )}
       </Card>
-
-      {warrantyOn ? (
-      <section>
-        <SectionTitle icon="shield" title="Warranties" />
-        {mine.length ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {mine.map((w) => (
-              <Link key={w.id} href={`/customer-portal/dashboard/warranties/${w.id}`} className="ejo-lift flex items-start justify-between gap-3 rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] p-4">
-                <span className="min-w-0"><span className="line-clamp-2 block break-words text-sm font-semibold text-[var(--ejo-text)]">{w.subject}</span><span className="text-xs text-[var(--ejo-text-muted)]"><span className="whitespace-nowrap">{w.number}</span> · <span className="whitespace-nowrap">until {fmtDate(w.endsAt)}</span></span></span>
-                <Badge tone={WARRANTY_STATE_INFO[w.state].tone}>{WARRANTY_STATE_INFO[w.state].label}</Badge>
-              </Link>
-            ))}
-          </div>
-        ) : <EmptyState icon="shield" title="No warranties on this vehicle" text="Warranties on new parts or work appear here when they’re issued." />}
-      </section>
-      ) : null}
 
       <section>
         <SectionTitle icon="wrench" title="Service history" />

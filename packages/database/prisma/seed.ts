@@ -24,8 +24,8 @@ function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(
-      `Missing required environment variable: ${name}. Set it in Render's ` +
-      `environment variables before running the seed script — this bootstrap ` +
+      `Missing required environment variable: ${name}. Set it in the hosting ` +
+      `provider's environment variables before running the seed script — this bootstrap ` +
       `script no longer ships with a default credential.`,
     );
   }
@@ -45,11 +45,6 @@ async function main() {
     { key: 'business-units', name: 'Business Units', status: 'LIVE', sortOrder: 2 },
     { key: 'workshop', name: 'Workshop', status: 'LIVE', sortOrder: 10 },
     { key: 'inventory', name: 'Inventory', status: 'COMING_SOON', sortOrder: 11 },
-    { key: 'procurement', name: 'Procurement', status: 'COMING_SOON', sortOrder: 12 },
-    { key: 'finance', name: 'Finance', status: 'COMING_SOON', sortOrder: 13 },
-    { key: 'hr', name: 'HR', status: 'COMING_SOON', sortOrder: 14 },
-    { key: 'payroll', name: 'Payroll', status: 'COMING_SOON', sortOrder: 15 },
-    { key: 'manufacturing', name: 'Manufacturing', status: 'COMING_SOON', sortOrder: 16 },
   ];
   for (const m of modules) {
     await prisma.platformModule.upsert({
@@ -158,8 +153,8 @@ async function main() {
 
   // --- Baseline roles (system roles, cannot be deleted) --------------------
   // The D'Phoenix edition's roles: the workshop, front desk, finance, security,
-  // customer care, leadership and IT. No Store, Warranty or assembly-plant
-  // roles while those modules are off (apps/portal/lib/modules.ts).
+  // customer care, leadership and IT. No Store roles while the Store is off
+  // (apps/portal/lib/modules.ts).
   const roleNames = ['Administrator', 'Workshop Manager', 'Workshop Supervisor', 'Technician', 'Finance Officer', 'Department Head', 'Chief Security Officer', 'Security Officer', 'Receptionist', 'Calendar User', 'Scheduling Admin', 'Broadcaster', 'Customer Care', 'Customer Care Lead', 'Executive', 'IT Administrator'];
   for (const name of roleNames) {
     await prisma.role.upsert({

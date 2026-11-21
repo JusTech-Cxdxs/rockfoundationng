@@ -10,25 +10,17 @@
  * carries the EJO number, the old system's number where there is one,
  * and a link back to the record.
  */
-import { AREA_BRANCH_TYPES } from '@/lib/branch-types';
-import { DEFECT_CAUSES, DEFECT_LOCATIONS, DEFECT_TYPES } from '@/lib/plant/line';
 import { prisma, type Prisma } from '@ejo/database';
-import { allows, branchWithinReach, myOrganisationId, orgWhere, reachWhere, typedReach } from '@/lib/authz/server';
+import { allows, branchWithinReach, myOrganisationId, orgWhere, reachWhere } from '@/lib/authz/server';
 import type { PermissionKey } from '@/lib/authz/catalogue';
 import { portalBaseUrl } from '@/lib/portal-url';
 import { getCrmHub, type CrmHubParams } from '@/lib/actions/crm';
-import { getHeadquarters } from '@/lib/actions/headquarters';
 import { getAuditLogPage } from '@/lib/actions/audit-logs';
 import { listUsersForAdmin } from '@/lib/actions/users-admin';
-import { searchSecurityRecords, type SecurityRecord } from '@/lib/actions/security';
-import { VISIT_STATUS_LABEL, EXIT_PASS_STATUS_LABEL, ROAD_TEST_STATUS_LABEL, INCIDENT_STATUS_LABEL, DELIVERY_STATUS_LABEL, CONTRACTOR_STATUS_LABEL } from '@/lib/security-rules';
 import { getInventoryAnalytics } from '@/lib/actions/inventory-analytics';
 import { getStoreBranchId } from '@/lib/actions/store';
-import { getJobCardOutcomes, getVehicleServiceOutcomes } from '@/lib/actions/visit-outcomes';
+import { getJobCardOutcomes } from '@/lib/actions/visit-outcomes';
 import { matchesOutcomeFilter, parseOutcomeFilter } from '@/lib/visit-outcome';
-import { warrantyCoverage, WARRANTY_STATE_LABEL } from '@/lib/warranty-state';
-import { parseWarrantyFilter, warrantyMatchesFilter } from '@/lib/warranty-list';
-import { listWarrantyIdsWithReminderDue } from '@/lib/actions/warranty';
 import { parseSourceFilter, sourceWhere } from '@/lib/source-filter';
 import { importIdsFor } from '@/lib/source-filter-server';
 import type { ExportColumn } from './format';
@@ -294,7 +286,7 @@ const goodsReceipts: ExportKind = {
   },
 };
 
-// ── Workshop: Job Cards and Vehicle Services ──────────────────────────
+// ── Workshop: Job Cards ──────────────────────────
 
 const jobSearch = (q: string | undefined): Prisma.JobCardWhereInput => (q ? { OR: [{ jobNumber: { contains: q, mode: 'insensitive' } }, { customer: { fullName: { contains: q, mode: 'insensitive' } } }, { vehicle: { plateNumber: { contains: q, mode: 'insensitive' } } }, { vehicle: { chassisNumber: { contains: q, mode: 'insensitive' } } }, { assignedTechnician: { fullName: { contains: q, mode: 'insensitive' } } }] } : {});
 const jobCards: ExportKind = {
@@ -328,72 +320,10 @@ const jobCards: ExportKind = {
   },
 };
 
-const services: ExportKind = {
-  key: 'vehicle-services', label: 'Vehicle Services', view: ['workshop.job_card.view'], sensitive: false, page: '/workshop/vehicle-service',
-  columns: [
-    { header: 'Vehicle Service', type: 'code', width: 16, get: (r) => r.serviceNumber },
-    { header: 'Status', type: 'text', width: 16, get: (r) => words(r.status) },
-    { header: 'Outcome', type: 'text', width: 14, get: (r) => r.outcome },
-    { header: 'Booked', type: 'datetime', width: 16, get: (r) => r.createdAt },
-    { header: 'Checked in', type: 'datetime', width: 16, get: (r) => r.checkedInAt },
-    { header: 'Completed', type: 'datetime', width: 16, get: (r) => r.completedAt },
-    { header: 'Branch', type: 'text', width: 14, get: (r) => r.branch?.name },
-    { header: 'Customer', type: 'text', width: 24, get: (r) => r.customer?.fullName },
-    { header: 'Customer number', type: 'code', width: 14, get: (r) => r.customer?.externalId },
-    { header: 'Plate', type: 'code', width: 12, get: (r) => r.vehicle?.plateNumber },
-    { header: 'Chassis number (VIN)', type: 'code', width: 20, get: (r) => r.vehicle?.chassisNumber },
-    { header: 'Moved to Job Card', type: 'code', width: 16, get: (r) => r.escalatedToJobCard?.jobNumber },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/workshop/vehicle-service/${r.id}`) },
-  ],
-  async *rows(_ctx, p, from) {
-    const reach = await reachWhere('workshop.job_card.view');
-    const type = p.type === 'PASSENGER' || p.type === 'COMMERCIAL' ? p.type : undefined;
-    const q = p.q?.trim();
-    const outcome = parseOutcomeFilter(p.outcome);
-    const where: Prisma.VehicleServiceWhereInput = { AND: [reach as Prisma.VehicleServiceWhereInput, type ? { vehicle: { vehicleType: type } } : {}, q ? { OR: [{ serviceNumber: { contains: q, mode: 'insensitive' } }, { customer: { fullName: { contains: q, mode: 'insensitive' } } }, { vehicle: { plateNumber: { contains: q, mode: 'insensitive' } } }, { vehicle: { chassisNumber: { contains: q, mode: 'insensitive' } } }, { assignedTechnician: { fullName: { contains: q, mode: 'insensitive' } } }] } : {}] };
-    for await (const { rows: b, next } of blocks((c) => prisma.vehicleService.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...page(c), include: { branch: { select: { name: true } }, customer: { select: { fullName: true, externalId: true } }, vehicle: { select: { plateNumber: true, chassisNumber: true } }, escalatedToJobCard: { select: { jobNumber: true } } } }), from)) {
-      const out = await getVehicleServiceOutcomes(b.map((r) => r.id));
-      const rows = b.map((r) => ({ ...r, outcome: out[r.id] ? words(out[r.id]!.outcome) : null, _o: out[r.id] }));
-      yield { next, rows: outcome ? rows.filter((r) => r._o && matchesOutcomeFilter(outcome, r._o.outcome, r._o.refund)) : rows };
-    }
-  },
-};
-
-// ── Warranty ──────────────────────────────────────────────────────────
-
-const warranties: ExportKind = {
-  key: 'warranties', label: 'Warranties', view: ['warranty.view'], sensitive: false, page: '/warranty',
-  columns: [
-    { header: 'Warranty', type: 'code', width: 16, get: (r) => r.warrantyNumber },
-    { header: 'Kind', type: 'text', width: 9, get: (r) => (r.kind === 'PART' ? 'Part' : 'Vehicle') },
-    { header: 'Covers', type: 'text', width: 30, get: (r) => r.subjectDescription },
-    { header: 'Coverage now', type: 'text', width: 16, get: (r) => WARRANTY_STATE_LABEL[r.cov.state as keyof typeof WARRANTY_STATE_LABEL] ?? r.cov.state },
-    { header: 'Starts', type: 'date', width: 12, get: (r) => r.startsAt },
-    { header: 'Ends', type: 'date', width: 12, get: (r) => r.endsAt },
-    { header: 'Distance limit (km)', type: 'int', width: 10, get: (r) => r.distanceLimit },
-    { header: 'Customer', type: 'text', width: 24, get: (r) => r.customer?.fullName },
-    { header: 'Plate', type: 'code', width: 12, get: (r) => r.vehicle?.plateNumber },
-    { header: 'Chassis number (VIN)', type: 'code', width: 20, get: (r) => r.vehicle?.chassisNumber },
-    { header: 'Issued', type: 'date', width: 12, get: (r) => r.issuedAt },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/warranty/${r.id}`) },
-  ],
-  async *rows(_ctx, p, from) {
-    const q = p.q?.trim();
-    const filter = parseWarrantyFilter(p.filter);
-    const fence = await orgWhere();
-    const reminderDue = filter === 'reminder' ? new Set(await listWarrantyIdsWithReminderDue()) : null;
-    const where: Prisma.WarrantyWhereInput = { customer: fence, ...(q ? { OR: [{ warrantyNumber: { contains: q, mode: 'insensitive' } }, { subjectDescription: { contains: q, mode: 'insensitive' } }, { customer: { fullName: { contains: q, mode: 'insensitive' } } }, { vehicle: { plateNumber: { contains: q, mode: 'insensitive' } } }, { vehicle: { chassisNumber: { contains: q, mode: 'insensitive' } } }] } : {}) };
-    for await (const { rows: b, next } of blocks((c) => prisma.warranty.findMany({ where, orderBy: [{ issuedAt: 'desc' }, { id: 'desc' }], ...page(c), include: { customer: { select: { fullName: true } }, vehicle: { select: { plateNumber: true, chassisNumber: true, mileage: true } } } }), from)) {
-      const rows = b.map((w) => ({ ...w, cov: warrantyCoverage(w as never, w.vehicle?.mileage ?? null) }));
-      yield { next, rows: rows.filter((r) => warrantyMatchesFilter(filter, { kind: r.kind, state: r.cov.state, reminderDue: reminderDue?.has(r.id) ?? false })) };
-    }
-  },
-};
-
 // ── History from before EJO, imports and exports ──────────────────────
 
-const sapInvoices: ExportKind = {
-  key: 'sap-invoices', label: 'Invoice history (before EJO)', view: ['crm.view'], sensitive: true, page: '/crm',
+const historyInvoices: ExportKind = {
+  key: 'history-invoices', label: 'Invoice history (before EJO)', view: ['crm.view'], sensitive: true, page: '/crm',
   columns: [
     { header: 'Invoice number', type: 'code', width: 14, get: (r) => r.invoiceNumber },
     { header: 'Fiscal year', type: 'int', width: 8, get: (r) => r.fiscalYear },
@@ -483,9 +413,9 @@ const invoices: ExportKind = {
   },
 };
 
-/** Job cards from before EJO (P4): in the job card history layout, as the import reads them. */
-const sapJobs: ExportKind = {
-  key: 'sap-jobs', label: 'Job card history (before EJO)', view: ['crm.view', 'workshop.job_card.view'], sensitive: true, page: '/crm',
+/** Job cards from before EJO: in the job card history layout, as the import reads them. */
+const historyJobs: ExportKind = {
+  key: 'history-jobs', label: 'Job card history (before EJO)', view: ['crm.view', 'workshop.job_card.view'], sensitive: true, page: '/crm',
   columns: [
     { header: 'Job number', type: 'code', width: 12, get: (r) => r.jobNumber },
     { header: 'Service', type: 'text', width: 8, get: (r) => (r.kind === 'SERVICE' ? 'Yes' : 'No') },
@@ -624,302 +554,8 @@ const audit: ExportKind<AuditExportRow> = {
   },
 };
 
-// ── Security: the register (visits, exit passes, road tests, vehicle exits, deliveries, contractors, incidents) ─
-
-const SECURITY_TYPE: Record<string, string> = { VISIT: 'Visit', EXIT_PASS: 'Exit pass', ROAD_TEST: 'Road test', VEHICLE_EXIT: 'Vehicle exit', DELIVERY: 'Delivery', CONTRACTOR: 'Contractor', INCIDENT: 'Incident' };
-const SECURITY_STATUS: Record<string, Record<string, string>> = { VISIT: VISIT_STATUS_LABEL, EXIT_PASS: EXIT_PASS_STATUS_LABEL, ROAD_TEST: ROAD_TEST_STATUS_LABEL, INCIDENT: INCIDENT_STATUS_LABEL, DELIVERY: DELIVERY_STATUS_LABEL, CONTRACTOR: CONTRACTOR_STATUS_LABEL };
-const security: ExportKind<SecurityRecord> = {
-  // The register's own reading (searchSecurityRecords): the gate's branch, the same search and type.
-  key: 'security-register', label: 'Security register', view: ['security.view'], sensitive: false, page: '/security/register',
-  note: 'The register as the page shows it: the most recent records of each type (several hundred of each), newest first. For every gate event over a period, export the audit trail for those dates.',
-  columns: [
-    { header: 'Type', type: 'text', width: 12, get: (r) => SECURITY_TYPE[r.type] ?? r.type },
-    { header: 'Number', type: 'code', width: 22, get: (r) => r.number },
-    { header: 'Who / what', type: 'text', width: 26, get: (r) => r.title },
-    { header: 'Details', type: 'text', width: 44, get: (r) => r.detail },
-    { header: 'When', type: 'datetime', width: 16, get: (r) => (r.at.getTime() > 0 ? r.at : null) },
-    { header: 'Status', type: 'text', width: 16, get: (r) => SECURITY_STATUS[r.type]?.[r.status] ?? (r.type === 'VEHICLE_EXIT' ? 'Left' : words(r.status)) },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(r.href) },
-  ],
-  async *rows(_ctx, p, from) {
-    const type = Object.keys(SECURITY_TYPE).includes(String(p.type)) ? p.type : undefined;
-    yield* slices(await searchSecurityRecords(p.q, type), from);
-  },
-};
-
-// ── Assembly plant ────────────────────────────────────────────────────
-
-const plantWhere = async (ctx: Ctx, p: Params): Promise<Prisma.PlantVehicleWhereInput> => {
-  const q = p.q?.trim().slice(0, 60);
-  const stage = ['KIT', 'LINE', 'QA', 'PDI', 'YARD', 'SOLD'].includes(String(p.stage)) ? p.stage : undefined;
-  return {
-    organisationId: ctx.organisationId ?? '__none__', ...((await typedReach('plant.view', AREA_BRANCH_TYPES.plant)).where as Prisma.PlantVehicleWhereInput), ...(stage ? { stage } : {}),
-    ...(q ? { OR: [{ vinKey: { contains: q.toUpperCase().replace(/[\s.\-_/]/g, '') } }, { modelCode: { contains: q, mode: 'insensitive' } }, { modelName: { contains: q, mode: 'insensitive' } }, { engineNumber: { contains: q, mode: 'insensitive' } }, { sapProductionOrder: { contains: q } }, { sapEquipment: { contains: q } }] } : {}),
-  };
-};
-const plantVehicles: ExportKind = {
-  key: 'plant-vehicles', label: 'Vehicles in the plant', view: ['plant.view'], sensitive: false, page: '/plant/vehicles',
-  columns: [
-    { header: 'VIN', type: 'code', width: 20, get: (r) => r.vin },
-    { header: 'Make', type: 'text', width: 9, get: (r) => r.make },
-    { header: 'Model', type: 'code', width: 7, get: (r) => r.modelCode },
-    { header: 'Variant', type: 'text', width: 20, get: (r) => r.modelName },
-    { header: 'Engine number', type: 'code', width: 14, get: (r) => r.engineNumber },
-    { header: 'Colour', type: 'text', width: 10, get: (r) => r.colour },
-    { header: 'Model year', type: 'int', width: 7, get: (r) => r.modelYear },
-    { header: 'Stage', type: 'text', width: 12, get: (r) => words(r.stage) },
-    { header: 'Plant', type: 'text', width: 14, get: (r) => r.branch.name },
-    { header: 'SAP plant (WERKS)', type: 'code', width: 8, get: (r) => r.sapPlant },
-    { header: 'SAP material (MATNR)', type: 'code', width: 16, get: (r) => r.sapMaterial },
-    { header: 'SAP production order (AUFNR)', type: 'code', width: 14, get: (r) => r.sapProductionOrder },
-    { header: 'SAP equipment (EQUNR)', type: 'code', width: 14, get: (r) => r.sapEquipment },
-    { header: 'Registered', type: 'datetime', width: 16, get: (r) => r.createdAt },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/vehicles/${r.vinKey}`) },
-  ],
-  async *rows(ctx, p, from) {
-    const where = await plantWhere(ctx, p);
-    yield* blocks((c) => prisma.plantVehicle.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...page(c), include: { branch: { select: { name: true } } } }), from);
-  },
-};
-const plantPdis: ExportKind = {
-  key: 'plant-pdis', label: 'Pre-delivery inspections', view: ['plant.view'], sensitive: false, page: '/plant',
-  columns: [
-    { header: 'PDI', type: 'code', width: 16, get: (r) => r.number },
-    { header: 'VIN', type: 'code', width: 20, get: (r) => r.vehicle.vin },
-    { header: 'Model', type: 'code', width: 7, get: (r) => r.vehicle.modelCode },
-    { header: 'Attempt', type: 'int', width: 7, get: (r) => r.attempt },
-    { header: 'Status', type: 'text', width: 12, get: (r) => words(r.status) },
-    { header: 'SAP usage decision', type: 'code', width: 8, get: (r) => r.sapUsageDecision },
-    { header: 'Checklist', type: 'text', width: 14, get: (r) => `${r.templateKey} v${r.templateVersion}` },
-    { header: 'Items Not OK', type: 'int', width: 8, get: (r) => r.items.filter((i: { result: string | null }) => i.result === 'NOT_OK').length },
-    { header: 'Items reworked', type: 'int', width: 8, get: (r) => r.items.filter((i: { reworkedAt: Date | null }) => i.reworkedAt).length },
-    { header: 'Odometer (km)', type: 'int', width: 8, get: (r) => r.odometerKm },
-    { header: 'Battery (V)', type: 'number', width: 8, get: (r) => r.batteryVolts },
-    { header: 'Tyres front (psi)', type: 'number', width: 8, get: (r) => r.tyreFrontPsi },
-    { header: 'Tyres rear (psi)', type: 'number', width: 8, get: (r) => r.tyreRearPsi },
-    { header: 'Fault codes', type: 'code', width: 16, get: (r) => r.faultCodes.join(' ') },
-    { header: 'Fault codes cleared', type: 'bool', width: 8, get: (r) => (r.faultCodes.length ? r.faultCodesCleared : null) },
-    { header: 'Inspector', type: 'text', width: 18, get: (r) => r.inspector },
-    { header: 'Started', type: 'datetime', width: 16, get: (r) => r.startedAt },
-    { header: 'Submitted', type: 'datetime', width: 16, get: (r) => r.submittedAt },
-    { header: 'Decided by', type: 'text', width: 18, get: (r) => r.decider },
-    { header: 'Decided', type: 'datetime', width: 16, get: (r) => r.decidedAt },
-    { header: 'SAP production order (AUFNR)', type: 'code', width: 14, get: (r) => r.vehicle.sapProductionOrder },
-    { header: 'SAP equipment (EQUNR)', type: 'code', width: 14, get: (r) => r.vehicle.sapEquipment },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/plant/pdi/${r.id}`) },
-  ],
-  async *rows(ctx, _p, from) {
-    const where: Prisma.PdiInspectionWhereInput = { organisationId: ctx.organisationId ?? '__none__', ...((await typedReach('plant.view', AREA_BRANCH_TYPES.plant)).where as Prisma.PdiInspectionWhereInput) };
-    for await (const { rows: b, next } of blocks((c) => prisma.pdiInspection.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...page(c), include: { vehicle: true, items: { select: { result: true, reworkedAt: true } } } }), from)) {
-      const ids = [...new Set(b.flatMap((r) => [r.inspectorId, r.decidedById]).filter((x): x is string => Boolean(x)))];
-      const names = new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName]));
-      yield { next, rows: b.map((r) => ({ ...r, inspector: names.get(r.inspectorId) ?? null, decider: r.decidedById ? names.get(r.decidedById) ?? null : null })) };
-    }
-  },
-};
-
-const kitWhere = async (ctx: Ctx, p: Params): Promise<Prisma.PlantKitWhereInput> => {
-  const q = p.q?.trim().slice(0, 60);
-  const status = ['ARRIVED', 'INSPECTING', 'SUBMITTED', 'ON_HOLD', 'RELEASED', 'REJECTED', 'CANCELLED'].includes(String(p.status)) ? p.status : undefined;
-  return {
-    organisationId: ctx.organisationId ?? '__none__', ...((await typedReach('plant.view', AREA_BRANCH_TYPES.plant)).where as Prisma.PlantKitWhereInput), ...(status ? { status } : {}),
-    ...(p.status === 'issues' ? { issues: { some: { status: { in: ['OPEN', 'CLAIMED'] } } } } : {}),
-    ...(q ? { OR: [{ vinKey: { contains: q.toUpperCase().replace(/[\s.\-_/]/g, '') } }, { number: { contains: q.toUpperCase() } }, { lotNumber: { contains: q, mode: 'insensitive' } }, { engineNumber: { contains: q, mode: 'insensitive' } }, { modelCode: { contains: q, mode: 'insensitive' } }, { shipment: { number: { contains: q.toUpperCase() } } }] } : {}),
-  };
-};
-const plantKits: ExportKind = {
-  key: 'plant-kits', label: 'Kits arriving at the plant', view: ['plant.view'], sensitive: false, page: '/plant/kits',
-  columns: [
-    { header: 'Kit', type: 'code', width: 16, get: (r) => r.number },
-    { header: 'VIN / frame number', type: 'code', width: 20, get: (r) => r.vin },
-    { header: 'Engine number', type: 'code', width: 14, get: (r) => r.engineNumber },
-    { header: 'Model', type: 'code', width: 7, get: (r) => r.modelCode },
-    { header: 'Kit type', type: 'code', width: 6, get: (r) => r.kitType },
-    { header: 'Lot', type: 'code', width: 12, get: (r) => r.lotNumber },
-    { header: 'Status', type: 'text', width: 14, get: (r) => words(r.status) },
-    { header: 'Released with shortages', type: 'bool', width: 8, get: (r) => (r.status === 'RELEASED' ? r.releasedWithShortages : null) },
-    { header: 'Cases expected', type: 'int', width: 7, get: (r) => r.casesExpected },
-    { header: 'Cases received', type: 'int', width: 7, get: (r) => r.casesReceived },
-    { header: 'Checks Not OK', type: 'int', width: 7, get: (r) => r.checks.filter((c: { result: string | null }) => c.result === 'NOT_OK').length },
-    { header: 'Open issues', type: 'int', width: 7, get: (r) => r.issues.filter((i: { status: string }) => i.status !== 'RESOLVED').length },
-    { header: 'Issues stopping the line', type: 'int', width: 7, get: (r) => r.issues.filter((i: { status: string; stopsLine: boolean }) => i.status !== 'RESOLVED' && i.stopsLine).length },
-    { header: 'Shipment', type: 'code', width: 16, get: (r) => r.shipment.number },
-    { header: 'Supplier', type: 'text', width: 20, get: (r) => r.shipment.supplier },
-    { header: 'Bill of lading', type: 'code', width: 14, get: (r) => r.shipment.billOfLading },
-    { header: 'Arrived', type: 'date', width: 11, get: (r) => r.shipment.arrivedAt },
-    { header: 'Plant', type: 'text', width: 14, get: (r) => r.branch.name },
-    { header: 'SAP plant (WERKS)', type: 'code', width: 8, get: (r) => r.branch.sapPlant },
-    { header: 'SAP purchase order (EBELN)', type: 'code', width: 12, get: (r) => r.shipment.sapPurchaseOrder },
-    { header: 'SAP inbound delivery (VBELN)', type: 'code', width: 12, get: (r) => r.shipment.sapInboundDelivery },
-    { header: 'SAP inspection lot (PRUEFLOS)', type: 'code', width: 14, get: (r) => r.sapInspectionLot },
-    { header: 'SAP material document (MBLNR)', type: 'code', width: 12, get: (r) => r.sapMaterialDocument },
-    { header: 'SAP usage decision', type: 'code', width: 8, get: (r) => r.sapUsageDecision },
-    { header: 'Inspector', type: 'text', width: 18, get: (r) => r.inspector },
-    { header: 'Decided by', type: 'text', width: 18, get: (r) => r.decider },
-    { header: 'Decided', type: 'datetime', width: 16, get: (r) => r.decidedAt },
-    { header: 'Decision note', type: 'text', width: 30, get: (r) => r.decisionNote },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/plant/kits/${r.id}`) },
-  ],
-  async *rows(ctx, p, from) {
-    const where = await kitWhere(ctx, p);
-    for await (const { rows: b, next } of blocks((c) => prisma.plantKit.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...page(c), include: { shipment: true, branch: { select: { name: true, sapPlant: true } }, checks: { select: { result: true } }, issues: { select: { status: true, stopsLine: true } } } }), from)) {
-      const ids = [...new Set(b.flatMap((r) => [r.inspectorId, r.decidedById]).filter((x): x is string => Boolean(x)))];
-      const names = new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName]));
-      yield { next, rows: b.map((r) => ({ ...r, inspector: r.inspectorId ? names.get(r.inspectorId) ?? null : null, decider: r.decidedById ? names.get(r.decidedById) ?? null : null })) };
-    }
-  },
-};
-const plantKitIssues: ExportKind = {
-  key: 'plant-kit-issues', label: 'Kit shortages and damage (for supplier claims)', view: ['plant.view'], sensitive: false, page: '/plant/kits',
-  columns: [
-    { header: 'Kit', type: 'code', width: 16, get: (r) => r.kit.number },
-    { header: 'VIN / frame number', type: 'code', width: 20, get: (r) => r.kit.vin },
-    { header: 'Model', type: 'code', width: 7, get: (r) => r.kit.modelCode },
-    { header: 'Lot', type: 'code', width: 12, get: (r) => r.kit.lotNumber },
-    { header: 'Kind', type: 'text', width: 10, get: (r) => words(r.kind) },
-    { header: 'Part number', type: 'code', width: 16, get: (r) => r.partNumber },
-    { header: 'Description', type: 'text', width: 30, get: (r) => r.description },
-    { header: 'Case', type: 'code', width: 10, get: (r) => r.caseNumber },
-    { header: 'Quantity', type: 'int', width: 7, get: (r) => r.quantity },
-    { header: 'Stops the line', type: 'bool', width: 7, get: (r) => r.stopsLine },
-    { header: 'Status', type: 'text', width: 12, get: (r) => words(r.status) },
-    { header: 'Claim reference', type: 'code', width: 14, get: (r) => r.claimReference },
-    { header: 'Resolution', type: 'text', width: 24, get: (r) => r.resolution },
-    { header: 'Raised', type: 'datetime', width: 16, get: (r) => r.raisedAt },
-    { header: 'Resolved', type: 'datetime', width: 16, get: (r) => r.resolvedAt },
-    { header: 'Shipment', type: 'code', width: 16, get: (r) => r.kit.shipment.number },
-    { header: 'Supplier', type: 'text', width: 20, get: (r) => r.kit.shipment.supplier },
-    { header: 'Bill of lading', type: 'code', width: 14, get: (r) => r.kit.shipment.billOfLading },
-    { header: 'SAP purchase order (EBELN)', type: 'code', width: 12, get: (r) => r.kit.shipment.sapPurchaseOrder },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/plant/kits/${r.kit.id}`) },
-  ],
-  async *rows(ctx, p, from) {
-    const open = p.status === 'issues';
-    const where: Prisma.PlantKitIssueWhereInput = { organisationId: ctx.organisationId ?? '__none__', kit: (await typedReach('plant.view', AREA_BRANCH_TYPES.plant)).where as Prisma.PlantKitWhereInput, ...(open ? { status: { in: ['OPEN', 'CLAIMED'] } } : {}) };
-    yield* blocks((c) => prisma.plantKitIssue.findMany({ where, orderBy: [{ raisedAt: 'desc' }, { id: 'desc' }], ...page(c), include: { kit: { select: { id: true, number: true, vin: true, modelCode: true, lotNumber: true, shipment: { select: { number: true, supplier: true, billOfLading: true, sapPurchaseOrder: true } } } } } }), from);
-  },
-};
-
-const plantStations: ExportKind = {
-  key: 'plant-stations', label: 'Line stations (every vehicle at every station)', view: ['plant.view'], sensitive: false, page: '/plant/line',
-  columns: [
-    { header: 'VIN', type: 'code', width: 20, get: (r) => r.vehicle.vin },
-    { header: 'Model', type: 'code', width: 7, get: (r) => r.vehicle.modelCode },
-    { header: 'Station', type: 'code', width: 6, get: (r) => r.code },
-    { header: 'Station name', type: 'text', width: 24, get: (r) => r.name },
-    { header: 'Kind', type: 'text', width: 10, get: (r) => words(r.kind) },
-    { header: 'Order', type: 'int', width: 5, get: (r) => r.sort + 1 },
-    { header: 'Status', type: 'text', width: 14, get: (r) => words(r.status) },
-    { header: 'Checks', type: 'int', width: 6, get: (r) => (Array.isArray(r.checks) ? r.checks.length : 0) },
-    { header: 'Checks failed', type: 'int', width: 6, get: (r) => (Array.isArray(r.results) ? (r.results as { pass: boolean }[]).filter((x) => !x.pass).length : 0) },
-    { header: 'Standard (min)', type: 'int', width: 7, get: (r) => r.standardMinutes },
-    { header: 'Taken (min)', type: 'int', width: 7, get: (r) => (r.startedAt && r.finishedAt ? Math.round((r.finishedAt.getTime() - r.startedAt.getTime()) / 60000) : null) },
-    { header: 'Operator', type: 'text', width: 18, get: (r) => r.operator },
-    { header: 'Started', type: 'datetime', width: 16, get: (r) => r.startedAt },
-    { header: 'Finished', type: 'datetime', width: 16, get: (r) => r.finishedAt },
-    { header: 'Gate passed by', type: 'text', width: 18, get: (r) => r.passer },
-    { header: 'Plant', type: 'text', width: 14, get: (r) => r.branch.name },
-    { header: 'SAP plant (WERKS)', type: 'code', width: 8, get: (r) => r.branch.sapPlant },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/plant/line/${r.plantVehicleId}`) },
-  ],
-  async *rows(ctx, _p, from) {
-    const where: Prisma.PlantStationVisitWhereInput = { organisationId: ctx.organisationId ?? '__none__', ...((await typedReach('plant.view', AREA_BRANCH_TYPES.plant)).where as Prisma.PlantStationVisitWhereInput) };
-    for await (const { rows: b, next } of blocks((c) => prisma.plantStationVisit.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...page(c), include: { vehicle: { select: { vin: true, modelCode: true } }, branch: { select: { name: true, sapPlant: true } } } }), from)) {
-      const ids = [...new Set(b.flatMap((r) => [r.operatorId, r.passedById]).filter((x): x is string => Boolean(x)))];
-      const names = new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName]));
-      yield { next, rows: b.map((r) => ({ ...r, operator: r.operatorId ? names.get(r.operatorId) ?? null : null, passer: r.passedById ? names.get(r.passedById) ?? null : null })) };
-    }
-  },
-};
-const plantDefects: ExportKind = {
-  key: 'plant-defects', label: 'Line defects', view: ['plant.view'], sensitive: false, page: '/plant/line',
-  columns: [
-    { header: 'Defect', type: 'code', width: 16, get: (r) => r.number },
-    { header: 'VIN', type: 'code', width: 20, get: (r) => r.vehicle.vin },
-    { header: 'Model', type: 'code', width: 7, get: (r) => r.vehicle.modelCode },
-    { header: 'Station', type: 'code', width: 6, get: (r) => r.stationCode },
-    { header: 'Check', type: 'code', width: 8, get: (r) => r.checkCode },
-    { header: 'Code', type: 'code', width: 14, get: (r) => `${r.location}-${r.type}-${r.cause}` },
-    { header: 'Location', type: 'text', width: 16, get: (r) => defectPart('location', r.location) },
-    { header: 'Type', type: 'text', width: 16, get: (r) => defectPart('type', r.type) },
-    { header: 'Cause', type: 'text', width: 20, get: (r) => defectPart('cause', r.cause) },
-    { header: 'Severity', type: 'code', width: 5, get: (r) => r.severity },
-    { header: 'Description', type: 'text', width: 30, get: (r) => r.description },
-    { header: 'Status', type: 'text', width: 12, get: (r) => words(r.status) },
-    { header: 'Raised by', type: 'text', width: 18, get: (r) => r.raiser },
-    { header: 'Raised', type: 'datetime', width: 16, get: (r) => r.raisedAt },
-    { header: 'Rework', type: 'text', width: 24, get: (r) => r.reworkNote },
-    { header: 'Reworked', type: 'datetime', width: 16, get: (r) => r.reworkedAt },
-    { header: 'Verified by', type: 'text', width: 18, get: (r) => r.verifier },
-    { header: 'Verified', type: 'datetime', width: 16, get: (r) => r.verifiedAt },
-    { header: 'Plant', type: 'text', width: 14, get: (r) => r.branch.name },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/plant/line/${r.plantVehicleId}`) },
-  ],
-  async *rows(ctx, _p, from) {
-    const where: Prisma.PlantDefectWhereInput = { organisationId: ctx.organisationId ?? '__none__', ...((await typedReach('plant.view', AREA_BRANCH_TYPES.plant)).where as Prisma.PlantDefectWhereInput) };
-    for await (const { rows: b, next } of blocks((c) => prisma.plantDefect.findMany({ where, orderBy: [{ raisedAt: 'desc' }, { id: 'desc' }], ...page(c), include: { vehicle: { select: { vin: true, modelCode: true } }, branch: { select: { name: true } } } }), from)) {
-      const ids = [...new Set(b.flatMap((r) => [r.raisedById, r.verifiedById]).filter((x): x is string => Boolean(x)))];
-      const names = new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName]));
-      yield { next, rows: b.map((r) => ({ ...r, raiser: names.get(r.raisedById) ?? null, verifier: r.verifiedById ? names.get(r.verifiedById) ?? null : null })) };
-    }
-  },
-};
-const plantQaAudits: ExportKind = {
-  key: 'plant-qa-audits', label: 'QA audits', view: ['plant.view'], sensitive: false, page: '/plant/qa',
-  columns: [
-    { header: 'Audit', type: 'code', width: 16, get: (r) => r.number },
-    { header: 'VIN', type: 'code', width: 20, get: (r) => r.vehicle.vin },
-    { header: 'Model', type: 'code', width: 7, get: (r) => r.vehicle.modelCode },
-    { header: 'Result', type: 'text', width: 8, get: (r) => (r.result ? words(r.result) : 'In progress') },
-    { header: 'Demerits', type: 'int', width: 7, get: (r) => r.demerits },
-    { header: 'A findings', type: 'int', width: 6, get: (r) => (Array.isArray(r.findings) ? (r.findings as { severity: string }[]).filter((f) => f.severity === 'A').length : 0) },
-    { header: 'B findings', type: 'int', width: 6, get: (r) => (Array.isArray(r.findings) ? (r.findings as { severity: string }[]).filter((f) => f.severity === 'B').length : 0) },
-    { header: 'C findings', type: 'int', width: 6, get: (r) => (Array.isArray(r.findings) ? (r.findings as { severity: string }[]).filter((f) => f.severity === 'C').length : 0) },
-    { header: 'Findings', type: 'text', width: 40, get: (r) => (Array.isArray(r.findings) ? (r.findings as { section: string; severity: string; description: string }[]).map((f) => `${f.severity} ${f.section}: ${f.description}`).join(' | ') : '') },
-    { header: 'Auditor', type: 'text', width: 18, get: (r) => r.auditor },
-    { header: 'Started', type: 'datetime', width: 16, get: (r) => r.startedAt },
-    { header: 'Finished', type: 'datetime', width: 16, get: (r) => r.finishedAt },
-    { header: 'Plant', type: 'text', width: 14, get: (r) => r.branch.name },
-    { header: 'Link', type: 'link', width: 40, get: (r) => link(`/plant/qa/${r.id}`) },
-  ],
-  async *rows(ctx, _p, from) {
-    const where: Prisma.PlantQaAuditWhereInput = { organisationId: ctx.organisationId ?? '__none__', ...((await typedReach('plant.view', AREA_BRANCH_TYPES.plant)).where as Prisma.PlantQaAuditWhereInput) };
-    for await (const { rows: b, next } of blocks((c) => prisma.plantQaAudit.findMany({ where, orderBy: [{ startedAt: 'desc' }, { id: 'desc' }], ...page(c), include: { vehicle: { select: { vin: true, modelCode: true } }, branch: { select: { name: true } } } }), from)) {
-      const ids = [...new Set(b.map((r) => r.auditorId))];
-      const names = new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName]));
-      yield { next, rows: b.map((r) => ({ ...r, auditor: names.get(r.auditorId) ?? null })) };
-    }
-  },
-};
-const defectPart = (kind: 'location' | 'type' | 'cause', code: string) => (kind === 'location' ? DEFECT_LOCATIONS : kind === 'type' ? DEFECT_TYPES : DEFECT_CAUSES).find((x) => x.code === code)?.name ?? code;
-
-// ── Headquarters ──────────────────────────────────────────────────────
-
-const headquarters: ExportKind<import('@/lib/actions/headquarters').HqRow> = {
-  key: 'headquarters', label: 'Headquarters', view: ['analytics.business.view'], sensitive: false, page: '/headquarters',
-  columns: [
-    { header: 'Branch', type: 'text', width: 18, get: (r) => r.name },
-    { header: 'Health', type: 'text', width: 12, get: (r) => r.health.label },
-    { header: 'Why', type: 'text', width: 30, get: (r) => r.health.reasons.join('; ') },
-    { header: 'Staff', type: 'int', width: 7, get: (r) => r.staff },
-    { header: 'Jobs opened', type: 'int', width: 9, get: (r) => r.opened },
-    { header: 'Jobs finished', type: 'int', width: 9, get: (r) => r.finished },
-    { header: 'Collected (payments less refunds)', type: 'money', width: 14, get: (r) => r.collected },
-    { header: 'Invoiced before EJO', type: 'money', width: 14, get: (r) => r.fromSap },
-    { header: 'Currency', type: 'text', width: 8, get: () => 'NGN' },
-    { header: 'In the workshop now', type: 'int', width: 9, get: (r) => r.inWorkshop },
-    { header: 'Ready to collect', type: 'int', width: 9, get: (r) => r.ready },
-    { header: 'Decisions waiting', type: 'int', width: 9, get: (r) => r.waiting },
-    { header: 'Median turnaround (hours)', type: 'int', width: 10, get: (r) => r.turnaroundHours },
-  ],
-  async *rows(_ctx, p, from) {
-    const hq = await getHeadquarters(p.period, { history: p.history !== 'exclude' });
-    yield* slices(hq.branches, from);
-  },
-};
-
 export const EXPORT_KINDS: Record<string, ExportKind> = Object.fromEntries(
-  [customers, vehicles, parts, stock, suppliers, goodsReceipts, jobCards, services, invoices, warranties, sapInvoices, sapJobs, imports, exportsHistory, users, audit, security, plantVehicles, plantPdis, plantKits, plantKitIssues, plantStations, plantDefects, plantQaAudits, headquarters].map((k) => [k.key, k]),
+  [customers, vehicles, parts, stock, suppliers, goodsReceipts, jobCards, invoices, historyInvoices, historyJobs, imports, exportsHistory, users, audit].map((k) => [k.key, k]),
 );
 
 /** May this person export this list (open it, export, and — for contact details or payments — export those)? */

@@ -1,5 +1,5 @@
 /**
- * A4c2 — customer documents in bulk (server only): which documents a branch
+ * Customer documents in bulk (server only): which documents a branch
  * has in a period, and one part of them drawn as PDFs into a zip with an
  * index. Drawn by the same builders as the copy emailed to the customer
  * (lib/pdf/document-props), from the records as they stand now.
@@ -9,10 +9,8 @@ import { zipSync, strToU8 } from 'fflate';
 import { renderToBuffer } from '@react-pdf/renderer';
 import { prisma } from '@ejo/database';
 import { EstimatePdf } from '../pdf/estimate-pdf';
-import { InspectionPdf } from '../pdf/inspection-pdf';
-import { inspectionPdfProps, jobEstimatePdfProps, letterhead, serviceEstimatePdfProps, type Bank, type Letterhead } from '../pdf/document-props';
+import { jobEstimatePdfProps, letterhead, type Bank, type Letterhead } from '../pdf/document-props';
 import { bankDetailsFor } from '../workshop-core';
-import { formatDateTime } from '../utils/format-date';
 import { safeText } from './format';
 import { documentFileName, DOCUMENTS_PER_ZIP, periodWindow, type DocumentKind } from './documents';
 import { billingOf, depositFractionFor, vatSettingFor, JOB_CARD_BILLING_SELECT } from '../estimate-billing';
@@ -24,9 +22,7 @@ const inBranch = (s: Scope) => ({ branchId: s.branchId, branch: { businessUnit: 
 
 export async function countDocuments(s: Scope): Promise<number> {
   const { start, end } = periodWindow(s.from, s.to);
-  if (s.kind === 'JOB_ESTIMATE') return prisma.estimate.count({ where: { customerNotifiedAt: { gte: start, lt: end }, jobCard: inBranch(s) } });
-  if (s.kind === 'SERVICE_ESTIMATE') return prisma.serviceEstimate.count({ where: { customerNotifiedAt: { gte: start, lt: end }, vehicleService: inBranch(s) } });
-  return prisma.vehicleInspection.count({ where: { status: 'COMPLETED', completedAt: { gte: start, lt: end }, vehicleService: inBranch(s) } });
+  return prisma.estimate.count({ where: { customerNotifiedAt: { gte: start, lt: end }, jobCard: inBranch(s) } });
 }
 
 /** The portal's logo, fetched once for the whole zip (each document would otherwise fetch it again); the address itself when it cannot be read. */
@@ -53,35 +49,13 @@ async function drawPart(s: Scope, part: number, head: Letterhead, bank: Bank): P
   const { start, end } = periodWindow(s.from, s.to);
   const page = { skip: (part - 1) * DOCUMENTS_PER_ZIP, take: DOCUMENTS_PER_ZIP };
   const out: Made[] = [];
-  if (s.kind === 'JOB_ESTIMATE') {
-    const rows = await prisma.estimate.findMany({
-      where: { customerNotifiedAt: { gte: start, lt: end }, jobCard: inBranch(s) }, orderBy: [{ customerNotifiedAt: 'asc' }, { id: 'asc' }], ...page,
-      select: { customerNotifiedAt: true, discountAmount: true, vatRate: true, jobCard: { select: { jobNumber: true, customer, vehicle, ...JOB_CARD_BILLING_SELECT } }, lineItems: { orderBy: { createdAt: 'asc' }, select: { type: true, description: true, quantity: true, amount: true, unitOfMeasure: true, billTo: true, discountAmount: true, coveringWarranty: { select: { warrantyNumber: true } } } } },
-    });
-    for (const e of rows) {
-      const pdf = await renderToBuffer(EstimatePdf(jobEstimatePdfProps({ letterhead: head, bank, jobNumber: e.jobCard.jobNumber, customer: e.jobCard.customer, vehicle: e.jobCard.vehicle, lineItems: e.lineItems, billing: { discountAmount: e.discountAmount, vat: vatSettingFor(e, billingOf(e.jobCard)), depositFraction: depositFractionFor(billingOf(e.jobCard), e.jobCard.customer.customerType) } })));
-      out.push({ number: e.jobCard.jobNumber, customer: e.jobCard.customer.fullName, dated: e.customerNotifiedAt!, file: documentFileName(s.kind, e.jobCard.jobNumber), pdf });
-    }
-  } else if (s.kind === 'SERVICE_ESTIMATE') {
-    const rows = await prisma.serviceEstimate.findMany({
-      where: { customerNotifiedAt: { gte: start, lt: end }, vehicleService: inBranch(s) }, orderBy: [{ customerNotifiedAt: 'asc' }, { id: 'asc' }], ...page,
-      select: { customerNotifiedAt: true, vehicleService: { select: { serviceNumber: true, customer, vehicle, ...JOB_CARD_BILLING_SELECT } }, lineItems: { orderBy: { createdAt: 'asc' }, select: { type: true, description: true, quantity: true, amount: true, unitOfMeasure: true } } },
-    });
-    for (const e of rows) {
-      const v = e.vehicleService;
-      const pdf = await renderToBuffer(EstimatePdf(serviceEstimatePdfProps({ letterhead: head, bank, serviceNumber: v.serviceNumber, customer: v.customer, vehicle: v.vehicle, lineItems: e.lineItems, depositFraction: depositFractionFor(billingOf(v), v.customer.customerType) })));
-      out.push({ number: v.serviceNumber, customer: v.customer.fullName, dated: e.customerNotifiedAt!, file: documentFileName(s.kind, v.serviceNumber), pdf });
-    }
-  } else {
-    const rows = await prisma.vehicleInspection.findMany({
-      where: { status: 'COMPLETED', completedAt: { gte: start, lt: end }, vehicleService: inBranch(s) }, orderBy: [{ completedAt: 'asc' }, { id: 'asc' }], ...page,
-      select: { completedAt: true, inspectedBy: { select: { fullName: true } }, items: { select: { section: true, name: true, condition: true, severity: true, action: true } }, vehicleService: { select: { serviceNumber: true, customer, vehicle } } },
-    });
-    for (const i of rows) {
-      const v = i.vehicleService;
-      const pdf = await renderToBuffer(InspectionPdf(inspectionPdfProps({ letterhead: head, serviceNumber: v.serviceNumber, customerName: v.customer.fullName, vehicle: v.vehicle, inspectedByName: i.inspectedBy.fullName, completedOnLabel: formatDateTime(i.completedAt!), items: i.items })));
-      out.push({ number: v.serviceNumber, customer: v.customer.fullName, dated: i.completedAt!, file: documentFileName(s.kind, v.serviceNumber), pdf });
-    }
+  const rows = await prisma.estimate.findMany({
+    where: { customerNotifiedAt: { gte: start, lt: end }, jobCard: inBranch(s) }, orderBy: [{ customerNotifiedAt: 'asc' }, { id: 'asc' }], ...page,
+    select: { customerNotifiedAt: true, discountAmount: true, vatRate: true, jobCard: { select: { jobNumber: true, customer, vehicle, ...JOB_CARD_BILLING_SELECT } }, lineItems: { orderBy: { createdAt: 'asc' }, select: { type: true, description: true, quantity: true, amount: true, unitOfMeasure: true, billTo: true, discountAmount: true } } },
+  });
+  for (const e of rows) {
+    const pdf = await renderToBuffer(EstimatePdf(jobEstimatePdfProps({ letterhead: head, bank, jobNumber: e.jobCard.jobNumber, customer: e.jobCard.customer, vehicle: e.jobCard.vehicle, lineItems: e.lineItems, billing: { discountAmount: e.discountAmount, vat: vatSettingFor(e, billingOf(e.jobCard)), depositFraction: depositFractionFor(billingOf(e.jobCard), e.jobCard.customer.customerType) } })));
+    out.push({ number: e.jobCard.jobNumber, customer: e.jobCard.customer.fullName, dated: e.customerNotifiedAt!, file: documentFileName(s.kind, e.jobCard.jobNumber), pdf });
   }
   return out;
 }

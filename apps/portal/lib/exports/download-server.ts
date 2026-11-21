@@ -16,13 +16,12 @@
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { prisma } from '@ejo/database';
-import { getPrincipal, refuseDuringAssist } from '@/lib/authz/server';
+import { getPrincipal } from '@/lib/authz/server';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { lagosDateTime } from './format';
 import { describeParams, partMaxRows, PART_BUDGET_MS, PART_IN_FLIGHT_MS, isExportFormat, type ExportFormat } from './describe';
 import { EXPORT_KINDS, mayExport, type ExportKind, type Params } from './kinds';
 import { exportStream } from './stream';
-import { columnsFor, sapLayoutOffered } from './sap-layout';
 import { portalBaseUrl } from '@/lib/portal-url';
 
 export type PartRefusal = { status: 401 | 403 | 404 | 409 | 410; message: string };
@@ -39,7 +38,6 @@ export type ClaimedPart = {
 export async function claimPart(id: string): Promise<ClaimedPart | PartRefusal> {
   let p;
   try { p = await getPrincipal(); } catch { return { status: 401, message: 'Sign in to download this export.' }; }
-  try { await refuseDuringAssist('export download'); } catch (e) { return { status: 403, message: (e as Error).message }; }
   if (!p.organisationId && !p.isSuperAdmin) return { status: 404, message: 'This export is not available.' };
   const job = await prisma.exportJob.findFirst({ where: { id: String(id).slice(0, 40), ...(p.isSuperAdmin ? {} : { organisationId: p.organisationId! }) } });
   if (!job) return { status: 404, message: 'This export is not available.' };
@@ -103,8 +101,6 @@ export async function partStream(c: ClaimedPart): Promise<{ body: ReadableStream
     complete = true;
   }
   const now = new Date();
-  // SAP field names (KUNNR, NAME1…): for the SAP team's own load tools, only while the SAP link is on.
-  const sap = c.job.params.layout === 'sap' && sapLayoutOffered(c.kind.key);
   const about: [string, string][] = [
     ['List', c.kind.label],
     ['Organisation', org?.name ?? ''],
@@ -116,7 +112,6 @@ export async function partStream(c: ClaimedPart): Promise<{ body: ReadableStream
     ...(c.part > 1 || c.from ? [['Part', `${c.part} — carries on where part ${c.part - 1} stopped`] as [string, string]] : []),
     ['What is in it', `${c.kind.note ?? 'Every matching record you may see today, in the list’s order.'} Times are Lagos time; money is in naira (NGN), as numbers; record numbers are text, with their leading zeros kept.`],
     ['The list in EJO', `${portalBaseUrl().replace(/\/$/, '')}${c.kind.page}`],
-    ...(sap ? [['Column names', 'SAP field names (KUNNR, NAME1, MATNR…). Days are YYYYMMDD and flags X or empty, as SAP flat files write them. ZZ_EJO_ID is the EJO record. SAP’s team loads this with their own tools; EJO never writes into SAP. The file also comes straight back into EJO’s Data Exchange.'] as [string, string]] : []),
   ];
   // The file is written after this request has handed back its response, as the browser reads it.
   // Every later read (the list's own reader asks who is signed in, block by block) runs in this
@@ -128,10 +123,9 @@ export async function partStream(c: ClaimedPart): Promise<{ body: ReadableStream
   const body = exportStream({
     format: c.job.format,
     sheetName: c.kind.label,
-    columns: columnsFor(c.kind.key, c.kind.columns, sap ? 'sap' : 'ejo'),
+    columns: c.kind.columns,
     rows: inThisRequest(limited()),
-    // In CSV for SAP, line 1 is the header (load tools take no notes above it); Excel keeps its About sheet.
-    about: sap && c.job.format === 'csv' ? [] : about,
+    about,
     aboutAfter: () => (complete ? [] : [['More to come', `This is part ${c.part}. The list is longer than one download: open ${c.job.number} in EJO (Data Exchange → Exports) and download part ${c.part + 1}, which carries on from here.`]]),
     onDone: (stats) => request(async () => {
       const { rows, bytes } = stats;
@@ -147,7 +141,7 @@ export async function partStream(c: ClaimedPart): Promise<{ body: ReadableStream
     }),
   });
   // Part 1 is named for its part only when a part 2 follows (known once it is written, so: from part 2 on, and in the About sheet).
-  const suffix = `${sap ? '-SAP' : ''}${c.part > 1 ? `-part${c.part}` : ''}`;
+  const suffix = c.part > 1 ? `-part${c.part}` : '';
   return {
     body,
     fileName: `EJO-${c.job.kind}-${lagosDateTime(now).slice(0, 10)}-${c.job.number}${suffix}.${c.job.format}`,

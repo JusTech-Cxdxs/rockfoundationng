@@ -63,7 +63,7 @@ async function pool<T>(items: T[], n: number, fn: (x: T) => Promise<void>) {
 
 /** Fingerprint of every first-organisation business table (row count + md5). */
 const WATCH = ['job_cards', 'estimates', 'estimate_line_items', 'payments', 'refunds', 'part_stock', 'parts', 'part_request_slips', 'goods_receipts', 'vehicle_services', 'warranties', 'warranty_providers', 'warranty_policies',
-  'broadcasts', 'appointments', 'customers', 'customer_vehicles', 'users', 'user_roles', 'roles', 'role_permissions', 'branches', 'departments', 'organisations', 'accounts'];
+  'broadcasts', 'customers', 'customer_vehicles', 'users', 'user_roles', 'roles', 'role_permissions', 'branches', 'departments', 'organisations', 'accounts'];
 async function fingerprint(): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const t of WATCH) {
@@ -79,7 +79,7 @@ const diff = (a: Record<string, string>, b: Record<string, string>) => Object.ke
 // ── Cron + pulse ─────────────────────────────────────────────────────────
 async function cron(): Promise<Check[]> {
   const checks: Check[] = [];
-  for (const route of ['appointment-reminders', 'pricing-alerts', 'service-reminders']) {
+  for (const route of ['pricing-alerts', 'service-reminders']) {
     const p = `/api/cron/${route}`;
     const none = await fetch(`${BASE}${p}`);
     const wrong = await fetch(`${BASE}${p}`, { headers: { authorization: 'Bearer wrong-secret' } });
@@ -173,13 +173,13 @@ async function pages(cookies: Map<string, string>): Promise<Check[]> {
 // ── Cross-organisation record pages + print views ────────────────────────
 async function crossOrgPages(theirs: string, ours: string): Promise<Check[]> {
   const targets: [string, string][] = [
-    ['/workshop/job-cards/', FIX.jcPay], ['/workshop/job-cards/', FIX.jcSlips], ['/workshop/vehicle-service/', FIX.vehicleService], ['/inventory/parts/', FIX.parts.approve],
-    ['/inventory/parts/%/edit', FIX.parts.approve], ['/inventory/goods-receipts/', FIX.goodsReceipt], ['/workshop/parts-requests/', FIX.pendingSlips[0]], ['/warranty/', FIX.warranty],
-    ['/warranty/providers/', FIX.warrantyProvider], ['/warranty/policies/', FIX.warrantyPolicy], ['/workshop/vehicles/%/edit', FIX.vehicleId],
-    ['/branches/', FIX.branchId], ['/notifications/broadcasts/', FIX.broadcast], ['/schedule/', FIX.appointment], ['/schedule/%/edit', FIX.appointment],
+    ['/workshop/job-cards/', FIX.jcPay], ['/workshop/job-cards/', FIX.jcSlips], ['/inventory/parts/', FIX.parts.approve],
+    ['/inventory/parts/%/edit', FIX.parts.approve], ['/inventory/goods-receipts/', FIX.goodsReceipt], ['/workshop/parts-requests/', FIX.pendingSlips[0]],
+    ['/workshop/vehicles/%/edit', FIX.vehicleId],
+    ['/branches/', FIX.branchId], ['/notifications/broadcasts/', FIX.broadcast],
     ['/workshop/job-cards/%/request-parts', FIX.jcSlips], ['/inventory/estimate-matching/', FIX.jcSlips],
-    ['/print/job-cards/', FIX.jcOut], ['/print/job-cards/%/estimate', FIX.jcPay], ['/print/vehicle-service/', FIX.vehicleServiceDone], ['/print/vehicle-service/%/estimate', FIX.vehicleService],
-    ['/print/parts-requests/', FIX.approvedSlip], ['/print/refunds/', FIX.refund], ['/print/warranty/', FIX.warranty],
+    ['/print/job-cards/', FIX.jcOut], ['/print/job-cards/%/estimate', FIX.jcPay],
+    ['/print/parts-requests/', FIX.approvedSlip], ['/print/refunds/', FIX.refund],
   ];
   const checks: Check[] = [];
   const bad: string[] = [];
@@ -210,9 +210,8 @@ function singleIdActions(): { name: string; param: string }[] {
 }
 function idsFor(param: string): string[] {
   const p = param.toLowerCase();
-  const all = [FIX.jcPay, FIX.jcRefund, FIX.jcSlips, FIX.vehicleService, FIX.parts.approve, FIX.goodsReceipt, FIX.pendingSlips[0], FIX.approvedSlip, FIX.warranty, FIX.warrantyProvider, FIX.warrantyPolicy, FIX.refund, FIX.broadcast, FIX.appointment, FIX.vehicleId, FIX.customerId, FIX.branchId, FIX.orgId, FIX.users.admin, FIX.users.tech];
+  const all = [FIX.jcPay, FIX.jcRefund, FIX.jcSlips, FIX.parts.approve, FIX.goodsReceipt, FIX.pendingSlips[0], FIX.approvedSlip, FIX.refund, FIX.broadcast, FIX.vehicleId, FIX.customerId, FIX.branchId, FIX.orgId, FIX.users.admin, FIX.users.tech];
   if (p.includes('jobcard')) return [FIX.jcPay, FIX.jcSlips, FIX.jcRefund];
-  if (p.includes('vehicleservice') || p === 'serviceid') return [FIX.vehicleService];
   if (p.includes('branch')) return [FIX.branchId];
   if (p.includes('organisation')) return [FIX.orgId];
   if (p.includes('vehicle')) return [FIX.vehicleId];

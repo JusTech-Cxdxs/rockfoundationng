@@ -3,7 +3,6 @@
  * bell and the Approvals page (each built by its module with the person's own
  * reach), counted and linked.
  */
-import { currentAssist } from '@/lib/authz/server';
 import { getDashboardNotifications } from '@/lib/actions/dashboard';
 import { getMyJobs, getMyNumbers } from '@/lib/actions/my-work';
 import { approvalArea } from '@/lib/approvals';
@@ -17,17 +16,15 @@ const DAY = 86_400_000;
 type Item = { id: string; title: string; detail: string; url: string; createdAt: Date };
 
 async function waiting() {
-  // Nothing is decided during an assisted session (as on the Approvals page).
-  const assisting = await currentAssist();
   const all = (await getDashboardNotifications()) as Item[];
   const now = Date.now();
   const shape = (n: Item) => {
     const days = Math.floor((now - new Date(n.createdAt).getTime()) / DAY);
     return { title: n.title, detail: n.detail || undefined, href: n.url, since: when(n.createdAt), waitingDays: days > 0 ? days : 0, overdue: days >= 3 };
   };
-  const decisions = assisting ? [] : all.filter((n) => approvalArea(n) !== null);
+  const decisions = all.filter((n) => approvalArea(n) !== null);
   const decisionIds = new Set(decisions.map((d) => d.id));
-  const toDo = all.filter((n) => !decisionIds.has(n.id) && !(assisting && approvalArea(n) !== null));
+  const toDo = all.filter((n) => !decisionIds.has(n.id));
   const oldestFirst = (a: Item, b: Item) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
   return {
     decisions: decisions.sort(oldestFirst).map(shape),
@@ -62,7 +59,7 @@ export const workTools: StaffTool[] = [
     kind: 'read',
     status: 'Preparing your brief…',
     description:
-      'This person\'s brief: decisions and steps waiting (with overdue), their support requests (and late ones), reminders due, appointments, open jobs, their own unread mail (Enyo-flagged first; never during an assisted session), new notifications and announcements — each with a link — plus their numbers this month. Periods: "now" (everything waiting), "today", "week", or "since_last" with no date. Use for "good morning", "brief me", "what have I left", "what did I miss today".',
+      'This person\'s brief: decisions and steps waiting (with overdue), their support requests (and late ones), reminders due, open jobs, new notifications and announcements — each with a link — plus their numbers this month. Periods: "now" (everything waiting), "today", "week", or "since_last" with no date. Use for "good morning", "brief me", "what have I left", "what did I miss today".',
     parameters: { type: 'object', properties: { period: { type: 'string', enum: ['now', 'today', 'week'], description: 'Default: now.' } }, additionalProperties: false },
     run: async (args) => {
       const period = briefPeriod({ scope: typeof args.period === 'string' ? args.period : 'now' });

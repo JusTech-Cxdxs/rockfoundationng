@@ -8,7 +8,6 @@ import { joinSpoken, useSpeechInput } from '@ejo/enyo/src/ui/speechInput';
 import { EnyoMarkdown } from './EnyoMarkdown';
 import { usePathname } from 'next/navigation';
 import { NUDGE_AFTER_MS, nudgeFor } from '@/lib/enyo/nudge';
-import { moduleOn } from '@/lib/edition';
 
 /**
  * Enyo's chat on the website: a floating button that opens a chat panel.
@@ -338,7 +337,7 @@ export function EnyoChat({ variant }: { variant: 'portal' | 'public' }) {
           <div ref={log} role="log" aria-live="polite" aria-relevant="additions text" aria-label={`Conversation with ${name}`} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
             {messages.length === 0 ? (
               <div className="ejo-fade">
-                <p className="text-sm text-[var(--ejo-text)]">Hello, I’m {name}. {variant === 'portal' ? `Ask me about your vehicles, jobs, estimates, payments${moduleOn('warranty') ? ' or warranties' : ''}.` : 'Ask me about our branches, services and how to reach us.'}</p>
+                <p className="text-sm text-[var(--ejo-text)]">Hello, I’m {name}. {variant === 'portal' ? 'Ask me about your vehicles, jobs, estimates or payments.' : 'Ask me about our branches, services and how to reach us.'}</p>
                 <ul className="mt-3 flex flex-wrap gap-2" aria-label="Suggestions">
                   {SUGGESTIONS[variant].map((s) => (
                     <li key={s}>

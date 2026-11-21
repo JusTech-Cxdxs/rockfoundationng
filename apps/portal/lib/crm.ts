@@ -6,7 +6,7 @@
  *    printed on Job Cards) and a primary phone are required from v28 on.
  *    Older customers without them still work everywhere; the CRM flags them
  *    as "profile gaps".
- *  • Money: what the CUSTOMER paid or owes — never warranty / goodwill /
+ *  • Money: what the CUSTOMER paid or owes — never goodwill or
  *    internal lines. Paid = payments − refunds. Owed = customer-billed lines
  *    of finished, not-cancelled jobs − what was paid on those jobs.
  *  • Audit: every change is recorded as { field: { from, to } } — never a
@@ -166,9 +166,9 @@ export function profileGaps(c: { address: string | null; phone: string | null })
 // ── Money ──────────────────────────────────────────────────────────────
 
 export type CrmJob = {
-  kind: 'JC' | 'SV';
+  kind: 'JC';
   id: string;
-  /** When the work was received (JC opened / service checked in); null = only booked. */
+  /** When the work was received (the Job Card opened); null = only booked. */
   receivedAt: Date | null;
   finishedAt: Date | null;
   cancelled: boolean;
@@ -336,32 +336,25 @@ export function paginate<T>(rows: T[], page: number | string | undefined, size =
 
 // ── Status chips ───────────────────────────────────────────────────────
 
-export const JOB_STATUS_LABEL: Record<'JC' | 'SV', Record<string, string>> = {
+export const JOB_STATUS_LABEL: Record<'JC', Record<string, string>> = {
   JC: {
     CHECKED_IN: 'Checked in', AWAITING_CUSTOMER_APPROVAL: 'Awaiting approval', IN_PROGRESS: 'In progress', AWAITING_PARTS: 'Awaiting parts',
     QUALITY_CHECK: 'Quality check', COMPLETED: 'Completed', READY_FOR_COLLECTION: 'Ready for collection', CLOSED: 'Closed', CHECKED_OUT: 'Checked out', CANCELLED: 'Cancelled',
-  },
-  SV: {
-    SCHEDULED: 'Booked', CHECKED_IN: 'Checked in', IN_SERVICE: 'In service', COMPLETED: 'Completed', READY_FOR_COLLECTION: 'Ready for collection',
-    CLOSED: 'Closed', COLLECTED: 'Checked out', CANCELLED: 'Cancelled', ESCALATED: 'Moved to a Job Card',
   },
 };
 
 export type Tone = 'success' | 'warning' | 'error' | 'info' | 'muted' | 'brand';
 
 /** Done = green, needs the customer / waiting = amber, cancelled = red, in the workshop = brand. */
-export function jobTone(kind: 'JC' | 'SV', status: string): Tone {
+export function jobTone(_kind: 'JC', status: string): Tone {
   if (status === 'CANCELLED') return 'error';
-  if (['CHECKED_OUT', 'COLLECTED', 'CLOSED'].includes(status)) return 'muted';
+  if (['CHECKED_OUT', 'CLOSED'].includes(status)) return 'muted';
   if (['COMPLETED', 'READY_FOR_COLLECTION'].includes(status)) return 'success';
   if (['AWAITING_CUSTOMER_APPROVAL', 'AWAITING_PARTS'].includes(status)) return 'warning';
-  if (status === 'SCHEDULED' || status === 'ESCALATED') return 'info';
-  return kind === 'JC' || kind === 'SV' ? 'brand' : 'muted';
+  return 'brand';
 }
 
-/** Open = in the workshop now (not a booking, not finished, not cancelled). */
-export function isOpenJob(kind: 'JC' | 'SV', status: string): boolean {
-  return kind === 'JC' ? !['CLOSED', 'CHECKED_OUT', 'CANCELLED'].includes(status) : !['SCHEDULED', 'CLOSED', 'COLLECTED', 'CANCELLED', 'ESCALATED'].includes(status);
+/** Open = in the workshop now (not finished, not cancelled). */
+export function isOpenJob(_kind: 'JC', status: string): boolean {
+  return !['CLOSED', 'CHECKED_OUT', 'CANCELLED'].includes(status);
 }
-
-export const WARRANTY_STATUS_LABEL: Record<string, string> = { PENDING_VERIFICATION: 'Awaiting verification', ACTIVE: 'Active', SUSPENDED: 'Suspended', VOID: 'Void', TRANSFERRED: 'Transferred' };

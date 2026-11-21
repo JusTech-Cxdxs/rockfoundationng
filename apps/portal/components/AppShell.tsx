@@ -22,7 +22,6 @@ export function AppShell({
   userName,
   roleName,
   initialCollapsed,
-  banner,
   lensBar,
   children,
 }: {
@@ -31,9 +30,7 @@ export function AppShell({
   userName: string;
   roleName: string;
   initialCollapsed: boolean;
-  /** Shown under the header on every page (the assisted-session banner). */
-  banner?: ReactNode;
-  /** The branch bar for headquarters roles (under the header, every page). */
+  /** The branch bar for organisation-wide roles (under the header, every page). */
   lensBar?: ReactNode;
   children: ReactNode;
 }) {
@@ -112,8 +109,7 @@ export function AppShell({
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <Topbar userName={userName} roleName={roleName} organisationName={organisationName} onMenu={openDrawer} menuOpen={drawer} assisting={Boolean(banner)} />
-        {banner}
+        <Topbar userName={userName} roleName={roleName} organisationName={organisationName} onMenu={openDrawer} menuOpen={drawer} />
         {lensBar}
         <Marquee />
         {/* The working area. Loading and saving overlays cover only this box

@@ -1,6 +1,5 @@
 import { prisma } from '@ejo/database';
 import { allows, firstReach, orgWhere, reachWhere } from '@/lib/authz/server';
-import { getAppointment } from '@/lib/actions/scheduling';
 import { resolveRecords } from '@/lib/record-resolver';
 import { sendLoggedEmail } from '@/lib/logged-email';
 import { logFailure } from '@/lib/log';
@@ -83,26 +82,14 @@ export async function recordVisibleToMe(type: ReminderRecordType, id: string): P
         const j = await prisma.jobCard.findUnique({ where: { id }, select: { branchId: true } });
         return Boolean(j) && allows('workshop.job_card.view', { branchId: j!.branchId });
       }
-      case 'VehicleService': {
-        const v = await prisma.vehicleService.findUnique({ where: { id }, select: { branchId: true } });
-        return Boolean(v) && allows('workshop.job_card.view', { branchId: v!.branchId });
-      }
       case 'Customer':
         return ((await allows('crm.view')) || (await allows('workshop.view'))) && Boolean(await prisma.customer.findFirst({ where: { id, ...(await orgWhere()) }, select: { id: true } }));
       case 'CustomerVehicle':
         return (await allows('workshop.view')) && Boolean(await prisma.customerVehicle.findFirst({ where: { id, customer: await orgWhere() }, select: { id: true } }));
       case 'Part':
         return (await allows('store.view')) && Boolean(await prisma.part.findFirst({ where: { id, ...(await reachWhere('store.view', { lens: false })) }, select: { id: true } }));
-      case 'Warranty':
-        return (await allows('warranty.view')) && Boolean(await prisma.warranty.findFirst({ where: { id, customer: await orgWhere() }, select: { id: true } }));
-      case 'WarrantyClaim':
-        return (await allows('warranty.view')) && Boolean(await prisma.warrantyClaim.findFirst({ where: { id, customer: await orgWhere() }, select: { id: true } }));
       case 'PartRequestSlip':
         return Boolean(await prisma.partRequestSlip.findFirst({ where: { id, ...(await firstReach(['workshop.job_card.view', 'store.view'])) }, select: { id: true } }));
-      case 'ExternalProcurementRequest':
-        return Boolean(await prisma.externalProcurementRequest.findFirst({ where: { id, ...(await firstReach(['workshop.job_card.view', 'store.view', 'procurement.epr.review'])) }, select: { id: true } }));
-      case 'Appointment':
-        return Boolean(await getAppointment(id));
       default:
         return false;
     }

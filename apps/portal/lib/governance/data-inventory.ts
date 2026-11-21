@@ -21,7 +21,7 @@ export type Tenancy =
   | 'VIA_PARENT'; //   a child row — isolated through its parent record
 
 export type Classification =
-  | 'PUBLIC' //         written to be published (the website's news & media)
+  | 'PUBLIC' //         written to be published
   | 'INTERNAL' //       ordinary business data
   | 'PERSONAL' //       identifies a person (NDPA 2023 personal data)
   | 'FINANCIAL' //      money: prices, costs, payments, refunds
@@ -53,7 +53,7 @@ export type DataEntry = {
   /** A record created by mistake may be moved to the Recycle bin while nothing
    * of consequence has happened to it (lib/recycle-bin/rules.ts decides).
    * IMPORT_UNDO: never by hand — only undoing the import that brought it in
-   * (P6: a warranty or claim nobody has used since) moves it there. */
+   * (a record nobody has used since) moves it there. */
   recycleBin?: true | 'IMPORT_UNDO';
 };
 
@@ -92,7 +92,6 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   Account: { tenancy: 'USER', owner: 'userId', classification: ['SECRET'], lifecycle: 'CASCADE', retention: 'Life of the user account', ai: 'NEVER' },
   NotificationRead: { tenancy: 'USER', owner: 'userId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: '90 days (screen state)', ai: 'NEVER' },
   NotificationPreference: { tenancy: 'USER', owner: 'userId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Life of the user account', ai: 'NEVER' },
-  CalendarDelegate: { tenancy: 'USER', owner: 'ownerId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'While the delegation stands', ai: 'AUTHORISED_USER' },
 
   // ── Customers and vehicles ─────────────────────────────────────────
   Customer: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'RECYCLE_BIN', retention: PERSONAL_RETENTION, ai: 'AUTHORISED_USER', recycleBin: true },
@@ -105,9 +104,6 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   CustomerVerification: { tenancy: 'VIA_PARENT', owner: 'value', classification: ['SECRET'], lifecycle: 'EXPIRES', retention: 'Until used or expired (72 hours / 1 hour)', ai: 'NEVER' },
   CustomerNote: { tenancy: 'VIA_PARENT', owner: 'customerId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: PERSONAL_RETENTION, ai: 'AUTHORISED_USER' },
   CustomerNotificationRead: { tenancy: 'VIA_PARENT', owner: 'customerId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'Life of the customer account', ai: 'NEVER' },
-  AssistSession: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['SECURITY', 'AUDIT'], lifecycle: 'IMMUTABLE', retention: 'Kept with the audit trail', ai: 'NEVER' },
-  NewsPost: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PUBLIC'], lifecycle: 'EDITABLE', retention: 'Kept while published or archived; the communications team deletes drafts', ai: 'AUTHORISED_USER' },
-  SiteVisit: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EXPIRES', retention: '13 months, then removed by the clean-up job (anonymous, no cookie: a daily keyed hash of address + browser, masked paths, never the customer portal)', ai: 'AUTHORISED_USER' },
   ErrorEvent: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EXPIRES', retention: '90 days, then removed by the clean-up job', ai: 'NEVER' },
   CustomerVehicle: { tenancy: 'VIA_PARENT', owner: 'customerId', classification: ['PERSONAL'], lifecycle: 'RECYCLE_BIN', retention: OPS_RETENTION, ai: 'AUTHORISED_USER', recycleBin: true },
   ServiceReminderLog: { tenancy: 'VIA_PARENT', owner: 'vehicleId', classification: ['INTERNAL'], lifecycle: 'IMMUTABLE', retention: OPS_RETENTION, ai: 'AUTHORISED_USER' },
@@ -128,15 +124,9 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   CancellationRequest: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   CloseRequest: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
 
-  // ── Workshop: Vehicle Services ─────────────────────────────────────
-  VehicleService: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL', 'FINANCIAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER', recycleBin: true },
-  VehicleServiceComplaint: { tenancy: 'VIA_PARENT', owner: 'vehicleServiceId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  VehicleServiceCloseRequest: { tenancy: 'VIA_PARENT', owner: 'vehicleServiceId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  VehicleServiceCancellationRequest: { tenancy: 'VIA_PARENT', owner: 'vehicleServiceId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
+  // ── Workshop: inspections ──────────────────────────────────────────
   VehicleInspection: { tenancy: 'VIA_PARENT', owner: 'vehicleServiceId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   VehicleInspectionItem: { tenancy: 'VIA_PARENT', owner: 'inspectionId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  ServiceEstimate: { tenancy: 'VIA_PARENT', owner: 'vehicleServiceId', classification: ['FINANCIAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  ServiceEstimateLineItem: { tenancy: 'VIA_PARENT', owner: 'estimateId', classification: ['FINANCIAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
 
   // ── Store & procurement ────────────────────────────────────────────
   Part: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL', 'FINANCIAL'], lifecycle: 'ARCHIVE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER', recycleBin: true },
@@ -154,48 +144,23 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   GoodsReceiptLine: { tenancy: 'VIA_PARENT', owner: 'goodsReceiptId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   PartRequestSlip: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   PartRequestSlipLine: { tenancy: 'VIA_PARENT', owner: 'slipId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  ExternalProcurementRequest: { tenancy: 'BRANCH', owner: 'branchId', classification: ['FINANCIAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  ExternalProcurementRequestLine: { tenancy: 'VIA_PARENT', owner: 'requestId', classification: ['FINANCIAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-  ExternalProcurementSupplementaryLine: { tenancy: 'VIA_PARENT', owner: 'requestId', classification: ['FINANCIAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
-
-  // ── Warranty ───────────────────────────────────────────────────────
-  WarrantyProvider: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Life of the contract', ai: 'AUTHORISED_USER' },
-  WarrantyPolicy: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Life of the contract', ai: 'AUTHORISED_USER' },
-  Warranty: { tenancy: 'VIA_PARENT', owner: 'customerId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Warranty term + 6 years', ai: 'AUTHORISED_USER', recycleBin: 'IMPORT_UNDO' },
-  WarrantyClaim: { tenancy: 'VIA_PARENT', owner: 'customerId', classification: ['FINANCIAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER', recycleBin: 'IMPORT_UNDO' },
-  WarrantyPolicyDeletionRequest: { tenancy: 'VIA_PARENT', owner: 'policyId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: OPS_RETENTION, ai: 'AUTHORISED_USER' },
-  WarrantyProviderDeletionRequest: { tenancy: 'VIA_PARENT', owner: 'providerId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: OPS_RETENTION, ai: 'AUTHORISED_USER' },
 
   // ── Security & gate ────────────────────────────────────────────────
-  Visit: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY', 'PERSONAL'], lifecycle: 'STATE_MACHINE', retention: SEC_RETENTION, ai: 'AUTHORISED_USER' },
-  ExitPass: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY'], lifecycle: 'STATE_MACHINE', retention: SEC_RETENTION, ai: 'AUTHORISED_USER' },
-  ExitPassPerson: { tenancy: 'VIA_PARENT', owner: 'exitPassId', classification: ['SECURITY', 'PERSONAL'], lifecycle: 'CASCADE', retention: SEC_RETENTION, ai: 'AUTHORISED_USER' },
   VehicleGateExit: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY'], lifecycle: 'IMMUTABLE', retention: OPS_RETENTION, ai: 'AUTHORISED_USER' },
-  RoadTestPermit: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY'], lifecycle: 'STATE_MACHINE', retention: OPS_RETENTION, ai: 'AUTHORISED_USER' },
-  RoadTestPerson: { tenancy: 'VIA_PARENT', owner: 'roadTestId', classification: ['SECURITY', 'PERSONAL'], lifecycle: 'CASCADE', retention: OPS_RETENTION, ai: 'AUTHORISED_USER' },
-  SecurityIncident: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY'], lifecycle: 'STATE_MACHINE', retention: '6 years after closing', ai: 'AUTHORISED_USER' },
-  GateDelivery: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY'], lifecycle: 'STATE_MACHINE', retention: OPS_RETENTION, ai: 'AUTHORISED_USER' },
-  ContractorPass: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY', 'PERSONAL'], lifecycle: 'STATE_MACHINE', retention: SEC_RETENTION, ai: 'AUTHORISED_USER' },
-  ContractorAttendance: { tenancy: 'VIA_PARENT', owner: 'passId', classification: ['SECURITY'], lifecycle: 'IMMUTABLE', retention: SEC_RETENTION, ai: 'AUTHORISED_USER' },
   SecurityEmailLog: { tenancy: 'VIA_PARENT', owner: 'entityId', classification: ['AUDIT', 'PERSONAL'], lifecycle: 'IMMUTABLE', retention: '2 years', ai: 'NEVER' },
 
   // ── Scheduling & communication ─────────────────────────────────────
-  MeetingRoom: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Configuration', ai: 'AUTHORISED_USER' },
-  Appointment: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL', 'PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '2 years', ai: 'AUTHORISED_USER' },
-  AppointmentParticipant: { tenancy: 'VIA_PARENT', owner: 'appointmentId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: '2 years', ai: 'AUTHORISED_USER' },
   Broadcast: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: '2 years', ai: 'AUTHORISED_USER' },
   Announcement: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: '2 years', ai: 'AUTHORISED_USER' },
 
-  // ── Enyo (AI), support, reminders, mailbox (v31) ───────────────────
-  // Transcripts, memories, predictions and emails are not journaled (high-volume
+  // ── Enyo (AI), support and reminders ───────────────────────────────
+  // Transcripts and memories are not journaled (high-volume
   // personal content); the business steps around them write their own audit entries.
   EnyoSetting: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Life of the contract', ai: 'AUTHORISED_USER' },
   EnyoConversation: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'EXPIRES', retention: 'Staff and customer chats 12 months, public website chats 90 days, then removed by the clean-up job', ai: 'AUTHORISED_USER' },
   EnyoMessage: { tenancy: 'VIA_PARENT', owner: 'conversationId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'With its conversation', ai: 'AUTHORISED_USER' },
   EnyoMemory: { tenancy: 'USER', owner: 'userId', classification: ['PERSONAL'], lifecycle: 'EDITABLE', retention: 'Until the person deletes it or leaves the organisation', ai: 'AUTHORISED_USER' },
   EnyoLearnedAnswer: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Kept while useful; administrators remove entries on the Enyo learning page', ai: 'AUTHORISED_USER' },
-  EnyoModel: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Kept while in use; retired models 2 years (model register)', ai: 'AUTHORISED_USER' },
-  EnyoPrediction: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL', 'FINANCIAL'], lifecycle: 'IMMUTABLE', retention: '3 years (training and accuracy history)', ai: 'AUTHORISED_USER' },
   SupportTicket: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '3 years after it is closed', ai: 'AUTHORISED_USER' },
   SupportReply: { tenancy: 'VIA_PARENT', owner: 'ticketId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'With its ticket', ai: 'AUTHORISED_USER' },
   SupportQueue: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'While the organisation uses it; switched off rather than deleted while tickets point at it', ai: 'AUTHORISED_USER' },
@@ -210,45 +175,19 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   HistoricalInvoice: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['FINANCIAL', 'PERSONAL'], lifecycle: 'ARCHIVE', retention: '7 years (financial records); an undone import voids its rows (kept, restored by reloading the file)', ai: 'AUTHORISED_USER' },
   // P4: job cards from before EJO (SAP service orders), read-only history; the technician's name is staff-only.
   HistoricalJob: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['FINANCIAL', 'PERSONAL'], lifecycle: 'ARCHIVE', retention: '7 years (financial and service records); an undone import voids its rows (kept, restored by reloading the file)', ai: 'AUTHORISED_USER' },
-  VehicleHistoryRecord: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL', 'PERSONAL'], lifecycle: 'ARCHIVE', retention: 'Life of the vehicle (quality and warranty evidence); an undone import voids its rows', ai: 'AUTHORISED_USER' },
   // v-A4: an export of a list (which list, which filters, who, when) and who downloaded it. No copy of the data is
   // stored: the file is built at download time for the person downloading it.
   ExportJob: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Life of the contract (the record of what left EJO, never deleted); the link itself stops working after 24 hours', ai: 'NEVER' },
   ExportDownload: { tenancy: 'VIA_PARENT', owner: 'exportJobId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'With its export', ai: 'NEVER' },
   // A4c3: an export repeated on a schedule — the list, format and filters only (never data), its owner and its days. Ended schedules are kept.
   ExportSchedule: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Life of the contract (ended schedules are kept, never deleted)', ai: 'NEVER' },
-  SapPostingFile: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['FINANCIAL'], lifecycle: 'ARCHIVE', retention: 'Life of the contract: the record of what was sent to SAP and what SAP answered, never deleted', ai: 'NEVER' },
-  SapPostingLine: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['FINANCIAL', 'PERSONAL'], lifecycle: 'ARCHIVE', retention: 'With its file (a new customer’s line carries their name, phone and email as SAP received them)', ai: 'NEVER' },
-  // A4c1 Customers' data requests (NDPA 2023): who asked what, how identity was checked (never an ID number), and what was done.
-  // Evidence that each request was answered: kept, never deleted; never shown to AI.
-  DataRequest: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'ARCHIVE', retention: 'As the retention policy keeps evidence that each request was answered', ai: 'NEVER' },
-  // D1 Assembly plant: vehicles in the plant (with their SAP numbers) and their pre-delivery inspections.
-  // Quality evidence: kept for the life of the vehicle; a PDI started by mistake is cancelled, never deleted.
-  PlantVehicle: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Life of the vehicle (build and quality record)', ai: 'AUTHORISED_USER', recycleBin: 'IMPORT_UNDO' },
-  PdiInspection: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the vehicle (quality and warranty evidence)', ai: 'AUTHORISED_USER' },
-  PdiItem: { tenancy: 'VIA_PARENT', owner: 'inspectionId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'With its inspection', ai: 'AUTHORISED_USER' },
-  // D2 Assembly plant: shipments of kits, each kit's arrival checks, and its shortages and damage.
-  // Quality and supplier-claim evidence: kept for the life of the vehicle; a kit recorded by mistake is cancelled, never deleted.
-  PlantShipment: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Life of the vehicles it brought (receiving and customs evidence)', ai: 'AUTHORISED_USER', recycleBin: 'IMPORT_UNDO' },
-  PlantKit: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the vehicle (build and quality record)', ai: 'AUTHORISED_USER', recycleBin: 'IMPORT_UNDO' },
-  PlantKitCheck: { tenancy: 'VIA_PARENT', owner: 'kitId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'With its kit', ai: 'AUTHORISED_USER' },
-  // D3 Assembly line: routes (versions), each vehicle's station visits, defects and QA audits — the build record, kept for the life of the vehicle.
   // D2: which records the demo organisation's demo load made (model and id), so a reset removes exactly those. Demo data only; no personal data of its own.
   DemoRecord: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'Until the demo is removed or reloaded (deleted with the records it lists)', ai: 'NEVER' },
-  PlantRoute: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Every version kept (vehicles refer to the one they were built with)', ai: 'AUTHORISED_USER' },
-  PlantStationVisit: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the vehicle (build evidence)', ai: 'AUTHORISED_USER' },
-  PlantDefect: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the vehicle (quality and warranty evidence)', ai: 'AUTHORISED_USER' },
-  PlantQaAudit: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the vehicle (quality evidence)', ai: 'AUTHORISED_USER' },
-  PlantKitIssue: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the vehicle (supplier claims)', ai: 'AUTHORISED_USER', recycleBin: 'IMPORT_UNDO' },
   ImportMappingProfile: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Configuration', ai: 'AUTHORISED_USER' },
-  MailStyleSample: { tenancy: 'USER', owner: 'userId', classification: ['PERSONAL'], lifecycle: 'EXPIRES', retention: '90 days, at most 200 per person; removed when they withdraw consent or disconnect their mailbox', ai: 'AUTHORISED_USER' },
   IntegrityAlert: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL', 'PERSONAL', 'FINANCIAL', 'AUDIT'], lifecycle: 'STATE_MACHINE', retention: '7 years (internal-control evidence); reviewed alerts are never deleted', ai: 'AUTHORISED_USER' },
-  PublicProfile: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'EDITABLE', retention: 'Until an administrator removes the person (published professional details only, no contact details)', ai: 'AUTHORISED_USER' },
   SupportSetting: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'While the organisation exists', ai: 'NEVER' },
   Reminder: { tenancy: 'USER', owner: 'ownerId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: '12 months after it is done or cancelled', ai: 'AUTHORISED_USER' },
   ReminderDelegate: { tenancy: 'USER', owner: 'ownerId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Until the owner withdraws it', ai: 'NEVER' },
-  MailAccount: { tenancy: 'USER', owner: 'userId', classification: ['PERSONAL', 'SECRET'], lifecycle: 'EDITABLE', retention: 'Until the person disconnects it or leaves; the encrypted password is deleted on disconnect', ai: 'NEVER' },
-  MailMessage: { tenancy: 'VIA_PARENT', owner: 'accountId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'The last 90 days, refreshed from the mailbox; removed when the mailbox is disconnected', ai: 'AUTHORISED_USER' },
 
   // ── Audit ──────────────────────────────────────────────────────────
   // v30 — what was deleted by mistake: a full copy of the deleted rows until it

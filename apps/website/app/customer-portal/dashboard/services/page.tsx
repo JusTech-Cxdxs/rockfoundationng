@@ -14,7 +14,7 @@ const FILTERS = [
 ] as const;
 type FilterKey = (typeof FILTERS)[number]['key'];
 
-/** Job Cards and Vehicle Services together, newest first, with filters. */
+/** Every Job Card, newest first, with filters. */
 export default async function ServicesPage({ searchParams }: { searchParams: Promise<{ show?: string }> }) {
   const me = await requireCustomer();
   const items = await loadServices(me.id);
@@ -30,7 +30,7 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-6">
-      <PageHero eyebrow="My services" icon="wrench" title="Every visit, every step" subtitle="Your Job Cards (repairs) and vehicle services in one place. Open any of them to see its full timeline, estimate and payments." />
+      <PageHero eyebrow="My services" icon="wrench" title="Every visit, every step" subtitle="Your repairs and services in one place. Open any of them to see its full timeline, estimate and payments." />
 
       <nav aria-label="Filter services">
         {/* Two by two on a phone so every filter is in view; one row from tablet up. */}
@@ -55,7 +55,7 @@ export default async function ServicesPage({ searchParams }: { searchParams: Pro
 
       {list.length ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {list.map((i, idx) => <ServiceCard key={`${i.kind}-${i.id}`} item={i} delay={Math.min(idx, 10) * 40} />)}
+          {list.map((i, idx) => <ServiceCard key={i.id} item={i} delay={Math.min(idx, 10) * 40} />)}
         </div>
       ) : (
         <EmptyState

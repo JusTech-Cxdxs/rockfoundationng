@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { requireCustomer } from '@/lib/customer-portal/session';
-import { loadServices, loadVehicles, loadWarranties, nextServiceFor, outstanding } from '@/lib/customer-portal/data';
+import { loadServices, loadVehicles, nextServiceFor, outstanding } from '@/lib/customer-portal/data';
 import { loadNotices } from '@/lib/customer-portal/notifications';
 import { DAY_MS, firstName, fmtDate, naira, timeAgo, COLLECTION_FRIENDLY_NOTICE_DAYS } from '@/lib/customer-portal/format';
 import { AttentionCard, Card, EmptyState, KeepCodes, SectionTitle } from '@/components/customer/ui';
@@ -9,7 +9,6 @@ import { MonthlyBars } from '@/components/customer/Charts';
 import { CountUp } from '@/components/customer/CountUp';
 import { Icon, type IconName } from '@/components/customer/Icon';
 import type { Tone } from '@/lib/customer-portal/status';
-import { moduleOn } from '@/lib/edition';
 
 export const metadata = { title: 'Overview' };
 
@@ -25,11 +24,9 @@ const LAGOS_YM = (d: Date) => new Intl.DateTimeFormat('en-CA', { year: 'numeric'
  */
 export default async function CustomerOverviewPage() {
   const me = await requireCustomer();
-  const [items, vehicles, warranties, notices] = await Promise.all([
+  const [items, vehicles, notices] = await Promise.all([
     loadServices(me.id),
     loadVehicles(me.id),
-    // Warranty cover is read only while the warranty module is on (lib/edition.ts).
-    moduleOn('warranty') ? loadWarranties(me.id) : Promise.resolve([] as Awaited<ReturnType<typeof loadWarranties>>),
     loadNotices(me),
   ]);
   const now = new Date();
@@ -73,16 +70,6 @@ export default async function CustomerOverviewPage() {
       });
     }
   }
-  for (const w of warranties) {
-    if (w.state === 'expiring') {
-      const days = Math.max(0, Math.ceil((w.endsAt.getTime() - now.getTime()) / DAY_MS));
-      attention.push({
-        key: `${w.id}-wty`, rank: 5, icon: 'shield', tone: 'info', href: `/customer-portal/dashboard/warranties/${w.id}`, cta: 'See cover',
-        title: `Warranty ends in ${days} day${days === 1 ? '' : 's'}`,
-        text: `${w.subject} (${w.number}) — cover ends ${fmtDate(w.endsAt)}.`,
-      });
-    }
-  }
   for (const v of vehicles) {
     const next = nextServiceFor(v.id, items);
     if (next?.date) {
@@ -95,9 +82,6 @@ export default async function CustomerOverviewPage() {
         });
       }
     }
-  }
-  for (const i of items.filter((x) => x.status === 'SCHEDULED')) {
-    attention.push({ key: `${i.id}-booked`, rank: 7, icon: 'calendarCheck', tone: 'info', href: i.href, cta: 'View booking', title: `Service booked — ${i.number}`, text: `${i.vehicle.label}. We look forward to seeing you.` });
   }
   attention.sort((a, b) => a.rank - b.rank);
 
@@ -120,11 +104,11 @@ export default async function CustomerOverviewPage() {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - k), 15));
     return { month: LAGOS_MONTH.format(d), value: Math.max(0, monthly.get(LAGOS_YM(d)) ?? 0) };
   });
-  const visitsThisYear = items.filter((i) => inYear(i.createdAt) && i.status !== 'ESCALATED').length;
+  const visitsThisYear = items.filter((i) => inYear(i.createdAt)).length;
   const turnarounds = items.filter((i) => i.readyAt).map((i) => (i.readyAt!.getTime() - (i.checkedInAt ?? i.createdAt).getTime()) / DAY_MS).filter((d) => d >= 0);
   const avgTurnaround = turnarounds.length ? turnarounds.reduce((s, d) => s + d, 0) / turnarounds.length : null;
-  const active = items.filter((i) => i.phase === 'active' && i.status !== 'SCHEDULED');
-  const inCustody = items.filter((i) => i.inCustody && i.status !== 'SCHEDULED').length;
+  const active = items.filter((i) => i.phase === 'active');
+  const inCustody = items.filter((i) => i.inCustody).length;
   const totalOwed = items.reduce((s, i) => s + outstanding(i), 0);
 
   const tiles: { label: string; value: number; format: 'naira' | 'number' | 'days'; suffix?: string; icon: IconName; hint: string }[] = [

@@ -4,9 +4,9 @@ import { fmtDate, itemKindLabel, naira, timeAgo } from '@/lib/customer-portal/fo
 import { Badge, Stepper } from './ui';
 import { Icon } from './Icon';
 
-/** One Job Card or service in a list — status, progress, money, next step. */
+/** One Job Card in a list — status, progress, money, next step. */
 export function ServiceCard({ item, delay }: { item: ServiceItem; delay?: number }) {
-  const owe = item.phase !== 'cancelled' && item.status !== 'ESCALATED' ? item.money.balance : null;
+  const owe = item.phase !== 'cancelled' ? item.money.balance : null;
   return (
     <Link
       href={item.href}
@@ -16,7 +16,7 @@ export function ServiceCard({ item, delay }: { item: ServiceItem; delay?: number
     >
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]">
-          <Icon name={item.kind === 'jc' ? 'wrench' : 'calendarCheck'} size={19} />
+          <Icon name="wrench" size={19} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

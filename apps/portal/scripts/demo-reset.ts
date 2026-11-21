@@ -9,8 +9,7 @@
  *   npm run demo:reset -- --remove     take the demo records out, load nothing (people are kept, switched off only by un-marking the organisation)
  *
  * Never the real organisation (dphoenix-autocare) or any organisation with
- * its own customers or job cards. The plant demo is not loaded: the
- * assembly plant is off in this edition. Refused against a production
+ * its own customers or job cards. Refused against a production
  * database unless DEMO_RESET_CONFIRM is set to "replace the demo records":
  * the reset deletes the previous demo's records (only those, listed in
  * demo_records) and writes the plan again as of now. Needs DATABASE_URL.

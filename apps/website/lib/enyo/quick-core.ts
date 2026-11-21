@@ -1,16 +1,13 @@
 /**
  * Answers the website assistant gives straight from the organisation's own
- * records, with no model call: a greeting, "who is <one of our people>"
- * and how to reach us. They cost nothing from the model's per-minute
+ * records, with no model call: a greeting and how to reach us. They cost nothing from the model's per-minute
  * budget, arrive at once, and are what a busy model falls back on — so a visitor never meets "try again in a minute" for a
  * question the records can answer. Pure (no database), tested.
  */
 
-export type QuickPerson = { name: string; title: string; area: string | null; about: string | null; profile: string | null };
 export type QuickInfo = {
   organisation: string;
   assistantName: string;
-  people: QuickPerson[];
   headOffice: { address: string | null; phones: string[]; email: string | null };
 };
 
@@ -36,23 +33,6 @@ export function askedAbout(message: string): string | null {
   return name;
 }
 
-/** The published people the name matches: the whole name, or a first or last name. */
-export function matchPeople(name: string, people: QuickPerson[]): QuickPerson[] {
-  const want = name.split(' ').filter((w) => w.length >= 2);
-  if (!want.length) return [];
-  const full = people.filter((p) => p.name.toLowerCase() === name);
-  if (full.length) return full;
-  return people.filter((p) => {
-    const parts = p.name.toLowerCase().split(/\s+/);
-    return want.every((w) => parts.includes(w));
-  });
-}
-
-function personText(p: QuickPerson): string {
-  const role = [p.title, p.area && !p.title.toLowerCase().includes(p.area.toLowerCase()) ? p.area : null].filter(Boolean).join(', ');
-  return `**${p.name}** — ${role}.${p.about ? ` ${p.about}` : ''}${p.profile ? ` [Public profile](${p.profile})` : ''}`;
-}
-
 // Asking for OUR details — never a visitor giving theirs ("my phone number is …, call me back" is a hand-over).
 const CONTACT = /\b(your|ur|the (company|office|showroom|head office))\s+(phone|telephone|number|contact|address|location|email|e-mail|office|showroom|hotline)\b|\bwhere (are|is) (you|your|the (showroom|office|head office))\b|\bhow (can|do) i (reach|contact|call|find|visit) (you|your)\b|^\s*(contact|contacts|address|phone|phone number|hotline|location)\s*[?!.]*\s*$/i;
 
@@ -73,14 +53,9 @@ export function quickAnswer(message: string, info: QuickInfo, now: Date = new Da
   if (isGreeting(text)) {
     return `Good ${partOfDay(now)}! I'm ${info.assistantName}, ${info.organisation}'s assistant. I can tell you about our services, where we are and our opening hours, help you book a service, or have the right person call you back.\n\nWhat can I do for you?`;
   }
-  const name = askedAbout(text);
-  if (name) {
-    const found = matchPeople(name, info.people);
-    if (found.length === 1) return personText(found[0]!);
-    if (found.length > 1) return `A few people match "${name}":\n${found.slice(0, 5).map((p) => `- ${personText(p)}`).join('\n')}`;
-    return null;
-  }
-  if (CONTACT.test(text) && text.length < 120 && !/\d{5,}|\b(my (phone|number|email)|call me|job|estimate|invoice|my car|my vehicle|JC-|SV-)\b/i.test(text)) {
+  // "Who is …" is left to the model: no staff list is published here.
+  if (askedAbout(text)) return null;
+  if (CONTACT.test(text) && text.length < 120 && !/\d{5,}|\b(my (phone|number|email)|call me|job|estimate|invoice|my car|my vehicle|JC-)\b/i.test(text)) {
     return `Here is how to reach ${info.organisation}:\n${contactText(info)}`;
   }
   return null;

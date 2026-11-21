@@ -42,18 +42,5 @@ export function vinCheckDigitOk(raw: string | null | undefined): boolean | null 
   return v[8] === (r === 10 ? 'X' : String(r));
 }
 
-/**
- * What a scanner or a person typed, as a VIN: a bare VIN, or the address
- * printed in the vehicle's QR code (".../v/VIN"). Null when it is neither.
- */
-export function vinFromScan(raw: string | null | undefined): string | null {
-  const s = String(raw ?? '').trim();
-  const m = /\/v\/([A-Za-z0-9\-\s]{6,30})\/?(?:[?#].*)?$/.exec(s);
-  const v = normaliseVin(m ? decodeURIComponent(m[1]!) : s);
-  return isChassisLike(v) ? v : null;
-}
-
-/** The address a vehicle's QR code opens: short, so the code stays small. */
-export const vehicleScanPath = (vin: string) => `/v/${encodeURIComponent(normaliseVin(vin))}`;
 /** The vehicle's own page. */
 export const vehiclePagePath = (vin: string) => `/vehicles/${encodeURIComponent(normaliseVin(vin))}`;

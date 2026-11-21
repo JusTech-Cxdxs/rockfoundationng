@@ -77,13 +77,13 @@ test('customer money: what the customer paid and owes (customer-billed lines onl
     // Finished, billed ₦80,000, paid in full in two parts (one last year).
     job({ id: 'A', receivedAt: at('2025-12-20T09:00:00'), finishedAt: at('2025-12-23T09:00:00'), customerBilled: 80000, payments: [{ at: at('2025-12-20T10:00:00'), amount: 56000 }, { at: at('2026-01-05T10:00:00'), amount: 24000 }] }),
     // Finished, billed ₦50,000, ₦20,000 paid — owes ₦30,000.
-    job({ id: 'B', kind: 'SV', receivedAt: at('2026-10-01T09:00:00'), finishedAt: at('2026-10-02T09:00:00'), customerBilled: 50000, payments: [{ at: at('2026-10-01T10:00:00'), amount: 20000 }] }),
+    job({ id: 'B', kind: 'JC', receivedAt: at('2026-10-01T09:00:00'), finishedAt: at('2026-10-02T09:00:00'), customerBilled: 50000, payments: [{ at: at('2026-10-01T10:00:00'), amount: 20000 }] }),
     // Cancelled after a ₦10,000 deposit, refunded ₦10,000: owes nothing, counts as a visit.
     job({ id: 'C', receivedAt: at('2026-09-01T09:00:00'), cancelled: true, customerBilled: 40000, payments: [{ at: at('2026-09-01T10:00:00'), amount: 10000 }], refunds: [{ at: at('2026-09-03T10:00:00'), amount: 10000 }] }),
     // Over-paid one job: never hides a debt on another.
     job({ id: 'D', receivedAt: at('2026-05-01T09:00:00'), finishedAt: at('2026-05-01T17:00:00'), customerBilled: 1000, payments: [{ at: at('2026-05-01T10:00:00'), amount: 5000 }] }),
     // Only booked (not received): not a visit.
-    job({ id: 'E', kind: 'SV', receivedAt: null }),
+    job({ id: 'E', kind: 'JC', receivedAt: null }),
   ];
   const m = customerMoney(jobs, NOW);
   assert.equal(m.paidIn, 115000);
@@ -127,8 +127,6 @@ test('profile gaps, open jobs and the hub filters, sort and pages', () => {
   assert.deepEqual(profileGaps({ address: 'Lagos', phone: '0803' }), []);
   assert.equal(isOpenJob('JC', 'IN_PROGRESS'), true);
   assert.equal(isOpenJob('JC', 'CHECKED_OUT'), false);
-  assert.equal(isOpenJob('SV', 'SCHEDULED'), false, 'a booking is not open work');
-  assert.equal(isOpenJob('SV', 'ESCALATED'), false);
   const row = (o: Partial<CrmRow> & Pick<CrmRow, 'id' | 'fullName'>): CrmRow => ({ customerType: 'INDIVIDUAL', tags: [], isActive: true, createdAt: at('2026-01-01T09:00:00'), address: 'Lagos', phone: '0803', hasPortalAccount: true, lastLoginAt: null, vehicles: 0, openJobs: 0, netPaid: 0, lastVisit: null, ...o });
   const rows = [
     row({ id: '1', fullName: 'Zed Motors', customerType: 'ORGANIZATION', tags: ['Fleet'], netPaid: 500, openJobs: 1, createdAt: at('2026-03-01T09:00:00') }),

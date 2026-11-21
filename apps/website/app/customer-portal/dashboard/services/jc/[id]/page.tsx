@@ -28,7 +28,6 @@ export default async function JobCardPage({ params }: { params: Promise<{ id: st
       // With the service interval, for a service Job Card's next-service point.
       branch: { select: { ...branchSelect, businessUnit: jobCardItemSelect.branch.select.businessUnit } },
       estimate: { select: jobCardEstimateSelect },
-      warranties: { where: { customerId: me.id }, select: { id: true, warrantyNumber: true, subjectDescription: true, endsAt: true, status: true } },
     },
   });
   if (!jc) notFound();
@@ -40,7 +39,6 @@ export default async function JobCardPage({ params }: { params: Promise<{ id: st
       lines={customerEstimateLines(jc.estimate)}
       branch={jc.branch ? { name: jc.branch.name, address: jc.branch.address, hotlines: jc.branch.hotlines, email: jc.branch.email, bank: { bankName: jc.branch.bankName, accountName: jc.branch.bankAccountName, accountNumber: jc.branch.bankAccountNumber } } : null}
       mileage={jc.mileageAtCheckIn}
-      warranties={jc.warranties.map((w) => ({ id: w.id, number: w.warrantyNumber, subject: w.subjectDescription, endsAt: w.endsAt, status: String(w.status) }))}
     />
   );
 }

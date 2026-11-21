@@ -104,12 +104,11 @@ async function notifyTeam(ticket: { id: string; number: string; assignedToId: st
 
 // ─────────────────────────────────────────────── a new request from the portal
 
-/** What a customer's request is about: decides the team (complaints → Customer care, warranty → Warranty). */
+/** What a customer's request is about: decides the team (complaints → Customer care). */
 const ABOUT: Record<string, { label: string; tags: string[]; priority: 'NORMAL' | 'HIGH' }> = {
   question: { label: 'A question', tags: [], priority: 'NORMAL' },
   vehicle: { label: 'My vehicle or a job', tags: ['topic:vehicle'], priority: 'NORMAL' },
   payment: { label: 'A payment or an estimate', tags: ['topic:payment'], priority: 'NORMAL' },
-  warranty: { label: 'A warranty', tags: ['topic:warranty'], priority: 'NORMAL' },
   complaint: { label: 'A complaint', tags: ['complaint'], priority: 'HIGH' },
 };
 const SUBJECT_MAX = 140;

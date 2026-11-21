@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { PageIntro, Prose, Section } from '@/components/site/Page';
 import { siteConfig } from '@/lib/site-config';
 import { DPHOENIX } from '@/lib/content/dphoenix';
-import { moduleOn } from '@/lib/edition';
 
 export const metadata: Metadata = { title: 'Privacy', description: 'What this website and the customer portal collect, why, how long it is kept, and your rights under the Nigeria Data Protection Act 2023.' };
 
@@ -29,7 +28,7 @@ export default function PrivacyPage() {
           <p>What you write, with your name and the email address or phone number you leave, becomes a support request in our Support centre. It is used to answer you and kept for three years after it is closed. It is seen by the team that handles the topic and by their managers.</p>
 
           <h2 className="text-2xl font-bold">The customer portal</h2>
-          <p>Customers of our workshop sign in to see their vehicles, estimates, payments{moduleOn('warranty') ? ', warranties' : ''} and requests. The portal uses a sign-in cookie and stores your account, your vehicles’ service records and the messages you exchange with us. Records are kept for the life of the customer relationship and for the period company and tax law require afterwards.</p>
+          <p>Customers of our workshop sign in to see their vehicles, estimates, payments and requests. The portal uses a sign-in cookie and stores your account, your vehicles’ service records and the messages you exchange with us. Records are kept for the life of the customer relationship and for the period company and tax law require afterwards.</p>
 
           <h2 className="text-2xl font-bold">Your rights</h2>
           <p>You can ask to see the personal data we hold about you, to have it corrected, or — where the law allows — to have it deleted or to object to its use. We answer within thirty days. You can also complain to the Nigeria Data Protection Commission.</p>

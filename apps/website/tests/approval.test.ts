@@ -11,7 +11,6 @@ import { join } from 'node:path';
 import { depositFractionFor } from '@ejo/utils/billing';
 import { moneyFor } from '../lib/customer-portal/format';
 import { JOB_CARD_STATUS } from '../lib/customer-portal/status';
-import { cleanPath } from '../lib/analytics/visits-core';
 
 const ROOT = join(__dirname, '..', '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
@@ -37,8 +36,4 @@ test('the customer’s words: approve the estimate (link, portal or phone); no h
   }
   const detail = read('components/customer/ServiceDetail.tsx');
   assert.match(detail, /<EstimateAnswerForm jobCardId=\{item\.id\}/, 'the signed-in customer answers on their own Job Card page');
-});
-
-test('the approval link is never kept in the visit counts', () => {
-  assert.equal(cleanPath(`/estimate/approve/${'Ab9_-'.repeat(8)}xyz`), '/estimate/approve/:id');
 });

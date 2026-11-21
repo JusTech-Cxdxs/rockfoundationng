@@ -109,29 +109,20 @@ async function main() {
   const gr = await prisma.goodsReceipt.create({
     data: { branchId: branch.id, referenceNumber: 'GRN-SEC-000001', supplierName: 'Fixture Supplier Ltd', receivedById: store.id, lines: { create: [{ partId: pReceive.id, quantityReceivedInUnit: D(0), unitUsed: 'piece', quantityInBaseUnit: D(0) }] } },
   }).catch(async () => prisma.goodsReceipt.findUniqueOrThrow({ where: { referenceNumber: 'GRN-SEC-000001' } }));
-  const vs = await prisma.vehicleService.create({ data: { serviceNumber: 'VS-SEC-000001', branchId: branch.id, customerId: customer.id, vehicleId: (await vehicle('SEC-VS-01')).id, createdById: front.id } });
-  const vsDone = await prisma.vehicleService.create({ data: { serviceNumber: 'VS-SEC-000002', branchId: branch.id, customerId: customer.id, vehicleId: (await vehicle('SEC-VS-02')).id, createdById: front.id, status: 'COLLECTED' } });
-  const provider = await prisma.warrantyProvider.upsert({ where: { name: 'Sec Test Motors Warranty' }, update: {}, create: { name: 'Sec Test Motors Warranty', type: 'MANUFACTURER', createdById: admin.id, organisationId: org.id } });
-  const policy = await prisma.warrantyPolicy.upsert({ where: { code: 'SEC-POL-1' }, update: {}, create: { code: 'SEC-POL-1', name: 'Sec 12 month', kind: 'PART', providerId: provider.id, durationMonths: 12, coverageSummary: 'Fixture', createdById: admin.id, organisationId: org.id } });
-  const warranty = await prisma.warranty.upsert({
-    where: { warrantyNumber: 'WTY-SEC-000001' }, update: {},
-    create: { warrantyNumber: 'WTY-SEC-000001', kind: 'PART', policyId: policy.id, providerId: provider.id, customerId: customer.id, subjectDescription: 'Fixture part', startsAt: new Date(), endsAt: new Date(Date.now() + 365 * 86400000), coverageSnapshot: 'Fixture', origin: 'MANUAL', jobCardId: jcSlips.id } as never,
-  });
   const refund = await prisma.refund.create({ data: { referenceNumber: 'RF-SEC-000001', jobCardId: jcRefund.id, amount: D(1), method: 'CASH', paidToName: 'Ada Customer', reason: 'fixture', recordedById: fin.id } });
   const broadcast = await prisma.broadcast.create({ data: { broadcastNumber: 'BC-SEC-000001', organisationId: org.id, category: 'NEWS', title: 'Secret fixture broadcast', message: 'Only org one may read this', startsAt: new Date(), createdById: admin.id } });
-  const appointment = await prisma.appointment.create({ data: { appointmentNumber: 'APT-SEC-000001', branchId: branch.id, title: 'Secret fixture meeting', ownerId: admin.id, createdById: admin.id, startsAt: new Date(Date.now() + 86400000), endsAt: new Date(Date.now() + 90000000) } });
 
   const out = {
     orgId: org.id, otherOrgId: other.id, branchId: branch.id, customerId: customer.id, vehicleId: sameVehicle.id,
     users: { front: front.id, sup: sup.id, tech: tech.id, mgr: mgr.id, fin: fin.id, store: store.id, admin: admin.id, master: master.id, otherAdmin: otherAdmin.id },
     roles: { admin: ourAdminRole.id, tech: (await prisma.role.findUniqueOrThrow({ where: { organisationId_slug: { organisationId: org.id, slug: 'technician' } } })).id },
     sameVehicleId: sameVehicle.id, manyVehicleIds: manyVehicles.map((v) => v.id),
-    jcPay: jcPay.id, jcPay2: jcPay2.id, jcRefund: jcRefund.id, jcSlips: jcSlips.id, jcOut: jcOut.id, vehicleServiceDone: vsDone.id,
+    jcPay: jcPay.id, jcPay2: jcPay2.id, jcRefund: jcRefund.id, jcSlips: jcSlips.id, jcOut: jcOut.id,
     parts: { approve: pApprove.id, release: pRelease.id, receive: pReceive.id },
     pendingSlips: pendingSlips.map((x) => x.id), approvedSlip: approvedSlip.id,
-    goodsReceipt: gr.id, vehicleService: vs.id, warranty: warranty.id, warrantyProvider: provider.id, warrantyPolicy: policy.id,
-    refund: refund.id, broadcast: broadcast.id, appointment: appointment.id,
-    markers: { jobNumber: jcPay.jobNumber, plate: 'SEC-PAY-01', customer: 'Ada Customer', broadcast: 'Secret fixture broadcast', appointment: 'Secret fixture meeting', supplier: 'Fixture Supplier Ltd' },
+    goodsReceipt: gr.id,
+    refund: refund.id, broadcast: broadcast.id,
+    markers: { jobNumber: jcPay.jobNumber, plate: 'SEC-PAY-01', customer: 'Ada Customer', broadcast: 'Secret fixture broadcast', supplier: 'Fixture Supplier Ltd' },
   };
   writeFileSync(process.env.SEC_FIXTURES ?? 'sec-fixtures.json', JSON.stringify(out, null, 1));
   // eslint-disable-next-line no-console

@@ -1,9 +1,9 @@
 'use server';
 
 import { prisma, type Prisma } from '@ejo/database';
-import { myOrganisationId, refuseDuringAssist, NOT_AVAILABLE } from '@/lib/authz/server';
+import { myOrganisationId, NOT_AVAILABLE } from '@/lib/authz/server';
 import { requireUser } from './workshop';
-import { withinLimit } from '@/lib/mail/account';
+import { withinLimit } from '@/lib/rate-limit';
 import { claimed } from '@/lib/integrity-core';
 import { cleanReply, REPLY_MAX, SUPPORT_STATUS_FOR_CUSTOMER, type SupportStatus } from '@/lib/support-rules';
 import { openTicket, supportEvent, type QueueRow } from '@/lib/support/server';
@@ -22,8 +22,7 @@ import { announceRouted, emailAssignee } from '@/lib/support/notify';
  * permissions, and answers or drafts like any support request.
  *
  * Every action works only on the signed-in person's own requests, inside
- * their organisation, and never during an assisted session (a Branch
- * Assistant does not ask for help in a colleague's name).
+ * their organisation.
  */
 
 class HelpError extends Error {}
@@ -67,7 +66,6 @@ async function routeHelp(organisationId: string, about: HelpAbout): Promise<Queu
 }
 
 async function me() {
-  await refuseDuringAssist('help');
   const user = await requireUser();
   const organisationId = await myOrganisationId();
   if (!organisationId) throw new HelpError('Your account is not placed in an organisation yet. Ask your administrator.');

@@ -10,18 +10,11 @@ import { RefineTextButton } from '@/components/enyo/RefineTextButton';
 
 const MISTAKE: Record<BinEntity, string> = {
   JobCard: 'a Job Card opened',
-  VehicleService: 'a Vehicle Service opened',
   Customer: 'a customer registered',
   CustomerVehicle: 'a vehicle registered',
   Part: 'a part added',
   Supplier: 'a supplier added',
-  Warranty: 'a warranty brought in',
-  WarrantyClaim: 'a warranty claim brought in',
   User: 'a staff account brought in',
-  PlantShipment: 'a plant shipment brought in',
-  PlantVehicle: 'a plant vehicle brought in',
-  PlantKit: 'a kit brought in',
-  PlantKitIssue: 'a kit issue brought in',
 };
 
 /**

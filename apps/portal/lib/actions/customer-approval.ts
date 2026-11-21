@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma, JobCardStatus } from '@ejo/database';
-import { allows, authorizeOnJobCard, refuse, refuseDuringAssist } from '@/lib/authz/server';
+import { allows, authorizeOnJobCard, refuse } from '@/lib/authz/server';
 import { claimed, lockExisting } from '@/lib/integrity';
 import { writeAuditLog, getWorkshopOrgContext } from '@/lib/workshop-core';
 import { emailColleaguesLater } from '@/lib/workflow-notify';
@@ -76,7 +76,6 @@ function assertAwaitingAnswer(jc: WaitingJobCard): asserts jc is WaitingJobCard 
  */
 export async function recordCustomerApprovalByPhone(jobCardId: string, spokeWith: string, note?: string): Promise<{ workStarted: boolean }> {
   // Recorded as the person who took the call — never by an assistant.
-  await refuseDuringAssist('recordCustomerApprovalByPhone');
   await authorizeOnJobCard('workshop.job_card.view', jobCardId, 'recordCustomerApprovalByPhone');
   const jc = await waitingJobCard(jobCardId);
   if (!jc) throw new CustomerApprovalError('Job Card not found.');
@@ -212,7 +211,6 @@ async function estimateWhatsApp(jc: WaitingJobCard, userId: string, a: { url: st
  * without either link.
  */
 export async function prepareEstimateWhatsApp(jobCardId: string): Promise<{ whatsAppUrl: string; expiresAt: Date }> {
-  await refuseDuringAssist('prepareEstimateWhatsApp');
   await authorizeOnJobCard('workshop.job_card.view', jobCardId, 'prepareEstimateWhatsApp');
   const jc = await waitingJobCard(jobCardId);
   if (!jc) throw new CustomerApprovalError('Job Card not found.');

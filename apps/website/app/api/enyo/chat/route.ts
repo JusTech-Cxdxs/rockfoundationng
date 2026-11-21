@@ -30,7 +30,6 @@ import { isPlainId, isVisitorKey, MESSAGE_MAX, newVisitorKey, originAllowed, rat
 import type { WebCtx, WebMode } from '@/lib/enyo/types';
 import { loadCompanyInfo } from '@/lib/enyo/company';
 import { busyAnswer, cleanHistory, quickAnswer, type QuickInfo } from '@/lib/enyo/quick-core';
-import { moduleOn } from '@/lib/edition';
 import type { AgentResult } from '@ejo/enyo';
 
 export const runtime = 'nodejs';
@@ -166,10 +165,7 @@ export async function POST(req: NextRequest) {
       ...(mode === 'PUBLIC'
         ? [`Before using the handover tool, collect the visitor's name and a phone number or email, then say: "${CONSENT_LINE}" and ask if that is fine.`]
         : ['A job number the tools do not find is simply "not found on your account". Never suggest it belongs to someone else.']),
-      // Warranties are switched off in this edition (lib/edition.ts).
-      ...(moduleOn('warranty') ? [] : [
-        'Warranties are not shown in this customer portal and there is no warranty tool. For a question about a warranty, ask the customer to call or email the workshop.',
-      ]),
+      'For a question the tools do not cover (for example a guarantee on work done), ask the customer to call or email the workshop.',
       ...(page ? [`The person is on the page ${page}.`] : []),
     ];
     const system = buildSystemPrompt({
@@ -192,7 +188,7 @@ export async function POST(req: NextRequest) {
         };
         try {
           emit({ type: 'conversation', id: conversation.id });
-          // The records answer greetings, "who is …" and how to reach us at once, without the model.
+          // The records answer greetings and how to reach us at once, without the model.
           let quickInfo: QuickInfo | null = null;
           const info = async (): Promise<QuickInfo> => {
             if (quickInfo) return quickInfo;
@@ -200,7 +196,6 @@ export async function POST(req: NextRequest) {
             quickInfo = {
               organisation: organisationName,
               assistantName: ready.settings.displayName || 'Enyo',
-              people: c?.people ?? [],
               headOffice: { address: c?.headOffice.address ?? null, phones: c?.headOffice.phones ?? [], email: c?.headOffice.email ?? null },
             };
             return quickInfo;

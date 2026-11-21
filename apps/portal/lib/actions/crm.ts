@@ -4,7 +4,7 @@ import { prisma, Prisma } from '@ejo/database';
 import { isFiltered, matchesSource, parseSourceFilter, type SOURCE_PARAMS } from '@/lib/source-filter';
 import { importIdsFor } from '@/lib/source-filter-server';
 import { requireUser } from './workshop';
-import { allows, authorize, getPrincipal, orgWhere, reachWhere, myOrganisationId, NOT_AVAILABLE, refuse, refuseDuringAssist } from '@/lib/authz/server';
+import { allows, authorize, getPrincipal, orgWhere, reachWhere, myOrganisationId, NOT_AVAILABLE, refuse } from '@/lib/authz/server';
 import { owedOnInvoices } from '@/lib/credit';
 import { creditLimitOf, isOnCredit } from '@/lib/credit-core';
 import { writeAuditLog } from '@/lib/workshop-core';
@@ -264,7 +264,7 @@ export async function getCustomer360(customerId: string) {
   const pay = { select: { id: true, amount: true, method: true, notes: true, recordedAt: true, recordedBy: { select: { fullName: true } } } } as const;
   const ref = { select: { id: true, referenceNumber: true, amount: true, method: true, reason: true, recordedAt: true, recordedBy: { select: { fullName: true } } } } as const;
 
-  const [vehicles, jcs, svs, warranties, claims, link, branch, sapRows, pastRows] = await Promise.all([
+  const [vehicles, jcs, link, branch, sapRows, pastRows] = await Promise.all([
     prisma.customerVehicle.findMany({ where: { customerId: customer.id }, orderBy: { createdAt: 'desc' }, select: { id: true, plateNumber: true, chassisNumber: true, make: true, model: true, year: true, vehicleType: true, mileage: true, createdAt: true } }),
     prisma.jobCard.findMany({
       where: jobWhere,
@@ -277,18 +277,6 @@ export async function getCustomer360(customerId: string) {
         payments: pay, refunds: ref,
       },
     }),
-    prisma.vehicleService.findMany({
-      where: jobWhere,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true, serviceNumber: true, status: true, vehicleId: true, createdAt: true, checkedInAt: true, completedAt: true, collectedAt: true, closedAt: true, cancelledAt: true,
-        branch: { select: { name: true } },
-        serviceEstimate: { select: { lineItems: { select: { amount: true } } } },
-        payments: pay, refunds: ref,
-      },
-    }),
-    prisma.warranty.findMany({ where: { customerId: customer.id, customer: await orgWhere() }, orderBy: { issuedAt: 'desc' }, take: 200, select: { id: true, warrantyNumber: true, kind: true, status: true, subjectDescription: true, startsAt: true, endsAt: true, vehicleId: true } }),
-    prisma.warrantyClaim.findMany({ where: { customerId: customer.id, customer: await orgWhere() }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, claimNumber: true, status: true, createdAt: true, warranty: { select: { warrantyNumber: true } } } }),
     prisma.customerVerification.findFirst({ where: { value: customer.id, identifier: { startsWith: 'reset-password:' }, expiresAt: { gt: new Date() } }, orderBy: { expiresAt: 'desc' }, select: { expiresAt: true, createdAt: true } }),
     branchId ? prisma.branch.findUnique({ where: { id: branchId }, select: { name: true } }) : Promise.resolve(null),
     // Invoices from SAP before EJO (read-only history), within the same branch scope as the jobs.
@@ -322,16 +310,6 @@ export async function getCustomer360(customerId: string) {
       customerBilled: jobCardTotals(j.estimate, billingOf(j)).total,
       payments: moneyRows(j.payments), refunds: moneyRows(j.refunds), href: `/workshop/job-cards/${j.id}`, open: isOpenJob('JC', j.status),
     })),
-    ...svs.map((v: (typeof svs)[number]) => ({
-      kind: 'SV' as const, id: v.id, number: v.serviceNumber, status: v.status, vehicleId: v.vehicleId, vehicleLabel: plate.get(v.vehicleId) ?? 'Vehicle', branchName: v.branch?.name ?? '',
-      openedAt: v.createdAt,
-      // An escalated service's work and money continue on its Job Card — it is not a visit of its own.
-      receivedAt: v.status === 'ESCALATED' ? null : v.checkedInAt,
-      finishedAt: v.status === 'CANCELLED' || v.cancelledAt || v.status === 'ESCALATED' ? null : v.completedAt ?? v.collectedAt ?? v.closedAt ?? null,
-      cancelled: v.status === 'CANCELLED' || Boolean(v.cancelledAt),
-      customerBilled: (v.serviceEstimate?.lineItems ?? []).reduce((s: number, l: { amount: unknown }) => s + num(l.amount), 0),
-      payments: moneyRows(v.payments), refunds: moneyRows(v.refunds), href: `/workshop/vehicle-service/${v.id}`, open: isOpenJob('SV', v.status),
-    })),
   ].sort((a, b) => +b.openedAt - +a.openedAt);
 
   const now = new Date();
@@ -347,10 +325,6 @@ export async function getCustomer360(customerId: string) {
     ...jcs.flatMap((j: (typeof jcs)[number]) => [
       ...j.payments.map((p: (typeof j.payments)[number]) => ({ kind: 'payment' as const, id: p.id, at: p.recordedAt, amount: num(p.amount), method: p.method, note: p.notes, by: p.recordedBy?.fullName ?? null, reference: null as string | null, jobNumber: j.jobNumber, href: `/workshop/job-cards/${j.id}` })),
       ...j.refunds.map((r: (typeof j.refunds)[number]) => ({ kind: 'refund' as const, id: r.id, at: r.recordedAt, amount: num(r.amount), method: r.method, note: r.reason, by: r.recordedBy?.fullName ?? null, reference: r.referenceNumber, jobNumber: j.jobNumber, href: `/workshop/job-cards/${j.id}` })),
-    ]),
-    ...svs.flatMap((v: (typeof svs)[number]) => [
-      ...v.payments.map((p: (typeof v.payments)[number]) => ({ kind: 'payment' as const, id: p.id, at: p.recordedAt, amount: num(p.amount), method: p.method, note: p.notes, by: p.recordedBy?.fullName ?? null, reference: null as string | null, jobNumber: v.serviceNumber, href: `/workshop/vehicle-service/${v.id}` })),
-      ...v.refunds.map((r: (typeof v.refunds)[number]) => ({ kind: 'refund' as const, id: r.id, at: r.recordedAt, amount: num(r.amount), method: r.method, note: r.reason, by: r.recordedBy?.fullName ?? null, reference: r.referenceNumber, jobNumber: v.serviceNumber, href: `/workshop/vehicle-service/${v.id}` })),
     ]),
   ].sort((a, b) => +b.at - +a.at);
 
@@ -368,9 +342,8 @@ export async function getCustomer360(customerId: string) {
       sapInvoices: hist.length,
     };
   });
-  const activeWarranties = warranties.filter((w: (typeof warranties)[number]) => w.status === 'ACTIVE' && +new Date(w.endsAt) > +now).length;
 
-  const [canManage, canOpenJobs, canWarranty, canBroadcast, canCredit] = await Promise.all([allows('crm.manage'), allows('workshop.job_card.create'), allows('warranty.view'), allows('notifications.broadcast.send'), mayGrantCredit()]);
+  const [canManage, canOpenJobs, canBroadcast, canCredit] = await Promise.all([allows('crm.manage'), allows('workshop.job_card.create'), allows('notifications.broadcast.send'), mayGrantCredit()]);
   // An organisation customer's account: its credit terms, what it owes on its invoices now and how much is overdue.
   const company = customer.customerCompany;
   const account = customer.customerType === 'ORGANIZATION'
@@ -402,13 +375,11 @@ export async function getCustomer360(customerId: string) {
     pastJobs: pastRows.map((j: (typeof pastRows)[number]) => ({ id: j.id, number: j.jobNumber, service: j.kind === 'SERVICE', openedAt: j.openedAt.toISOString().slice(0, 10), completedAt: j.completedAt ? j.completedAt.toISOString().slice(0, 10) : null, mileage: j.mileage, vehicleLabel: j.vehicleId ? plate.get(j.vehicleId) ?? j.vin ?? j.plateNumber : j.vin ?? j.plateNumber, description: j.description, workDone: j.workDone, total: j.totalAmount === null ? null : num(j.totalAmount), invoiceNumber: j.invoiceNumber, technician: j.technician })),
     /** Invoices from SAP before EJO 100 — read-only history (v-A3). */
     sapInvoices: sapRows.map((h: (typeof sapRows)[number]) => ({ id: h.id, number: h.invoiceNumber, date: h.invoiceDate.toISOString().slice(0, 10), amount: num(h.amount), vehicleLabel: h.vehicleId ? plate.get(h.vehicleId) ?? h.vin : h.vin, documentType: h.documentType, description: h.description, fiscalYear: h.fiscalYear, companyCode: h.companyCode })),
-    warranties,
-    claims,
-    money: { ...money, activeWarranties },
+    money,
     months,
     scope: branchId ? { branchOnly: true as const, branchName: branch?.name ?? 'your branch' } : { branchOnly: false as const, branchName: null },
     account,
-    can: { manage: canManage, openJobs: canOpenJobs, warranty: canWarranty, broadcast: canBroadcast, credit: canCredit },
+    can: { manage: canManage, openJobs: canOpenJobs, broadcast: canBroadcast, credit: canCredit },
   };
 }
 export type Customer360 = NonNullable<Awaited<ReturnType<typeof getCustomer360>>>;
@@ -416,22 +387,18 @@ export type Customer360 = NonNullable<Awaited<ReturnType<typeof getCustomer360>>
 export type CustomerActivityEntry = { id: string; at: Date; action: string; entityType: string; entityId: string | null; actor: 'staff' | 'customer' | 'system'; who: string | null; metadata: Record<string, unknown> | null };
 
 /** The customer's own audit trail (staff and customer actions), plus the
- * business events of their Job Cards and Vehicle Services within reach. */
+ * business events of their Job Cards within reach. */
 export async function getCustomerActivity(customerId: string, take = 150): Promise<CustomerActivityEntry[]> {
   await authorize('crm.view', undefined, 'getCustomerActivity');
   const customer = await fencedCustomer(customerId);
   const reach = await reachWhere('crm.view', { lens: false });
-  const [jcIds, svIds] = await Promise.all([
-    prisma.jobCard.findMany({ where: { customerId: customer.id, ...reach }, select: { id: true }, take: 300 }),
-    prisma.vehicleService.findMany({ where: { customerId: customer.id, ...reach }, select: { id: true }, take: 300 }),
-  ]);
+  const jcIds = await prisma.jobCard.findMany({ where: { customerId: customer.id, ...reach }, select: { id: true }, take: 300 });
   const rows = await prisma.auditLog.findMany({
     where: {
       action: { not: 'access.denied' },
       OR: [
         { entityType: 'Customer', entityId: customer.id },
         ...(jcIds.length ? [{ entityType: 'JobCard', entityId: { in: jcIds.map((j: { id: string }) => j.id) } }] : []),
-        ...(svIds.length ? [{ entityType: 'VehicleService', entityId: { in: svIds.map((v: { id: string }) => v.id) } }] : []),
       ],
     },
     orderBy: { createdAt: 'desc' },
@@ -488,7 +455,6 @@ export type CreditTermsInput = {
  */
 export async function setCustomerCreditTerms(customerId: string, input: CreditTermsInput): Promise<void> {
   // A money decision: never taken during an assisted session.
-  await refuseDuringAssist('setCustomerCreditTerms');
   const me = await requireUser();
   const c = await fencedCustomer(customerId);
   // Finance (records payments) or a Manager (approves closing jobs).
@@ -595,7 +561,6 @@ export async function sendCustomerSetPasswordLink(customerId: string): Promise<{
  * crm.manage, as the email does.
  */
 export async function sendCustomerAccessOnWhatsApp(customerId: string, kind: 'welcome' | 'access'): Promise<CustomerWhatsAppResult> {
-  await refuseDuringAssist('sendCustomerAccessOnWhatsApp');
   if (kind === 'welcome') {
     if (!(await allows('workshop.customer.manage'))) await authorize('crm.manage', undefined, 'sendCustomerAccessOnWhatsApp', 'Only front desk, managers and administrators can send portal links.');
   } else {

@@ -9,10 +9,9 @@ import { SAP_ENABLED, SAP_OFF } from './edition';
  * creation date becomes "customer since"; SAP invoices from before EJO load
  * as read-only history that counts in the customer's spend and visits (and
  * the analytics), Finance confirms the totals, and undo voids them (nothing
- * deleted; a reload restores them). The plant's PDI register shows on the
- * vehicle by its VIN.
+ * deleted; a reload restores them).
  */
-// SAP's history before EJO (and the plant's PDI register): the D'Phoenix edition words it as an old system's.
+// SAP's history before EJO: this edition words it as an old system's.
 test.skip(!SAP_ENABLED, SAP_OFF);
 test.describe.configure({ mode: 'serial' });
 
@@ -26,11 +25,10 @@ async function managerBranch(): Promise<string> {
   return u.branchId!;
 }
 
-async function upload(page: Page, entity: string, name: string, body: string, opts: { branchId?: string; kind?: string } = {}): Promise<string> {
+async function upload(page: Page, entity: string, name: string, body: string, opts: { branchId?: string } = {}): Promise<string> {
   await open(page, `/data-exchange/new?entity=${entity}`);
   await expect(page.locator('#import-file')).toHaveCount(1);
   if (opts.branchId) await page.locator('#import-branch').selectOption(opts.branchId);
-  if (opts.kind) await page.locator('#import-kind').selectOption(opts.kind);
   await page.locator('#import-file').setInputFiles({ name, mimeType: 'text/csv', buffer: Buffer.from(body) });
   await page.waitForURL(/\/data-exchange\/imports\/[^/?]+$/, { timeout: 60_000 });
   await expect(page.getByRole('heading', { name: 'Match the columns' })).toBeVisible();
@@ -61,7 +59,7 @@ test('a customer from SAP: ERDAT becomes “customer since”, years before the 
   const c = await db().customer.findFirstOrThrow({ where: { externalId: kunnr.replace(/^0+/, '') }, select: { id: true, customerSince: true } });
   customerId = c.id;
   expect(c.customerSince?.toISOString().slice(0, 10)).toBe('2014-06-02');
-  // A vehicle of theirs, registered at the front desk (its VIN links the SAP invoices and the PDI register).
+  // A vehicle of theirs, registered at the front desk (its VIN links the SAP invoices).
   await db().customerVehicle.create({ data: { customerId, chassisNumber: vin, make: 'Isuzu', model: 'NQR', year: 2024 } });
   await open(page, `/crm/customers/${customerId}`);
   await expect(page.getByText(/Customer since 02\/06\/2014 \(from SAP, customer \d+\)/)).toBeVisible();
@@ -155,25 +153,6 @@ test('SAP job cards: every row is a job card; “carry out service” starts the
   const box = page.getByRole('combobox', { name: 'Search everything' });
   await box.fill(`48${n}1`);
   await expect(box.locator('xpath=ancestor::div[2]').getByText(`SAP job card 48${n}1 · service`)).toBeVisible();
-});
-
-test('the PDI register shows on the vehicle by its VIN', async ({ page }) => {
-  await as(page, 'it-administrator');
-  const url = await upload(page, 'registers', `pdi-${T}.csv`, csv([
-    ['VIN', 'Date', 'Model', 'Station', 'Result', 'Inspected by', 'Remarks'],
-    [vin, '11/03/2024', 'NQR', 'Final inspection', 'OK', 'A. Bello', 'Door seal replaced before release'],
-    [vin, '11/03/2024', 'NQR', 'Road test', 'Pass', 'A. Bello', ''],
-    ['', '11/03/2024', 'NQR', 'Road test', 'Pass', 'A. Bello', ''],
-  ]), { kind: 'PDI' });
-  await expect(page.getByText('Chassis number (VIN) is required.')).toBeVisible();
-  await page.getByRole('button', { name: /Send for approval/ }).click();
-  await approveAndLoad(page, url);
-  const vehicle = await db().customerVehicle.findFirstOrThrow({ where: { chassisNumber: vin }, select: { id: true } });
-  await open(page, `/workshop/vehicles/${vehicle.id}/edit`);
-  await expect(page.getByRole('heading', { name: 'Before EJO 100' })).toBeVisible();
-  await expect(page.getByText('Pre-delivery inspection · Final inspection')).toBeVisible();
-  await expect(page.getByText('Door seal replaced before release')).toBeVisible();
-  await expect(page.getByText(/Invoices from SAP \(₦680,000\)/)).toBeVisible();
 });
 
 test('undo voids the invoice history (spend goes back down); reopening and loading restores it', async ({ page }) => {

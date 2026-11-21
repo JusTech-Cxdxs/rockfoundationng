@@ -46,7 +46,7 @@ export function organisationKnowledge(slugOrName: string | null | undefined): Or
 /** The people in the background whose name or title matches the words asked (all of them when nothing was asked). */
 export function knownPeople(k: OrganisationKnowledge, terms: string[]): OrganisationKnowledge['people'] {
   if (!terms.length) return k.people;
-  // Whole words, so "IT" finds Information Technology and not Mittal.
+  // Whole words, so "IT" finds Information Technology and not Smith.
   const words = terms.map((t) => new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'));
   return k.people.filter((p) => words.some((w) => w.test(p.name) || w.test(p.title)));
 }

@@ -8,9 +8,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BIN_ENTITIES, SNAPSHOT_ORDER, binLabel, binState, cleanReason, customerEligibility, daysLeft, jobCardEligibility, mayDeleteJob, warrantyRecordEligibility, mayDeleteOther,
+  BIN_ENTITIES, SNAPSHOT_ORDER, binLabel, binState, cleanReason, customerEligibility, daysLeft, jobCardEligibility, mayDeleteJob, mayDeleteOther,
   nextReference, orderedSnapshot, parseSnapshot, partEligibility, plainRow, purgeAfterFrom, restoredReference, retentionDays, vehicleEligibility,
-  vehicleServiceEligibility, type JobCardFacts, type VehicleServiceFacts,
+  type JobCardFacts,
 } from '../lib/recycle-bin/rules';
 import { DATA_INVENTORY } from '../lib/governance/data-inventory';
 import { decide, ROLE_GRANTS, type Principal } from '../lib/authz/catalogue';
@@ -19,12 +19,8 @@ const ROOT = join(__dirname, '..', '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
 const freshJob: JobCardFacts = {
-  status: 'CHECKED_IN', payments: 0, refunds: 0, estimateStatus: null, partRequests: 0, outsidePurchases: 0, estimateLinesInUse: 0,
-  warranties: 0, warrantyClaims: 0, gateExit: false, roadTests: 0, escalatedFromService: false, closeRequests: 0, approvalDecided: false, technicianAssigned: false,
-};
-const freshService: VehicleServiceFacts = {
-  status: 'SCHEDULED', payments: 0, refunds: 0, estimateStatus: null, partRequests: 0, estimateLinesInUse: 0, inspectionStatus: null,
-  primaryServiceRecorded: false, escalatedToJobCard: false, warranties: 0, warrantyClaims: 0, gateExit: false, roadTests: 0, closeRequests: 0, approvalDecided: false, technicianAssigned: false,
+  status: 'CHECKED_IN', payments: 0, refunds: 0, estimateStatus: null, partRequests: 0, estimateLinesInUse: 0,
+  gateExit: false, closeRequests: 0, approvalDecided: false, technicianAssigned: false,
 };
 
 test('a Job Card opened by mistake is eligible; a draft estimate does not stop it', () => {
@@ -38,36 +34,27 @@ test('anything of consequence makes a Job Card ineligible, with the cancel route
   assert.equal(paid.message, "This Job Card has a payment recorded, so it can't be deleted. Ask for it to be cancelled instead.");
   const cases: Partial<JobCardFacts>[] = [
     { refunds: 1 }, { status: 'IN_PROGRESS' }, { status: 'CANCELLED' }, { estimateStatus: 'SUBMITTED' }, { estimateStatus: 'MANAGER_APPROVED' },
-    { partRequests: 1 }, { outsidePurchases: 2 }, { estimateLinesInUse: 1 }, { warranties: 1 }, { warrantyClaims: 1 }, { gateExit: true },
-    { roadTests: 1 }, { escalatedFromService: true }, { closeRequests: 1 }, { approvalDecided: true }, { technicianAssigned: true },
+    { partRequests: 1 }, { estimateLinesInUse: 1 }, { gateExit: true },
+    { closeRequests: 1 }, { approvalDecided: true }, { technicianAssigned: true },
   ];
   for (const c of cases) assert.equal(jobCardEligibility({ ...freshJob, ...c }).eligible, false, JSON.stringify(c));
   // Several reasons read as one sentence, with plurals right.
   assert.match(jobCardEligibility({ ...freshJob, payments: 2, partRequests: 1 }).message, /has 2 payments recorded and has a parts request, so it can't be deleted/);
   // However much happened, the message stays short enough to be shown as it is (friendlyError's limit).
-  const everything = jobCardEligibility({ ...freshJob, payments: 3, refunds: 1, status: 'CLOSED', estimateStatus: 'MANAGER_APPROVED', partRequests: 2, outsidePurchases: 1, warranties: 2, warrantyClaims: 1, gateExit: true, roadTests: 1, escalatedFromService: true, closeRequests: 1 });
+  const everything = jobCardEligibility({ ...freshJob, payments: 3, refunds: 1, status: 'CLOSED', estimateStatus: 'MANAGER_APPROVED', partRequests: 2, gateExit: true, closeRequests: 1, approvalDecided: true, technicianAssigned: true });
   assert.ok(everything.message.length <= 300, everything.message);
   assert.match(everything.message, /other things recorded/);
   assert.equal(everything.finished, true);
 });
 
-test('Vehicle Services: scheduled or checked in, nothing paid, not handed over', () => {
-  assert.equal(vehicleServiceEligibility(freshService).eligible, true);
-  assert.equal(vehicleServiceEligibility({ ...freshService, status: 'CHECKED_IN', inspectionStatus: 'IN_PROGRESS' }).eligible, true);
-  for (const c of [{ status: 'IN_SERVICE' }, { payments: 1 }, { escalatedToJobCard: true, status: 'ESCALATED' }, { estimateStatus: 'APPROVED' }, { inspectionStatus: 'COMPLETED' }, { primaryServiceRecorded: true }, { gateExit: true }, { approvalDecided: true }, { technicianAssigned: true }] as Partial<VehicleServiceFacts>[]) {
-    assert.equal(vehicleServiceEligibility({ ...freshService, ...c }).eligible, false, JSON.stringify(c));
-  }
-  assert.match(vehicleServiceEligibility({ ...freshService, escalatedToJobCard: true, status: 'ESCALATED' }).message, /handed over to a Job Card/);
-});
-
 test('customers, vehicles and parts: only when nothing hangs off them', () => {
-  const none = { jobCards: 0, vehicleServices: 0, warranties: 0, warrantyClaims: 0, gateExits: 0, roadTests: 0 };
+  const none = { jobCards: 0, gateExits: 0 };
   assert.equal(vehicleEligibility(none).eligible, true);
   assert.match(vehicleEligibility({ ...none, jobCards: 1 }).message, /This vehicle has a Job Card, so it can't be deleted/);
   assert.equal(customerEligibility({ ...none, signedIn: false }).eligible, true);
   assert.equal(customerEligibility({ ...none, signedIn: true }).eligible, false);
-  assert.equal(customerEligibility({ ...none, vehicleServices: 3, signedIn: false }).eligible, false);
-  const part = { goodsReceiptLines: 0, batches: 0, serials: 0, consumptions: 0, requestLines: 0, estimateMatches: 0, warranties: 0, pricingAlerts: 0, stockOnHand: 0, stockReserved: 0 };
+  assert.equal(customerEligibility({ ...none, gateExits: 3, signedIn: false }).eligible, false);
+  const part = { goodsReceiptLines: 0, batches: 0, serials: 0, consumptions: 0, requestLines: 0, estimateMatches: 0, pricingAlerts: 0, stockOnHand: 0, stockReserved: 0 };
   assert.equal(partEligibility(part).eligible, true);
   for (const k of Object.keys(part) as (keyof typeof part)[]) assert.equal(partEligibility({ ...part, [k]: 1 }).eligible, false, k);
 });
@@ -112,21 +99,14 @@ test('snapshot: parents first, stable within a table, nothing foreign, exactly o
   assert.throws(() => orderedSnapshot('JobCard', [...rows, { model: 'refund', data: { id: 'p' } }]), /cannot hold refund/);
   assert.throws(() => orderedSnapshot('JobCard', rows.filter((r) => r.model !== 'jobCard')), /exactly one jobCard/);
   // Every kind starts with its own table, and no money table is ever snapshotted (money is never deletable) — with one exception:
-  // a job card brought in open at the cut-over (P5) carries the deposits taken in the old system, and undoing that import takes
+  // a job card brought in open on the go-live day carries the deposits taken in the old system, and undoing that import takes
   // the job card and those opening payments to the bin together (the desk's own delete still refuses any job card with a payment).
   for (const e of BIN_ENTITIES) {
     assert.ok(SNAPSHOT_ORDER[e].length >= 1);
-    // P6: an imported warranty or claim is its own kind, binned only by undoing its import (never by hand: see below).
-    for (const m of SNAPSHOT_ORDER[e]) if (!(e === 'JobCard' && m === 'payment') && !(e === 'Warranty' && m === 'warranty') && !(e === 'WarrantyClaim' && m === 'warrantyClaim')) assert.doesNotMatch(m, /^(payment|refund|goodsReceipt|auditLog|warranty)/i, `${e}: ${m}`);
+    for (const m of SNAPSHOT_ORDER[e]) if (!(e === 'JobCard' && m === 'payment')) assert.doesNotMatch(m, /^(payment|refund|goodsReceipt|auditLog)/i, `${e}: ${m}`);
   }
-  assert.deepEqual(SNAPSHOT_ORDER.Warranty, ['warranty']);
-  assert.deepEqual(SNAPSHOT_ORDER.WarrantyClaim, ['warrantyClaim']);
-  // Never by hand: an issued warranty is voided, a claim cancelled.
-  assert.equal(warrantyRecordEligibility('Warranty').eligible, false);
-  assert.match(warrantyRecordEligibility('Warranty').message, /Void it, with a reason, instead/);
-  assert.equal(warrantyRecordEligibility('WarrantyClaim').eligible, false);
   assert.ok(SNAPSHOT_ORDER.JobCard.includes('payment'));
-  assert.equal(jobCardEligibility({ status: 'CHECKED_IN', payments: 1, refunds: 0, estimateStatus: null, partRequests: 0, outsidePurchases: 0, estimateLinesInUse: 0, warranties: 0, warrantyClaims: 0, gateExit: false, roadTests: 0, escalatedFromService: false, closeRequests: 0, approvalDecided: false, technicianAssigned: false }).eligible, false, 'the desk never deletes a job card with a payment');
+  assert.equal(jobCardEligibility({ ...freshJob, payments: 1 }).eligible, false, 'the desk never deletes a job card with a payment');
   // Round trip through storage.
   assert.deepEqual(parseSnapshot(JSON.parse(JSON.stringify(s))), s);
   assert.equal(parseSnapshot({ v: 2, entity: 'JobCard', rows: [] }), null);
@@ -180,8 +160,6 @@ test('data inventory: exactly the bin kinds are marked, money and audit never ar
   assert.equal(DATA_INVENTORY.RecycleBinItem?.ai, 'NEVER');
   assert.equal(DATA_INVENTORY.RecycleBinItem?.lifecycle, 'EXPIRES');
   for (const m of ['Payment', 'Refund', 'AuditLog', 'GoodsReceipt']) assert.equal(DATA_INVENTORY[m]?.recycleBin, undefined, m);
-  // Warranties and claims: only an undone import (P6), never by hand.
-  for (const m of ['Warranty', 'WarrantyClaim']) assert.equal(DATA_INVENTORY[m]?.recycleBin, 'IMPORT_UNDO', m);
 });
 
 test('server half: locks, checks again under the lock, snapshots and deletes in ONE transaction', () => {
@@ -208,10 +186,10 @@ test('actions: refused during an assisted session; restore needs the bin permiss
   assert.match(src, /export async function restoreFromRecycleBin[\s\S]{0,700}inMyOrganisation\(item\.organisationId\)[\s\S]{0,300}authorize\('admin\.recycle_bin\.manage', \{ branchId: item\.branchId \}/);
   for (const fn of ['purgeRecycleBinItems', 'purgeExpiredRecycleBinItems']) assert.match(src, new RegExp(`export async function ${fn}[\\s\\S]{0,300}if \\(!p\\.isSuperAdmin\\) return refuse\\(`), fn);
   // The old platform-only hard deletes are gone.
-  for (const f of ['lib/actions/workshop.ts', 'lib/actions/vehicle-service.ts']) assert.doesNotMatch(read(f), /export async function delete(JobCard|Vehicle|VehicleService)\(/, f);
+  assert.doesNotMatch(read('lib/actions/workshop.ts'), /export async function delete(JobCard|Vehicle)\(/);
 });
 
-test('Binned Job Card and Vehicle Service numbers stay reserved', () => {
+test('Binned Job Card numbers stay reserved', () => {
   const { highestSequence } = require('../lib/recycle-bin/numbers') as typeof import('../lib/recycle-bin/numbers');
   assert.equal(highestSequence('JC-2026-', ['JC-2026-000041', 'JC-2026-000043']), 43, 'a binned 43 beats a live 41');
   assert.equal(highestSequence('JC-2026-', [null, undefined]), 0);

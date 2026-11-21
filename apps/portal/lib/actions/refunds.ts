@@ -2,7 +2,7 @@
 import { websiteBaseUrl } from '@/lib/portal-url';
 import { logFailure } from '@/lib/log';
 
-import { authorize, jobOrServiceReach, seeJobCard, seeService, } from '@/lib/authz/server';
+import { authorize, reachWhere, seeJobCard } from '@/lib/authz/server';
 
 import { prisma } from '@ejo/database';
 import { lockExisting } from '@/lib/integrity';
@@ -17,7 +17,7 @@ import { customerRecordUrl } from '@/lib/customer-links-core';
 
 class RefundActionError extends Error {}
 
-export type RefundTarget = { jobCardId: string } | { vehicleServiceId: string };
+export type RefundTarget = { jobCardId: string };
 
 export type RefundPosition = { paid: number; refunded: number; remaining: number; isFullyRefunded: boolean };
 
@@ -26,50 +26,11 @@ function round2(n: number): number {
 }
 
 async function loadTarget(target: RefundTarget) {
-  if ('jobCardId' in target) {
-    const jc = await prisma.jobCard.findUnique({
-      where: { id: target.jobCardId },
-      select: {
-        id: true,
-        jobNumber: true,
-        status: true,
-        branchId: true,
-        customer: { select: { fullName: true, email: true } },
-        vehicle: { select: { make: true, model: true, plateNumber: true } },
-        department: { select: { name: true } },
-        payments: { select: { amount: true } },
-        refunds: { select: { amount: true } },
-        cancellationRequests: { where: { status: 'APPROVED' }, orderBy: { decidedAt: 'desc' }, take: 1, select: { reason: true } },
-        estimate: { select: ESTIMATE_TOTALS_SELECT },
-        ...JOB_CARD_BILLING_SELECT,
-      },
-    });
-    if (!jc) return null;
-    return {
-      kind: 'JOB_CARD' as const,
-      id: jc.id,
-      number: jc.jobNumber,
-      label: 'Job Card',
-      status: jc.status,
-      branchId: jc.branchId,
-      customer: jc.customer,
-      vehicle: jc.vehicle,
-      departmentName: jc.department?.name,
-      payments: jc.payments,
-      refunds: jc.refunds,
-      cancellationReason: jc.cancellationRequests[0]?.reason ?? null,
-      // What the customer still owes on an active Job Card (customer lines
-      // only); nothing once it's cancelled — then everything paid is owed back.
-      customerOwes: jc.status === 'CANCELLED' ? 0 : jobCardTotals(jc.estimate, billingOf(jc)).total,
-      entityType: 'JobCard' as const,
-      portalId: jc.id,
-    };
-  }
-  const vs = await prisma.vehicleService.findUnique({
-    where: { id: target.vehicleServiceId },
+  const jc = await prisma.jobCard.findUnique({
+    where: { id: target.jobCardId },
     select: {
       id: true,
-      serviceNumber: true,
+      jobNumber: true,
       status: true,
       branchId: true,
       customer: { select: { fullName: true, email: true } },
@@ -77,24 +38,30 @@ async function loadTarget(target: RefundTarget) {
       department: { select: { name: true } },
       payments: { select: { amount: true } },
       refunds: { select: { amount: true } },
+      cancellationRequests: { where: { status: 'APPROVED' }, orderBy: { decidedAt: 'desc' }, take: 1, select: { reason: true } },
+      estimate: { select: ESTIMATE_TOTALS_SELECT },
+      ...JOB_CARD_BILLING_SELECT,
     },
   });
-  if (!vs) return null;
+  if (!jc) return null;
   return {
-    kind: 'VEHICLE_SERVICE' as const,
-    id: vs.id,
-    number: vs.serviceNumber,
-    label: 'Vehicle Service',
-    status: vs.status,
-    branchId: vs.branchId,
-    customer: vs.customer,
-    vehicle: vs.vehicle,
-    departmentName: vs.department?.name,
-    payments: vs.payments,
-    refunds: vs.refunds,
-    cancellationReason: null as string | null,
-    entityType: 'VehicleService' as const,
-    portalId: vs.id,
+    kind: 'JOB_CARD' as const,
+    id: jc.id,
+    number: jc.jobNumber,
+    label: 'Job Card',
+    status: jc.status,
+    branchId: jc.branchId,
+    customer: jc.customer,
+    vehicle: jc.vehicle,
+    departmentName: jc.department?.name,
+    payments: jc.payments,
+    refunds: jc.refunds,
+    cancellationReason: jc.cancellationRequests[0]?.reason ?? null,
+    // What the customer still owes on an active Job Card (customer lines
+    // only); nothing once it's cancelled — then everything paid is owed back.
+    customerOwes: jc.status === 'CANCELLED' ? 0 : jobCardTotals(jc.estimate, billingOf(jc)).total,
+    entityType: 'JobCard' as const,
+    portalId: jc.id,
   };
 }
 
@@ -108,11 +75,9 @@ function position(payments: { amount: unknown }[], refunds: { amount: unknown }[
   return { paid, refunded, remaining, isFullyRefunded: remaining <= 0 };
 }
 
-/** Only for a Job Card / Vehicle Service the person can see (never another
- * branch's or organisation's). */
+/** Only for a Job Card the person can see (never another branch's or organisation's). */
 async function seeTarget(target: RefundTarget, where: string): Promise<void> {
-  if ('jobCardId' in target) await seeJobCard(target.jobCardId, where);
-  else await seeService(target.vehicleServiceId, where);
+  await seeJobCard(target.jobCardId, where);
 }
 
 export async function getRefundPosition(target: RefundTarget): Promise<RefundPosition> {
@@ -120,15 +85,15 @@ export async function getRefundPosition(target: RefundTarget): Promise<RefundPos
   await seeTarget(target, 'getRefundPosition');
   const t = await loadTarget(target);
   if (!t) throw new RefundActionError('Record not found.');
-  return position(t.payments, t.refunds, 'customerOwes' in t ? t.customerOwes : 0);
+  return position(t.payments, t.refunds, t.customerOwes);
 }
 
-/** Every refund on one Job Card or Vehicle Service, newest first. */
+/** Every refund on one Job Card, newest first. */
 export async function listRefunds(target: RefundTarget) {
   await requireUser();
   await seeTarget(target, 'listRefunds');
   return prisma.refund.findMany({
-    where: 'jobCardId' in target ? { jobCardId: target.jobCardId } : { vehicleServiceId: target.vehicleServiceId },
+    where: { jobCardId: target.jobCardId },
     orderBy: { recordedAt: 'desc' },
     include: { recordedBy: { select: { fullName: true } } },
   });
@@ -137,10 +102,10 @@ export async function listRefunds(target: RefundTarget) {
 /** One refund with everything its receipt needs. */
 export async function getRefund(id: string) {
   await requireUser();
-  const owner = await prisma.refund.findUnique({ where: { id }, select: { jobCardId: true, vehicleServiceId: true } });
-  if (!owner) return null;
+  const owner = await prisma.refund.findUnique({ where: { id }, select: { jobCardId: true } });
+  if (!owner?.jobCardId) return null;
   try {
-    await seeTarget(owner.jobCardId ? { jobCardId: owner.jobCardId } : { vehicleServiceId: owner.vehicleServiceId ?? '' }, `Refund:${id}`);
+    await seeTarget({ jobCardId: owner.jobCardId }, `Refund:${id}`);
   } catch {
     return null; // shown exactly like a refund that does not exist
   }
@@ -152,17 +117,6 @@ export async function getRefund(id: string) {
         select: {
           id: true,
           jobNumber: true,
-          branch: true,
-          customer: { select: { fullName: true, email: true, phone: true, address: true } },
-          vehicle: { select: { make: true, model: true, year: true, plateNumber: true, chassisNumber: true } },
-          payments: { select: { amount: true } },
-          refunds: { select: { amount: true } },
-        },
-      },
-      vehicleService: {
-        select: {
-          id: true,
-          serviceNumber: true,
           branch: true,
           customer: { select: { fullName: true, email: true, phone: true, address: true } },
           vehicle: { select: { make: true, model: true, year: true, plateNumber: true, chassisNumber: true } },
@@ -214,32 +168,28 @@ export async function recordRefund(input: RecordRefundInput): Promise<{ id: stri
   const user = await requireEligibleFinanceOfficer(t.branchId, 'workshop.refund.record');
   // Same form submitted again (e.g. after a dropped connection): return the refund already recorded.
   if (input.idempotencyKey) {
-    const done = await prisma.refund.findUnique({ where: { idempotencyKey: input.idempotencyKey }, select: { id: true, referenceNumber: true, amount: true, jobCardId: true, vehicleServiceId: true } });
+    const done = await prisma.refund.findUnique({ where: { idempotencyKey: input.idempotencyKey }, select: { id: true, referenceNumber: true, amount: true, jobCardId: true } });
     if (done) {
-      const sameRecord = t.kind === 'JOB_CARD' ? done.jobCardId === t.id : done.vehicleServiceId === t.id;
+      const sameRecord = done.jobCardId === t.id;
       if (sameRecord && Number(done.amount) === input.amount) return { id: done.id, referenceNumber: done.referenceNumber };
       throw new RefundActionError('This form was already used for a different refund — refresh the page and enter it again.');
     }
   }
   // Duplicate guard: same amount and recorder within 20 seconds is a double
   // click or a resend after a dropped connection.
-  if (await prisma.refund.findFirst({ where: { amount: input.amount, recordedById: user.id, recordedAt: { gte: new Date(Date.now() - 20000) }, ...(t.kind === 'JOB_CARD' ? { jobCardId: t.id } : { vehicleServiceId: t.id }) }, select: { id: true } })) {
+  if (await prisma.refund.findFirst({ where: { amount: input.amount, recordedById: user.id, recordedAt: { gte: new Date(Date.now() - 20000) }, jobCardId: t.id }, select: { id: true } })) {
     throw new RefundActionError('This refund was just recorded — check the refunds list before recording it again.');
   }
 
   // An active Job Card can refund an overpayment only (the customer paid more
-  // than they now owe, e.g. lines moved to warranty after a deposit).
-  const owes = 'customerOwes' in t ? t.customerOwes : 0;
-  const isOverpaymentRefund = t.status !== 'CANCELLED' && t.kind === 'JOB_CARD' && position(t.payments, t.refunds, owes).remaining > 0;
-  if (t.status !== 'CANCELLED' && t.kind === 'JOB_CARD' && !isOverpaymentRefund && t.refunds.length > 0) {
+  // than they now owe, e.g. lines moved to goodwill after a deposit).
+  const owes = t.customerOwes;
+  const isOverpaymentRefund = t.status !== 'CANCELLED' && position(t.payments, t.refunds, owes).remaining > 0;
+  if (t.status !== 'CANCELLED' && !isOverpaymentRefund && t.refunds.length > 0) {
     throw new RefundActionError('The overpayment on this Job Card has already been refunded — nothing more is owed back.');
   }
   if (t.status !== 'CANCELLED' && !isOverpaymentRefund) {
-    throw new RefundActionError(
-      t.kind === 'JOB_CARD'
-        ? 'A refund can only be recorded once the cancellation has been approved by a Manager, or when the customer has paid more than they now owe.'
-        : 'A refund can only be recorded once this Vehicle Service has been cancelled.',
-    );
+    throw new RefundActionError('A refund can only be recorded once the cancellation has been approved, or when the customer has paid more than they now owe.');
   }
   const amount = round2(Number(input.amount));
   if (!Number.isFinite(amount) || amount <= 0) {
@@ -259,28 +209,25 @@ export async function recordRefund(input: RecordRefundInput): Promise<{ id: stri
   if (!paidToName) {
     throw new RefundActionError('Enter the name of the person who received the refund.');
   }
-  const reason = input.reason?.trim() || (isOverpaymentRefund ? 'Overpayment — lines now covered by warranty, goodwill or internally' : t.cancellationReason) || '';
+  const reason = input.reason?.trim() || (isOverpaymentRefund ? 'Overpayment — lines now covered as goodwill or internally' : t.cancellationReason) || '';
   if (!reason) {
     throw new RefundActionError('Enter the reason for this refund.');
   }
 
-  // Two Finance officers at once: decide again with the Job Card / Vehicle
-  // Service row locked, against payments and refunds as they are now, so two
+  // Two people recording at once: decide again with the Job Card row locked, against payments and refunds as they are now, so two
   // refunds can never both fit into the same balance.
   const recorded = await retryOnNumberClash('referenceNumber', () => prisma.$transaction(async (tx) => {
-    await lockExisting(tx, t.kind === 'JOB_CARD' ? 'jobCard' : 'vehicleService', [t.id], 'This record no longer exists — refresh the page.');
+    await lockExisting(tx, 'jobCard', [t.id], 'This record no longer exists — refresh the page.');
     // The same form, resent while the first was still being saved: hand back that refund.
     if (input.idempotencyKey) {
       const same = await tx.refund.findUnique({ where: { idempotencyKey: input.idempotencyKey }, select: { id: true, referenceNumber: true } });
       if (same) return { created: same, after: null, duplicate: true as const };
     }
-    const fresh = t.kind === 'JOB_CARD'
-      ? await tx.jobCard.findUnique({ where: { id: t.id }, select: { status: true, payments: { select: { amount: true } }, refunds: { select: { amount: true } }, estimate: { select: ESTIMATE_TOTALS_SELECT }, ...JOB_CARD_BILLING_SELECT } })
-      : await tx.vehicleService.findUnique({ where: { id: t.id }, select: { status: true, payments: { select: { amount: true } }, refunds: { select: { amount: true } } } });
+    const fresh = await tx.jobCard.findUnique({ where: { id: t.id }, select: { status: true, payments: { select: { amount: true } }, refunds: { select: { amount: true } }, estimate: { select: ESTIMATE_TOTALS_SELECT }, ...JOB_CARD_BILLING_SELECT } });
     if (!fresh || fresh.status !== t.status) {
       throw new RefundActionError('This record changed while you were recording the refund — refresh the page.');
     }
-    const owesNow = fresh.status === 'CANCELLED' ? 0 : ('estimate' in fresh ? jobCardTotals(fresh.estimate, billingOf(fresh)).total : 0);
+    const owesNow = fresh.status === 'CANCELLED' ? 0 : jobCardTotals(fresh.estimate, billingOf(fresh)).total;
     const now = position(fresh.payments, fresh.refunds, owesNow);
     if (toMinor(amount) > toMinor(now.remaining)) {
       throw new RefundActionError(
@@ -294,8 +241,7 @@ export async function recordRefund(input: RecordRefundInput): Promise<{ id: stri
       data: {
         idempotencyKey: input.idempotencyKey || null,
         referenceNumber,
-        jobCardId: t.kind === 'JOB_CARD' ? t.id : null,
-        vehicleServiceId: t.kind === 'VEHICLE_SERVICE' ? t.id : null,
+        jobCardId: t.id,
         amount,
         method: input.method,
         paidToName,
@@ -358,12 +304,12 @@ export async function recordRefund(input: RecordRefundInput): Promise<{ id: stri
 }
 
 /** Every refund in the workshop — the Refunds register. Newest first,
- * searchable by RF-number, Job Card / Service number or customer. */
+ * searchable by RF-number, Job Card number or customer. */
 export async function listAllRefunds(search?: string) {
   await requireUser();
   const q = search?.trim();
-  // The register shows only refunds on Job Cards / Vehicle Services within reach.
-  const reach = await jobOrServiceReach();
+  // The register shows only refunds on Job Cards within reach.
+  const reach = { jobCard: await reachWhere('workshop.job_card.view') };
   return prisma.refund.findMany({
     where: {
       AND: [
@@ -374,9 +320,7 @@ export async function listAllRefunds(search?: string) {
             { referenceNumber: { contains: q, mode: 'insensitive' } },
             { paidToName: { contains: q, mode: 'insensitive' } },
             { jobCard: { jobNumber: { contains: q, mode: 'insensitive' } } },
-            { vehicleService: { serviceNumber: { contains: q, mode: 'insensitive' } } },
             { jobCard: { customer: { fullName: { contains: q, mode: 'insensitive' } } } },
-            { vehicleService: { customer: { fullName: { contains: q, mode: 'insensitive' } } } },
           ],
         }
       : {},
@@ -387,7 +331,6 @@ export async function listAllRefunds(search?: string) {
     include: {
       recordedBy: { select: { fullName: true } },
       jobCard: { select: { id: true, jobNumber: true, customer: { select: { id: true, fullName: true } } } },
-      vehicleService: { select: { id: true, serviceNumber: true, customer: { select: { id: true, fullName: true } } } },
     },
   });
 }

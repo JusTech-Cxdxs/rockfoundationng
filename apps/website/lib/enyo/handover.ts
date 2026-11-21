@@ -82,15 +82,10 @@ async function summarise(ctx: WebCtx, lines: string[], topic: string): Promise<s
   }
 }
 
-/** The branch of the customer's latest visit (Job Card or service), when there is one. */
+/** The branch of the customer's latest Job Card, when there is one. */
 async function customerBranch(customerId: string): Promise<{ id: string; name: string; email: string | null } | null> {
-  const sel = { createdAt: true, branch: { select: { id: true, name: true, email: true } } } as const;
-  const [jc, vs] = await Promise.all([
-    prisma.jobCard.findFirst({ where: { customerId }, orderBy: { createdAt: 'desc' }, select: sel }),
-    prisma.vehicleService.findFirst({ where: { customerId }, orderBy: { createdAt: 'desc' }, select: sel }),
-  ]);
-  const pick = jc && vs ? (jc.createdAt > vs.createdAt ? jc : vs) : (jc ?? vs);
-  return pick?.branch ?? null;
+  const jc = await prisma.jobCard.findFirst({ where: { customerId }, orderBy: { createdAt: 'desc' }, select: { branch: { select: { id: true, name: true, email: true } } } });
+  return jc?.branch ?? null;
 }
 
 export async function openHandover(ctx: WebCtx, contact: HandoverContact, topicRaw: string): Promise<HandoverResult> {

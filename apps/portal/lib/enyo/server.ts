@@ -6,7 +6,7 @@
 import type { NextRequest } from 'next/server';
 import { prisma } from '@ejo/database';
 import { asData, buildSystemPrompt, encodeEvent, lagosNow, SSE_HEADERS, type EnyoEvent } from '@ejo/enyo';
-import { currentAssist, getPrincipal, myOrganisationId } from '@/lib/authz/server';
+import { getPrincipal, myOrganisationId } from '@/lib/authz/server';
 import { ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/authz/catalogue';
 import { portalBaseUrl } from '@/lib/portal-url';
 import { offAreasHint, referenceHint } from './edition';
@@ -60,12 +60,11 @@ export function cleanPage(v: unknown): string | undefined {
   return /^\/[A-Za-z0-9/_.-]*$/.test(path) ? path : undefined;
 }
 
-/** Who is asking: the acting person (the colleague, during an assisted session). */
-export async function staffContext(page?: string): Promise<{ ctx: StaffCtx; organisationId: string | null; assistantName: string | null; assistStartedAt: Date | null }> {
+/** Who is asking: the signed-in person. */
+export async function staffContext(page?: string): Promise<{ ctx: StaffCtx; organisationId: string | null }> {
   const principal = await getPrincipal();
-  const [user, assist, organisationId] = await Promise.all([
+  const [user, organisationId] = await Promise.all([
     prisma.user.findUnique({ where: { id: principal.userId }, select: { fullName: true } }),
-    currentAssist(),
     principal.organisationId ? Promise.resolve(principal.organisationId) : myOrganisationId(),
   ]);
   return {
@@ -76,12 +75,9 @@ export async function staffContext(page?: string): Promise<{ ctx: StaffCtx; orga
       roleSlugs: principal.roleSlugs,
       isSuperAdmin: principal.isSuperAdmin,
       name: user?.fullName ?? 'a member of staff',
-      assisted: Boolean(assist),
       ...(page ? { page } : {}),
     },
     organisationId,
-    assistantName: assist?.assistant.name ?? null,
-    assistStartedAt: assist?.startedAt ?? null,
   };
 }
 
@@ -92,7 +88,7 @@ export function roleDescription(roleSlugs: string[], isSuperAdmin: boolean): str
   return parts.join('; ') || 'No role yet — can request their own exit passes';
 }
 
-export async function staffSystemPrompt(o: { ctx: StaffCtx; settings: EnyoSettings; organisationId: string | null; memory: string[]; assistantName: string | null; examples?: { question: string; answer: string }[]; workProfile?: string | null }): Promise<string> {
+export async function staffSystemPrompt(o: { ctx: StaffCtx; settings: EnyoSettings; organisationId: string | null; memory: string[]; examples?: { question: string; answer: string }[]; workProfile?: string | null }): Promise<string> {
   const org = o.organisationId ? await prisma.organisation.findUnique({ where: { id: o.organisationId }, select: { name: true } }).catch(() => null) : null;
   const organisationName = org?.name || process.env.NEXT_PUBLIC_ORGANISATION_NAME || 'the organisation';
   const firstName = o.ctx.name.split(/\s+/)[0] || o.ctx.name;
@@ -108,7 +104,6 @@ export async function staffSystemPrompt(o: { ctx: StaffCtx; settings: EnyoSettin
     ...(o.workProfile ? [`About this person's work (use it to tailor answers, suggestions and examples to their job; do not recite it): ${o.workProfile}`] : []),
     ...(o.ctx.page ? [`The person has this page open: ${o.ctx.page}. "This job", "this one" or "here" usually means the record on that page (its id is the last part of the path; the tools accept it).`] : []),
     ...(o.examples?.length ? [`Colleagues found these answers helpful for similar questions. Use them as a pattern for a good answer (steps, links, tone); check anything that may have changed with the tools, and answer the person's own question:\n${asData('helpful past answers', o.examples.map((e, i) => `Example ${i + 1}\nQ: ${e.question}\nA: ${e.answer}`).join('\n\n'))}`] : []),
-    ...(o.ctx.assisted ? [`${o.assistantName ?? 'A Branch Assistant'} is helping this person in an assisted session. Help as usual, for the person. Nothing is approved during an assisted session.`] : []),
   ];
   return buildSystemPrompt({
     assistantName: o.settings.displayName || 'Enyo',

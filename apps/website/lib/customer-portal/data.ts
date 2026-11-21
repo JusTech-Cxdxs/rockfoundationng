@@ -2,10 +2,7 @@ import { cache } from 'react';
 import { prisma, type Prisma } from '@ejo/database';
 import { serviceCycleFrom } from '@ejo/utils';
 import { depositFractionFor, vatSettingFor } from '@ejo/utils';
-import {
-  jobCardPhase, jobCardStatus, jobCardStep, servicePhase, serviceStatus, serviceStep,
-  JOB_CARD_STEPS, SERVICE_STEPS, warrantyState, type Phase, type StatusInfo, type WarrantyState,
-} from './status';
+import { jobCardPhase, jobCardStatus, jobCardStep, JOB_CARD_STEPS, type Phase, type StatusInfo } from './status';
 import {
   addWorkingDays, daysBetween, moneyFor, num, vehicleLabel,
   APPROVAL_DEADLINE_WORKING_DAYS, READY_FOR_COLLECTION_GRACE_WORKING_DAYS, type Money,
@@ -20,21 +17,20 @@ import {
  *
  * Estimates are shown only once the customer has been notified
  * (customerNotifiedAt), and on a Job Card only lines billed to the customer
- * count; warranty, goodwill and internal lines never reach this view.
+ * count; lines the workshop covers itself never reach this view.
  */
 
 const vehicleSelect = { id: true, make: true, model: true, year: true, plateNumber: true } as const;
 const paySelect = { id: true, amount: true, method: true, recordedAt: true, receiptNumber: true } as const;
 const refundSelect = { id: true, amount: true, method: true, recordedAt: true, referenceNumber: true } as const;
 
-/** receipt: the RCT-number (Job Card payments from phase 3 on; null on older ones and on services). */
+/** receipt: the RCT-number (null on payments recorded before receipts were numbered). */
 export type PaymentRow = { id: string; amount: number; method: string; recordedAt: Date; receipt: string | null };
 /** The Job Card's invoice, once issued. */
 export type InvoiceRow = { id: string; number: string; issuedAt: Date; total: number };
 export type RefundRow = { id: string; amount: number; method: string; recordedAt: Date; reference: string };
 
 export type ServiceItem = {
-  kind: 'jc' | 'vs';
   id: string;
   number: string;
   status: string;
@@ -53,7 +49,6 @@ export type ServiceItem = {
   closedAt: Date | null;
   collectedAt: Date | null;
   cancelledAt: Date | null;
-  escalatedAt: Date | null;
   lastUpdate: Date;
   estimateNotifiedAt: Date | null;
   money: Money;
@@ -65,7 +60,6 @@ export type ServiceItem = {
   collectBy: Date | null;
   waitingDays: number | null;
   inCustody: boolean;
-  linked: { kind: 'jc' | 'vs'; id: string; number: string; relation: 'continued-as' | 'started-as' } | null;
   nextServiceDueDate: Date | null;
   nextServiceDueOdometer: number | null;
   /** When the visit that set the next-service point was done (the latest one wins). */
@@ -73,7 +67,7 @@ export type ServiceItem = {
   /** A Job Card opened as a routine service (shown to the customer as "Service"). */
   isServiceJobCard: boolean;
   invoice: InvoiceRow | null;
-  /** The customer's own answer to a Job Card estimate (null on a Vehicle Service, or before they answer). */
+  /** The customer's own answer to the estimate (null before they answer). */
   answer: { approvedAt: Date | null; via: string | null; declinedAt: Date | null; declineNote: string | null } | null;
 };
 
@@ -98,34 +92,17 @@ export const jobCardItemSelect = {
   payments: { select: paySelect, orderBy: { recordedAt: 'asc' as const } },
   refunds: { select: refundSelect, orderBy: { recordedAt: 'asc' as const } },
   cancellationRequests: { where: { status: 'APPROVED' as const }, select: { decidedAt: true }, orderBy: { decidedAt: 'desc' as const }, take: 1 },
-  escalatedFromVehicleService: { select: { id: true, serviceNumber: true } },
 } satisfies Prisma.JobCardSelect;
 
-export const serviceItemSelect = {
-  id: true, serviceNumber: true, status: true, createdAt: true,
-  checkedInAt: true, workStartedAt: true, completedAt: true, readyForCollectionAt: true, closedAt: true,
-  collectedAt: true, cancelledAt: true, escalatedAt: true,
-  nextServiceDueDate: true, nextServiceDueOdometer: true, primaryServiceDate: true,
-  vehicle: { select: vehicleSelect },
-  branch: { select: { name: true, businessUnit: { select: { organisation: { select: { depositRequired: true, depositPercent: true } } } } } },
-  customer: { select: { customerType: true } },
-  serviceEstimate: { select: { customerNotifiedAt: true, lineItems: { select: { amount: true } } } },
-  payments: { select: paySelect, orderBy: { recordedAt: 'asc' as const } },
-  refunds: { select: refundSelect, orderBy: { recordedAt: 'asc' as const } },
-  escalatedToJobCard: { select: { id: true, jobNumber: true } },
-} satisfies Prisma.VehicleServiceSelect;
-
 type JobCardRow = Prisma.JobCardGetPayload<{ select: typeof jobCardItemSelect }>;
-type ServiceRow = Prisma.VehicleServiceGetPayload<{ select: typeof serviceItemSelect }>;
 
 /**
  * The next-service point a Job Card opened as a service sets: checked out
- * (not a cancelled hand-back), never one that continues a Vehicle Service
- * (that service carries the point). Same maths as the staff portal.
+ * (not a cancelled hand-back). Same maths as the staff portal.
  */
-export function serviceJobCardDue(jc: Pick<JobCardRow, 'isService' | 'status' | 'checkedOutAt' | 'mileageAtCheckIn' | 'cancellationRequests' | 'escalatedFromVehicleService' | 'vehicle' | 'branch'>): { date: Date | null; odometer: number | null; from: Date } | null {
+export function serviceJobCardDue(jc: Pick<JobCardRow, 'isService' | 'status' | 'checkedOutAt' | 'mileageAtCheckIn' | 'cancellationRequests' | 'vehicle' | 'branch'>): { date: Date | null; odometer: number | null; from: Date } | null {
   const status = String(jc.status);
-  if (!jc.isService || !jc.checkedOutAt || (status !== 'CHECKED_OUT' && status !== 'CLOSED') || jc.cancellationRequests.length > 0 || jc.escalatedFromVehicleService) return null;
+  if (!jc.isService || !jc.checkedOutAt || (status !== 'CHECKED_OUT' && status !== 'CLOSED') || jc.cancellationRequests.length > 0) return null;
   const org = jc.branch?.businessUnit.organisation;
   if (!org) return null;
   const cycle = serviceCycleFrom(jc.mileageAtCheckIn, jc.checkedOutAt, { vehicle: jc.vehicle, organisation: org });
@@ -143,13 +120,13 @@ export function jobCardItem(jc: JobCardRow, now = new Date()): ServiceItem {
   const waitingForCollection = (status === 'READY_FOR_COLLECTION' || status === 'CLOSED') && !jc.checkedOutAt;
   const readyAt = jc.readyForCollectionAt;
   return {
-    kind: 'jc', id: jc.id, number: jc.jobNumber, status, info: jobCardStatus(status), phase: jobCardPhase(status),
+    id: jc.id, number: jc.jobNumber, status, info: jobCardStatus(status), phase: jobCardPhase(status),
     step: jobCardStep(status), steps: JOB_CARD_STEPS,
     vehicle: { id: jc.vehicle.id, label: vehicleLabel(jc.vehicle), plate: jc.vehicle.plateNumber },
     branchName: jc.branch?.name ?? null,
     href: `/customer-portal/dashboard/services/jc/${jc.id}`,
     createdAt: jc.createdAt, checkedInAt: jc.createdAt, workStartedAt: jc.workStartedAt, completedAt: jc.completedAt,
-    readyAt, closedAt: jc.closedAt, collectedAt: jc.checkedOutAt, cancelledAt, escalatedAt: null,
+    readyAt, closedAt: jc.closedAt, collectedAt: jc.checkedOutAt, cancelledAt,
     lastUpdate: latest(jc.createdAt, jc.workStartedAt, jc.completedAt, readyAt, jc.closedAt, jc.checkedOutAt, cancelledAt, notifiedAt, ...jc.payments.map((p) => p.recordedAt), ...jc.refunds.map((r) => r.recordedAt)),
     estimateNotifiedAt: notifiedAt,
     money,
@@ -162,7 +139,6 @@ export function jobCardItem(jc: JobCardRow, now = new Date()): ServiceItem {
     waitingDays: waitingForCollection && readyAt ? Math.max(0, daysBetween(readyAt, now)) : null,
     // A cancelled Job Card's vehicle stays with us until it is checked out.
     inCustody: status !== 'CHECKED_OUT' && !jc.checkedOutAt,
-    linked: jc.escalatedFromVehicleService ? { kind: 'vs', id: jc.escalatedFromVehicleService.id, number: jc.escalatedFromVehicleService.serviceNumber, relation: 'started-as' } : null,
     nextServiceDueDate: due?.date ?? null,
     nextServiceDueOdometer: due?.odometer ?? null,
     nextServiceFrom: due?.from ?? null,
@@ -172,58 +148,16 @@ export function jobCardItem(jc: JobCardRow, now = new Date()): ServiceItem {
   };
 }
 
-export function serviceItem(vs: ServiceRow, now = new Date()): ServiceItem {
-  const status = String(vs.status);
-  const notifiedAt = vs.serviceEstimate?.customerNotifiedAt ?? null;
-  const money = moneyFor({ notified: Boolean(notifiedAt), lines: vs.serviceEstimate?.lineItems ?? [], depositFraction: depositFractionFor(vs.branch?.businessUnit.organisation, String(vs.customer.customerType)), payments: vs.payments, refunds: vs.refunds });
-  // Waiting for the deposit; with no deposit, for the first payment (which starts the service).
-  const awaitingApproval = status === 'CHECKED_IN' && Boolean(notifiedAt) && ((money.minDeposit ?? 0) > 0 ? (money.depositDue ?? 0) > 0 : money.netPaid <= 0);
-  const waitingForCollection = (status === 'READY_FOR_COLLECTION' || status === 'CLOSED') && !vs.collectedAt;
-  const readyAt = vs.readyForCollectionAt;
-  return {
-    kind: 'vs', id: vs.id, number: vs.serviceNumber, status, info: serviceStatus(status), phase: servicePhase(status),
-    step: serviceStep(status), steps: SERVICE_STEPS,
-    vehicle: { id: vs.vehicle.id, label: vehicleLabel(vs.vehicle), plate: vs.vehicle.plateNumber },
-    branchName: vs.branch?.name ?? null,
-    href: `/customer-portal/dashboard/services/vs/${vs.id}`,
-    createdAt: vs.createdAt, checkedInAt: vs.checkedInAt, workStartedAt: vs.workStartedAt, completedAt: vs.completedAt,
-    readyAt, closedAt: vs.closedAt, collectedAt: vs.collectedAt, cancelledAt: vs.cancelledAt, escalatedAt: vs.escalatedAt,
-    lastUpdate: latest(vs.createdAt, vs.checkedInAt, vs.workStartedAt, vs.completedAt, readyAt, vs.closedAt, vs.collectedAt, vs.cancelledAt, vs.escalatedAt, notifiedAt, ...vs.payments.map((p) => p.recordedAt), ...vs.refunds.map((r) => r.recordedAt)),
-    estimateNotifiedAt: notifiedAt,
-    money,
-    payments: vs.payments.map(toPay),
-    refunds: vs.refunds.map(toRefund),
-    awaitingApproval,
-    approvalDeadline: awaitingApproval && notifiedAt ? addWorkingDays(notifiedAt, APPROVAL_DEADLINE_WORKING_DAYS) : null,
-    waitingForCollection,
-    collectBy: waitingForCollection && readyAt ? addWorkingDays(readyAt, READY_FOR_COLLECTION_GRACE_WORKING_DAYS) : null,
-    waitingDays: waitingForCollection && readyAt ? Math.max(0, daysBetween(readyAt, now)) : null,
-    inCustody: ['CHECKED_IN', 'IN_SERVICE', 'COMPLETED', 'READY_FOR_COLLECTION', 'CLOSED'].includes(status) && !vs.collectedAt,
-    linked: vs.escalatedToJobCard ? { kind: 'jc', id: vs.escalatedToJobCard.id, number: vs.escalatedToJobCard.jobNumber, relation: 'continued-as' } : null,
-    nextServiceDueDate: vs.nextServiceDueDate,
-    nextServiceDueOdometer: vs.nextServiceDueOdometer,
-    nextServiceFrom: vs.primaryServiceDate,
-    isServiceJobCard: false,
-    invoice: null,
-    answer: null,
-  };
-}
-
-/** All of a customer's Job Cards and Vehicle Services, newest first, in one shape. */
+/** All of a customer's Job Cards, newest first. */
 export const loadServices = cache(async (customerId: string, take = 100): Promise<ServiceItem[]> => {
   const now = new Date();
-  const [jobCards, services] = await Promise.all([
-    prisma.jobCard.findMany({ where: { customerId }, orderBy: { createdAt: 'desc' }, take, select: jobCardItemSelect }),
-    prisma.vehicleService.findMany({ where: { customerId }, orderBy: { createdAt: 'desc' }, take, select: serviceItemSelect }),
-  ]);
-  const items = [...jobCards.map((jc) => jobCardItem(jc, now)), ...services.map((vs) => serviceItem(vs, now))];
-  items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  return items;
+  const jobCards = await prisma.jobCard.findMany({ where: { customerId }, orderBy: { createdAt: 'desc' }, take, select: jobCardItemSelect });
+  return jobCards.map((jc) => jobCardItem(jc, now));
 });
 
-/** What the customer still owes on a job (0 for cancelled / escalated ones). */
+/** What the customer still owes on a job (0 for a cancelled one). */
 export function outstanding(i: ServiceItem): number {
-  if (i.phase === 'cancelled' || i.status === 'ESCALATED') return 0;
+  if (i.phase === 'cancelled') return 0;
   return i.money.balance ?? 0;
 }
 
@@ -246,7 +180,7 @@ export const loadVehicles = cache(async (customerId: string): Promise<VehicleCar
   }));
 });
 
-/** Next service due for a vehicle: the latest service's own prediction (a Vehicle Service or a Job Card opened as a service; the later one wins). */
+/** Next service due for a vehicle: the latest service Job Card's own prediction (the later one wins). */
 export function nextServiceFor(vehicleId: string, items: ServiceItem[]): { date: Date | null; odometer: number | null; from: ServiceItem } | null {
   const when = (i: ServiceItem) => (i.nextServiceFrom ?? i.createdAt).getTime();
   const done = items
@@ -254,50 +188,6 @@ export function nextServiceFor(vehicleId: string, items: ServiceItem[]): { date:
     .reduce<ServiceItem | null>((best, i) => (!best || when(i) > when(best) ? i : best), null);
   return done ? { date: done.nextServiceDueDate, odometer: done.nextServiceDueOdometer, from: done } : null;
 }
-
-// ---------------------------------------------------------------- Warranties
-
-export type WarrantyItem = {
-  id: string; number: string; kind: string; status: string; state: WarrantyState; subject: string;
-  startsAt: Date; endsAt: Date; issuedAt: Date; distanceLimit: number | null; startReading: number | null;
-  coverage: string; exclusions: string | null; conditions: string | null;
-  policyName: string; coversParts: boolean; coversLabour: boolean; providerName: string;
-  vehicle: { id: string; label: string; plate: string | null } | null;
-  source: { kind: 'jc' | 'vs'; id: string; number: string } | null;
-  claims: { id: string; number: string; status: string; complaint: string; failureDate: Date; resolution: string | null; createdAt: Date; decidedAt: Date | null; settledAt: Date | null }[];
-};
-
-export const loadWarranties = cache(async (customerId: string): Promise<WarrantyItem[]> => {
-  const now = new Date();
-  const rows = await prisma.warranty.findMany({
-    where: { customerId },
-    orderBy: { endsAt: 'desc' },
-    take: 200,
-    select: {
-      id: true, warrantyNumber: true, kind: true, status: true, subjectDescription: true, startsAt: true, endsAt: true, issuedAt: true,
-      distanceLimit: true, startReading: true, coverageSnapshot: true, exclusionsSnapshot: true, conditionsSnapshot: true,
-      policy: { select: { name: true, coversParts: true, coversLabour: true } },
-      provider: { select: { name: true } },
-      vehicle: { select: vehicleSelect },
-      jobCard: { select: { id: true, jobNumber: true } },
-      vehicleService: { select: { id: true, serviceNumber: true } },
-      claims: {
-        where: { customerId },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, claimNumber: true, status: true, complaint: true, failureDate: true, customerResolution: true, createdAt: true, decidedAt: true, settledAt: true },
-      },
-    },
-  });
-  return rows.map((w) => ({
-    id: w.id, number: w.warrantyNumber, kind: String(w.kind), status: String(w.status), state: warrantyState({ status: String(w.status), endsAt: w.endsAt }, now),
-    subject: w.subjectDescription, startsAt: w.startsAt, endsAt: w.endsAt, issuedAt: w.issuedAt, distanceLimit: w.distanceLimit, startReading: w.startReading,
-    coverage: w.coverageSnapshot, exclusions: w.exclusionsSnapshot, conditions: w.conditionsSnapshot,
-    policyName: w.policy.name, coversParts: w.policy.coversParts, coversLabour: w.policy.coversLabour, providerName: w.provider.name,
-    vehicle: w.vehicle ? { id: w.vehicle.id, label: vehicleLabel(w.vehicle), plate: w.vehicle.plateNumber } : null,
-    source: w.jobCard ? { kind: 'jc', id: w.jobCard.id, number: w.jobCard.jobNumber } : w.vehicleService ? { kind: 'vs', id: w.vehicleService.id, number: w.vehicleService.serviceNumber } : null,
-    claims: w.claims.map((c) => ({ id: c.id, number: c.claimNumber, status: String(c.status), complaint: c.complaint, failureDate: c.failureDate, resolution: c.customerResolution ? String(c.customerResolution) : null, createdAt: c.createdAt, decidedAt: c.decidedAt, settledAt: c.settledAt })),
-  }));
-});
 
 // ---------------------------------------------------------------- Broadcasts
 
@@ -328,17 +218,15 @@ export const loadBroadcasts = cache(async (customerId: string, organisationId: s
 export type BranchContact = { name: string; address: string | null; hotlines: string[]; email: string | null; bank: { bankName: string | null; accountName: string | null; accountNumber: string | null } | null; organisation: string; orgHotlines: string[]; orgEmail: string | null; orgAddress: string | null };
 
 /**
- * Who to call: the branch of the customer's latest visit (Job Card or
- * service), with the organisation's own lines as the fallback.
+ * Who to call: the branch of the customer's latest Job Card, with the
+ * organisation's own lines as the fallback.
  */
 export const loadContact = cache(async (customerId: string, organisationId: string): Promise<BranchContact | null> => {
   const branchSelect = { name: true, address: true, hotlines: true, email: true, bankName: true, bankAccountName: true, bankAccountNumber: true } as const;
-  const [jc, vs, org] = await Promise.all([
+  const [pick, org] = await Promise.all([
     prisma.jobCard.findFirst({ where: { customerId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true, branch: { select: branchSelect } } }),
-    prisma.vehicleService.findFirst({ where: { customerId }, orderBy: { createdAt: 'desc' }, select: { createdAt: true, branch: { select: branchSelect } } }),
     prisma.organisation.findUnique({ where: { id: organisationId }, select: { name: true, hotlines: true, email: true, hqAddress: true } }),
   ]);
-  const pick = jc && vs ? (jc.createdAt > vs.createdAt ? jc : vs) : (jc ?? vs);
   if (!pick && !org) return null;
   return {
     name: pick?.branch?.name ?? org?.name ?? 'Our team',
@@ -356,13 +244,13 @@ export const loadContact = cache(async (customerId: string, organisationId: stri
 // ----------------------------------------------------------------- Estimates
 
 /**
- * The estimate lines a customer may see — the SAME selects the Job Card and
- * Vehicle Service pages use (and Enyo's my_estimate tool): on a Job Card only
- * the lines billed to the customer; on either, nothing until the customer has
- * been notified (customerEstimateLines returns null before that).
+ * The estimate lines a customer may see — the SAME select the Job Card page
+ * uses (and Enyo's my_estimate tool): only the lines billed to the customer,
+ * and nothing until the customer has been notified (customerEstimateLines
+ * returns null before that).
  */
 const estimateLineFields = { id: true, type: true, description: true, quantity: true, unitPrice: true, amount: true, unitOfMeasure: true } as const;
-// A Job Card line may carry a discount (Vehicle Service lines never do).
+// A line may carry a discount.
 export const jobCardEstimateSelect = {
   customerNotifiedAt: true,
   discountAmount: true,
@@ -374,10 +262,6 @@ export const jobCardEstimateSelect = {
   customerDeclineNote: true,
   lineItems: { where: { billTo: 'CUSTOMER' as const }, orderBy: { createdAt: 'asc' as const }, select: { ...estimateLineFields, discountAmount: true } },
 } satisfies Prisma.EstimateSelect;
-export const serviceEstimateSelect = {
-  customerNotifiedAt: true,
-  lineItems: { orderBy: { createdAt: 'asc' as const }, select: estimateLineFields },
-} satisfies Prisma.ServiceEstimateSelect;
 
 export type CustomerEstimateLine = { id: string; type: string; description: string; quantity: number; unitPrice: number | null; amount: number | null; unit: string | null; discount: number };
 
@@ -395,13 +279,9 @@ export function customerEstimateLines(est: { customerNotifiedAt: Date | null; li
 }
 
 /** One of the customer's own jobs with its customer-visible estimate (null lines = not sent yet), found by its number. */
-export async function loadOwnEstimate(customerId: string, item: { kind: 'jc' | 'vs'; id: string }): Promise<CustomerEstimateLine[] | null> {
-  if (item.kind === 'jc') {
-    const jc = await prisma.jobCard.findFirst({ where: { id: item.id, customerId }, select: { estimate: { select: jobCardEstimateSelect } } });
-    return customerEstimateLines(jc?.estimate);
-  }
-  const vs = await prisma.vehicleService.findFirst({ where: { id: item.id, customerId }, select: { serviceEstimate: { select: serviceEstimateSelect } } });
-  return customerEstimateLines(vs?.serviceEstimate);
+export async function loadOwnEstimate(customerId: string, item: { id: string }): Promise<CustomerEstimateLine[] | null> {
+  const jc = await prisma.jobCard.findFirst({ where: { id: item.id, customerId }, select: { estimate: { select: jobCardEstimateSelect } } });
+  return customerEstimateLines(jc?.estimate);
 }
 
 // ------------------------------------------------------------------- Support

@@ -27,8 +27,8 @@ test('the batch bin move keeps the single-delete snapshot and rules, one restora
   // The same snapshot shape restore reads, built with orderedSnapshot.
   assert.match(fn, /orderedSnapshot\('Customer', \[/);
   assert.match(fn, /orderedSnapshot\('CustomerVehicle', \[/);
-  // The same eligibility as a single delete: no jobs, services, warranties, claims, gate exits, road tests; never signed in.
-  for (const k of ['jobCards: { none: {} }', 'vehicleServices: { none: {} }', 'warranties: { none: {} }', 'warrantyClaims: { none: {} }', 'gateExits: { none: {} }', 'roadTestPermits: { none: {} }', 'sessions: { none: {} }', 'lastLoginAt: null']) {
+  // The same eligibility as a single delete: no jobs, no gate exits; never signed in.
+  for (const k of ['jobCards: { none: {} }', 'gateExits: { none: {} }', 'sessions: { none: {} }', 'lastLoginAt: null']) {
     assert.ok(fn.includes(k), k);
   }
   // The bin item comes first, then the delete.

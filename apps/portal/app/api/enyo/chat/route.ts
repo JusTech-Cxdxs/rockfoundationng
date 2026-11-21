@@ -27,7 +27,7 @@ const SOMETHING_WRONG = 'Something went wrong on my side. Please try again, and 
  * Answers with Server-Sent Events (EnyoEvent): `conversation` first, then
  * status / text / tool / sources / draft / notice, then `done` or `error`.
  *
- * Runs as the signed-in person (the colleague, during an assisted session):
+ * Runs as the signed-in person:
  * every tool calls the module's own authorised code, so Enyo sees exactly
  * what the person can see. Refusals before streaming starts are one `error`
  * event with the matching HTTP status (401 JSON when not signed in).
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   if (body.conversationId !== undefined && body.conversationId !== null && body.conversationId !== '' && !conversationId) return sseError(404, 'That conversation is not available. Start a new one.');
 
   try {
-    const { ctx, organisationId, assistantName, assistStartedAt: assistStart } = await staffContext(cleanPage(body.page));
+    const { ctx, organisationId } = await staffContext(cleanPage(body.page));
     ctx.question = message;
     if (!organisationId) return sseError(403, 'Your account is not placed in an organisation yet, so I cannot help here. Please ask an administrator.');
     const ready = await enyoReady(organisationId, 'staffAssistant');
@@ -69,10 +69,10 @@ export async function POST(request: NextRequest) {
     }
     if (await overRateLimit(userId)) return sseError(429, 'You are asking faster than I can keep up. Please wait a minute and try again.');
 
-    // The conversation: the person's own (during an assisted session, one started in it).
+    // The conversation: the person's own.
     let convo = conversationId
       ? await prisma.enyoConversation.findFirst({
-          where: { id: conversationId, userId, organisationId, channel: 'STAFF', archivedAt: null, ...(assistStart ? { createdAt: { gte: assistStart } } : {}) },
+          where: { id: conversationId, userId, organisationId, channel: 'STAFF', archivedAt: null },
           select: { id: true, title: true },
         })
       : null;
@@ -88,13 +88,13 @@ export async function POST(request: NextRequest) {
     const conversation = convo;
     await prisma.enyoMessage.create({ data: { conversationId: conversation.id, role: 'USER', content: message } });
 
-    const memory = ctx.assisted ? [] : (await prisma.enyoMemory.findMany({ where: { userId, organisationId }, orderBy: { createdAt: 'asc' }, take: 50, select: { fact: true } })).map((m) => m.fact);
+    const memory = (await prisma.enyoMemory.findMany({ where: { userId, organisationId }, orderBy: { createdAt: 'asc' }, take: 50, select: { fact: true } })).map((m) => m.fact);
     // What colleagues found helpful for this kind of question (organisation's own).
     const learned = await findLearned(organisationId, ['STAFF', 'SUPPORT'], message, 2).catch(() => []);
-    const reuse = canReuse(learned[0], tokenise(message)) && reuseAllowed({ question: message, historyLength: history.length, assisted: Boolean(ctx.assisted), page: ctx.page }) ? learned[0]! : null;
-    // How this person works here (their own actions), so answers fit their job — never during an assisted session.
-    const profile = ctx.assisted ? null : await workProfile(userId, organisationId);
-    const system = await staffSystemPrompt({ ctx, settings: ready.settings, organisationId, memory, assistantName, examples: learned.map((l) => ({ question: l.question, answer: l.answer })), workProfile: profile });
+    const reuse = canReuse(learned[0], tokenise(message)) && reuseAllowed({ question: message, historyLength: history.length, page: ctx.page }) ? learned[0]! : null;
+    // How this person works here (their own actions), so answers fit their job.
+    const profile = await workProfile(userId, organisationId);
+    const system = await staffSystemPrompt({ ctx, settings: ready.settings, organisationId, memory, examples: learned.map((l) => ({ question: l.question, answer: l.answer })), workProfile: profile });
     const turns: ChatMessage[] = [...trimHistory(history, 8_000, 12), { role: 'user', content: message }];
     // Cost: small talk and short how-to go to the fast model; records and figures to the main one.
     const route = routeModel(message, ready.config);

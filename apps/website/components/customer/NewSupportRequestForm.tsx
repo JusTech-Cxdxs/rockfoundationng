@@ -5,17 +5,14 @@ import { Icon } from './Icon';
 import { Spinner } from '@/components/Spinner';
 import { openSupportRequest } from '@/lib/customer-portal/support';
 import type { ActionState } from '@/lib/customer-portal/actions';
-import { moduleOn } from '@/lib/edition';
 
 const initial: ActionState = { ok: false };
 const ABOUT: { value: string; title: string; text: string }[] = [
   { value: 'question', title: 'A question', text: 'Anything you would like to know.' },
   { value: 'vehicle', title: 'My vehicle or a job', text: 'Progress, a fault, collection.' },
   { value: 'payment', title: 'A payment or an estimate', text: 'What you owe, a payment you made.' },
-  { value: 'warranty', title: 'A warranty', text: 'Cover, a claim, a part that failed.' },
   { value: 'complaint', title: 'A complaint', text: 'Something went wrong — our customer care team takes it up.' },
-  // "A warranty" only while the warranty module is on (lib/edition.ts).
-].filter((a) => a.value !== 'warranty' || moduleOn('warranty'));
+];
 const field = 'w-full rounded-[var(--ejo-radius-md)] border bg-[var(--ejo-bg)] px-3.5 py-2.5 text-base text-[var(--ejo-text)] outline-none placeholder:text-[var(--ejo-text-muted)]/70 focus:border-[var(--ejo-primary)] focus:ring-2 focus:ring-[var(--ejo-primary)]/20 sm:text-sm';
 
 /** A new support request or complaint, written by the signed-in customer (Help & support). */

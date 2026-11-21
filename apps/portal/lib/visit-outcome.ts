@@ -1,10 +1,9 @@
 /**
- * How a Job Card or Vehicle Service ended — one rule for both history
- * pages. A cancelled Job Card that is handed back becomes CHECKED_OUT
+ * How a Job Card ended. A cancelled Job Card that is handed back becomes CHECKED_OUT
  * just like a finished one, so the APPROVED cancellation (not the status)
  * is the source of truth for "cancelled".
  */
-export type VisitOutcome = 'COMPLETED_CHECKED_OUT' | 'CANCELLED_CHECKED_OUT' | 'CANCELLED_AWAITING_HANDBACK' | 'ESCALATED' | 'IN_PROGRESS';
+export type VisitOutcome = 'COMPLETED_CHECKED_OUT' | 'CANCELLED_CHECKED_OUT' | 'CANCELLED_AWAITING_HANDBACK' | 'IN_PROGRESS';
 export type RefundState = 'REFUNDED' | 'PARTLY_REFUNDED' | 'REFUND_DUE' | 'NOTHING_PAID';
 
 export function refundState(paid: number, refunded: number): RefundState {
@@ -18,13 +17,6 @@ export function jobCardOutcome(jc: { status: string; checkedOutAt: Date | null; 
   const cancelled = jc.status === 'CANCELLED' || jc.hasApprovedCancellation;
   if (cancelled) return jc.status === 'CHECKED_OUT' || jc.checkedOutAt ? 'CANCELLED_CHECKED_OUT' : 'CANCELLED_AWAITING_HANDBACK';
   if (jc.status === 'CHECKED_OUT') return 'COMPLETED_CHECKED_OUT';
-  return 'IN_PROGRESS';
-}
-
-export function vehicleServiceOutcome(vs: { status: string; collectedAt: Date | null; escalated: boolean }): VisitOutcome {
-  if (vs.status === 'ESCALATED' || vs.escalated) return 'ESCALATED';
-  if (vs.status === 'CANCELLED') return vs.collectedAt ? 'CANCELLED_CHECKED_OUT' : 'CANCELLED_AWAITING_HANDBACK';
-  if (vs.status === 'COLLECTED') return 'COMPLETED_CHECKED_OUT';
   return 'IN_PROGRESS';
 }
 
@@ -60,7 +52,6 @@ export function parseOutcomeFilter(v: string | undefined): OutcomeFilter | undef
 /** Badge text and colour for a finished visit (null while still active). */
 export function outcomeBadge(outcome: VisitOutcome, refund: RefundState): { label: string; className: string } | null {
   if (outcome === 'COMPLETED_CHECKED_OUT') return { label: 'Completed → checked out', className: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' };
-  if (outcome === 'ESCALATED') return { label: 'Escalated to Job Card', className: 'bg-[var(--ejo-info)]/15 text-[var(--ejo-info)]' };
   if (outcome === 'IN_PROGRESS') return null;
   const where = outcome === 'CANCELLED_CHECKED_OUT' ? 'Cancelled → checked out' : 'Cancelled — awaiting hand-back';
   const money =

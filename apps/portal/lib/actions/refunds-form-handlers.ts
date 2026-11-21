@@ -13,13 +13,12 @@ function str(formData: FormData, key: string): string {
 
 export async function recordRefundFormAction(formData: FormData) {
   const jobCardId = str(formData, 'jobCardId');
-  const vehicleServiceId = str(formData, 'vehicleServiceId');
-  const page = jobCardId ? `/workshop/job-cards/${jobCardId}` : `/workshop/vehicle-service/${vehicleServiceId}`;
+  const page = `/workshop/job-cards/${jobCardId}`;
   let referenceNumber = '';
   try {
-    if (!jobCardId && !vehicleServiceId) throw new Error('Record not found.');
+    if (!jobCardId) throw new Error('Record not found.');
     const result = await recordRefund({
-      target: jobCardId ? { jobCardId } : { vehicleServiceId },
+      target: { jobCardId },
       amount: Number(str(formData, 'amount')),
       method: str(formData, 'method') as 'CASH' | 'BANK_TRANSFER',
       paidToName: str(formData, 'paidToName'),

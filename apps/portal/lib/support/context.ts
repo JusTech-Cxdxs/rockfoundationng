@@ -27,9 +27,6 @@ export type ContextTicket = {
   authenticatedSender: boolean; verified: boolean;
 };
 
-/** A service visit has no "updated" stamp: its latest step is its last update. */
-const lastOf = (s: { createdAt: Date; checkedInAt: Date | null; completedAt: Date | null; readyForCollectionAt: Date | null; closedAt: Date | null; collectedAt: Date | null; cancelledAt: Date | null; escalatedAt: Date | null }) =>
-  new Date(Math.max(...[s.createdAt, s.checkedInAt, s.completedAt, s.readyForCollectionAt, s.closedAt, s.collectedAt, s.cancelledAt, s.escalatedAt].filter((d): d is Date => Boolean(d)).map((d) => d.getTime())));
 const vehicleName = (v: { make: string | null; model: string | null } | null) => [v?.make, v?.model].filter(Boolean).join(' ') || 'Vehicle';
 const reasonOf = (m: unknown) => (m && typeof m === 'object' && typeof (m as { reason?: unknown }).reason === 'string' ? String((m as { reason: string }).reason).slice(0, 200) : null);
 
@@ -74,7 +71,7 @@ const STAFF_SELECT = {
 async function customerFacts(organisationId: string, c: { id: string; fullName: string; isActive: boolean; lastLoginAt: Date | null }): Promise<CustomerFacts> {
   const since = new Date(Date.now() - WEEK);
   const recent = new Date(Date.now() - RECENT);
-  const [account, failed, lastFailed, reset, off, jobs, services, warranties, claims, errors, openRequests] = await Promise.all([
+  const [account, failed, lastFailed, reset, off, jobs, errors, openRequests] = await Promise.all([
     prisma.customerAccount.findFirst({ where: { customerId: c.id, providerId: 'credential', password: { not: null } }, select: { id: true } }),
     prisma.auditLog.count({ where: { organisationId, action: 'customer.sign_in_failed', entityId: c.id, createdAt: { gte: since } } }),
     prisma.auditLog.findFirst({ where: { organisationId, action: 'customer.sign_in_failed', entityId: c.id }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
@@ -85,16 +82,6 @@ async function customerFacts(organisationId: string, c: { id: string; fullName: 
       orderBy: { updatedAt: 'desc' }, take: 5,
       select: { id: true, jobNumber: true, status: true, updatedAt: true, vehicle: { select: { make: true, model: true, plateNumber: true } } },
     }),
-    prisma.vehicleService.findMany({
-      where: { customerId: c.id, customer: { organisationId }, OR: [{ status: { notIn: ['COLLECTED', 'CANCELLED', 'ESCALATED'] } }, { createdAt: { gte: recent } }] },
-      orderBy: { createdAt: 'desc' }, take: 5,
-      select: {
-        id: true, serviceNumber: true, status: true, createdAt: true, checkedInAt: true, completedAt: true, readyForCollectionAt: true, closedAt: true, collectedAt: true, cancelledAt: true, escalatedAt: true,
-        vehicle: { select: { make: true, model: true, plateNumber: true } },
-      },
-    }),
-    prisma.warranty.findMany({ where: { customerId: c.id, customer: { organisationId }, endsAt: { gte: new Date(Date.now() - 30 * 86_400_000) } }, orderBy: { endsAt: 'asc' }, take: 5, select: { id: true, warrantyNumber: true, status: true, subjectDescription: true, endsAt: true } }),
-    prisma.warrantyClaim.findMany({ where: { customerId: c.id, customer: { organisationId }, updatedAt: { gte: recent } }, orderBy: { updatedAt: 'desc' }, take: 5, select: { claimNumber: true, status: true, updatedAt: true } }),
     prisma.errorEvent.findMany({ where: { customerId: c.id, createdAt: { gte: since } }, orderBy: { createdAt: 'desc' }, take: 3, select: { ref: true, path: true, createdAt: true } }),
     prisma.supportTicket.count({ where: { organisationId, customerId: c.id, status: { in: ['OPEN', 'WAITING_ON_CUSTOMER', 'ON_HOLD'] } } }),
   ]);
@@ -106,9 +93,6 @@ async function customerFacts(organisationId: string, c: { id: string; fullName: 
       resetRequestedAt: reset?.createdAt ?? null, offReason: reasonOf(off?.metadata), offAt: off?.createdAt ?? null, offBy,
     },
     jobs: jobs.map((j) => ({ id: j.id, number: j.jobNumber, status: String(j.status), vehicle: vehicleName(j.vehicle), plate: j.vehicle?.plateNumber ?? null, updatedAt: j.updatedAt })),
-    services: services.map((s) => ({ id: s.id, number: s.serviceNumber, status: String(s.status), vehicle: vehicleName(s.vehicle), plate: s.vehicle?.plateNumber ?? null, updatedAt: lastOf(s) })),
-    warranties: warranties.map((w) => ({ id: w.id, number: w.warrantyNumber, status: String(w.status), subject: w.subjectDescription.slice(0, 120), endsAt: w.endsAt })),
-    claims: claims.map((x) => ({ number: x.claimNumber, status: String(x.status), updatedAt: x.updatedAt })),
     errors: errors.map((e) => ({ ref: e.ref, path: e.path, at: e.createdAt })),
     openRequests,
   };

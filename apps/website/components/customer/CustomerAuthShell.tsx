@@ -4,18 +4,15 @@ import { Wordmark } from './Wordmark';
 import { PoweredByEjo } from './PoweredByEjo';
 import { ThemeSwitch } from './ThemeSwitch';
 import { Icon, type IconName } from './Icon';
-import { moduleOn } from '@/lib/edition';
 import { DPHOENIX } from '@/lib/content/dphoenix';
 
 const HIGHLIGHTS: { title: string; text: string; icon: IconName }[] = [
-  { title: 'Follow every step', text: 'Job Cards and services, from check-in to collection, as it happens.', icon: 'route' },
+  { title: 'Follow every step', text: 'Every repair and service, from check-in to collection, as it happens.', icon: 'route' },
   { title: 'Estimates & payments', text: 'Approve estimates, see what is due, keep every receipt.', icon: 'wallet' },
-  // Only while the warranty module is on (lib/edition.ts); filtered out below otherwise.
-  { title: 'Warranties', text: 'What is covered, for how long, and how to claim.', icon: 'shield' },
   { title: 'Service reminders', text: 'When your next service is due, before it is late.', icon: 'calendarCheck' },
   { title: 'Ask Enyo, any time', text: 'Our assistant answers about your own vehicles, day or night.', icon: 'sparkles' },
   { title: 'Talk to a person', text: 'Open a request or complaint; our customer care replies by WhatsApp, email or phone.', icon: 'chat' },
-].filter((h) => moduleOn('warranty') || h.title !== 'Warranties');
+];
 
 const STEPS = ['Checked in', 'Estimate approved', 'Work in progress', 'Quality check', 'Ready to collect'];
 

@@ -13,8 +13,6 @@ export type CompanyInfo = {
   branches: { name: string; area: string | null; address: string | null; phones: string[]; email: string | null }[];
   openingHours: string | null;
   businesses: string[];
-  /** The organisation's leadership and other people it publishes (name, title, area, short biography, public profile link). */
-  people: { name: string; title: string; area: string | null; about: string | null; profile: string | null }[];
   /** D'Phoenix Autocare's own published facts (lib/content/dphoenix.ts). */
   about: { company: string; tagline: string; whatWeDo: string; address: string; services: string[]; phones: string[]; email: string; openingHours: string; website: string };
   websitePages: { title: string; link: string }[];
@@ -36,12 +34,8 @@ export async function loadCompanyInfo(organisationId: string): Promise<CompanyIn
     }),
     prisma.businessUnit.findMany({ where: { organisationId, isActive: true }, orderBy: { name: 'asc' }, take: 20, select: { name: true } }),
   ]);
-  // v36: opening hours from the Support centre's set-up, when an administrator has saved them.
-  // v38: the people the organisation publishes (Organisation → People we publish); public ones only.
-  const [setting, people] = await Promise.all([
-    prisma.supportSetting.findUnique({ where: { organisationId }, select: { hours: true } }).catch(() => null),
-    prisma.publicProfile.findMany({ where: { organisationId, isPublic: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }], take: 40, select: { name: true, title: true, area: true, bio: true, profileUrl: true } }).catch(() => []),
-  ]);
+  // Opening hours from the Support centre's set-up, when an administrator has saved them.
+  const setting = await prisma.supportSetting.findUnique({ where: { organisationId }, select: { hours: true } }).catch(() => null);
   // D'Phoenix Autocare's published contacts fill what the records leave empty.
   const recorded = unique([...(org?.hotlines ?? []), siteConfig.contact.phone]);
   const phones = recorded.length ? recorded : [...DPHOENIX.phones];
@@ -58,7 +52,6 @@ export async function loadCompanyInfo(organisationId: string): Promise<CompanyIn
     })),
     openingHours: setting?.hours ? hoursText(setting.hours) : DPHOENIX.hours,
     businesses: unique(units.map((u) => u.name)),
-    people: people.map((p) => ({ name: p.name, title: p.title, area: p.area, about: p.bio, profile: p.profileUrl })),
     // D'Phoenix Autocare's own facts (lib/content/dphoenix.ts), so the business is described without the web.
     about: {
       company: `${DPHOENIX.legalName} (${DPHOENIX.name})`,
@@ -81,9 +74,7 @@ export async function loadCompanyInfo(organisationId: string): Promise<CompanyIn
     notes: [
       ...(setting?.hours ? ['Closed on public holidays.'] : []),
       'Prices are not published. Repairs are estimated after the vehicle is inspected.',
-      people.length
-        ? 'For "who is …" questions about someone in "people", answer from their entry (title, area, about) and mention their public profile link. Never give out anyone\'s personal phone number, email or address.'
-        : 'No leadership list is published here. For "who is …" about a named person, try the web look-up with the name and the organisation, and say if nothing clearly matches.',
+      'No staff list is published here. Never give out anyone\'s personal phone number, email or address.',
     ],
   };
 }

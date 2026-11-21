@@ -5,7 +5,6 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { SiteChrome } from '@/components/SiteChrome';
 import { EnyoChat } from '@/components/enyo/EnyoChat';
-import { VisitTracker } from '@/components/site/VisitTracker';
 import { ThemeProvider } from '@/lib/theme';
 import { siteConfig } from '@/lib/site-config';
 import { themeInitScript } from '@/lib/theme-init-script';
@@ -62,7 +61,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {/* Enyo for visitors on the support and legal pages: answers and a call back (the customer portal has its own, in PortalShell). */}
           <SiteChrome><EnyoChat variant="public" /></SiteChrome>
           {/* Anonymous page views and time on page for IT's website report. */}
-          <VisitTracker />
         </ThemeProvider>
       </body>
     </html>

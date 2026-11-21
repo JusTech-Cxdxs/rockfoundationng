@@ -10,11 +10,9 @@ export const revalidate = 300;
 
 const KIND_TEXT: Record<string, string> = {
   general: 'Questions, bookings and anything else',
-  warranty: 'Warranty claims and recalls',
   technical: 'Technical questions about your vehicle and repairs',
   customer_care: 'Complaints and feedback',
   parts: 'Parts availability and orders',
-  sales: 'Buying a vehicle',
   other: 'Other requests',
 };
 const DAY = ['', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];

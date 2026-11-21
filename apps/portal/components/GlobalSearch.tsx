@@ -34,7 +34,7 @@ function Highlight({ text, q }: { text: string; q: string }) {
 
 type Status = 'idle' | 'busy' | 'done' | 'error';
 
-const SEARCH_PREFIXES = REFERENCE_PREFIXES.filter((p) => p !== 'VP').join(', ');
+const SEARCH_PREFIXES = REFERENCE_PREFIXES.join(', ');
 
 /**
  * The header's master search — results appear as you type (after a short

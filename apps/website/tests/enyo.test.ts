@@ -17,15 +17,15 @@ import { inline, parseMarkdown, plainText } from '../lib/enyo/markdown';
 test('job numbers are read however they are typed', () => {
   assert.equal(normaliseJobNumber('JC-2026-000412'), 'JC-2026-000412');
   assert.equal(normaliseJobNumber(' jc 2026 412 '), 'JC-2026-000412');
-  assert.equal(normaliseJobNumber('sv-2026-12'), 'SV-2026-000012');
+  assert.equal(normaliseJobNumber('jc-2026-12'), 'JC-2026-000012');
   assert.equal(normaliseJobNumber('JC2026000412'), 'JC-2026-000412');
-  for (const bad of ['', 'JC-26-1', 'WR-2026-000001', 'JC-2026-0000001', 'DROP TABLE', 12, null, undefined]) assert.equal(normaliseJobNumber(bad), null, String(bad));
+  for (const bad of ['', 'JC-26-1', 'SV-2026-000012', 'WR-2026-000001', 'JC-2026-0000001', 'DROP TABLE', 12, null, undefined]) assert.equal(normaliseJobNumber(bad), null, String(bad));
 });
 
 test('ownership: only the customer\'s own list is ever searched; someone else\'s number is simply not there', () => {
-  const mine = [{ number: 'JC-2026-000412', id: 'a' }, { number: 'SV-2026-000031', id: 'b' }];
+  const mine = [{ number: 'JC-2026-000412', id: 'a' }, { number: 'JC-2026-000031', id: 'b' }];
   assert.equal(findOwnJob(mine, 'jc 2026 412')?.id, 'a');
-  assert.equal(findOwnJob(mine, 'SV-2026-31')?.id, 'b');
+  assert.equal(findOwnJob(mine, 'jc-2026-31')?.id, 'b');
   // Another customer's real number and a number that exists nowhere give the SAME answer.
   const othersReal = findOwnJob(mine, 'JC-2026-000413');
   const nowhere = findOwnJob(mine, 'JC-2099-999999');
@@ -38,7 +38,7 @@ test('ownership: only the customer\'s own list is ever searched; someone else\'s
 });
 
 test('the next step reads in the customer\'s words', () => {
-  const base = { kind: 'jc' as const, awaitingApproval: false, waitingForCollection: false, balance: null, estimateReady: false };
+  const base = { awaitingApproval: false, waitingForCollection: false, balance: null, estimateReady: false };
   assert.match(nextStepFor({ ...base, status: 'AWAITING_CUSTOMER_APPROVAL', awaitingApproval: true }), /Approve it/);
   assert.doesNotMatch(nextStepFor({ ...base, status: 'AWAITING_CUSTOMER_APPROVAL', awaitingApproval: true }), /minimum deposit|70%/);
   assert.match(nextStepFor({ ...base, status: 'READY_FOR_COLLECTION', waitingForCollection: true, balance: 5000 }), /Settle the balance/);

@@ -15,8 +15,7 @@ import 'server-only';
  * VIN or record number — those answers are about one customer, not general.
  */
 import { prisma } from '@ejo/database';
-import { scrubText } from '@/lib/enyo/predict/dataset-core';
-import { tokenise } from '@/lib/enyo/predict/text';
+import { scrubText, tokenise } from '@/lib/support/text';
 import { scrubKeepingLines } from '@/lib/enyo/learned-core';
 import { RECORD_TOPICS, type Topic } from './ai-core';
 import { extractEntities } from './core';

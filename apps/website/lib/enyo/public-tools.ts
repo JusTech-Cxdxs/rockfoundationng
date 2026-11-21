@@ -13,7 +13,7 @@ export const CONSENT_LINE = 'We use your name and phone number or email only to 
 
 const companyInfo: WebTool = {
   name: 'organisation_info',
-  description: 'The organisation\'s public information: organisation name, branches with addresses, phone numbers and emails, opening hours if listed, the businesses and services described on the website, its leadership and other people it publishes (who they are, their titles and public profiles), and how to book. Check this first for any question about the organisation or "who is …" one of its people.',
+  description: 'The organisation\'s public information: organisation name, branches with addresses, phone numbers and emails, opening hours if listed, the businesses and services described on the website, and how to book. Check this first for any question about the organisation.',
   parameters: { type: 'object', properties: {}, additionalProperties: false },
   kind: 'read',
   status: 'Looking up our details…',

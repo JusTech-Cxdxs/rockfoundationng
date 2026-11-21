@@ -1,5 +1,4 @@
 'use server';
-import { actorLabel } from '@/lib/assist/rules';
 import { parseSourceFilter, sourceWhere, type SOURCE_PARAMS } from '@/lib/source-filter';
 import { importIdsFor } from '@/lib/source-filter-server';
 import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
@@ -16,14 +15,13 @@ import { logFailure } from '@/lib/log';
 import { claimed } from '@/lib/integrity';
 import { isUniqueClashOn, retryOnNumberClash } from '@/lib/integrity-core';
 import { prisma, PartTrackingType, type Prisma } from '@ejo/database';
-import { notifyWarrantyDepartmentOfPartWarranty } from '@/lib/warranty-department-notify';
 import { loadQuantityTraces } from '@/lib/inventory/quantity-trace';
 import { pluralize } from '@/lib/utils/pluralize';
 import { markupToMargin, marginToMarkup, actualMargin, actualMarkup, MARGIN_TOLERANCE_PP, roundedPriceForTargetMargin } from '@/lib/pricing-math';
 import { requireUser, currentUserIsMasterAdmin } from './workshop';
 import { branchInMyOrganisationOrSystem, getStoreBranchIdForMe } from '@/lib/workshop-core';
 import { writeAuditLog } from '@/lib/workshop-core';
-import { allows, authorize, branchWithinReach, canSeeRecord, orgOwned, refuse, seeBranch, seeJobCard, seePart } from '@/lib/authz/server';
+import { allows, authorize, branchWithinReach, canSeeRecord, refuse, seeBranch, seeJobCard, seePart } from '@/lib/authz/server';
 import { STORE_COST_PERMISSIONS, type PermissionKey } from '@/lib/authz/catalogue';
 import { sendEmail } from '@/lib/email';
 import { renderStaffGoodsReceiptRecordedEmail } from '@/lib/email-templates/staff-goods-receipt-recorded';
@@ -147,8 +145,6 @@ export type CreatePartInput = {
   reorderPoint?: number;
   safetyStock?: number;
   alternativeUnits?: { unitName: string; conversionFactor: number }[];
-  /** null = no warranty; otherwise the policy each released unit is issued under. */
-  warrantyPolicyId: string | null;
 };
 
 /** FLU-001, FIL-001. No year prefix: a part number is permanent. */
@@ -195,15 +191,6 @@ export async function createPart(input: CreatePartInput): Promise<{ id: string }
     throw new StoreActionError(`"${partType.category.name}" has no Part Number prefix set yet — add one to that category before registering parts under it.`);
   }
 
-  let warrantyPolicyName: string | null = null;
-  if (input.warrantyPolicyId) {
-    const policy = await prisma.warrantyPolicy.findFirst({ where: { ...(await orgOwned()), id: input.warrantyPolicyId }, select: { name: true, kind: true, isActive: true, archivedAt: true } });
-    if (!policy || policy.kind !== 'PART' || !policy.isActive || policy.archivedAt) {
-      throw new StoreActionError('Choose an active part warranty policy (or "No warranty").');
-    }
-    warrantyPolicyName = policy.name;
-  }
-
   const generatedPartNumber = await generatePartNumber(input.branchId, partType.category.code);
 
   const part = await prisma.$transaction(async (tx) => {
@@ -220,7 +207,6 @@ export async function createPart(input: CreatePartInput): Promise<{ id: string }
         baseUnitOfMeasure,
         reorderPoint: input.reorderPoint,
         safetyStock: input.safetyStock,
-        warrantyPolicyId: input.warrantyPolicyId,
         createdById: user.id,
       },
     });
@@ -242,12 +228,8 @@ export async function createPart(input: CreatePartInput): Promise<{ id: string }
     action: 'part.created',
     entityType: 'Part',
     entityId: part.id,
-    metadata: { name, partNumber: part.partNumber, trackingType: input.trackingType, baseUnitOfMeasure, warranty: warrantyPolicyName ?? 'None' },
+    metadata: { name, partNumber: part.partNumber, trackingType: input.trackingType, baseUnitOfMeasure },
   });
-  // The warranty department hears about every new part that carries a warranty.
-  if (input.warrantyPolicyId) {
-    await notifyWarrantyDepartmentOfPartWarranty({ partId: part.id, previousPolicyId: null, actorId: user.id, context: 'CREATED' });
-  }
 
   return { id: part.id };
 }
@@ -1240,7 +1222,7 @@ export async function getPart(id: string) {
         orderBy: { receivedAt: 'asc' },
         include: {
           goodsReceiptLine: { select: { unitCost: true, goodsReceipt: { select: { id: true, referenceNumber: true } } } },
-          // Who each draw went to and via which request, for warranty/defect traces.
+          // Who each draw went to and via which request, for defect traces.
           consumptions: {
             orderBy: { consumedAt: 'desc' },
             include: {
@@ -1251,7 +1233,6 @@ export async function getPart(id: string) {
                       id: true,
                       referenceNumber: true,
                       jobCard: { select: { id: true, jobNumber: true, customer: { select: { id: true, fullName: true } } } },
-                      vehicleService: { select: { id: true, serviceNumber: true, customer: { select: { id: true, fullName: true } } } },
                     },
                   },
                 },
@@ -1273,7 +1254,6 @@ export async function getPart(id: string) {
                   id: true,
                   referenceNumber: true,
                   jobCard: { select: { id: true, jobNumber: true, customer: { select: { id: true, fullName: true } } } },
-                  vehicleService: { select: { id: true, serviceNumber: true, customer: { select: { id: true, fullName: true } } } },
                 },
               },
             },
@@ -1297,7 +1277,6 @@ export async function getPart(id: string) {
                   id: true,
                   referenceNumber: true,
                   jobCard: { select: { id: true, jobNumber: true, customer: { select: { id: true, fullName: true } } } },
-                  vehicleService: { select: { id: true, serviceNumber: true, customer: { select: { id: true, fullName: true } } } },
                 },
               },
             },
@@ -1919,7 +1898,6 @@ const SLIP_DESTINATION_SELECT = {
   id: true,
   referenceNumber: true,
   jobCard: { select: { jobNumber: true, customer: { select: { id: true, fullName: true } } } },
-  vehicleService: { select: { serviceNumber: true, customer: { select: { id: true, fullName: true } } } },
 } as const;
 
 export async function getGoodsReceipt(id: string) {
@@ -1982,7 +1960,7 @@ export async function getGoodsReceiptAuditTrail(goodsReceiptId: string) {
   const userIds = [...new Set(entries.map((e: (typeof entries)[number]) => e.userId).filter((id: string | null): id is string => Boolean(id)))];
   const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, fullName: true } });
   const userById = new Map(users.map((u: (typeof users)[number]) => [u.id, u.fullName]));
-  return entries.map((e: (typeof entries)[number]) => ({ ...e, userName: e.userId ? actorLabel(userById.get(e.userId) ?? 'Unknown', e.metadata) : 'System' }));
+  return entries.map((e: (typeof entries)[number]) => ({ ...e, userName: e.userId ? (userById.get(e.userId) ?? 'Unknown') : 'System' }));
 }
 
 /** Audit entries for a part (same shape as getGoodsReceiptAuditTrail()). */
@@ -1997,7 +1975,7 @@ export async function getPartAuditTrail(partId: string) {
   const userIds = [...new Set(entries.map((e: (typeof entries)[number]) => e.userId).filter((id: string | null): id is string => Boolean(id)))];
   const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, fullName: true } });
   const userById = new Map(users.map((u: (typeof users)[number]) => [u.id, u.fullName]));
-  return entries.map((e: (typeof entries)[number]) => ({ ...e, userName: e.userId ? actorLabel(userById.get(e.userId) ?? 'Unknown', e.metadata) : 'System' }));
+  return entries.map((e: (typeof entries)[number]) => ({ ...e, userName: e.userId ? (userById.get(e.userId) ?? 'Unknown') : 'System' }));
 }
 
 /** Tells the branch's Store staff when a recorded goods receipt is edited.

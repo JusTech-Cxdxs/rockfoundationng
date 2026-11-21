@@ -3,7 +3,7 @@
 import { reachWhere } from '@/lib/authz/server';
 import { prisma } from '@ejo/database';
 import { requireUser } from './workshop';
-import { jobCardOutcome, vehicleServiceOutcome, refundState, type VisitOutcome, type RefundState } from '@/lib/visit-outcome';
+import { jobCardOutcome, refundState, type VisitOutcome, type RefundState } from '@/lib/visit-outcome';
 
 export type OutcomeInfo = { outcome: VisitOutcome; refund: RefundState; paid: number; refunded: number };
 
@@ -32,20 +32,3 @@ export async function getJobCardOutcomes(ids: string[]): Promise<Record<string, 
   return out;
 }
 
-/** How each Vehicle Service ended (completed / cancelled / escalated). */
-export async function getVehicleServiceOutcomes(ids: string[]): Promise<Record<string, OutcomeInfo>> {
-  await requireUser();
-  if (ids.length === 0) return {};
-  const rows = await prisma.vehicleService.findMany({
-    // Only records within reach — ids from the browser are never trusted.
-    where: { id: { in: ids }, ...(await reachWhere('workshop.job_card.view', { lens: false })) },
-    select: { id: true, status: true, collectedAt: true, escalatedToJobCardId: true, payments: { select: { amount: true } }, refunds: { select: { amount: true } } },
-  });
-  const out: Record<string, OutcomeInfo> = {};
-  for (const r of rows) {
-    const paid = total(r.payments);
-    const refunded = total(r.refunds);
-    out[r.id] = { outcome: vehicleServiceOutcome({ status: r.status, collectedAt: r.collectedAt, escalated: Boolean(r.escalatedToJobCardId) }), refund: refundState(paid, refunded), paid, refunded };
-  }
-  return out;
-}

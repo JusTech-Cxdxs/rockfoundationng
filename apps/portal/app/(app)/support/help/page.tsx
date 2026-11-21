@@ -1,13 +1,12 @@
 import Link from 'next/link';
 import { listMyHelpRequests } from '@/lib/actions/help';
-import { currentAssist, getPrincipal } from '@/lib/authz/server';
+import { getPrincipal } from '@/lib/authz/server';
 import { guideFor } from '@/lib/help/features';
 import { GuideBrowser } from '@/components/support/GuideBrowser';
 import { AskEnyoButton } from '@/components/enyo/AskEnyoButton';
 import { PageHeader, SectionCard, EmptyState, StatusChip, type Tone } from '@/components/ui';
 import { NewHelpForm } from '@/components/support/HelpForms';
 import { formatRelative } from '@/lib/utils/format-date';
-import { featureOn } from '@/lib/modules';
 
 export const metadata = { title: 'Get help' };
 export const dynamic = 'force-dynamic';
@@ -22,14 +21,6 @@ const TONE: Record<string, Tone> = { OPEN: 'info', WAITING_ON_CUSTOMER: 'warning
  */
 export default async function GetHelpPage({ searchParams }: { searchParams: Promise<{ ref?: string; page?: string; subject?: string }> }) {
   const sp = await searchParams;
-  if (await currentAssist()) {
-    return (
-      <div className="w-full max-w-3xl p-4 sm:p-8">
-        <PageHeader icon="help" title="Get help" />
-        <EmptyState icon="lock" title="Not during an assisted session">Requests for help are made by the person themselves. End the session first.</EmptyState>
-      </div>
-    );
-  }
   const [rows, principal] = await Promise.all([listMyHelpRequests(), getPrincipal()]);
   const groups = guideFor(principal);
   // A question someone typed elsewhere ("Ask Enyo" when Enyo is off) arrives as the subject — their own words, nothing guessed.
@@ -67,8 +58,6 @@ export default async function GetHelpPage({ searchParams }: { searchParams: Prom
           ) : <EmptyState icon="help" title="No requests yet" compact>When you ask for help, it appears here with every answer.</EmptyState>}
         </SectionCard>
       </div>
-      {/* Speak up only in editions that have it (lib/modules.ts). */}
-      {featureOn('speakUp') ? <p className="mt-6 text-sm text-[var(--ejo-text-muted)]">Seen something that looks wrong — money, parts, access? <Link href="/support/speak-up" className="font-medium text-[var(--ejo-primary)] underline">Speak up</Link> (you can stay anonymous).</p> : null}
     </div>
   );
 }

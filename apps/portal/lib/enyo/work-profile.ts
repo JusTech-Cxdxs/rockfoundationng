@@ -4,8 +4,7 @@ import 'server-only';
  * without being told every time: their branch and department, and what they
  * do most in the portal (their own business actions in the last 60 days,
  * counted). Only for that person's own chat; never shown to anyone else and
- * never used for training. Nothing during an assisted session (the colleague's
- * habits are theirs).
+ * never used for training.
  */
 import { prisma } from '@ejo/database';
 import { securityActionLabel } from '@/lib/security-labels';
