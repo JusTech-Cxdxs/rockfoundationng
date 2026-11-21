@@ -48,7 +48,7 @@ execSync(`npx prisma db push --schema="${schemaPath}" --skip-generate`, {
 // just created: row-level security on, no access for Supabase's public roles.
 applyPostdeploySql();
 
-// The demo organisation (D'Phoenix Autocare (Demo), its own organisation, never the real one), its people and
+// The demo organisation (Rock Foundation Automobile (Demo), its own organisation, never the real one), its people and
 // sign-ins (apps/portal/lib/demo) and, the first time, its demo records, only when the environment asks for them. Idempotent and never a reason for a
 // deploy to fail: the schema is already in place, so a problem here is
 // reported and the build carries on (DEMO_STRICT=1 makes it stop).
@@ -60,7 +60,7 @@ if (process.env.DEMO_STAFF_PASSWORD) {
     // The script reads the database through @ejo/database, which must be built.
     if (!fs.existsSync(path.join(root, 'packages/database/dist/index.js'))) execSync('npm run build --workspace=packages/database', { cwd: root, stdio: 'inherit' });
     execSync('npx tsx apps/portal/scripts/demo-people.ts', { cwd: root, stdio: 'inherit' });
-    // The demo records, the first time only (the workshop's seven months).
+    // The demo records, the first time only (the workshop's sample months).
     execSync('npx tsx apps/portal/scripts/demo-ensure.ts', { cwd: root, stdio: 'inherit' });
   } catch (err) {
     console.warn(`[demo] WARNING — the demo people were not made (${err && err.message ? err.message.split('\n')[0] : err}). The app still deploys; fix the cause (or DEMO_STRICT=1 to stop the build) and redeploy.`);

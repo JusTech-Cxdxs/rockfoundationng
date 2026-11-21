@@ -1,5 +1,5 @@
 /**
- * The cut-over checklist (P9): for one branch, every file it needs from the
+ * The cut-over checklist: for one branch, every file it needs from the
  * old system (QuickBooks, Zoho or spreadsheets), in the order they load, and where each stands —
  * worked out from the imports themselves, never typed in by hand. Pure (no
  * database), unit-tested in tests/data-exchange-cutover.test.ts; the server

@@ -1,20 +1,20 @@
 /**
- * Data Exchange — calendar days as SAP, Excel and people write them. Pure.
+ * Data Exchange: calendar days as accounting systems, Excel and people write them. Pure.
  */
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12 };
 const iso = (y: number, m: number, d: number) => `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
 /**
- * A calendar day as SAP, Excel and people write it, as "YYYY-MM-DD":
- *  • SAP internal format 20190314 (ERDAT, FKDAT, BUDAT as exported raw);
+ * A calendar day as accounting systems, Excel and people write it, as "YYYY-MM-DD":
+ *  • a raw export 20190314;
  *  • ISO 2019-03-14 (and Excel dates, which the reader turns into ISO);
- *  • SAP's German display 14.03.2019; Nigerian 14/03/2019 or 14-03-2019
+ *  • European 14.03.2019; Nigerian 14/03/2019 or 14-03-2019
  *    (day first: a month first, as in the US, is only taken when the day
  *    could not be a month, e.g. 03/14/2019);
  *  • 14 Mar 2019, 14-MAR-19, March 14, 2019.
  * Two-digit years are 19xx above 50, otherwise 20xx. Null when it is not a
- * real day (31 June, 00000000 — SAP's "no date").
+ * real day (31 June, or 00000000 meaning "no date").
  */
 export function parseDay(raw: string): string | null {
   const s = String(raw ?? '').trim();

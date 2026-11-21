@@ -2,7 +2,7 @@
 # Default rules + a few project-specific ones; the allowlist covers ONLY known
 # test-only values (throw-away CI database / e2e accounts / .env.example
 # placeholders). Never add a real credential here — rotate it instead.
-title = "EJO100 gitleaks config"
+title = "EJO gitleaks config"
 
 [extend]
 useDefault = true

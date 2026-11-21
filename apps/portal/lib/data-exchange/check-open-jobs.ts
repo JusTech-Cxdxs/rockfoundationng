@@ -1,5 +1,5 @@
 /**
- * Data Exchange — checking one row of the open job cards file (P5): the job
+ * Data Exchange: checking one row of the open job cards file: the job
  * cards still in the workshop on the cut-over day, each to become a live EJO
  * job card. Pure, like check.ts; the server part (open-jobs-server.ts) finds
  * the customer, the vehicle, the staff and the parts.
@@ -22,11 +22,11 @@ export const OPEN_JOB_STAGE_WORDS: Record<OpenJobStage, string> = {
 };
 
 /**
- * The stage, from EJO's own words or SAP's statuses (system status ISTAT /
- * user status): CRTD → checked in; REL, "in progress", "WIP" → in progress;
- * "awaiting parts", MATS → awaiting parts; QC / "quality" → quality check;
- * "awaiting customer", "estimate sent", "quotation" → awaiting customer
- * approval; TECO, "completed" → completed; "ready", "for collection",
+ * The stage, from the old system's words: "checked in", "new" → checked
+ * in; "in progress", "WIP" → in progress; "awaiting parts" → awaiting
+ * parts; QC / "quality" → quality check; "awaiting customer", "estimate
+ * sent", "quotation" → awaiting customer approval; "completed" →
+ * completed; "ready", "for collection",
  * "invoiced" → ready for collection. Empty → checked in. Returns
  * 'CLOSED' for anything closed, checked out or cancelled (history, not
  * here) and null for words it does not know.
@@ -34,14 +34,14 @@ export const OPEN_JOB_STAGE_WORDS: Record<OpenJobStage, string> = {
 export function openJobStage(raw: string): OpenJobStage | 'CLOSED' | null {
   const k = raw.toLowerCase().replace(/[^a-z]/g, '');
   if (!k) return 'CHECKED_IN';
-  if (/clsd|closed|checkedout|collected|delivered|cancel|cncl|dlfl|void/.test(k)) return 'CLOSED';
+  if (/closed|checkedout|collected|delivered|cancel|void/.test(k)) return 'CLOSED';
   if (/awaitingcustomer|waitingcustomer|customerapproval|estimatesent|quotation|quote|awaitingapproval/.test(k)) return 'AWAITING_CUSTOMER_APPROVAL';
-  if (/awaitingparts|waitingparts|waitingforparts|parts|mats|material|backorder|onhold/.test(k)) return 'AWAITING_PARTS';
+  if (/awaitingparts|waitingparts|waitingforparts|parts|material|backorder|onhold/.test(k)) return 'AWAITING_PARTS';
   if (/^qc|quality|inspection|finalcheck|roadtest/.test(k)) return 'QUALITY_CHECK';
   if (/ready|forcollection|awaitingcollection|invoiced|billed/.test(k)) return 'READY_FOR_COLLECTION';
-  if (/teco|complete|completed|done|finished|workdone/.test(k)) return 'COMPLETED';
-  if (/^rel|released|inprogress|inprocess|wip|working|workinprogress|assigned|started|underrepair|inworkshop/.test(k)) return 'IN_PROGRESS';
-  if (/^crtd|created|checkedin|checkin|received|new|open|booked|opened|registered/.test(k)) return 'CHECKED_IN';
+  if (/complete|completed|done|finished|workdone/.test(k)) return 'COMPLETED';
+  if (/released|inprogress|inprocess|wip|working|workinprogress|assigned|started|underrepair|inworkshop/.test(k)) return 'IN_PROGRESS';
+  if (/created|checkedin|checkin|received|new|open|booked|opened|registered/.test(k)) return 'CHECKED_IN';
   return null;
 }
 

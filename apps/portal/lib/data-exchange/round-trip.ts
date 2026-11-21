@@ -1,11 +1,11 @@
 /**
- * Updating records from an edited export (P10, the round trip). An export of
+ * Updating records from an edited export (the round trip). An export of
  * customers, vehicles, parts or suppliers carries each record's EJO number
  * ("EJO record", ZZ_EJO_ID); edited in Excel and uploaded again with "Update
  * records exported from EJO", each row is found by that number only — never
  * by a name, a phone or a guess — and compared with the record as it is now.
  * Only real changes count (a phone written another way, a plate with a space,
- * a SAP number with its leading zeros are the same value), an empty cell
+ * a number with its leading zeros are the same value), an empty cell
  * leaves the field as it is (nothing is ever blanked by a file), and what
  * identifies the record (a part's number, a vehicle's chassis number) is
  * never changed by a file. Every change is previewed before approval as
@@ -72,7 +72,7 @@ export const UPDATABLE: Record<RoundTripEntity, Spec[]> = {
     { field: 'sellingPrice', label: 'Selling price (₦)', cols: ['sellingPrice'], same: num },
     { field: 'reorderPoint', label: 'Reorder point', cols: ['reorderPoint'], same: num },
     { field: 'safetyStock', label: 'Safety stock', cols: ['safetyStock'], same: num },
-    { field: 'externalId', label: 'Number in SAP or the old system', cols: ['externalId'], same: code },
+    { field: 'externalId', label: 'Number in the old system', cols: ['externalId'], same: code },
   ],
   suppliers: [
     { field: 'name', label: 'Name', cols: ['name', 'name2'] },
@@ -81,7 +81,7 @@ export const UPDATABLE: Record<RoundTripEntity, Spec[]> = {
     { field: 'email', label: 'Email', cols: ['email'], same: ci },
     { field: 'address', label: 'Address', cols: ['address', 'city'] },
     { field: 'taxId', label: 'Tax ID', cols: ['taxId'], same: code },
-    { field: 'externalId', label: 'Supplier number (SAP or old system)', cols: ['externalId'], same: code },
+    { field: 'externalId', label: 'Supplier number (old system)', cols: ['externalId'], same: code },
   ],
 };
 

@@ -5,10 +5,10 @@
  * new installation is usable the moment the deploy finishes: no commands to
  * run anywhere.
  *
- * Runs packages/database/prisma/seed.ts (D'Phoenix Autocare, the Victoria
- * Island workshop and its departments, the roles and the Master
- * Administrator) and scripts/v24-roles.sql. No business data: no customers,
- * vehicles or jobs. Both are idempotent: a later build adds only what is
+ * Runs packages/database/prisma/seed.ts (Rock Foundation Automobile, the Ota
+ * workshop and its departments, the roles and the platform administrator).
+ * No business data: no customers, vehicles or jobs. It is idempotent: a
+ * later build adds only what is
  * missing and never changes an existing password (RESET_MASTER_ADMIN_PASSWORD
  * =yes is the one deliberate exception, see the seed).
  *
@@ -46,5 +46,4 @@ const env = { ...process.env, DATABASE_URL: url };
 
 console.log('[seed] Creating the organisation, roles and first sign-in (only what is missing)...');
 execSync('npx tsx packages/database/prisma/seed.ts', { cwd: root, stdio: 'inherit', env });
-execSync('npx prisma db execute --schema=packages/database/prisma/schema.prisma --file=scripts/v24-roles.sql', { cwd: root, stdio: 'inherit', env: { ...env, DIRECT_URL: url } });
 console.log('[seed] Done.');

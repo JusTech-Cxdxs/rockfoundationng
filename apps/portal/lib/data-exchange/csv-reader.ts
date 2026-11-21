@@ -1,12 +1,12 @@
 /**
- * A streaming CSV reader (RFC 4180, as Excel and SAP write it): feed it text
+ * A streaming CSV reader (RFC 4180, as Excel and accounting systems write it): feed it text
  * in pieces of any size, get complete rows back. Quoted fields may hold
  * commas, doubled quotes and line breaks, and may be split across pieces.
  * Works the same in the browser (reading a File in chunks) and in tests.
  * Pure: no dependencies.
  */
 
-/** The separator a file uses, from its first line: comma, semicolon (European Excel), tab or pipe (SAP extracts). */
+/** The separator a file uses, from its first line: comma, semicolon (European Excel), tab or pipe (some accounting exports). */
 export function detectDelimiter(firstLine: string): ',' | ';' | '\t' | '|' {
   const counts: [',' | ';' | '\t' | '|', number][] = [',', ';', '\t', '|'].map((d) => {
     let n = 0;

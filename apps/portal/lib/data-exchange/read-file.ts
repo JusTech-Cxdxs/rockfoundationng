@@ -36,7 +36,7 @@ async function* chunks(file: File, size = 1 << 20, onBytes?: (n: number) => void
   }
 }
 
-/** UTF-8 unless the start of the file is not valid UTF-8 (then Windows-1252, as older Excel and SAP GUI exports write). */
+/** UTF-8 unless the start of the file is not valid UTF-8 (then Windows-1252, as older Excel and Windows accounting exports write). */
 async function textEncoding(file: File): Promise<string> {
   const head = await file.slice(0, 256 * 1024).arrayBuffer();
   try {

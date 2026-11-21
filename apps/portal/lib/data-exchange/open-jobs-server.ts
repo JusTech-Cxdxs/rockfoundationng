@@ -1,5 +1,5 @@
 /**
- * Data Exchange — the open job cards at the cut-over (P5). Server only
+ * Data Exchange: the open job cards at the cut-over. Server only
  * (never a 'use server' file): lib/actions/data-exchange.ts checks who is
  * asking, locks the import and calls these inside its transactions.
  *
@@ -19,7 +19,6 @@
  * estimate and payments), and keeps — and reports — the ones that have.
  */
 import { prisma, type Prisma } from '@ejo/database';
-import { featureOn } from '@/lib/modules';
 import { checkOpenJobRow, type OpenJobValues } from './check-open-jobs';
 import type { Issue } from './check';
 import { IMPORT_SOURCE, type Mapping } from './fields';
@@ -48,7 +47,7 @@ type Lookups = {
   staffByName: Map<string, { id: string; fullName: string }>;
   parts: Map<string, { id: string; name: string }>;
   departments: Map<string, string>;
-  branch: { name: string; sapPlant: string | null } | null;
+  branch: { name: string; code: string | null } | null;
 };
 
 const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -73,7 +72,7 @@ async function lookups(db: Db, job: OpenJobsJob, checked: { c: ReturnType<typeof
     staffKeys.length ? db.user.findMany({ where: { organisationId: job.organisationId, AND: [{ OR: [{ isActive: true }, STAFF_AWAITING_INVITATION] }, { OR: [{ employeeId: { in: staffKeys } }, { fullName: { in: staffKeys, mode: 'insensitive' } }] }] }, select: { id: true, employeeId: true, fullName: true } }) : [],
     partNumbers.length && job.branchId ? db.part.findMany({ where: { branchId: job.branchId, partNumber: { in: partNumbers, mode: 'insensitive' } }, select: { id: true, partNumber: true, name: true } }) : [],
     job.branchId ? db.department.findMany({ where: { branchId: job.branchId, slug: { in: ['workshop-passenger', 'workshop-commercial'] } }, select: { id: true, slug: true } }) : [],
-    job.branchId ? db.branch.findUnique({ where: { id: job.branchId }, select: { name: true, sapPlant: true } }) : null,
+    job.branchId ? db.branch.findUnique({ where: { id: job.branchId }, select: { name: true, code: true } }) : null,
   ]);
   const byVin = new Map(vehicles.map((v) => [String(v.chassisNumber).toUpperCase(), { id: v.id, customerId: v.customerId, vehicleType: v.vehicleType }]));
   const byPlate = new Map(plateRows.map((v) => [v.k, { id: v.id, customerId: v.customerId, vehicleType: v.vehicleType }]));
@@ -106,9 +105,9 @@ function resolve(v: OpenJobValues, L: Lookups, job: OpenJobsJob, self: string | 
   const owner = vehicle?.customerId ?? named;
   if (vehicle && named && named !== vehicle.customerId) notes.push('The customer named is not the vehicle’s owner in EJO; the job card is opened for the owner.');
   if (v.branch && L.branch) {
-    const plantCode = /^\d{1,4}$/.test(v.branch.trim());
-    if (plantCode && !L.branch.sapPlant) notes.push((featureOn('sap') ? `SAP plant ${v.branch.trim()} could not be checked against ${L.branch.name}: the branch has no SAP plant code yet.` : `Branch “${v.branch.trim()}” could not be checked against ${L.branch.name}: it is a number, not the branch’s name.`));
-    else if (!(norm(v.branch) === norm(L.branch.name) || (L.branch.sapPlant ? v.branch.trim().replace(/^0+/, '') === L.branch.sapPlant.replace(/^0+/, '') : false) || norm(L.branch.name).includes(norm(v.branch)))) errors.push(`This row is for the branch “${v.branch}”, but this import loads into ${L.branch.name}. Import it into its own branch.`);
+    const ok = norm(v.branch) === norm(L.branch.name) || (Boolean(L.branch.code) && norm(v.branch) === norm(L.branch.code ?? '')) || norm(L.branch.name).includes(norm(v.branch));
+    if (!ok && /^\d{1,4}$/.test(v.branch.trim())) notes.push(`Branch “${v.branch.trim()}” could not be checked against ${L.branch.name}: it is a number, not the branch’s name or code.`);
+    else if (!ok) errors.push(`This row is for the branch “${v.branch}”, but this import loads into ${L.branch.name}. Import it into its own branch.`);
   }
   if (vehicle) {
     const open = L.openOn.get(vehicle.id);
@@ -215,7 +214,6 @@ export async function loadOpenJobRows(tx: Tx, job: OpenJobsJob, mapping: Mapping
     todo.push({ r, v, res });
   }
   const numbers = await nextJobNumbers(tx, todo.length);
-  const range = src(job.sourceSystem);
   const actor = job.approvedById ?? job.createdById;
   for (const [i, { r, v, res }] of todo.entries()) {
     const vehicle = res.vehicle!;
@@ -223,18 +221,18 @@ export async function loadOpenJobRows(tx: Tx, job: OpenJobsJob, mapping: Mapping
     const departmentId = L.departments.get(vehicle.vehicleType === 'PASSENGER' ? 'workshop-passenger' : 'workshop-commercial') ?? L.departments.get('workshop-commercial') ?? null;
     const id = newId();
     const approved = v.estimateApproved && v.estimateTotal !== null;
-    const noteLines = [`Brought into EJO from ${range === 'LEGACY' ? 'the old system' : 'SAP'} (job card ${v.jobNumber}) by import ${job.number}.`, ...(v.notes ? [v.notes] : [])];
+    const noteLines = [`Brought into EJO from the old system (job card ${v.jobNumber}) by import ${job.number}.`, ...(v.notes ? [v.notes] : [])];
     await tx.jobCard.create({
       data: {
         id, jobNumber: numbers[i]!, branchId: job.branchId!, departmentId, customerId: res.owner!, vehicleId: vehicle.id,
         mileageAtCheckIn: v.mileage, diagnosis: v.diagnosis, notes: noteLines.join('\n'),
         assignedTechnicianId: res.technician?.id ?? null, technicianAcceptanceStatus: res.technician ? 'ACCEPTED' : null, technicianRespondedAt: res.technician ? openedAt : null,
         supervisorId: res.supervisor?.id ?? null, createdById: actor, status: v.stage,
-        approvalStatus: approved ? 'APPROVED' : 'PENDING', approvedAt: approved ? openedAt : null, approvalNotes: approved ? `Estimate approved ${BEFORE_EJO} (${range === 'LEGACY' ? 'old system' : 'SAP'} job card ${v.jobNumber}).` : null,
+        approvalStatus: approved ? 'APPROVED' : 'PENDING', approvedAt: approved ? openedAt : null, approvalNotes: approved ? `Estimate approved ${BEFORE_EJO} (old system job card ${v.jobNumber}).` : null,
         workStartedAt: ['IN_PROGRESS', 'AWAITING_PARTS', 'QUALITY_CHECK', 'COMPLETED', 'READY_FOR_COLLECTION'].includes(v.stage) ? openedAt : null,
         completedAt: ['COMPLETED', 'READY_FOR_COLLECTION'].includes(v.stage) ? openedAt : null,
         readyForCollectionAt: v.stage === 'READY_FOR_COLLECTION' ? openedAt : null,
-        externalSource: range, externalId: v.jobNumber, importJobId: job.id, createdAt: openedAt,
+        externalSource: src(job.sourceSystem), externalId: v.jobNumber, importJobId: job.id, createdAt: openedAt,
         complaints: { create: v.complaints.map((description, k) => ({ sequenceNumber: k + 1, description })) },
       },
     });

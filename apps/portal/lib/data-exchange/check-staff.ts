@@ -1,5 +1,5 @@
 /**
- * Data Exchange — checking one row of the staff file (P7). Pure, like
+ * Data Exchange: checking one row of the staff file. Pure, like
  * check.ts; the server part (staff-server.ts) finds the branch, the
  * department and the roles, and refuses an email or employee ID in use.
  */

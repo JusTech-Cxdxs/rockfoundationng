@@ -103,7 +103,7 @@ export default async function VehiclePage({
     getVehicleHistoryBeforeEjo(id),
   ]);
   if (!vehicle) notFound();
-  const origin = await provenanceOf({ organisationId: vehicle.customer.organisationId, createdAt: vehicle.createdAt, createdBy: vehicle.createdBy?.fullName ?? null, importJobId: vehicle.importJobId, externalSource: vehicle.externalSource, externalId: vehicle.externalId, numberLabel: 'equipment number' });
+  const origin = await provenanceOf({ organisationId: vehicle.customer.organisationId, createdAt: vehicle.createdAt, createdBy: vehicle.createdBy?.fullName ?? null, importJobId: vehicle.importJobId, externalSource: vehicle.externalSource, externalId: vehicle.externalId, numberLabel: 'fleet number' });
   // Customer names link to their Customers (CRM) page for those who may open it.
   const canSeeCustomers = await allows('crm.view');
   // One vehicle's descriptive / diagnostic / predictive / prescriptive picture.
@@ -704,7 +704,7 @@ export default async function VehiclePage({
 
 const dayText = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** Before EJO 100: the plant registers (production, QC, PDI), past job cards and invoices for this vehicle — read-only history. */
+/** Before EJO: past job cards and invoices for this vehicle, read-only history. */
 function BeforeEjo({ data }: { data: Awaited<ReturnType<typeof getVehicleHistoryBeforeEjo>> }) {
   const invoicesTotal = data.invoices.reduce((s, i) => s + i.amount, 0);
   return (

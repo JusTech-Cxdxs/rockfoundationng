@@ -1,5 +1,5 @@
 /**
- * Data Exchange — the organisation's people (P7). Server only (never a
+ * Data Exchange: the organisation's people. Server only (never a
  * 'use server' file): lib/actions/data-exchange.ts checks who is asking,
  * locks the import and calls these inside its transactions.
  *
@@ -32,7 +32,7 @@ export type StaffJob = { id: string; number: string; organisationId: string; sou
 const src = (s: string) => s || IMPORT_SOURCE;
 const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-type Branch = { id: string; name: string; code: string | null; sapPlant: string | null };
+type Branch = { id: string; name: string; code: string | null };
 type Lookups = {
   byEmail: Map<string, { id: string; organisationId: string | null; fullName: string; employeeId: string | null }>;
   byEmployeeId: Map<string, { id: string; email: string }>;
@@ -47,7 +47,7 @@ async function lookups(db: Db, job: StaffJob, vals: StaffValues[]): Promise<Look
   const [byEmail, byEmployeeId, branches, roles] = await Promise.all([
     emails.length ? db.user.findMany({ where: { email: { in: emails } }, select: { id: true, email: true, organisationId: true, fullName: true, employeeId: true } }) : [],
     ids.length ? db.user.findMany({ where: { employeeId: { in: ids } }, select: { id: true, email: true, employeeId: true } }) : [],
-    db.branch.findMany({ where: { businessUnit: { organisationId: job.organisationId } }, select: { id: true, name: true, code: true, sapPlant: true } }),
+    db.branch.findMany({ where: { businessUnit: { organisationId: job.organisationId } }, select: { id: true, name: true, code: true } }),
     db.role.findMany({ where: { organisationId: job.organisationId, isSuperAdmin: false }, select: { id: true, name: true, slug: true } }),
   ]);
   const departments = branches.length ? await db.department.findMany({ where: { branchId: { in: branches.map((b) => b.id) }, isActive: true }, select: { id: true, name: true, slug: true, branchId: true } }) : [];
@@ -58,11 +58,10 @@ async function lookups(db: Db, job: StaffJob, vals: StaffValues[]): Promise<Look
   };
 }
 
-/** The branch a row names: its name (or part of it), its code, or its SAP plant. */
+/** The branch a row names: its name (or part of it), or its code. */
 export function pickBranch(raw: string, branches: Branch[]): Branch | null {
   const k = norm(raw);
-  const plant = raw.trim().replace(/^0+/, '');
-  return branches.find((b) => norm(b.name) === k) ?? branches.find((b) => b.code && norm(b.code) === k) ?? branches.find((b) => b.sapPlant && b.sapPlant.replace(/^0+/, '') === plant)
+  return branches.find((b) => norm(b.name) === k) ?? branches.find((b) => b.code && norm(b.code) === k)
     ?? (k.length >= 4 ? branches.filter((b) => norm(b.name).includes(k)).sort((a, b) => a.name.length - b.name.length)[0] ?? null : null);
 }
 

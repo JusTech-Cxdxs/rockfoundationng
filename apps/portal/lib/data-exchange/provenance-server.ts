@@ -7,11 +7,10 @@
  */
 import { prisma } from '@ejo/database';
 import { allows } from '@/lib/authz/server';
-import { featureOn } from '@/lib/modules';
 
 export type Provenance = {
-  /** ejo: made in EJO 100; sap / legacy: brought in from SAP or an old spreadsheet. */
-  source: 'ejo' | 'sap' | 'legacy';
+  /** ejo: made in EJO; legacy: brought in from Zoho, an old system or a spreadsheet. */
+  source: 'ejo' | 'legacy';
   enteredAt: Date;
   enteredBy: string | null;
   external: { label: string; number: string } | null;
@@ -41,16 +40,13 @@ export async function provenanceOf(input: {
         select: { id: true, number: true, fileName: true, sourceSystem: true, completedAt: true, approvedBy: { select: { fullName: true } } },
       })
     : null;
-  const src = (input.externalSource ?? job?.sourceSystem ?? '').toUpperCase();
-  const source: Provenance['source'] = job || input.externalSource ? (src.startsWith('LEGACY') ? 'legacy' : 'sap') : 'ejo';
-  // Without the SAP link (lib/modules.ts) every other system is "the old system".
-  const sys = source === 'sap' && featureOn('sap') ? 'SAP' : 'Old system';
+  const source: Provenance['source'] = job || input.externalSource ? 'legacy' : 'ejo';
   const canOpen = job ? (await allows('dataexchange.import.run')) || (await allows('dataexchange.import.approve')) : false;
   return {
     source,
     enteredAt: input.createdAt,
     enteredBy: input.createdBy,
-    external: input.externalId ? { label: `${sys} ${input.numberLabel}`, number: input.externalId } : null,
+    external: input.externalId ? { label: `Old system ${input.numberLabel}`, number: input.externalId } : null,
     original: input.original?.date ? { label: input.original.label, date: input.original.date } : null,
     importJob: job ? { id: job.id, number: job.number, fileName: job.fileName, loadedAt: job.completedAt, approvedBy: job.approvedBy?.fullName ?? null, canOpen } : null,
   };

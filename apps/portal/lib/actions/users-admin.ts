@@ -33,8 +33,8 @@ async function actorOrg() {
   return { p, organisationId: me?.organisationId ?? null, branchOnly };
 }
 
-/** Roles only headquarters (or the platform team) may hand out — no one can make themselves or a colleague an administrator from a branch. */
-const ADMIN_ROLE_SLUGS = ['administrator', 'branch-administrator'];
+/** The role only the Owner (or the platform team) may hand out: nobody makes themselves or a colleague an Owner from a branch. */
+const ADMIN_ROLE_SLUGS = ['owner'];
 
 /** Users of the person's organisation (search by name, email or employee ID). */
 export type UserFilters = { status?: string; branchId?: string; roleId?: string; /** Every matching person (an export), not the first 300. */ all?: boolean };
@@ -84,12 +84,12 @@ async function checkPair(userId: string, roleId: string) {
   ]);
   if (!user || !role) throw new Error('That person or role no longer exists — refresh the page.');
   if (!p.isSuperAdmin && (user.organisationId !== organisationId || role.organisationId !== organisationId)) throw new Error('You can only manage people and roles in your own organisation.');
-  if (role.isSuperAdmin && !p.isSuperAdmin) throw new Error('Only the platform team can grant or remove the Master Administrator role.');
+  if (role.isSuperAdmin && !p.isSuperAdmin) throw new Error('Only the platform team can grant or remove the Platform Administrator role.');
   if (branchOnly && user.branchId !== branchOnly) throw new Error('You can only manage the people of your own branch.');
-  if (branchOnly && ADMIN_ROLE_SLUGS.includes(role.slug)) throw new Error('Administrator roles are given by headquarters.');
-  if (userId === p.userId) throw new Error('You cannot change your own roles — ask another administrator.');
-  // Only an Organisation Administrator gives or takes the Administrator role (an IT administrator, for example, cannot).
-  if (role.slug === 'administrator' && !p.isSuperAdmin && !p.roleSlugs.includes('administrator')) throw new Error('Only an Organisation Administrator can give or remove the Administrator role.');
+  if (branchOnly && ADMIN_ROLE_SLUGS.includes(role.slug)) throw new Error('Only the Owner can give the Owner role.');
+  if (userId === p.userId) throw new Error('You cannot change your own roles. Ask the Owner.');
+  // Only an Owner gives or takes the Owner role.
+  if (role.slug === 'owner' && !p.isSuperAdmin && !p.roleSlugs.includes('owner')) throw new Error('Only the Owner can give or remove the Owner role.');
   const targetIsPlatform = user.roles.some((r: { role: { isSuperAdmin: boolean } }) => r.role.isSuperAdmin);
   if (targetIsPlatform && !p.isSuperAdmin) throw new Error('That person no longer exists — refresh the page.');
   // The platform OWNER (PLATFORM_OWNER_EMAIL) can only be changed by the owner — not even by other platform-team members.
@@ -101,7 +101,7 @@ async function checkPair(userId: string, roleId: string) {
   return { p, user, role };
 }
 
-/** Give a person a role. The Master role needs the platform team AND the database marker (v22). */
+/** Give a person a role. The Platform Administrator role needs the platform team AND the database marker (v22). */
 export async function assignRole(userId: string, roleId: string): Promise<void> {
   await authorize('admin.users.manage', undefined, 'users.assignRole');
   const { p, user, role } = await checkPair(userId, roleId);
@@ -134,17 +134,17 @@ export async function removeRole(userId: string, roleId: string): Promise<void> 
   const { p, user, role } = await checkPair(userId, roleId);
   // Counted and removed with the role locked: two administrators removing
   // each other at the same moment can never leave the platform with no
-  // Master Administrator, or an organisation with no Administrator.
+  // Platform Administrator, or a business with no Owner.
   const removed = await prisma.$transaction(async (tx) => {
     await lockRows(tx, 'role', [roleId]);
-    if (role.isSuperAdmin && (await tx.userRole.count({ where: { roleId } })) <= 1) throw new Error('This is the last Master Administrator — the platform must always have one.');
-    // Only when it would leave no ACTIVE Administrator: taking the role from a
-    // deactivated former administrator is always fine.
-    if (role.slug === 'administrator') {
+    if (role.isSuperAdmin && (await tx.userRole.count({ where: { roleId } })) <= 1) throw new Error('This is the last Platform Administrator. The platform must always have one.');
+    // Only when it would leave no ACTIVE Owner: taking the role from a
+    // deactivated former Owner is always fine.
+    if (role.slug === 'owner') {
       const target = await tx.user.findUnique({ where: { id: userId }, select: { isActive: true } });
       const othersActive = await tx.userRole.count({ where: { roleId, userId: { not: userId }, user: { isActive: true } } });
       if (target?.isActive && othersActive === 0) {
-        throw new Error('This is the organisation\'s last active Administrator — give the role to someone else first.');
+        throw new Error('This is the business\'s last active Owner. Give the role to someone else first.');
       }
     }
     return (await tx.userRole.deleteMany({ where: { userId, roleId } })).count;
@@ -211,8 +211,8 @@ export async function createStaffMember(input: NewStaffInput): Promise<{ id: str
   if (input.roleId) {
     const r = await prisma.role.findUnique({ where: { id: input.roleId }, select: { id: true, name: true, slug: true, isSuperAdmin: true, organisationId: true } });
     if (!r || r.isSuperAdmin || r.organisationId !== branchOrg) throw new Error('Choose a role of this organisation.');
-    if (branchOnly && ADMIN_ROLE_SLUGS.includes(r.slug)) throw new Error('Administrator roles are given by headquarters.');
-    if (r.slug === 'administrator' && !p.isSuperAdmin && !p.roleSlugs.includes('administrator')) throw new Error('Only an Organisation Administrator can give the Administrator role.');
+    if (branchOnly && ADMIN_ROLE_SLUGS.includes(r.slug)) throw new Error('Only the Owner can give the Owner role.');
+    if (r.slug === 'owner' && !p.isSuperAdmin && !p.roleSlugs.includes('owner')) throw new Error('Only the Owner can give the Owner role.');
     role = r;
   }
   if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) throw new Error('Someone already has that email address.');
@@ -295,7 +295,7 @@ export async function assignMissingEmployeeIds(): Promise<number> {
 /**
  * Switch a person off (or back on). Off: they are signed out everywhere at
  * once and cannot sign in; nothing they did is touched. Never yourself, never
- * the platform owner, and never the organisation's last active Administrator.
+ * the platform owner, and never the business's last active Owner.
  */
 export async function setStaffActive(userId: string, active: boolean, reason: string): Promise<void> {
   await authorize('admin.users.manage', undefined, active ? 'users.reactivate' : 'users.deactivate');
@@ -307,25 +307,24 @@ export async function setStaffActive(userId: string, active: boolean, reason: st
   const targetIsPlatform = user.roles.some((r: { role: { isSuperAdmin: boolean } }) => r.role.isSuperAdmin);
   if (!p.isSuperAdmin && (targetIsPlatform || user.organisationId !== organisationId)) throw new Error('That person no longer exists — refresh the page.');
   if (branchOnly && user.branchId !== branchOnly) throw new Error('You can only manage the people of your own branch.');
-  // Administrators are switched on and off by headquarters, never from a branch.
-  if (branchOnly && user.roles.some((r: { role: { slug: string } }) => ADMIN_ROLE_SLUGS.includes(r.role.slug))) throw new Error('Administrators are managed by headquarters.');
-  // An Organisation Administrator is switched on and off only by another one (an IT administrator, for example, cannot).
-  if (!p.isSuperAdmin && !p.roleSlugs.includes('administrator') && user.roles.some((r: { role: { slug: string } }) => r.role.slug === 'administrator')) throw new Error('Only an Organisation Administrator can switch another Administrator on or off.');
+  // An Owner is switched on and off only by another Owner (or the platform team).
+  if (branchOnly && user.roles.some((r: { role: { slug: string } }) => ADMIN_ROLE_SLUGS.includes(r.role.slug))) throw new Error('Only the Owner can switch an Owner on or off.');
+  if (!p.isSuperAdmin && !p.roleSlugs.includes('owner') && user.roles.some((r: { role: { slug: string } }) => r.role.slug === 'owner')) throw new Error('Only the Owner can switch another Owner on or off.');
   if (userId === p.userId) throw new Error('You cannot switch off your own account.');
   const owner = process.env.PLATFORM_OWNER_EMAIL?.trim().toLowerCase();
   if (owner && user.email.toLowerCase() === owner) throw new Error("The platform owner's account cannot be switched off.");
   if (user.isActive === active) return;
 
   await prisma.$transaction(async (tx) => {
-    // Never leave the organisation without an active Administrator, nor the
-    // platform without a Master Administrator — EVERY such role the person
-    // holds is checked, counted under the role locks.
-    const guarded = user.roles.filter((r: { role: { slug: string; isSuperAdmin: boolean } }) => r.role.slug === 'administrator' || r.role.isSuperAdmin).map((r: { role: { id: string; isSuperAdmin: boolean } }) => r.role);
+    // Never leave the business without an active Owner, nor the platform
+    // without a Platform Administrator: EVERY such role the person holds is
+    // checked, counted under the role locks.
+    const guarded = user.roles.filter((r: { role: { slug: string; isSuperAdmin: boolean } }) => r.role.slug === 'owner' || r.role.isSuperAdmin).map((r: { role: { id: string; isSuperAdmin: boolean } }) => r.role);
     if (!active && guarded.length) {
       await lockRows(tx, 'role', guarded.map((r: { id: string }) => r.id));
       for (const role of guarded) {
         const othersActive = await tx.userRole.count({ where: { roleId: role.id, userId: { not: userId }, user: { isActive: true } } });
-        if (othersActive === 0) throw new Error(role.isSuperAdmin ? 'This is the last active Master Administrator.' : 'This is the organisation\'s last active Administrator — give the role to someone else first.');
+        if (othersActive === 0) throw new Error(role.isSuperAdmin ? 'This is the last active Platform Administrator.' : 'This is the business\'s last active Owner. Give the role to someone else first.');
       }
     }
     await tx.user.update({ where: { id: userId }, data: { isActive: active } });
@@ -349,7 +348,7 @@ async function tellReactivated(userId: string): Promise<void> {
       companyName: u.organisation?.name ?? portalConfig.organisationName, logoUrl: `${base}/brand/emblem.png`, recipientName: u.fullName,
       subject: 'Your EJO 100 account is switched on again',
       heading: 'You can sign in again',
-      intro: 'Your administrator switched your EJO 100 account back on. Your roles are as they were.',
+      intro: 'Your administrator switched your EJO account back on. Your roles are as they were.',
       next: 'Sign in with your usual password. Forgotten it? Use "Forgot password" on the sign-in page.',
       status: { label: 'Account', tone: 'success' }, url: `${base}/sign-in`, ctaLabel: 'Sign in',
     });
@@ -361,20 +360,20 @@ async function tellReactivated(userId: string): Promise<void> {
 
 /**
  * Delete a staff account for good — a test account, or one created by
- * mistake — so its email can be used again. Only a master administrator,
+ * mistake — so its email can be used again. Only a Platform Administrator,
  * only an account already switched off, only when its email is typed to
  * confirm, and only when the person has no work on record (lib/staff-delete.ts):
  * anyone with history stays switched off, so records keep their names.
- * Never yourself, never a master administrator, never the platform owner.
+ * Never yourself, never a Platform Administrator, never the platform owner.
  */
 export async function deleteStaffPermanently(userId: string, confirmEmail: string): Promise<{ email: string }> {
   const { p, organisationId } = await actorOrg();
-  if (!p.isSuperAdmin) throw new Error('Only the master administrator can delete an account.');
+  if (!p.isSuperAdmin) throw new Error('Only the Platform Administrator can delete an account.');
   if (userId === p.userId) throw new Error('You cannot delete your own account.');
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, fullName: true, email: true, isActive: true, organisationId: true, roles: { select: { role: { select: { isSuperAdmin: true, name: true } } } }, employeeId: true } });
-  // Only people of the master administrator's own organisation (a platform master administrator with none may delete any).
+  // Only people of the Platform Administrator's own organisation (one with none may delete any).
   if (!user || !(await inMyOrganisation(user.organisationId)) || (organisationId && user.organisationId !== organisationId)) throw new Error('That person no longer exists — refresh the page.');
-  if (user.roles.some((r) => r.role.isSuperAdmin)) throw new Error('A master administrator cannot be deleted.');
+  if (user.roles.some((r) => r.role.isSuperAdmin)) throw new Error('A Platform Administrator cannot be deleted.');
   const owner = process.env.PLATFORM_OWNER_EMAIL?.trim().toLowerCase();
   if (owner && user.email.toLowerCase() === owner) throw new Error("The platform owner's account cannot be deleted.");
   if (user.isActive) throw new Error('Switch the account off first, then delete it.');

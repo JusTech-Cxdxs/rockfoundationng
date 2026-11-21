@@ -29,7 +29,7 @@ export type CustomerValues = {
   fullAddress: { line1: string; city: string | null; state: string | null } | null;
   taxId: string | null;
   tags: string[];
-  /** When they became a customer (SAP ERDAT), "YYYY-MM-DD". */
+  /** When they became a customer in the old system, "YYYY-MM-DD". */
   customerSince: string | null;
 };
 
@@ -185,7 +185,7 @@ export function checkCustomerRow(cells: unknown[], mapping: Mapping): Checked<Cu
 const COMMERCIAL = /\b(truck|lorry|bus|minibus|van|pickup|pick-up|tipper|tanker|trailer|tractor|nqr|npr|nkr|nmr|nlr|fvr|fvz|qlr|qmr|qkr|ftr|fvm|cyz|exr|d-?max|canter|fuso|hiace|coaster|aumark|ollin|auman|forland)\b/i;
 const PASSENGER = /\b(suv|car|saloon|sedan|hatchback|crossover|jeep|s0?\d|dx\d|mu-?x|pajero|outlander|asx|corolla|camry)\b/i;
 
-/** `ownerOptional`: an update from an edited export (P10) names the vehicle by its EJO record and never changes its owner. */
+/** `ownerOptional`: an update from an edited export names the vehicle by its EJO record and never changes its owner. */
 export function checkVehicleRow(cells: unknown[], mapping: Mapping, thisYear = new Date().getFullYear(), ownerOptional = false): Checked<VehicleValues> {
   const issues: Issue[] = [];
   const warn = (field: string, message: string) => issues.push({ field, message, level: 'warning' });

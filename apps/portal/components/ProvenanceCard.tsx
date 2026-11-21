@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import type { Provenance } from '@/lib/data-exchange/provenance-server';
-import { featureOn } from '@/lib/modules';
 import { formatDateOnly, formatDateTimeCompact } from '@/lib/utils/format-date';
 
 /** "Where this came from": made in EJO (by whom, when), or brought in by an import, with the other system's number and original date. */
 export function ProvenanceCard({ p, className = '' }: { p: Provenance; className?: string }) {
-  const word = p.source === 'ejo' ? 'Created in EJO 100' : p.source === 'sap' && featureOn('sap') ? 'Imported from SAP' : 'Imported from a spreadsheet';
+  const word = p.source === 'ejo' ? 'Created in EJO' : 'Imported from the old system or a spreadsheet';
   return (
     <section aria-labelledby="provenance" className={`rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 ${className}`}>
       <h2 id="provenance" className="text-sm font-semibold text-[var(--ejo-text)]">Where this came from</h2>

@@ -1,4 +1,4 @@
-# EJO100 targeted Semgrep rules (run in CI by .github/workflows/security.yml).
+# EJO targeted Semgrep rules (run in CI by .github/workflows/security.yml).
 # ERROR-level rules fail the build; WARNING-level rules are reported only.
 # Triage notes for every current finding live in docs/TESTING_PROGRAMME.md.
 rules:

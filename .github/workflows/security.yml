@@ -59,7 +59,7 @@ jobs:
       - run: pip install --quiet semgrep==1.180.0
       - name: Semgrep — project rules (ERROR rules fail the build)
         run: |
-          semgrep scan --config .semgrep/ejo100.yml --metrics=off --json -o semgrep-custom.json apps packages scripts || true
+          semgrep scan --config .semgrep/ejo.yml --metrics=off --json -o semgrep-custom.json apps packages scripts || true
           node -e '
             const d=require("./semgrep-custom.json"); const by={};
             for (const r of d.results) { const id=r.check_id.split(".").pop(); (by[id] ??= []).push(`${r.path}:${r.start.line}`); }
@@ -128,10 +128,10 @@ jobs:
       BETTER_AUTH_URL: 'http://localhost:3001'
       NEXT_PUBLIC_PORTAL_URL: 'http://localhost:3001'
       NEXT_PUBLIC_WEBSITE_URL: 'http://localhost:3000'
-      NEXT_PUBLIC_ORGANISATION_NAME: "D'Phoenix Autocare"
+      NEXT_PUBLIC_ORGANISATION_NAME: 'Rock Foundation Automobile'
       SMTP_HOST: 'localhost'
       SMTP_PORT: '1025'
-      SMTP_FROM: 'EJO 100 <no-reply@e2e.test>'
+      SMTP_FROM: 'Rock Foundation Automobile <no-reply@e2e.test>'
       CRON_SECRET: 'e2e-cron-secret'
       AUTH_SIGNIN_PER_MINUTE: '1000'
       AUTH_RESET_REQUESTS_PER_5_MIN: '1000'
@@ -272,10 +272,10 @@ jobs:
       BETTER_AUTH_URL: 'http://localhost:3001'
       NEXT_PUBLIC_PORTAL_URL: 'http://localhost:3001'
       NEXT_PUBLIC_WEBSITE_URL: 'http://localhost:3000'
-      NEXT_PUBLIC_ORGANISATION_NAME: "D'Phoenix Autocare"
+      NEXT_PUBLIC_ORGANISATION_NAME: 'Rock Foundation Automobile'
       SMTP_HOST: 'localhost'
       SMTP_PORT: '1025'
-      SMTP_FROM: 'EJO 100 <no-reply@e2e.test>'
+      SMTP_FROM: 'Rock Foundation Automobile <no-reply@e2e.test>'
       CRON_SECRET: 'e2e-cron-secret'
       AUTH_SIGNIN_PER_MINUTE: '100000'
       AUTH_RESET_REQUESTS_PER_5_MIN: '100000'

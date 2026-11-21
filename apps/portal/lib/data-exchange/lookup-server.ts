@@ -1,11 +1,11 @@
 /**
  * Data Exchange — finding existing customers for a block of rows (server
- * only, never a 'use server' file). By SAP / old-system number within the
+ * only, never a 'use server' file). By old-system number within the
  * organisation, by email (unique on the platform), by phone (last ten digits).
  */
 import { prisma, type Prisma } from '@ejo/database';
 
-/** Existing customers of the organisation these keys point at (SAP number, email, phone). */
+/** Existing customers of the organisation these keys point at (old-system number, email, phone). */
 export async function findCustomers(db: Prisma.TransactionClient | typeof prisma, organisationId: string, source: string, keys: { ext: string[]; email: string[]; phone: string[]; name?: string[] }) {
   const names = [...new Set((keys.name ?? []).map((n) => n.trim()).filter(Boolean))];
   const [byExt, byEmail, byPhone, byName] = await Promise.all([

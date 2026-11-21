@@ -1,9 +1,8 @@
 import Link from 'next/link';
-import { featureOn } from '@/lib/modules';
 
 /**
  * Include, or leave out, the history brought in from the old system
- * (invoices from before EJO 100) in a dashboard's figures. `?history=exclude` leaves it out;
+ * (invoices from before EJO) in a dashboard's figures. `?history=exclude` leaves it out;
  * the page's other choices (period, filters) are kept.
  */
 export function HistoryToggle({ path, params, include }: { path: string; params: Record<string, string | undefined>; include: boolean }) {
@@ -16,7 +15,7 @@ export function HistoryToggle({ path, params, include }: { path: string; params:
   const pill = (on: boolean) => `rounded-full px-3 py-1 text-xs font-medium ${include === on ? 'bg-[var(--ejo-primary)] text-white' : 'text-[var(--ejo-text-muted)] hover:text-[var(--ejo-text)]'}`;
   return (
     <nav aria-label="History from before EJO" className="inline-flex items-center gap-1 rounded-full border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-0.5">
-      <Link href={href(true)} aria-current={include ? 'true' : undefined} className={pill(true)} prefetch={false}>{featureOn('sap') ? 'With SAP history' : 'With history before EJO'}</Link>
+      <Link href={href(true)} aria-current={include ? 'true' : undefined} className={pill(true)} prefetch={false}>With history before EJO</Link>
       <Link href={href(false)} aria-current={!include ? 'true' : undefined} className={pill(false)} prefetch={false}>EJO only</Link>
     </nav>
   );

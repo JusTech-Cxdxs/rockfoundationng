@@ -199,18 +199,19 @@ export function lagosMonthStart(now: Date): Date {
 }
 
 /**
- * An invoice from SAP, before EJO 100 (v-A3): read-only history, already
- * settled in SAP. It counts as spend and as a visit on its date; it is never
- * "outstanding", and the averages (job value, turnaround) stay EJO's own.
+ * An invoice from before EJO (QuickBooks, Zoho or the old system): read-only
+ * history, already settled there. It counts as spend and as a visit on its
+ * date; it is never "outstanding", and the averages (job value, turnaround)
+ * stay EJO's own.
  */
-export type SapInvoice = { at: Date; amount: number; invoiceNumber?: string | null };
-/** A job card from before EJO (P4): a visit on its date. Its money is counted through its SAP invoice (never twice). */
+export type InvoiceBefore = { at: Date; amount: number; invoiceNumber?: string | null };
+/** A job card from before EJO: a visit on its date. Its money is counted through its invoice from before EJO (never twice). */
 export type PastJob = { at: Date; invoiceNumber: string | null };
 
-export function customerMoney(jobs: CrmJob[], now: Date = new Date(), sap: SapInvoice[] = [], pastJobs: PastJob[] = []) {
+export function customerMoney(jobs: CrmJob[], now: Date = new Date(), before: InvoiceBefore[] = [], pastJobs: PastJob[] = []) {
   const payments = jobs.flatMap((j) => j.payments);
   const refunds = jobs.flatMap((j) => j.refunds);
-  const fromSap = r2(total(sap));
+  const fromBefore = r2(total(before));
   const paidIn = r2(total(payments));
   const refunded = r2(total(refunds));
   const finished = jobs.filter((j) => !j.cancelled && j.finishedAt);
@@ -221,41 +222,41 @@ export function customerMoney(jobs: CrmJob[], now: Date = new Date(), sap: SapIn
   const turnarounds = finished.filter((j) => j.receivedAt && j.finishedAt && +j.finishedAt >= +j.receivedAt).map((j) => (+j.finishedAt! - +j.receivedAt!) / DAY);
   const yearStart = lagosYearStart(now);
   const inYear = (x: { at: Date }) => +x.at >= +yearStart && +x.at <= +now;
-  // An SAP invoice that a past job card was invoiced on is the same visit as the job card: counted once.
+  // An invoice from before EJO that a past job card was billed on is the same visit as the job card: counted once.
   const invoiced = new Set(pastJobs.map((j) => j.invoiceNumber?.replace(/^0+(?=\d)/, '').toUpperCase()).filter((x): x is string => Boolean(x)));
-  const sapVisits = sap.filter((x) => !x.invoiceNumber || !invoiced.has(x.invoiceNumber.replace(/^0+(?=\d)/, '').toUpperCase()));
+  const visitsBefore = before.filter((x) => !x.invoiceNumber || !invoiced.has(x.invoiceNumber.replace(/^0+(?=\d)/, '').toUpperCase()));
   const lastEjo = visitsList.reduce<Date | null>((m, j) => (!m || +j.receivedAt! > +m ? j.receivedAt : m), null);
-  const lastSap = [...sap, ...pastJobs].reduce<Date | null>((m, x) => (!m || +x.at > +m ? x.at : m), null);
-  const lastVisit = lastEjo && lastSap ? (+lastEjo >= +lastSap ? lastEjo : lastSap) : lastEjo ?? lastSap;
+  const lastBefore = [...before, ...pastJobs].reduce<Date | null>((m, x) => (!m || +x.at > +m ? x.at : m), null);
+  const lastVisit = lastEjo && lastBefore ? (+lastEjo >= +lastBefore ? lastEjo : lastBefore) : lastEjo ?? lastBefore;
   return {
     paidIn,
     refunded,
-    /** Spend: EJO payments less refunds, plus SAP invoices before EJO. */
-    netPaid: r2(paidIn - refunded + fromSap),
-    fromSap,
-    sapInvoices: sap.length,
+    /** Spend: EJO payments less refunds, plus invoices from before EJO. */
+    netPaid: r2(paidIn - refunded + fromBefore),
+    fromBefore,
+    invoicesBefore: before.length,
     billed,
     outstanding,
-    visits: visitsList.length + sapVisits.length + pastJobs.length,
+    visits: visitsList.length + visitsBefore.length + pastJobs.length,
     pastJobs: pastJobs.length,
     finishedJobs: finished.length,
     averageJob: finished.length ? r2(billed / finished.length) : null,
     averageTurnaroundDays: turnarounds.length ? Math.round((turnarounds.reduce((s, x) => s + x, 0) / turnarounds.length) * 10) / 10 : null,
-    netPaidThisYear: r2(total(payments.filter(inYear)) - total(refunds.filter(inYear)) + total(sap.filter(inYear))),
+    netPaidThisYear: r2(total(payments.filter(inYear)) - total(refunds.filter(inYear)) + total(before.filter(inYear))),
     lastVisit,
   };
 }
 
-export type SpendMonth = { key: string; label: string; paid: number; refunds: number; net: number; billed: number; /** SAP invoices before EJO, in the month (also in net). */ sap: number };
+export type SpendMonth = { key: string; label: string; paid: number; refunds: number; net: number; billed: number; /** Invoices from before EJO, in the month (also in net). */ before: number };
 
 /** The last `months` Lagos calendar months (oldest first): money paid and
  * refunded in each month, and customer-billed work finished in it. */
-export function monthlySpend(jobs: CrmJob[], now: Date = new Date(), months = 12, sap: SapInvoice[] = []): SpendMonth[] {
+export function monthlySpend(jobs: CrmJob[], now: Date = new Date(), months = 12, before: InvoiceBefore[] = []): SpendMonth[] {
   const nowL = new Date(now.getTime() + 3600000);
   const out: SpendMonth[] = [];
   for (let i = months - 1; i >= 0; i -= 1) {
     const d = new Date(Date.UTC(nowL.getUTCFullYear(), nowL.getUTCMonth() - i, 1));
-    out.push({ key: d.toISOString().slice(0, 7), label: d.toLocaleDateString('en-NG', { month: 'short', year: '2-digit', timeZone: 'UTC' }), paid: 0, refunds: 0, net: 0, billed: 0, sap: 0 });
+    out.push({ key: d.toISOString().slice(0, 7), label: d.toLocaleDateString('en-NG', { month: 'short', year: '2-digit', timeZone: 'UTC' }), paid: 0, refunds: 0, net: 0, billed: 0, before: 0 });
   }
   const at = new Map(out.map((m) => [m.key, m]));
   for (const j of jobs) {
@@ -263,8 +264,8 @@ export function monthlySpend(jobs: CrmJob[], now: Date = new Date(), months = 12
     for (const r of j.refunds) { const m = at.get(lagosMonthKey(r.at)); if (m) m.refunds += r.amount; }
     if (!j.cancelled && j.finishedAt) { const m = at.get(lagosMonthKey(j.finishedAt)); if (m) m.billed += j.customerBilled; }
   }
-  for (const x of sap) { const m = at.get(lagosMonthKey(x.at)); if (m) m.sap += x.amount; }
-  for (const m of out) { m.paid = r2(m.paid); m.refunds = r2(m.refunds); m.billed = r2(m.billed); m.sap = r2(m.sap); m.net = r2(m.paid - m.refunds + m.sap); }
+  for (const x of before) { const m = at.get(lagosMonthKey(x.at)); if (m) m.before += x.amount; }
+  for (const m of out) { m.paid = r2(m.paid); m.refunds = r2(m.refunds); m.billed = r2(m.billed); m.before = r2(m.before); m.net = r2(m.paid - m.refunds + m.before); }
   return out;
 }
 
@@ -291,7 +292,7 @@ export type CrmSort = (typeof CRM_SORTS)[number];
 
 export type CrmRow = {
   id: string; fullName: string; customerType: string; tags: string[]; isActive: boolean; createdAt: Date;
-  /** When they became a customer (SAP ERDAT, v-A3); createdAt when not known. */
+  /** When they became a customer in the old system; createdAt when not known. */
   customerSince?: Date | null;
   address: string | null; phone: string | null; hasPortalAccount: boolean; lastLoginAt: Date | null;
   vehicles: number; openJobs: number; netPaid: number; lastVisit: Date | null;

@@ -51,12 +51,12 @@ jobs:
       NEXT_PUBLIC_WEBSITE_URL: 'http://localhost:3002'
       E2E_WEBSITE_URL: 'http://localhost:3002'
       # The seeded test organisation's display name (sign-in pages, website wordmark).
-      NEXT_PUBLIC_ORGANISATION_NAME: "D'Phoenix Autocare"
+      NEXT_PUBLIC_ORGANISATION_NAME: 'Rock Foundation Automobile'
       # The organisation the public website (and its Enyo assistant) belongs to.
-      WEBSITE_ORGANISATION_SLUG: 'dphoenix-autocare'
+      WEBSITE_ORGANISATION_SLUG: 'rock-foundation'
       SMTP_HOST: 'localhost'
       SMTP_PORT: '1025'
-      SMTP_FROM: 'EJO 100 <no-reply@e2e.test>'
+      SMTP_FROM: 'Rock Foundation Automobile <no-reply@e2e.test>'
       CRON_SECRET: 'e2e-cron-secret'
       # Every test signs in from the same address.
       AUTH_SIGNIN_PER_MINUTE: '1000'
@@ -84,8 +84,6 @@ jobs:
       E2E_IMAP_HOST: 'localhost'
       E2E_IMAP_PORT: '3143'
       E2E_SMTP_PORT: '3025'
-      # Test-only token for the Enyo trainer's machine door (/api/ml); e2e/ml-models.spec.ts uploads a model with it.
-      ML_SERVICE_TOKEN: 'e2e-ml-service-token-0123456789abcdef'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -209,7 +207,7 @@ jobs:
   schema-upgrade:
     # The deploy path from the schemas production may still have: each baseline
     # is pushed first, then pre-deploy SQL → db push (never --accept-data-loss)
-    # → post-deploy SQL, exactly as Render/Vercel run it. A change that would stop
+    # → post-deploy SQL, exactly as Vercel runs it. A change that would stop
     # a production deploy (e.g. a unique index on a new column) fails here first.
     name: schema upgrade (deploy path)
     runs-on: ubuntu-latest
@@ -238,15 +236,19 @@ jobs:
           node-version-file: '.node-version'
           cache: 'npm'
       - run: npm install
-      - name: Upgrade from each baseline (v35 release, and main)
+      - name: Fresh database, then upgrade from main
         run: |
           set -e
-          for base in 6cf2bb0 origin/main; do
+          # A fresh database (a first deploy), then the schema main has today
+          # upgraded to this change: the push must succeed without data loss.
+          for base in fresh origin/main; do
             echo "::group::baseline $base"
             psql "$DIRECT_URL" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
-            git show "$base:packages/database/prisma/schema.prisma" > /tmp/baseline.prisma
-            npx prisma db push --schema=/tmp/baseline.prisma --skip-generate
-            for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
+            if [ "$base" != fresh ] && git cat-file -e "$base:packages/database/prisma/schema.prisma" 2>/dev/null; then
+              git show "$base:packages/database/prisma/schema.prisma" > /tmp/baseline.prisma
+              npx prisma db push --schema=/tmp/baseline.prisma --skip-generate
+            fi
+            if [ -d scripts/predeploy ]; then for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done; fi
             npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
             for f in scripts/postdeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
             echo "::endgroup::"

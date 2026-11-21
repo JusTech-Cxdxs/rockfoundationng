@@ -72,7 +72,7 @@ export default async function PartDetailPage({
   const [canSeeCosts, canManage] = await Promise.all([Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k, { branchId: part.branchId }))).then((xs) => xs.some(Boolean)), allows('store.parts.manage', { branchId: part.branchId })]);
   const [lastEdit, auditTrail, binOffer, origin] = await Promise.all([
     getLastEditInfo('Part', id, 'part.updated'), getPartAuditTrail(id), getRecycleBinOffer('Part', id),
-    provenanceOf({ branchId: part.branchId, createdAt: part.createdAt, createdBy: part.createdBy.fullName, importJobId: part.importJobId, externalSource: part.externalSource, externalId: part.externalId, numberLabel: 'material number' }),
+    provenanceOf({ branchId: part.branchId, createdAt: part.createdAt, createdBy: part.createdBy.fullName, importJobId: part.importJobId, externalSource: part.externalSource, externalId: part.externalId, numberLabel: 'item number' }),
   ]);
 
   return (

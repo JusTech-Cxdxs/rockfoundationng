@@ -11,7 +11,7 @@ import { ExportAction } from '@/components/ExportAction';
 
 export const dynamic = 'force-dynamic';
 
-/** The organisation's suppliers (SAP vendors), shared by every branch: who they are and how often the Store receives from them. */
+/** The organisation's suppliers, shared by every branch: who they are and how often the Store receives from them. */
 export default async function SuppliersPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string } & Partial<Record<(typeof SOURCE_PARAMS)[number], string>>> }) {
   await guardAnyPage(['store.view'], '/inventory/suppliers');
   const sp = await searchParams;
@@ -21,7 +21,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
   const href = (n: number) => `/inventory/suppliers?${new URLSearchParams({ ...(q ? { q } : {}), ...origin, page: String(n) }).toString()}`;
   return (
     <div className="w-full p-4 sm:p-8">
-      <PageHeader icon="truck" back={{ href: '/inventory', label: 'Back to Inventory' }} title="Suppliers" description={<>Shared by every branch. Brought in from SAP through Data Exchange; goods receipts link to them by name. <OrgTrail area="Store" /></>} actions={<ExportAction kind="suppliers" params={sp} />} />
+      <PageHeader icon="truck" back={{ href: '/inventory', label: 'Back to Inventory' }} title="Suppliers" description={<>Shared by every branch. Brought in from QuickBooks or a spreadsheet through Data Exchange; goods receipts link to them by name. <OrgTrail area="Store" /></>} actions={<ExportAction kind="suppliers" params={sp} />} />
       <form className="mb-6 flex gap-2" action="/inventory/suppliers">
         <LiveSearchInput type="search" name="q" defaultValue={q ?? ''} placeholder="Search by name, supplier number or email…" className="w-full max-w-md rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
         <button type="submit" className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-surface)]">Search</button>
@@ -29,7 +29,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
       <div className="mb-6"><SourceFilterBar action="/inventory/suppliers" values={sp} keep={{ q }} /></div>
       {data.total === 0 ? (
         <div className="rounded-[var(--ejo-radius-lg)] border border-dashed border-[var(--ejo-border)]">
-          <EmptyState compact icon="truck" title={q ? 'No supplier matches.' : 'No suppliers yet.'}>Bring the supplier list in from SAP under <LoadingLink href="/data-exchange" className="font-medium text-[var(--ejo-primary)] hover:underline">Data Exchange</LoadingLink>.</EmptyState>
+          <EmptyState compact icon="truck" title={q ? 'No supplier matches.' : 'No suppliers yet.'}>Bring the supplier list in from a spreadsheet under <LoadingLink href="/data-exchange" className="font-medium text-[var(--ejo-primary)] hover:underline">Data Exchange</LoadingLink>.</EmptyState>
         </div>
       ) : (
         <ResponsiveTable className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
@@ -47,7 +47,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
               {data.rows.map((s) => (
                 <tr key={s.id} className="border-b border-[var(--ejo-border)] last:border-0">
                   <td className="px-4 py-2"><span className="font-medium text-[var(--ejo-text)]">{s.name}</span>{!s.isActive ? <span className="ml-2 text-xs text-[var(--ejo-text-muted)]">(inactive)</span> : null}{s.address ? <p className="text-xs text-[var(--ejo-text-muted)]">{s.address}</p> : null}</td>
-                  <td data-label="Number" className="px-4 py-2 text-[var(--ejo-text-muted)]">{s.externalId ? `${s.externalSource === 'SAP' ? 'SAP ' : ''}${s.externalId}` : '—'}</td>
+                  <td data-label="Number" className="px-4 py-2 text-[var(--ejo-text-muted)]">{s.externalId ?? '—'}</td>
                   <td data-label="Contact" className="px-4 py-2 text-[var(--ejo-text-muted)]">{[s.contactName, s.phone, s.email].filter(Boolean).join(' · ') || '—'}</td>
                   <td data-label="Receipts" className="px-4 py-2 text-right tabular-nums text-[var(--ejo-text)]">{s.receipts.toLocaleString('en-NG')}</td>
                   <td data-label="Last received" className="px-4 py-2 text-[var(--ejo-text-muted)]">{s.lastReceivedAt ? formatDateOnly(s.lastReceivedAt) : '—'}</td>
