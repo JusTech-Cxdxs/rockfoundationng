@@ -1,0 +1,253 @@
+name: E2E
+
+# Real-life tests: the real schema pushed to a real PostgreSQL, real Prisma,
+# the production builds of the portal and the website (customer portal), a
+# mail catcher for every email, and a real browser signing in as each role
+# and as customers. Never touches a real database.
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+  push:
+    branches: ['work/e2e']
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    # Two shards, each with its own database, mail catcher and apps — half the wait.
+    name: e2e (shard ${{ matrix.shard }}/2)
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: e2e-test-only
+          POSTGRES_DB: ejo_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mail:
+        image: axllent/mailpit:v1.21
+        ports: ['1025:1025', '8025:8025']
+    env:
+      DATABASE_URL: 'postgresql://postgres:e2e-test-only@localhost:5432/ejo_e2e'
+      DIRECT_URL: 'postgresql://postgres:e2e-test-only@localhost:5432/ejo_e2e'
+      BETTER_AUTH_SECRET: 'e2e-only-secret-0f6c2b8e9a1d4c7f8b3e5a2d9c6f1e4b'
+      BETTER_AUTH_URL: 'http://localhost:3001'
+      NEXT_PUBLIC_PORTAL_URL: 'http://localhost:3001'
+      # The customer portal (apps/website) runs on :3002 in this job.
+      NEXT_PUBLIC_WEBSITE_URL: 'http://localhost:3002'
+      E2E_WEBSITE_URL: 'http://localhost:3002'
+      # The seeded test organisation's display name (sign-in pages, website wordmark).
+      NEXT_PUBLIC_ORGANISATION_NAME: "D'Phoenix Autocare"
+      # The organisation the public website (and its Enyo assistant) belongs to.
+      WEBSITE_ORGANISATION_SLUG: 'dphoenix-autocare'
+      SMTP_HOST: 'localhost'
+      SMTP_PORT: '1025'
+      SMTP_FROM: 'EJO 100 <no-reply@e2e.test>'
+      CRON_SECRET: 'e2e-cron-secret'
+      # Every test signs in from the same address.
+      AUTH_SIGNIN_PER_MINUTE: '1000'
+      AUTH_RESET_REQUESTS_PER_5_MIN: '1000'
+      CUSTOMER_SIGNIN_PER_MINUTE: '1000'
+      CUSTOMER_RESET_REQUESTS_PER_5_MIN: '1000'
+      NEXT_TELEMETRY_DISABLED: '1'
+      # One retry in CI (a flaky test is reported as a warning, never hidden).
+      E2E_RETRIES: '1'
+      # Exports in tiny blocks and parts (lib/exports): a handful of rows arrive in several parts, so
+      # e2e/exports.spec.ts proves each part carries on exactly where the last stopped. Test-only.
+      EXPORT_BLOCK_ROWS: '2'
+      EXPORT_PART_MAX_ROWS: '5'
+      # Enyo talks to a stand-in model server in CI (packages/enyo/testing/mock-llm.mjs):
+      # tests drive it with markers, so permissions and hand-overs are checked end to end.
+      ENYO_LLM_BASE_URL: 'http://localhost:4010/v1'
+      ENYO_LLM_MODEL: 'mock'
+      ENYO_LLM_API_KEY: 'e2e-mock-key'
+      MOCK_LLM_KEY: 'e2e-mock-key'
+      # Test-only key for encrypting connected mailbox passwords (32 bytes, base64).
+      MAILBOX_ENCRYPTION_KEY: 'ZTJlLW9ubHktbWFpbGJveC1rZXktMzItYnl0ZXMhISE='
+      # The test mail server runs without TLS on localhost: allow plain connections, any port and
+      # private addresses for mailboxes (lib/mail/config.ts). NEVER set this in production.
+      MAILBOX_ALLOW_INSECURE: '1'
+      E2E_IMAP_HOST: 'localhost'
+      E2E_IMAP_PORT: '3143'
+      E2E_SMTP_PORT: '3025'
+      # Test-only token for the Enyo trainer's machine door (/api/ml); e2e/ml-models.spec.ts uploads a model with it.
+      ML_SERVICE_TOKEN: 'e2e-ml-service-token-0123456789abcdef'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - run: npm install
+      - run: npm run build --workspace=packages/database
+      # The exact deploy path: pre-deploy SQL, push, post-deploy SQL.
+      - name: Schema (pre-deploy SQL → db push → post-deploy SQL)
+        run: |
+          for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
+          npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
+          for f in scripts/postdeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
+          npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
+      - name: Seed the test organisation (one account per role)
+        env:
+          MASTER_ADMIN_EMAIL: 'master@e2e.test'
+          MASTER_ADMIN_PASSWORD: 'E2e-Master-Pass-2026!'
+          MASTER_ADMIN_NAME: 'Morgan Master'
+        run: |
+          npx tsx packages/database/prisma/seed.ts
+          npx prisma db execute --file=scripts/v24-roles.sql --url="$DIRECT_URL"
+          npx tsx apps/portal/e2e/seed.ts
+          # Idempotent: a second run changes nothing and does not fail.
+          npx tsx apps/portal/e2e/seed.ts
+      - name: The demo people with sign-ins (lib/demo; the test password from e2e/people.ts, test database only)
+        env:
+          DEMO_STAFF_PASSWORD: 'Demo-E2e-Pass-2026!'
+        run: |
+          npx tsx apps/portal/scripts/demo-people.ts
+          npx tsx apps/portal/scripts/demo-ensure.ts
+      # A real IMAP + SMTP test server for the work-mailbox spec (apps/portal/e2e/mailbox.spec.ts):
+      # plain IMAP on 3143 and SMTP on 3025, one mailbox (wura@mail.e2e.test, password
+      # "wura-mail-pass"); mail sent to it lands in its inbox. Test-only credentials.
+      - name: Start the test mail server (IMAP + SMTP)
+        run: |
+          nohup node apps/portal/e2e/mail-test-server.cjs > mail-test-server.log 2>&1 &
+          for i in $(seq 1 20); do (echo > /dev/tcp/127.0.0.1/3143) 2>/dev/null && break; sleep 1; done
+      - name: Start the stand-in model server (Enyo)
+        run: |
+          nohup node packages/enyo/testing/mock-llm.mjs > mock-llm.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf -H 'authorization: Bearer e2e-mock-key' http://localhost:4010/v1/models > /dev/null && break; sleep 1; done
+      - run: npm run build --workspace=apps/portal
+      - name: Start the portal
+        run: |
+          (cd apps/portal && nohup npx next start -p 3001 > ../../portal.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://localhost:3001/login > /dev/null && break; sleep 2; done
+      # The website and customer portal are production: a failed build or
+      # start fails the run.
+      - name: Build the website (customer portal)
+        id: website
+        run: npm run build --workspace=apps/website
+      - name: Start the website on :3002
+        if: steps.website.outcome == 'success'
+        run: |
+          (cd apps/website && BETTER_AUTH_URL=http://localhost:3002 nohup npx next start -p 3002 > ../../website.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://localhost:3002/customer-portal > /dev/null && break; sleep 2; done
+      - run: npx playwright install --with-deps chromium
+      - name: Real-browser tests
+        run: npx playwright test --config=apps/portal/e2e/playwright.config.ts --shard=${{ matrix.shard }}/2
+      - name: Load test (p50 / p95 / p99 against this CI instance)
+        if: matrix.shard == 1
+        run: npx tsx apps/portal/e2e/load.ts
+        env:
+          LOAD_SECONDS: '30'
+      - if: always()
+        name: Dependency audit (production dependencies, summary only)
+        run: |
+          npm audit --omit=dev --json > audit.json 2>/dev/null || true
+          node -e "const a=require('./audit.json');const v=(a.metadata||{}).vulnerabilities||{};console.log('::notice title=npm audit::'+JSON.stringify(v));for(const [n,x] of Object.entries(a.vulnerabilities||{})){if(['high','critical'].includes(x.severity))console.log('::warning title=npm audit '+x.severity+'::'+n+' via '+[].concat(x.via).map(y=>typeof y==='string'?y:y.title).join('; ').slice(0,300))}" || true
+      # Results as annotations (readable from the API, not only the web page).
+      # GitHub keeps 10 annotations of each kind per step, hence the slices.
+      - if: always()
+        name: Report results (1)
+        run: PART=0 node apps/portal/e2e/annotate.mjs
+      - if: always()
+        name: Report results (2)
+        run: PART=1 node apps/portal/e2e/annotate.mjs
+      - if: always()
+        name: Report results (3)
+        run: PART=2 node apps/portal/e2e/annotate.mjs
+      - if: always()
+        name: Report results (4)
+        run: PART=3 node apps/portal/e2e/annotate.mjs
+      - if: always()
+        name: Portal and website logs (errors as annotations)
+        run: |
+          tail -n 200 portal.log || true
+          # Each distinct server error with the lines that follow it (the cause), one annotation each.
+          for f in portal website; do
+            [ -f $f.log ] || continue
+            F=$f python3 - <<'PY' || true
+          import os, re
+          name = os.environ['F']
+          lines = open(f'{name}.log', errors='ignore').read().splitlines()
+          seen, out = set(), []
+          for i, l in enumerate(lines):
+              if re.search(r'Error:|Error \[|PrismaClient|Unhandled|"level":"error"', l):
+                  head = [x.strip() for x in lines[i:i + 4] if x.strip()]
+                  # Prisma validation errors name the offending argument far below the first line.
+                  why = [x.strip() for x in lines[i + 4:i + 120] if re.search(r'Argument|Unknown arg|Invalid value|Expected|is missing|Unique constraint|Foreign key', x)][:4]
+                  msg = ' ⏎ '.join(head + (['…'] if why else []) + why)[:950]
+                  key = re.sub(r'[0-9a-f]{8,}|\d+', '#', msg[:140])
+                  if key in seen:
+                      continue
+                  seen.add(key)
+                  out.append(msg)
+          for m in out[:9]:
+              print(f'::warning title={name} log::' + m)
+          PY
+          done
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.shard }}
+          path: apps/portal/e2e/report
+          if-no-files-found: ignore
+          retention-days: 7
+
+  schema-upgrade:
+    # The deploy path from the schemas production may still have: each baseline
+    # is pushed first, then pre-deploy SQL → db push (never --accept-data-loss)
+    # → post-deploy SQL, exactly as Render/Vercel run it. A change that would stop
+    # a production deploy (e.g. a unique index on a new column) fails here first.
+    name: schema upgrade (deploy path)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: upgrade-test-only
+          POSTGRES_DB: ejo_upgrade
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: 'postgresql://postgres:upgrade-test-only@localhost:5432/ejo_upgrade'
+      DIRECT_URL: 'postgresql://postgres:upgrade-test-only@localhost:5432/ejo_upgrade'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - run: npm install
+      - name: Upgrade from each baseline (v35 release, and main)
+        run: |
+          set -e
+          for base in 6cf2bb0 origin/main; do
+            echo "::group::baseline $base"
+            psql "$DIRECT_URL" -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+            git show "$base:packages/database/prisma/schema.prisma" > /tmp/baseline.prisma
+            npx prisma db push --schema=/tmp/baseline.prisma --skip-generate
+            for f in scripts/predeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
+            npx prisma db push --schema=packages/database/prisma/schema.prisma --skip-generate
+            for f in scripts/postdeploy/*.sql; do npx prisma db execute --file="$f" --url="$DIRECT_URL"; done
+            echo "::endgroup::"
+          done

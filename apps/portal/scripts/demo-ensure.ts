@@ -1,0 +1,37 @@
+/**
+ * The demo, once: after the demo people (scripts/demo-people.ts, which makes
+ * the demo organisation), the production build runs this so a first
+ * installation holds the whole demo the moment the deploy finishes — the
+ * Victoria Island Workshop's seven months (lib/workshop/demo) — with nothing
+ * to run anywhere.
+ *
+ * It loads only into an organisation marked as the demo (never the real
+ * one), and only when that organisation has no demo records yet: a later
+ * deploy never wipes what a person did in the demo since. To start again:
+ * `npm run demo:reset`, or the platform team's button. DEMO_LOAD=off skips
+ * it. Never emails anyone; prints counts, never data.
+ */
+import { prisma } from '@ejo/database';
+import { loadWorkshopDemo } from '../lib/workshop/demo/load';
+import { REAL_ORG_SLUG } from '../lib/demo/organisation';
+import { runDemoPulse } from '../lib/demo/pulse';
+
+async function main() {
+  if ((process.env.DEMO_LOAD ?? '').toLowerCase() === 'off') { console.log('Demo records: skipped (DEMO_LOAD=off).'); return; }
+  const orgs = (await prisma.organisation.findMany({ where: { isDemo: true }, select: { id: true, name: true, slug: true } })).filter((o) => o.slug !== REAL_ORG_SLUG);
+  if (!orgs.length) { console.log('Demo records: no organisation is marked as a demo; nothing loaded.'); return; }
+  for (const org of orgs) {
+    const records = await prisma.demoRecord.count({ where: { organisationId: org.id } });
+    if (records > 0) {
+      console.log(`Demo records (${org.name}): already loaded (${records} records); left as they are. Reload with npm run demo:reset.`);
+      const pulse = await runDemoPulse(org.id);
+      console.log(`Demo daily pulse (${org.name}, ${pulse.dayKey}): ${pulse.reason}${pulse.ran ? ` — ${JSON.stringify(pulse.counts)}` : ''}.`);
+      continue;
+    }
+    const started = Date.now();
+    const w = await loadWorkshopDemo(org.id, new Date());
+    console.log(`Workshop demo loaded into ${w.branchName} in ${Math.round((Date.now() - started) / 1000)}s: ${Object.values(w.made).reduce((a, b) => a + b, 0)} records (${w.figures.jobCards} job cards, ${w.figures.invoices} invoices, ${w.figures.customers} customers).`);
+  }
+}
+
+main().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); }).finally(() => prisma.$disconnect());

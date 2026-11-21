@@ -1,0 +1,92 @@
+import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
+import { allows, guardAnyPage } from '@/lib/authz/server';
+import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
+import { OrgTrail } from '@/components/OrgTrail';
+import { listGoodsReceipts, getStoreBranchId } from '@/lib/actions/store';
+import { formatDateOnly } from '@/lib/utils/format-date';
+import { LoadingLink } from '@/components/LoadingLink';
+import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
+import { pluralize } from '@/lib/utils/pluralize';
+import { EmptyState, HeaderAction, PageHeader } from '@/components/ui';
+import { ExportAction } from '@/components/ExportAction';
+
+/** Every delivery received into the Store (the goods receipt side of the stock ledger). */
+export default async function GoodsReceiptsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; error?: string }>;
+}) {
+  await guardAnyPage(STORE_COST_PERMISSIONS, '/inventory/goods-receipts');
+  const { status, error } = await searchParams;
+  const branchId = await getStoreBranchId();
+  const [receipts, canRecord] = await Promise.all([listGoodsReceipts(branchId), allows('store.grn.record', { branchId })]);
+
+  return (
+    <div className="p-8">
+      <PageHeader
+        icon="receipt"
+        back={{ href: "/inventory", label: "Back to Inventory" }}
+        title="Goods Receipts"
+        description={<><OrgTrail area="Store" /></>}
+        actions={<><ExportAction kind="goods-receipts" label="Export receipt lines" />{canRecord ? <HeaderAction href="/inventory/goods-receipts/new">Record Goods Receipt</HeaderAction> : null}</>}
+      />
+
+      {error ? (
+        <div className="mb-6">
+          <FormFeedbackBanner kind="error" message={error} />
+        </div>
+      ) : null}
+      {status === 'receipt_recorded' ? (
+        <div className="mb-6">
+          <FormFeedbackBanner kind="success" message="Goods receipt recorded and stock updated." />
+        </div>
+      ) : null}
+
+      {receipts.length === 0 ? (
+        <div className="rounded-[var(--ejo-radius-lg)] border border-dashed border-[var(--ejo-border)]"><EmptyState compact icon="receipt" title="No goods receipts recorded yet." /></div>
+      ) : (
+        <ResponsiveTable className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]">
+                <th className="px-4 py-2">Reference</th>
+                <th className="px-4 py-2">Supplier</th>
+                <th className="px-4 py-2">Received Into</th>
+                <th className="px-4 py-2">Received By</th>
+                <th className="px-4 py-2">Received At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receipts.map((receipt: (typeof receipts)[number]) => (
+                <tr key={receipt.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                  <td className="px-4 py-2 font-medium">
+                    <LoadingLink href={`/inventory/goods-receipts/${receipt.id}`} className="text-[var(--ejo-primary)] hover:underline">
+                      {receipt.referenceNumber}
+                    </LoadingLink>
+                  </td>
+                  <td data-label="Supplier" className="px-4 py-2 text-[var(--ejo-text)]">{receipt.supplierName}</td>
+                  <td data-label="Received Into" className="px-4 py-2 text-[var(--ejo-text-muted)]">
+                    {/* The parts this delivery was received into. */}
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                      {receipt.lines.map((l: (typeof receipt.lines)[number], i: number) => (
+                        <span key={l.id}>
+                          <LoadingLink href={`/inventory/parts/${l.part.id}`} className="text-[var(--ejo-primary)] hover:underline">
+                            {l.part.name}
+                          </LoadingLink>
+                          {i < receipt.lines.length - 1 ? ',' : ''}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="text-[11px]">{pluralize(receipt.lines.length, 'line')}</div>
+                  </td>
+                  <td data-label="Received By" className="px-4 py-2 text-[var(--ejo-text-muted)]">{receipt.receivedBy.fullName}</td>
+                  <td data-label="Received At" className="px-4 py-2 text-[var(--ejo-text-muted)]">{formatDateOnly(new Date(receipt.receivedAt))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </ResponsiveTable>
+      )}
+    </div>
+  );
+}

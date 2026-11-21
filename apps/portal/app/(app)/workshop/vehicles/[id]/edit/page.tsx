@@ -1,0 +1,825 @@
+import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
+import { provenanceOf } from '@/lib/data-exchange/provenance-server';
+import { ProvenanceCard } from '@/components/ProvenanceCard';
+import { actorLabel } from '@/lib/assist/rules';
+import { guardAnyPage, allows } from '@/lib/authz/server';
+import { notFound } from 'next/navigation';
+import { listPartsFittedToVehicle, getVehicleCoveredValue, getVehicleHistoryBeforeEjo } from '@/lib/actions/vehicle-history';
+import { naira as nairaText } from '@/lib/crm';
+import { computeVehicleIntelligence } from '@/lib/vehicle-intelligence';
+import { VehicleIntelligenceCard } from '@/components/VehicleIntelligenceCard';
+import { warrantyCoverage } from '@/lib/warranty-state';
+import { VehiclePartsFitted } from '@/components/VehiclePartsFitted';
+import { humanizeAction } from '@/lib/humanize-action';
+import { listWarrantiesFor } from '@/lib/actions/warranty';
+import { WarrantyList } from '@/components/WarrantyList';
+import { featureOn, moduleIsOn } from '@/lib/modules';
+import { bookServiceHref, separateVehicleServiceOn, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
+import { getVehicle, getLastEditInfo, getVehicleAuditTrail } from '@/lib/actions/workshop';
+import { getRecycleBinOffer } from '@/lib/actions/recycle-bin';
+import { RecycleBinPanel } from '@/components/RecycleBinPanel';
+import { getVehicleServiceHealth, getVehicleAnalytics } from '@/lib/actions/vehicle-service';
+import { getVehicleReminderHistory } from '@/lib/actions/vehicle-service-reminders';
+import { updateVehicleFormAction } from '@/lib/actions/workshop-form-handlers';
+import { sendManualServiceReminderFormAction } from '@/lib/actions/vehicle-service-form-handlers';
+import { WhatsAppLink } from '@/components/WhatsAppLink';
+import { customerWhatsAppUrl, serviceReminderMessage } from '@/lib/whatsapp-messages';
+import { getWorkshopBranchId, workshopContactFor } from '@/lib/workshop-core';
+import { LoadingLink } from '@/components/LoadingLink';
+import { SubmitButton } from '@/components/SubmitButton';
+import { FormPendingOverlay } from '@/components/FormPendingOverlay';
+import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
+import { VehicleMakeModelPicker } from '@/components/VehicleMakeModelPicker';
+import { SegmentedCodeInput } from '@/components/SegmentedCodeInput';
+import { AuditTrail } from '@/components/AuditTrail';
+import { VehicleMileageTrendChart } from '@/components/LazyCharts';
+import { VehicleVisitHistoryChart } from '@/components/LazyCharts';
+import { VehicleFindingsBreakdownChart } from '@/components/LazyCharts';
+import { pluralize } from '@/lib/utils/pluralize';
+import { formatDateTime, formatDateTimeCompact, formatDateOnly } from '@/lib/utils/format-date';
+import { BackLink, PageTitle } from '@/components/ui';
+import { CustomerLink } from '@/components/CustomerLink';
+import { isChassisLike, vehiclePagePath } from '@/lib/vin';
+
+const AUDIT_ACTION_LABEL: Record<string, string> = {
+  'vehicle.gate_exit': 'Left through the gate',
+  'vehicle.created': 'Vehicle registered',
+  'vehicle.updated': 'Vehicle details updated',
+  'vehicle.deleted': 'Vehicle deleted',
+  'vehicle.moved_to_recycle_bin': 'Moved to the Recycle bin',
+  'vehicle.restored_from_recycle_bin': 'Restored from the Recycle bin',
+  'vehicle.service_reminder_sent': 'Service reminder emailed to the customer',
+};
+
+const REMINDER_STAGE_LABEL: Record<number, string> = { 1: '1st — Friendly', 2: '2nd — Follow-up', 3: '3rd — Due', 4: 'Overdue' };
+
+function formatAuditDetail(entry: { action: string; metadata: unknown }): string | null {
+  const meta = entry.metadata as Record<string, unknown> | null;
+  if (!meta) return null;
+  if (entry.action === 'vehicle.service_reminder_sent' && typeof meta.stage === 'number') {
+    return `${REMINDER_STAGE_LABEL[meta.stage] ?? `Stage ${meta.stage}`} reminder`;
+  }
+  if (typeof meta.plateNumber === 'string') return meta.plateNumber;
+  return null;
+}
+
+/** Who sent a reminder, by name — matched to the audit entry written in
+ * the same moment for the same vehicle and stage (never just "staff"). */
+function reminderSender(
+  sentAt: Date,
+  stage: number,
+  trail: { action: string; createdAt: Date; metadata: unknown; user: { fullName: string } | null }[],
+): string | null {
+  const match = trail.find(
+    (e) =>
+      e.action === 'vehicle.service_reminder_sent' &&
+      (e.metadata as { stage?: number } | null)?.stage === stage &&
+      Math.abs(new Date(e.createdAt).getTime() - new Date(sentAt).getTime()) < 2 * 60 * 1000,
+  );
+  return match?.user?.fullName ?? null;
+}
+
+/**
+ * Vehicle page, read-only until Edit is chosen. Shows service health, the
+ * vehicle's own mileage interval (if it overrides the organisation default)
+ * and the audit trail.
+ */
+export default async function VehiclePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string; edit?: string; status?: string }>;
+}) {
+  await guardAnyPage(['workshop.view'], '/workshop');
+  const { id } = await params;
+  const { error, edit, status } = await searchParams;
+  // Everything on this page needs only the vehicle's id — one round, all at once.
+  const [vehicle, vehicleWarranties, partsFitted, lastEdit, auditTrail, binOffer, serviceHealth, analytics, reminderHistory, coveredValue, beforeEjo] = await Promise.all([
+    getVehicle(id),
+    // No warranties to show or register when Warranty is switched off (the D'Phoenix Autocare edition).
+    moduleIsOn('warranty') ? listWarrantiesFor({ vehicleId: id }) : Promise.resolve([]),
+    listPartsFittedToVehicle(id),
+    getLastEditInfo('CustomerVehicle', id, 'vehicle.updated'),
+    getVehicleAuditTrail(id),
+    getRecycleBinOffer('CustomerVehicle', id),
+    getVehicleServiceHealth(id),
+    getVehicleAnalytics(id),
+    getVehicleReminderHistory(id),
+    getVehicleCoveredValue(id),
+    getVehicleHistoryBeforeEjo(id),
+  ]);
+  if (!vehicle) notFound();
+  const origin = await provenanceOf({ organisationId: vehicle.customer.organisationId, createdAt: vehicle.createdAt, createdBy: vehicle.createdBy?.fullName ?? null, importJobId: vehicle.importJobId, externalSource: vehicle.externalSource, externalId: vehicle.externalId, numberLabel: 'equipment number' });
+  // Customer names link to their Customers (CRM) page for those who may open it.
+  const canSeeCustomers = await allows('crm.view');
+  // One vehicle's descriptive / diagnostic / predictive / prescriptive picture.
+  const intelligence = computeVehicleIntelligence({
+    mileage: analytics.mileageTimeline.map((m: (typeof analytics.mileageTimeline)[number]) => ({ date: new Date(m.date), km: m.mileage })),
+    visits: analytics.mileageTimeline.map((m: (typeof analytics.mileageTimeline)[number]) => ({ date: new Date(m.date) })),
+    customerSpend: analytics.totalSpend,
+    outstanding: analytics.outstanding,
+    coveredValue,
+    partsFitted: partsFitted.map((r: (typeof partsFitted)[number]) => ({
+      partId: r.part.id, partName: r.part.name, date: r.slip.releasedAt, slipId: r.slip.id,
+      jobCard: r.slip.jobCard ? { id: r.slip.jobCard.id, number: r.slip.jobCard.jobNumber } : null,
+      vehicleService: r.slip.vehicleService ? { id: r.slip.vehicleService.id, number: r.slip.vehicleService.serviceNumber } : null,
+    })),
+    warranties: vehicleWarranties.map((w: (typeof vehicleWarranties)[number]) => {
+      const cov = warrantyCoverage(w, w.vehicle?.mileage ?? null);
+      return { id: w.id, number: w.warrantyNumber, endsAt: new Date(w.endsAt), distanceEnd: w.startReading !== null && w.distanceLimit !== null ? w.startReading + w.distanceLimit : null, covering: cov.state === 'COVERED' || cov.state === 'EXPIRING_SOON' };
+    }),
+    service: serviceHealth ? { dueDate: serviceHealth.nextServiceDueDate ? new Date(serviceHealth.nextServiceDueDate) : null, dueKm: serviceHealth.nextServiceDueOdometer } : null,
+  });
+  const isEditing = edit === 'true';
+
+  // Reminders belong to a service cycle (the due point they were sent for):
+  // show the current cycle on its own, earlier cycles tucked away.
+  const cycleKey = (r: (typeof reminderHistory)[number]) => `${r.estimatedDueOdometer ?? ''}|${r.estimatedDueDate ? new Date(r.estimatedDueDate).toISOString().slice(0, 10) : ''}`;
+  const latestKey = reminderHistory.length ? cycleKey(reminderHistory[0]!) : '';
+  const currentCycle = reminderHistory.filter((r: (typeof reminderHistory)[number]) => cycleKey(r) === latestKey);
+  const earlierCycles = reminderHistory.filter((r: (typeof reminderHistory)[number]) => cycleKey(r) !== latestKey);
+  return (
+    <div className="p-8">
+      <BackLink href="/workshop/vehicles" label="Back to Vehicles" className="mb-4" />
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <PageTitle icon="car" className="mb-1">
+            {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
+          </PageTitle>
+          <p className="text-sm text-[var(--ejo-text-muted)]">
+            {vehicle.plateNumber || vehicle.chassisNumber} — owned by <CustomerLink id={vehicle.customerId} name={vehicle.customer.fullName} canView={canSeeCustomers} />
+          </p>
+        </div>
+        <span className="flex flex-wrap items-center gap-2">
+          {vehicle.chassisNumber && isChassisLike(vehicle.chassisNumber) ? (
+            <LoadingLink
+              href={vehiclePagePath(vehicle.chassisNumber)}
+              className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-3 py-1.5 text-xs font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-surface)]"
+            >
+              Vehicle page and label
+            </LoadingLink>
+          ) : null}
+          {!isEditing ? (
+            <LoadingLink
+              href={`/workshop/vehicles/${id}/edit?edit=true`}
+              className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-3 py-1.5 text-xs font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-surface)]"
+            >
+              Edit
+            </LoadingLink>
+          ) : null}
+        </span>
+      </div>
+
+      {error ? (
+        <div className="mb-6 max-w-xl">
+          <FormFeedbackBanner kind="error" message={error} />
+        </div>
+      ) : null}
+      {status === 'reminder_sent' ? (
+        <div className="mb-6 max-w-xl">
+          <FormFeedbackBanner kind="success" message="Service reminder sent to the customer." />
+        </div>
+      ) : null}
+      {status === 'vehicle_updated' ? (
+        <div className="mb-6 max-w-xl">
+          <FormFeedbackBanner kind="success" message="Vehicle updated." />
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {isEditing ? (
+          <form action={updateVehicleFormAction} className="space-y-4 rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+            <FormPendingOverlay />
+            <input type="hidden" name="id" value={vehicle.id} />
+
+            <VehicleMakeModelPicker
+              defaultCategory={vehicle.vehicleType ?? undefined}
+              defaultMake={vehicle.make ?? undefined}
+              defaultModel={vehicle.model ?? undefined}
+              defaultEngineType={vehicle.engineType ?? undefined}
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
+                  Year <span className="text-[var(--ejo-error)]">*</span>
+                </label>
+                <input
+                  name="year"
+                  type="number"
+                  required
+                  defaultValue={vehicle.year ?? undefined}
+                  className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Current Mileage (km)</label>
+                <input
+                  name="mileage"
+                  type="number"
+                  defaultValue={vehicle.mileage ?? undefined}
+                  className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
+                Plate number <span className="text-[var(--ejo-error)]">*</span>{' '}
+                <span className="text-[var(--ejo-text-muted)] font-normal">(AAA 000 AA)</span>
+              </label>
+              <SegmentedCodeInput name="plateNumber" length={8} groups={[3, 3, 2]} defaultValue={vehicle.plateNumber ?? ''} placeholder="LAGXXXAA" />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
+                Chassis / VIN <span className="text-[var(--ejo-error)]">*</span>{' '}
+                <span className="text-[var(--ejo-text-muted)] font-normal">(17 characters)</span>
+              </label>
+              <SegmentedCodeInput name="chassisNumber" length={17} groups={[9, 8]} defaultValue={vehicle.chassisNumber ?? ''} />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Engine number</label>
+              <input
+                name="engineNumber"
+                defaultValue={vehicle.engineNumber ?? ''}
+                className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
+              />
+            </div>
+
+            <div className="border-t border-[var(--ejo-border)] pt-4">
+              <p className="mb-2 text-xs font-medium text-[var(--ejo-text-muted)]">This vehicle&apos;s own service interval</p>
+              <p className="mb-3 text-[11px] text-[var(--ejo-text-muted)]">
+                Leave both blank to use the workshop&apos;s default interval. Set them only if the
+                manufacturer&apos;s manual for this vehicle says otherwise.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Every (km)</label>
+                  <input
+                    name="serviceIntervalKm"
+                    type="number"
+                    min="0"
+                    defaultValue={vehicle.serviceIntervalKm ?? undefined}
+                    placeholder="e.g. 10000"
+                    className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Every (days)</label>
+                  <input
+                    name="serviceIntervalDays"
+                    type="number"
+                    min="0"
+                    defaultValue={vehicle.serviceIntervalDays ?? undefined}
+                    placeholder="e.g. 180"
+                    className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <SubmitButton
+                label="Save Changes"
+                pendingLabel="Saving…"
+                className="flex-1 rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              />
+              <LoadingLink
+                href={`/workshop/vehicles/${id}/edit`}
+                className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]"
+              >
+                Cancel
+              </LoadingLink>
+            </div>
+          </form>
+        ) : (
+          <div className="space-y-6">
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Vehicle details</h2>
+              <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Type</dt>
+                  <dd className="text-[var(--ejo-text)]">{vehicle.vehicleType === 'COMMERCIAL' ? 'Commercial' : vehicle.vehicleType === 'PASSENGER' ? 'Passenger' : '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Year</dt>
+                  <dd className="text-[var(--ejo-text)]">{vehicle.year ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Make</dt>
+                  <dd className="text-[var(--ejo-text)]">{vehicle.make ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Model</dt>
+                  <dd className="text-[var(--ejo-text)]">{vehicle.model ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Plate Number</dt>
+                  <dd className="text-[var(--ejo-text)]">{vehicle.plateNumber ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Chassis / VIN</dt>
+                  <dd className="font-mono text-xs text-[var(--ejo-text)]">{vehicle.chassisNumber ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Engine Number</dt>
+                  <dd className="text-[var(--ejo-text)]">{vehicle.engineNumber ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Engine Type</dt>
+                  <dd className="text-[var(--ejo-text)]">{vehicle.engineType ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Current Mileage</dt>
+                  <dd className="text-[var(--ejo-text)]">{vehicle.mileage != null ? `${vehicle.mileage.toLocaleString('en-NG')} km` : '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Owner</dt>
+                  <dd className="text-[var(--ejo-text)]"><CustomerLink id={vehicle.customerId} name={vehicle.customer.fullName} canView={canSeeCustomers} /></dd>
+                </div>
+              </dl>
+              <div className="mt-4 border-t border-[var(--ejo-border)] pt-4">
+                <dt className="text-xs text-[var(--ejo-text-muted)]">Service Interval</dt>
+                <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">
+                  {vehicle.serviceIntervalKm || vehicle.serviceIntervalDays ? (
+                    <>
+                      {vehicle.serviceIntervalKm ? `${vehicle.serviceIntervalKm.toLocaleString('en-NG')} km` : null}
+                      {vehicle.serviceIntervalKm && vehicle.serviceIntervalDays ? ' or ' : null}
+                      {vehicle.serviceIntervalDays ? pluralize(vehicle.serviceIntervalDays, 'day') : null}
+                      <span className="ml-1 text-xs text-[var(--ejo-text-muted)]">(this vehicle&apos;s own)</span>
+                    </>
+                  ) : (
+                    <span className="text-[var(--ejo-text-muted)]">Using the workshop&apos;s default interval</span>
+                  )}
+                </dd>
+              </div>
+            </div>
+
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Audit trail</h2>
+              {auditTrail.length === 0 ? (
+                <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">No recorded activity yet.</p>
+              ) : (
+                <AuditTrail
+                  entries={auditTrail.map((entry: (typeof auditTrail)[number]) => ({
+                    id: entry.id,
+                    actionLabel: AUDIT_ACTION_LABEL[entry.action] ?? humanizeAction(entry.action),
+                    userName: actorLabel(entry.user?.fullName ?? null, entry.metadata),
+                    detail: formatAuditDetail(entry),
+                    dateLabel: formatDateTime(entry.createdAt),
+                  }))}
+                  collapsedCount={5}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="h-fit min-w-0 space-y-4">
+          {serviceHealth ? (
+            <div
+              className={`rounded-[var(--ejo-radius-lg)] border p-5 ${
+                serviceHealth.status === 'OVERDUE'
+                  ? 'border-[var(--ejo-error)]/30 bg-[var(--ejo-error)]/5'
+                  : serviceHealth.status === 'DUE_SOON'
+                    ? 'border-[var(--ejo-warning)]/30 bg-[var(--ejo-warning)]/5'
+                    : 'border-[var(--ejo-success)]/30 bg-[var(--ejo-success)]/5'
+              }`}
+            >
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Service health</h2>
+              <p className="mt-2 flex items-center gap-2 text-sm font-medium text-[var(--ejo-text)]">
+                <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${serviceHealth.status === 'OVERDUE' ? 'bg-[var(--ejo-error)]' : serviceHealth.status === 'DUE_SOON' ? 'bg-[var(--ejo-warning)]' : 'bg-[var(--ejo-success)]'}`} aria-hidden="true" />
+                {serviceHealth.status === 'OVERDUE' ? 'Overdue' : serviceHealth.status === 'DUE_SOON' ? 'Due Soon' : 'Up to Date'}
+              </p>
+              <dl className="mt-3 space-y-2 text-xs">
+                {serviceHealth.primaryServiceMileage != null ? (
+                  <div>
+                    <dt className="text-[var(--ejo-text-muted)]">Last Service</dt>
+                    <dd className="text-[var(--ejo-text)]">
+                      {serviceHealth.primaryServiceMileage.toLocaleString('en-NG')} km
+                      {serviceHealth.primaryServiceDate ? ` — ${formatDateOnly(serviceHealth.primaryServiceDate)}` : ''}
+                    </dd>
+                  </div>
+                ) : null}
+                <div>
+                  <dt className="text-[var(--ejo-text-muted)]">Next Service Due</dt>
+                  <dd className="text-[var(--ejo-text)]">
+                    {serviceHealth.nextServiceDueOdometer ? `${serviceHealth.nextServiceDueOdometer.toLocaleString('en-NG')} km` : null}
+                    {serviceHealth.nextServiceDueOdometer && serviceHealth.nextServiceDueDate ? ' or ' : null}
+                    {serviceHealth.nextServiceDueDate ? formatDateOnly(serviceHealth.nextServiceDueDate) : null}
+                  </dd>
+                </div>
+              </dl>
+              {serviceHealth.kmRemaining !== null || serviceHealth.daysRemaining !== null ? (
+                <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
+                  {[
+                    serviceHealth.kmRemaining !== null
+                      ? serviceHealth.kmRemaining <= 0
+                        ? `${Math.abs(serviceHealth.kmRemaining).toLocaleString('en-NG')} km over`
+                        : `${serviceHealth.kmRemaining.toLocaleString('en-NG')} km left`
+                      : null,
+                    serviceHealth.daysRemaining !== null
+                      ? serviceHealth.daysRemaining <= 0
+                        ? `${Math.abs(serviceHealth.daysRemaining)} day${Math.abs(serviceHealth.daysRemaining) === 1 ? '' : 's'} over`
+                        : `${serviceHealth.daysRemaining} day${serviceHealth.daysRemaining === 1 ? '' : 's'} left`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}{' '}
+                  — whichever comes first.
+                </p>
+              ) : null}
+              {serviceHealth.inWorkshop ? (
+                <p className="mt-2 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-info)]/40 bg-[var(--ejo-info)]/10 px-3 py-2 text-xs text-[var(--ejo-text)]">
+                  In the workshop now on{' '}
+                  <LoadingLink
+                    href={serviceHealth.inWorkshop.kind === 'JOB_CARD' ? `/workshop/job-cards/${serviceHealth.inWorkshop.id}` : `/workshop/vehicle-service/${serviceHealth.inWorkshop.id}`}
+                    className="font-medium text-[var(--ejo-primary)] hover:underline"
+                  >
+                    {serviceHealth.inWorkshop.number}
+                  </LoadingLink>{' '}
+                  — service reminders are held while it&apos;s here.
+                </p>
+              ) : null}
+              {serviceHealth.attendedAt ? (
+                <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Attended to on {formatDateOnly(serviceHealth.attendedAt)} — no further reminders for this prediction.</p>
+              ) : null}
+              <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
+                Reminders this cycle: {serviceHealth.remindersSentThisCycle}
+                {serviceHealth.lastReminderAt ? ` — last ${formatDateTime(serviceHealth.lastReminderAt)}` : ''}
+                {serviceHealth.reminderDue
+                  ? ` · Due now: ${serviceHealth.reminderDue.stage === 4 ? 'Overdue reminder' : `reminder ${serviceHealth.reminderDue.stage}`}`
+                  : serviceHealth.nextReminderFrom
+                    ? ` · Next from ${formatDateOnly(serviceHealth.nextReminderFrom)}`
+                    : ''}
+              </p>
+              {serviceHealth.reminderDue ? (
+                <form action={sendManualServiceReminderFormAction} className="mt-3">
+                  <FormPendingOverlay />
+                  <input type="hidden" name="vehicleId" value={vehicle.id} />
+                  <input type="hidden" name="returnTo" value={`/workshop/vehicles/${vehicle.id}/edit`} />
+                  <SubmitButton
+                    label="Send service reminder"
+                    pendingLabel="Sending…"
+                    className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-3 py-1.5 text-xs font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]"
+                  />
+                </form>
+              ) : null}
+              {(serviceHealth.status === 'DUE_SOON' || serviceHealth.status === 'OVERDUE') && !serviceHealth.inWorkshop && !serviceHealth.attendedAt ? (
+                // The same reminder on WhatsApp, sent by the colleague from their own phone.
+                <div className="mt-2">
+                  <WhatsAppLink
+                    href={customerWhatsAppUrl(serviceHealth.customer, serviceReminderMessage({ customerName: serviceHealth.customer.name, organisation: serviceHealth.customer.organisation, vehicle: { make: serviceHealth.vehicle.description, plateNumber: serviceHealth.vehicle.plateNumber }, dueOdometer: serviceHealth.nextServiceDueOdometer, dueDate: serviceHealth.nextServiceDueDate, overdue: serviceHealth.status === 'OVERDUE', workshop: await workshopContactFor(await getWorkshopBranchId().catch(() => null)) }))}
+                    testId="service-reminder-whatsapp"
+                  />
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                <LoadingLink href={serviceHealth.serviceHref} className="text-[var(--ejo-primary)] hover:underline">
+                  View {serviceHealth.serviceNumber}
+                </LoadingLink>
+                {serviceHealth.viaJobCard ? (
+                  <LoadingLink href={`/workshop/job-cards/${serviceHealth.viaJobCard.id}`} className="text-[var(--ejo-primary)] hover:underline">
+                    Serviced on {serviceHealth.viaJobCard.jobNumber}
+                  </LoadingLink>
+                ) : null}
+                {!serviceHealth.inWorkshop ? (
+                  <LoadingLink href={bookServiceHref(vehicle.id)} className="text-[var(--ejo-primary)] hover:underline">
+                    {separateVehicleServiceOn() ? 'Book in for service' : OPEN_SERVICE_JOB_CARD}
+                  </LoadingLink>
+                ) : null}
+                <LoadingLink href="/workshop/service-tracker" className="text-[var(--ejo-primary)] hover:underline">
+                  Service Tracker
+                </LoadingLink>
+              </div>
+            </div>
+          ) : null}
+
+          {!moduleIsOn('warranty') ? null : vehicleWarranties.length > 0 ? (
+            <div className="space-y-2">
+              <WarrantyList warranties={vehicleWarranties} title="Warranties" />
+              <LoadingLink href={`/warranty/register?vehicleId=${vehicle.id}`} className="inline-block text-xs text-[var(--ejo-primary)] hover:underline">
+                Register another vehicle warranty →
+              </LoadingLink>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] px-5 py-3">
+              <p className="text-sm text-[var(--ejo-text-muted)]">
+                <span className="font-semibold text-[var(--ejo-text)]">Warranty</span> · No warranty on this vehicle
+              </p>
+              <LoadingLink href={`/warranty/register?vehicleId=${vehicle.id}`} className="text-xs font-medium text-[var(--ejo-primary)] hover:underline">
+                Register a vehicle warranty →
+              </LoadingLink>
+            </div>
+          )}
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+          <h2 className="text-sm font-semibold text-[var(--ejo-text)]">History</h2>
+          <dl className="mt-3 space-y-3 text-sm">
+            <div>
+              <dt className="text-xs text-[var(--ejo-text-muted)]">Registered</dt>
+              <dd className="text-[var(--ejo-text)]">
+                {formatDateTimeCompact(vehicle.createdAt)}
+                {vehicle.createdBy ? <><br />by {vehicle.createdBy.fullName}</> : null}
+              </dd>
+            </div>
+            {lastEdit ? (
+              <div>
+                <dt className="text-xs text-[var(--ejo-text-muted)]">Last Edited</dt>
+                <dd className="text-[var(--ejo-text)]">
+                  {formatDateTimeCompact(lastEdit.at)}
+                  <br />by {lastEdit.userName}
+                </dd>
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--ejo-text-muted)]">Not edited since registration.</p>
+            )}
+          </dl>
+          </div>
+
+          <ProvenanceCard p={origin} />
+          {beforeEjo.checks.length || beforeEjo.invoices.length || beforeEjo.jobs.length ? <BeforeEjo data={beforeEjo} /> : null}
+
+          <RecycleBinPanel offer={binOffer} entity="CustomerVehicle" id={vehicle.id} />
+        </div>
+      </div>
+
+      {/* Parts fitted are Store releases: no panel when the Store is switched off. */}
+      {moduleIsOn('inventory') ? (
+      <div className="mt-6">
+        <VehiclePartsFitted
+          rows={partsFitted.map((r: (typeof partsFitted)[number]) => ({
+            id: r.id,
+            date: r.slip.releasedAt ? r.slip.releasedAt.toISOString() : null,
+            dateLabel: r.slip.releasedAt ? formatDateOnly(r.slip.releasedAt) : '—',
+            partId: r.part.id,
+            partName: r.part.name,
+            partNumber: r.part.partNumber,
+            unit: r.part.baseUnitOfMeasure,
+            quantity: Number(r.quantityReleased ?? 0),
+            serials: r.issuedSerials.map((x: { serialNumber: string }) => x.serialNumber),
+            slipId: r.slip.id,
+            slipNumber: r.slip.referenceNumber,
+            jobCard: r.slip.jobCard ? { id: r.slip.jobCard.id, number: r.slip.jobCard.jobNumber } : null,
+            vehicleService: r.slip.vehicleService ? { id: r.slip.vehicleService.id, number: r.slip.vehicleService.serviceNumber } : null,
+            customer: r.slip.jobCard?.customer.fullName ?? r.slip.vehicleService?.customer.fullName ?? null,
+            warranties: r.warranties.map((w: { id: string; warrantyNumber: string }) => ({ id: w.id, number: w.warrantyNumber })),
+          }))}
+        />
+      </div>
+      ) : null}
+
+      <div className="mt-6 space-y-6">
+        <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Vehicle analytics</h2>
+        <VehicleIntelligenceCard vi={intelligence} />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+            <h3 className="text-xs font-semibold text-[var(--ejo-text-muted)]">MILEAGE OVER TIME</h3>
+            {analytics.mileageTimeline.length > 0 ? (
+              <VehicleMileageTrendChart
+                data={analytics.mileageTimeline.map((p) => ({
+                  label: p.label,
+                  mileage: p.mileage,
+                  dateLabel: `${formatDateOnly(p.date)} — ${p.source === 'JOB_CARD' ? 'Job Card' : 'Vehicle Service'}`,
+                  source: p.source,
+                }))}
+                predictedMileage={serviceHealth?.nextServiceDueOdometer ?? undefined}
+                predictedLabel="Next Due"
+              />
+            ) : (
+              <p className="py-8 text-center text-xs text-[var(--ejo-text-muted)]">No recorded odometer readings yet.</p>
+            )}
+          </div>
+
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+            <h3 className="text-xs font-semibold text-[var(--ejo-text-muted)]">VISIT HISTORY</h3>
+            {analytics.visitHistory.length > 0 ? (
+              <VehicleVisitHistoryChart data={analytics.visitHistory} />
+            ) : (
+              <p className="py-8 text-center text-xs text-[var(--ejo-text-muted)]">No visits recorded yet.</p>
+            )}
+          </div>
+
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+            <h3 className="text-xs font-semibold text-[var(--ejo-text-muted)]">INSPECTION FINDINGS</h3>
+            {analytics.latestInspection ? (
+              <>
+                <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
+                  Current condition — latest inspection ({analytics.latestInspection.serviceNumber}
+                  {analytics.latestInspection.completedAt ? `, ${formatDateOnly(analytics.latestInspection.completedAt)}` : ''}). It stays here as the vehicle&apos;s record after the service is completed.
+                </p>
+                <VehicleFindingsBreakdownChart data={analytics.latestInspection.breakdown} />
+                <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
+                  All inspections to date: {analytics.findingsBreakdown.critical} critical · {analytics.findingsBreakdown.serviceRequired} service required ·{' '}
+                  {analytics.findingsBreakdown.attention} attention · {analytics.findingsBreakdown.good} good
+                </p>
+              </>
+            ) : (
+              <VehicleFindingsBreakdownChart data={analytics.findingsBreakdown} />
+            )}
+          </div>
+
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+            <h3 className="text-xs font-semibold text-[var(--ejo-text-muted)]">SUMMARY</h3>
+            {(() => {
+              const naira = (n: number) => `₦${n.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
+              return (
+                <>
+                  <dl className="mt-4 grid grid-cols-2 gap-4">
+                    <div>
+                      <dt className="text-xs text-[var(--ejo-text-muted)]">Total Visits</dt>
+                      <dd className="mt-1 text-2xl font-bold text-[var(--ejo-text)]">{analytics.totalVisits}</dd>
+                      <dd className="text-xs text-[var(--ejo-text-muted)]">
+                        {analytics.jobCardVisits} Job Card · {analytics.serviceVisits} Vehicle Service
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-[var(--ejo-text-muted)]">Total Approved Value</dt>
+                      <dd className="mt-1 text-2xl font-bold text-[var(--ejo-text)]">{naira(analytics.totalSpend)}</dd>
+                    </div>
+                  </dl>
+                  <table className="mt-4 w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-[var(--ejo-border)] text-left text-[var(--ejo-text-muted)]">
+                        <th className="pb-1.5" />
+                        <th className="pb-1.5 text-right">Approved</th>
+                        <th className="pb-1.5 text-right">Paid</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-[var(--ejo-border)]">
+                        <td className="py-1.5 text-[var(--ejo-text)]">Job Cards (repairs)</td>
+                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.approvedJobCard)}</td>
+                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.paidJobCard)}</td>
+                      </tr>
+                      <tr className="border-b border-[var(--ejo-border)]">
+                        <td className="py-1.5 text-[var(--ejo-text)]">Vehicle Services (routine)</td>
+                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.approvedService)}</td>
+                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.paidService)}</td>
+                      </tr>
+                      <tr className="font-semibold">
+                        <td className="py-1.5 text-[var(--ejo-text)]">Total</td>
+                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.totalSpend)}</td>
+                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.totalPaid)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p className={`mt-3 text-xs font-medium ${analytics.outstanding > 0 ? 'text-[var(--ejo-warning)]' : 'text-[var(--ejo-success)]'}`}>
+                    {analytics.outstanding > 0 ? `Outstanding: ${naira(analytics.outstanding)}` : 'Nothing outstanding.'}
+                  </p>
+                  <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
+                    Approved = estimates with the Manager&apos;s final approval. Paid = payments recorded.
+                  </p>
+                </>
+              );
+            })()}
+          </div>
+
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 lg:col-span-2">
+            <h3 className="text-xs font-semibold text-[var(--ejo-text-muted)]">REMINDER HISTORY</h3>
+            {reminderHistory.length > 0 ? (
+              <>
+                <p className="mt-3 text-xs font-medium text-[var(--ejo-text)]">This service cycle{currentCycle.length && (currentCycle[0]!.estimatedDueOdometer || currentCycle[0]!.estimatedDueDate) ? ` — due ${currentCycle[0]!.estimatedDueOdometer ? `${currentCycle[0]!.estimatedDueOdometer.toLocaleString('en-NG')} km` : ''}${currentCycle[0]!.estimatedDueOdometer && currentCycle[0]!.estimatedDueDate ? ' / ' : ''}${currentCycle[0]!.estimatedDueDate ? formatDateOnly(currentCycle[0]!.estimatedDueDate) : ''}` : ''}</p>
+              <ResponsiveTable flush>
+              <table className="mt-2 w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]">
+                    <th className="pb-2">Sent</th>
+                    <th className="pb-2">Reminder</th>
+                    <th className="pb-2">Sent by</th>
+                    <th className="pb-2">Estimated Due</th>
+                    <th className="pb-2">Odometer at Send</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentCycle.map((r: (typeof reminderHistory)[number]) => (
+                    <tr key={r.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                      <td className="py-2 text-[var(--ejo-text)]">{formatDateTime(r.sentAt)}</td>
+                      <td data-label="Reminder" className="py-2 text-[var(--ejo-text)]">
+                        {REMINDER_STAGE_LABEL[r.reminderNumber] ?? `Stage ${r.reminderNumber}`}
+                      </td>
+                      <td data-label="Sent by" className="py-2 text-[var(--ejo-text-muted)]">
+                        {reminderSender(r.sentAt, r.reminderNumber, auditTrail) ?? (r.trigger === 'MANUAL' ? 'Not recorded (sent before sender tracking)' : 'System (automatic, before reminders became manual)')}
+                      </td>
+                      <td data-label="Estimated Due" className="py-2 text-[var(--ejo-text-muted)]">
+                        {r.estimatedDueOdometer ? `${r.estimatedDueOdometer.toLocaleString('en-NG')} km` : null}
+                        {r.estimatedDueOdometer && r.estimatedDueDate ? ' / ' : null}
+                        {r.estimatedDueDate ? formatDateOnly(r.estimatedDueDate) : null}
+                      </td>
+                      <td data-label="Odometer at Send" className="py-2 text-[var(--ejo-text-muted)]">{r.recordedOdometerAtSend ? `${r.recordedOdometerAtSend.toLocaleString('en-NG')} km` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </ResponsiveTable>
+                {earlierCycles.length ? (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-xs font-medium text-[var(--ejo-primary)]">Earlier service cycles ({earlierCycles.length} {earlierCycles.length === 1 ? 'reminder' : 'reminders'})</summary>
+              <ResponsiveTable flush>
+              <table className="mt-2 w-full text-sm opacity-80">
+                <thead>
+                  <tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]">
+                    <th className="pb-2">Sent</th>
+                    <th className="pb-2">Reminder</th>
+                    <th className="pb-2">Sent by</th>
+                    <th className="pb-2">Estimated Due</th>
+                    <th className="pb-2">Odometer at Send</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {earlierCycles.map((r: (typeof reminderHistory)[number]) => (
+                    <tr key={r.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                      <td className="py-2 text-[var(--ejo-text)]">{formatDateTime(r.sentAt)}</td>
+                      <td data-label="Reminder" className="py-2 text-[var(--ejo-text)]">
+                        {REMINDER_STAGE_LABEL[r.reminderNumber] ?? `Stage ${r.reminderNumber}`}
+                      </td>
+                      <td data-label="Sent by" className="py-2 text-[var(--ejo-text-muted)]">
+                        {reminderSender(r.sentAt, r.reminderNumber, auditTrail) ?? (r.trigger === 'MANUAL' ? 'Not recorded (sent before sender tracking)' : 'System (automatic, before reminders became manual)')}
+                      </td>
+                      <td data-label="Estimated Due" className="py-2 text-[var(--ejo-text-muted)]">
+                        {r.estimatedDueOdometer ? `${r.estimatedDueOdometer.toLocaleString('en-NG')} km` : null}
+                        {r.estimatedDueOdometer && r.estimatedDueDate ? ' / ' : null}
+                        {r.estimatedDueDate ? formatDateOnly(r.estimatedDueDate) : null}
+                      </td>
+                      <td data-label="Odometer at Send" className="py-2 text-[var(--ejo-text-muted)]">{r.recordedOdometerAtSend ? `${r.recordedOdometerAtSend.toLocaleString('en-NG')} km` : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </ResponsiveTable>
+                  </details>
+                ) : null}
+              </>
+            ) : (
+              <p className="mt-3 text-xs text-[var(--ejo-text-muted)]">No reminders have been sent for this vehicle yet.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CHECK_KIND: Record<string, string> = { PRODUCTION: 'Production', QC: 'Quality check', PDI: 'Pre-delivery inspection' };
+const RESULT_TONE: Record<string, string> = { PASS: 'text-[var(--ejo-success)]', FAIL: 'text-[var(--ejo-error)]', REWORK: 'text-[var(--ejo-warning-text)]', OPEN: 'text-[var(--ejo-text-muted)]' };
+const RESULT_WORD: Record<string, string> = { PASS: 'Pass', FAIL: 'Fail', REWORK: 'Rework', OPEN: 'Open' };
+const dayText = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** Before EJO 100: the plant registers (production, QC, PDI), past job cards and invoices for this vehicle — read-only history. */
+function BeforeEjo({ data }: { data: Awaited<ReturnType<typeof getVehicleHistoryBeforeEjo>> }) {
+  const sapTotal = data.invoices.reduce((s, i) => s + i.amount, 0);
+  return (
+    <div id="before-ejo" className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+      <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Before EJO 100</h2>
+      <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">{featureOn('sap') ? 'Brought in from the plant registers, SAP service orders and SAP invoices.' : `Brought in from ${moduleIsOn('plant') ? 'the plant registers and ' : ''}the old system’s job cards and invoices.`} Read-only history.</p>
+      {data.checks.length ? (
+        <>
+          <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">Production, QC and PDI</h3>
+          <ol className="mt-2 space-y-2.5 border-l border-[var(--ejo-border)] pl-3">
+            {data.checks.map((c) => (
+              <li key={c.id} className="text-sm">
+                <p className="text-[var(--ejo-text)]"><span className="font-medium">{CHECK_KIND[c.kind] ?? c.kind}</span>{c.stage ? ` · ${c.stage}` : ''}{c.result ? <span className={`ml-1.5 font-semibold ${RESULT_TONE[c.result] ?? ''}`}>{RESULT_WORD[c.result] ?? c.result}</span> : null}</p>
+                <p className="text-xs text-[var(--ejo-text-muted)]">{dayText(c.date)}{c.inspector ? ` · ${c.inspector}` : ''}{c.reference ? ` · ${c.reference}` : ''}{c.model ? ` · ${c.model}` : ''}</p>
+                {c.notes ? <p className="text-xs text-[var(--ejo-text)]">{c.notes}</p> : null}
+              </li>
+            ))}
+          </ol>
+        </>
+      ) : null}
+      {data.jobs.length ? (
+        <>
+          <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">Job cards before EJO ({data.jobs.length})</h3>
+          <ul className="mt-2 divide-y divide-[var(--ejo-border)] text-sm" data-testid="before-ejo-jobs">
+            {data.jobs.map((j) => (
+              <li key={j.id} className="flex items-start justify-between gap-3 py-2">
+                <span className="min-w-0">
+                  <span className="text-[var(--ejo-text)]"><span className="font-medium">Job card {j.number}</span>{j.kind === 'SERVICE' ? <span className="ml-1.5 text-xs text-[var(--ejo-text-muted)]">service</span> : null}{j.status === 'CANCELLED' ? <span className="ml-1.5 text-xs text-[var(--ejo-text-muted)]">cancelled</span> : null}</span>
+                  <span className="block text-xs text-[var(--ejo-text-muted)]">{dayText(j.openedAt)}{j.completedAt && j.completedAt !== j.openedAt ? ` → ${dayText(j.completedAt)}` : ''}{j.mileage !== null ? ` · ${j.mileage.toLocaleString('en-NG')} km` : ''}{j.technician ? ` · ${j.technician}` : ''}{j.invoiceNumber ? ` · invoice ${j.invoiceNumber}` : ''}</span>
+                  {j.description ? <span className="block text-xs text-[var(--ejo-text)]">{j.description}</span> : null}
+                  {j.workDone ? <span className="block text-xs text-[var(--ejo-text-muted)]">{j.workDone}</span> : null}
+                </span>
+                {j.total !== null ? <span className="shrink-0 tabular-nums text-[var(--ejo-text)]">{nairaText(j.total)}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {data.invoices.length ? (
+        <>
+          <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">{featureOn('sap') ? 'Invoices from SAP' : 'Invoices before EJO'} ({nairaText(sapTotal)})</h3>
+          <ul className="mt-2 divide-y divide-[var(--ejo-border)] text-sm">
+            {data.invoices.map((i) => (
+              <li key={i.id} className="flex items-start justify-between gap-3 py-2">
+                <span className="min-w-0"><span className="text-[var(--ejo-text)]">{i.number}{i.fiscalYear ? ` · ${i.fiscalYear}` : ''}</span><span className="block text-xs text-[var(--ejo-text-muted)]">{dayText(i.date)}{i.customerName ? ` · ${i.customerName}` : ''}{i.description ? ` · ${i.description}` : ''}</span></span>
+                <span className="shrink-0 tabular-nums text-[var(--ejo-text)]">{nairaText(i.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </div>
+  );
+}
+

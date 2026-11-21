@@ -1,0 +1,146 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { EnyoAdminSettings, EnyoConnectionTest, EnyoProviderInfo } from '@/lib/enyo/client-contract';
+import { getEnyoStatus, saveSettings, testConnection } from './api';
+
+const card = 'rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 sm:p-6';
+
+const FEATURES: { key: 'staffAssistant' | 'customerAssistant' | 'publicAssistant'; label: string; help: string }[] = [
+  { key: 'staffAssistant', label: 'Assistant for staff', help: 'The chat panel in this portal, and "Refine" on text boxes.' },
+  { key: 'customerAssistant', label: 'Assistant for customers', help: 'Answers signed-in customers about their own vehicles and bookings in the customer portal.' },
+  { key: 'publicAssistant', label: 'Assistant on the website', help: 'Answers visitors on the customer site’s support page and can pass them to a person.' },
+];
+
+function Switch({ id, checked, onChange, label, help, disabled }: { id: string; checked: boolean; onChange: (v: boolean) => void; label: string; help: string; disabled?: boolean }) {
+  return (
+    <div className={`flex items-start justify-between gap-4 py-3.5 ${disabled ? 'opacity-55' : ''}`}>
+      <div className="min-w-0">
+        <label htmlFor={id} className="text-sm font-medium text-[var(--ejo-text)]">{label}</label>
+        <p id={`${id}-help`} className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">{help}</p>
+      </div>
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-describedby={`${id}-help`}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className="relative inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center"
+      >
+        <span aria-hidden="true" className={`relative inline-flex h-6 w-11 rounded-full transition-colors ${checked ? 'bg-[var(--ejo-primary)]' : 'bg-[color-mix(in_srgb,var(--ejo-text-muted)_40%,transparent)]'}`}>
+          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+        </span>
+      </button>
+    </div>
+  );
+}
+
+/** Enyo's switches for the organisation, the model status and a connection test. */
+export function EnyoSettingsForm({ initial, provider }: { initial: EnyoAdminSettings; provider: EnyoProviderInfo }) {
+  const router = useRouter();
+  const [s, setS] = useState<EnyoAdminSettings>(initial);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [test, setTest] = useState<EnyoConnectionTest | null>(null);
+  const set = <K extends keyof EnyoAdminSettings>(k: K, v: EnyoAdminSettings[K]) => { setS((x) => ({ ...x, [k]: v })); setFeedback(null); };
+  const changed = JSON.stringify(s) !== JSON.stringify(initial);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    const displayName = s.displayName.replace(/\s+/g, ' ').trim();
+    if (displayName.length < 2 || displayName.length > 30) { setFeedback({ ok: false, text: 'The display name must be 2 to 30 characters.' }); return; }
+    setSaving(true);
+    const r = await saveSettings({ ...s, displayName });
+    setSaving(false);
+    if (r.ok) {
+      setFeedback({ ok: true, text: 'Enyo settings saved.' });
+      setEditing(false);
+      void getEnyoStatus(true);
+      router.refresh();
+    } else setFeedback({ ok: false, text: r.error });
+  }
+
+  async function runTest() {
+    setTesting(true);
+    setTest(null);
+    setTest(await testConnection());
+    setTesting(false);
+  }
+
+  return (
+    <div className="grid gap-6">
+      {editing ? (
+      <form onSubmit={save} className={card} aria-labelledby="enyo-switches">
+        <h2 id="enyo-switches" className="text-sm font-semibold text-[var(--ejo-text)]">Switches</h2>
+        <div className="mt-1 divide-y divide-[var(--ejo-border)]">
+          <Switch id="enyo-enabled" checked={s.enabled} onChange={(v) => set('enabled', v)} label="Enyo is on" help="The master switch. Off hides every Enyo feature; the portal works exactly as before." />
+          {FEATURES.map((f) => (
+            <Switch key={f.key} id={`enyo-${f.key}`} checked={s[f.key]} onChange={(v) => set(f.key, v)} label={f.label} help={f.help} disabled={!s.enabled} />
+          ))}
+        </div>
+
+        <div className="mt-5">
+          <label htmlFor="enyo-name" className="text-sm font-medium text-[var(--ejo-text)]">Display name</label>
+          <p id="enyo-name-help" className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">What staff and customers see the assistant called.</p>
+          <input id="enyo-name" aria-describedby="enyo-name-help" value={s.displayName} maxLength={30} onChange={(e) => set('displayName', e.target.value)} className="mt-2 min-h-11 w-full max-w-xs rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 text-sm text-[var(--ejo-text)]" />
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <button type="submit" disabled={saving || !changed} className="min-h-11 rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-5 text-sm font-medium text-white hover:brightness-110 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save Enyo settings'}
+          </button>
+          <button type="button" onClick={() => { setS(initial); setFeedback(null); setEditing(false); }} className="min-h-11 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]">Cancel</button>
+          {feedback ? <p role={feedback.ok ? 'status' : 'alert'} className={`text-sm ${feedback.ok ? 'text-[var(--ejo-success)]' : 'text-[var(--ejo-error)]'}`}>{feedback.text}</p> : null}
+        </div>
+      </form>
+      ) : (
+        <section className={card} aria-labelledby="enyo-switches">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h2 id="enyo-switches" className="text-sm font-semibold text-[var(--ejo-text)]">Settings</h2>
+            <button type="button" onClick={() => { setEditing(true); setFeedback(null); }} data-testid="edit-enyo-settings" className="inline-flex min-h-9 items-center rounded-full bg-[var(--ejo-primary)]/10 px-3 text-xs font-semibold text-[var(--ejo-primary)] hover:bg-[var(--ejo-primary)]/15">Edit settings</button>
+          </div>
+          {feedback?.ok ? <p role="status" className="mt-2 text-sm text-[var(--ejo-success)]">{feedback.text}</p> : null}
+          <ul className="mt-3 divide-y divide-[var(--ejo-border)]">
+            <li className="flex items-center justify-between gap-3 py-2 text-sm"><span className="font-medium text-[var(--ejo-text)]">Enyo is on</span><OnOff on={initial.enabled} /></li>
+            {FEATURES.map((f) => <li key={f.key} className="flex items-center justify-between gap-3 py-2 text-sm"><span className="text-[var(--ejo-text)]">{f.label}</span><OnOff on={initial.enabled && Boolean(initial[f.key])} /></li>)}
+          </ul>
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            <div><dt className="text-xs text-[var(--ejo-text-muted)]">Display name</dt><dd className="mt-0.5 font-medium text-[var(--ejo-text)]">{initial.displayName}</dd></div>
+          </dl>
+        </section>
+      )}
+
+      <section className={card} aria-labelledby="enyo-model">
+        <h2 id="enyo-model" className="text-sm font-semibold text-[var(--ejo-text)]">Language model</h2>
+        {provider.configured ? (
+          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+            <div><dt className="text-xs text-[var(--ejo-text-muted)]">Status</dt><dd className="mt-0.5 font-medium text-[var(--ejo-success)]">Set up</dd></div>
+            <div className="min-w-0"><dt className="text-xs text-[var(--ejo-text-muted)]">Provider</dt><dd className="mt-0.5 truncate text-[var(--ejo-text)]">{provider.label ?? 'Model server'}</dd></div>
+            <div className="min-w-0"><dt className="text-xs text-[var(--ejo-text-muted)]">Model</dt><dd className="mt-0.5 truncate font-mono text-xs text-[var(--ejo-text)]" title={provider.model}>{provider.model ?? '—'}</dd></div>
+          </dl>
+        ) : (
+          <p className="mt-2 text-sm text-[var(--ejo-text)]">No model is set up yet. Your IT team adds ENYO_LLM_PROVIDER=anthropic and ENYO_LLM_API_KEY (an Anthropic Console API key) to the server settings, or, for another provider, ENYO_LLM_BASE_URL, ENYO_LLM_MODEL and ENYO_LLM_API_KEY; Enyo stays hidden until then.</p>
+        )}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="button" onClick={runTest} disabled={testing || !provider.configured} className="min-h-11 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-4 text-sm font-medium text-[var(--ejo-text)] hover:border-[var(--ejo-primary)] disabled:opacity-50">
+            {testing ? 'Testing…' : 'Test connection'}
+          </button>
+          {test ? (
+            <p role={test.ok ? 'status' : 'alert'} className={`text-sm ${test.ok ? 'text-[var(--ejo-success)]' : 'text-[var(--ejo-error)]'}`}>
+              {test.ok ? `Connected.${typeof test.latencyMs === 'number' ? ` The model answered in ${(test.latencyMs / 1000).toFixed(1)} seconds.` : ''}` : `${test.error}${test.ref ? ` (reference ${test.ref})` : ''}`}
+            </p>
+          ) : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function OnOff({ on }: { on: boolean }) {
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${on ? 'bg-[var(--ejo-success)]/12 text-[var(--ejo-success)]' : 'bg-[var(--ejo-text-muted)]/12 text-[var(--ejo-text-muted)]'}`}>{on ? 'On' : 'Off'}</span>;
+}

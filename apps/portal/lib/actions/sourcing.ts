@@ -1,0 +1,901 @@
+'use server';
+import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
+import { logFailure } from '@/lib/log';
+
+import { authorize, authorizeOnJobCard, branchWithinReach, seeBranchAnyOf, seeJobCard, refuse } from '@/lib/authz/server';
+
+/**
+ * Sourcing for a Job Card once work has started: Store parts go on a Parts
+ * Request Slip, approved by the Workshop Supervisor, then Store (which
+ * reserves stock), then released by a storekeeper. Parts bought outside are
+ * priced on the estimate as Outside part lines and need no request. Sourcing
+ * starts only once the deposit has moved the job to IN_PROGRESS.
+ */
+
+import { prisma, getAuditActor } from '@ejo/database';
+import { assertJobStillOpen } from '@/lib/sourcing-lifecycle';
+import { claimed as claimedOrStale, lockExisting, lockRows, StaleStateError } from '@/lib/integrity';
+import { retryOnNumberClash } from '@/lib/integrity-core';
+import { pluralize } from '@/lib/utils/pluralize';
+import { replayQuantityFifo, planQuantityRelease } from '@/lib/inventory/quantity-fifo';
+import { loadQuantityTraces, sourcesForReleases } from '@/lib/inventory/quantity-trace';
+import { requireUser, requireEligibleManager, listEligibleManagersForBranch } from './workshop';
+import { writeAuditLog, getWorkshopOrgContext } from '@/lib/workshop-core';
+import { renderCustomerJobWorkUpdateEmail } from '@/lib/email-templates/customer-job-work-update';
+import { requireStoreStaff, listEligibleStoreOfficersForBranch, listEligibleStoreManagersForBranch } from './store';
+import { sendEmail } from '@/lib/email';
+import { renderPartRequestApprovalNeededEmail, renderPartRequestStatusEmail, PART_REQUEST_STATUS } from '@/lib/email-templates/part-request-status';
+import { lagosYear } from '@/lib/utils/format-date';
+import { customerLinks } from '@/lib/customer-links-core';
+
+/** Like getStoreOrgContext(), but by branch: these emails go to both
+ * Workshop and Store staff, so the department name is passed in. */
+async function getSourcingOrgContext(branchId: string, departmentName: string): Promise<{ companyName: string; branchName: string; departmentName: string }> {
+  const branch = await prisma.branch.findUniqueOrThrow({
+    where: { id: branchId },
+    select: { name: true, businessUnit: { select: { organisation: { select: { name: true } } } } },
+  });
+  // Named companyName because every email template takes `companyName`.
+  return { companyName: branch.businessUnit.organisation.name, branchName: branch.name, departmentName };
+}
+
+/** Job Card and vehicle details shared by every email in the request chain. */
+async function getPartRequestEmailContext(jobCardId: string) {
+  const jobCard = await prisma.jobCard.findUniqueOrThrow({
+    where: { id: jobCardId },
+    select: {
+      jobNumber: true,
+      branchId: true,
+      supervisorId: true,
+      assignedTechnicianId: true,
+      customer: { select: { fullName: true } },
+      vehicle: { select: { make: true, model: true, year: true, engineType: true, chassisNumber: true, plateNumber: true } },
+      department: { select: { name: true } },
+    },
+  });
+  // departmentId is optional on JobCard; fall back to a generic name.
+  return { ...jobCard, departmentName: jobCard.department?.name ?? 'Workshop' };
+}
+
+/** Emails the technician and supervisor at every stage of a parts request. */
+async function notifyTechnicianAndSupervisorOfPartRequestStatus(
+  jobCardId: string,
+  slipId: string,
+  referenceNumber: string,
+  kind: 'hod_approved' | 'store_approved' | 'released' | 'rejected',
+  rejectionReason?: string,
+): Promise<void> {
+  try {
+    const [jobCard, slip] = await Promise.all([
+      getPartRequestEmailContext(jobCardId),
+      prisma.partRequestSlip.findUnique({ where: { id: slipId }, select: { requestedById: true, hodApprovedById: true, rejectionStage: true } }),
+    ]);
+    // The job's technician and supervisor, the person who raised the request
+    // (when someone else did), and — when the Store turns it down — the HOD
+    // who approved it.
+    const recipientIds = [...new Set([jobCard.supervisorId, jobCard.assignedTechnicianId, slip?.requestedById, kind === 'rejected' && slip?.rejectionStage === 'STORE' ? slip.hodApprovedById : null].filter((id): id is string => Boolean(id)))];
+    const recipients = await prisma.user.findMany({ where: { id: { in: recipientIds }, isActive: true }, select: { fullName: true, email: true } });
+    const orgContext = await getSourcingOrgContext(jobCard.branchId, jobCard.departmentName);
+    const portalUrl = portalBaseUrl();
+    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    for (const recipient of recipients) {
+      await sendEmail(
+        recipient.email,
+        `${PART_REQUEST_STATUS[kind].heading} — ${referenceNumber}`,
+        renderPartRequestStatusEmail({
+          recipientName: recipient.fullName,
+          kind,
+          referenceNumber,
+          jobNumber: jobCard.jobNumber,
+          customerName: jobCard.customer.fullName,
+          rejectionReason,
+          requestUrl: `${portalUrl}/workshop/parts-requests/${slipId}`,
+          logoUrl,
+          companyName: orgContext.companyName,
+          branchName: orgContext.branchName,
+          departmentName: orgContext.departmentName,
+        }),
+      );
+    }
+  } catch (err) {
+    logFailure('Failed to send Parts Request status emails', referenceNumber, err);
+  }
+}
+
+/**
+ * Separation of duties, with one exception: the master administrator may sign
+ * a second step (as the Workshop already allows) — so a new installation,
+ * where nobody holds the Store, Finance or Manager roles yet, is never stuck.
+ * Every such second signature is written to the audit log, and the integrity
+ * watch still flags the same person asking and approving.
+ */
+async function signsAgainAsMaster(userId: string, entityType: string, entityId: string, step: string): Promise<boolean> {
+  const master = await prisma.userRole.findFirst({ where: { userId, role: { isSuperAdmin: true } }, select: { userId: true } });
+  if (!master) return false;
+  await writeAuditLog({ userId, action: 'separation_of_duties.waived', entityType, entityId, metadata: { step, by: 'master administrator' } });
+  return true;
+}
+
+class SourcingActionError extends Error {}
+
+/** Sourcing starts once the deposit has started work (IN_PROGRESS). Later
+ * stages, such as Quality Check, can still need a late part. */
+const SOURCEABLE_STATUSES = ['IN_PROGRESS', 'AWAITING_PARTS', 'QUALITY_CHECK', 'COMPLETED'] as const;
+
+/** PRS-2026-000001, same format as JC- and GRN- numbers. */
+async function generatePartRequestSlipNumber(db: Pick<typeof prisma, 'partRequestSlip'> = prisma): Promise<string> {
+  const year = lagosYear();
+  const prefix = `PRS-${year}-`;
+  const latest = await db.partRequestSlip.findFirst({
+    where: { referenceNumber: { startsWith: prefix } },
+    orderBy: { referenceNumber: 'desc' },
+    select: { referenceNumber: true },
+  });
+  const nextSequence = latest ? parseInt(latest.referenceNumber.slice(prefix.length), 10) + 1 : 1;
+  return `${prefix}${String(nextSequence).padStart(6, '0')}`;
+}
+
+/** Reads the estimate's line types and reports which sourcing flows the Job
+ * Card needs: none, Store parts, external, or both (as separate requests). */
+export async function getJobCardSourcingNeeds(jobCardId: string) {
+  await requireUser();
+  await seeJobCard(jobCardId, 'getJobCardSourcingNeeds');
+  const jobCard = await prisma.jobCard.findUnique({
+    where: { id: jobCardId },
+    select: {
+      status: true,
+      estimate: {
+        select: {
+          lineItems: {
+            select: { id: true, type: true, description: true, quantity: true, amount: true },
+          },
+        },
+      },
+    },
+  });
+  if (!jobCard) {
+    throw new SourcingActionError('Job Card not found.');
+  }
+
+  const lineItems = jobCard.estimate?.lineItems ?? [];
+  const storeLineItems = lineItems.filter((li: (typeof lineItems)[number]) => li.type === 'STORE_PART');
+
+  const existingPartRequestSlips = await prisma.partRequestSlip.findMany({
+    where: { jobCardId },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, status: true, referenceNumber: true },
+  });
+
+  // Uses the same eligibility check as the request page, so the button
+  // disappears once every line has been requested.
+  const requestablePartLines = await getRequestablePartRequestLines(jobCardId);
+
+  return {
+    isEligibleToSource: SOURCEABLE_STATUSES.includes(jobCard.status as (typeof SOURCEABLE_STATUSES)[number]),
+    needsStoreParts: storeLineItems.length > 0,
+    hasRequestablePartLines: requestablePartLines.length > 0,
+    storeLineItems,
+    existingPartRequestSlips,
+  };
+}
+
+/** Only changes JobCard.status when it is IN_PROGRESS or AWAITING_PARTS;
+ * never overrides a status that has moved on (e.g. Quality Check). */
+async function syncJobCardSourcingStatus(jobCardId: string): Promise<void> {
+  const jobCard = await prisma.jobCard.findUnique({
+    where: { id: jobCardId },
+    select: {
+      status: true,
+      jobNumber: true,
+      customer: { select: { fullName: true, email: true } },
+      vehicle: { select: { make: true, model: true } },
+      department: { select: { name: true } },
+    },
+  });
+  if (!jobCard) return;
+  if (jobCard.status !== 'IN_PROGRESS' && jobCard.status !== 'AWAITING_PARTS') return;
+
+  const outstandingSlips = await prisma.partRequestSlip.count({ where: { jobCardId, status: { notIn: ['RELEASED', 'REJECTED'] } } });
+  const hasOutstanding = outstandingSlips > 0;
+
+  const to = hasOutstanding && jobCard.status !== 'AWAITING_PARTS' ? 'AWAITING_PARTS' : !hasOutstanding && jobCard.status === 'AWAITING_PARTS' ? 'IN_PROGRESS' : null;
+  if (!to) return;
+  // Only if the Job Card is still where we read it; a status someone changed
+  // in the meantime wins.
+  const moved = await prisma.jobCard.updateMany({ where: { id: jobCardId, status: jobCard.status }, data: { status: to } });
+  if (moved.count === 0) return;
+  // Logged on the Job Card, attributed to whoever's action caused it.
+  await writeAuditLog({
+    userId: getAuditActor()?.userId ?? null,
+    action: 'job_card.status_updated',
+    entityType: 'JobCard',
+    entityId: jobCardId,
+    metadata: {
+      jobNumber: jobCard.jobNumber,
+      from: jobCard.status,
+      to,
+      automatic: true,
+      reason: to === 'AWAITING_PARTS' ? 'Parts requested and not yet received' : 'All requested parts received',
+    },
+  });
+  // Parts arrived: send the "work resumed" email a manual resume sends, not
+  // "work has started" again.
+  if (to === 'IN_PROGRESS') {
+    try {
+      const orgContext = await getWorkshopOrgContext(jobCard.department?.name);
+      const websiteUrl = websiteBaseUrl();
+      await sendEmail(
+        jobCard.customer.email,
+        `Work has resumed — Job Card ${jobCard.jobNumber}`,
+        renderCustomerJobWorkUpdateEmail({
+          kind: 'RESUMED',
+          customerName: jobCard.customer.fullName,
+          jobNumber: jobCard.jobNumber,
+          vehicleDescription: [jobCard.vehicle.make, jobCard.vehicle.model].filter(Boolean).join(' ') || 'Vehicle',
+          dashboardUrl: `${customerLinks(websiteUrl).jobCard(jobCardId)}`,
+          logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+          companyName: orgContext.companyName,
+          branchName: orgContext.branchName,
+        }),
+      );
+    } catch (err) {
+      logFailure('Failed to send work-resumed email', jobCardId, err);
+    }
+  }
+}
+
+export async function getPartRequestSlip(id: string) {
+  await requireUser();
+  const owner = await prisma.partRequestSlip.findUnique({ where: { id }, select: { branchId: true } });
+  if (!owner) return null;
+  try {
+    await seeBranchAnyOf(['workshop.job_card.view', 'store.view'], owner.branchId, `PartRequestSlip:${id}`);
+  } catch {
+    return null; // shown exactly like a request that does not exist
+  }
+  const slip = await prisma.partRequestSlip.findUnique({
+    where: { id },
+    include: {
+      jobCard: {
+        select: {
+          id: true,
+          jobNumber: true,
+          supervisorId: true,
+          assignedTechnicianId: true,
+          assignedTechnician: { select: { id: true, fullName: true } },
+          customer: { select: { id: true, fullName: true, address: true } },
+          vehicle: { select: { make: true, model: true, year: true, engineType: true, chassisNumber: true, plateNumber: true } },
+          branch: { select: { name: true, address: true, hotlines: true, email: true } },
+        },
+      },
+      requestedBy: { select: { fullName: true } },
+      hodApprovedBy: { select: { fullName: true } },
+      storeApprovedBy: { select: { fullName: true } },
+      releasedBy: { select: { fullName: true } },
+      receivedByUser: { select: { fullName: true } },
+      rejectedBy: { select: { fullName: true } },
+      lines: {
+        include: {
+          part: {
+            select: {
+              id: true,
+              name: true,
+              partNumber: true,
+              baseUnitOfMeasure: true,
+              trackingType: true,
+              // In-stock serials, oldest first (FIFO), for the release form's picker.
+              serials: { where: { status: 'IN_STOCK' }, orderBy: { receivedAt: 'asc' }, select: { serialNumber: true, receivedAt: true } },
+            },
+          },
+          estimateLineItem: { select: { description: true, unitPrice: true, amount: true } },
+          // What the line was released with (serials, or batches and quantities),
+          // so the released slip is traceable.
+          issuedSerials: {
+            select: {
+              serialNumber: true,
+              goodsReceiptLine: { select: { goodsReceipt: { select: { id: true, referenceNumber: true } } } },
+            },
+          },
+          batchConsumptions: {
+            select: {
+              quantityTaken: true,
+              batch: {
+                select: {
+                  batchNumber: true,
+                  goodsReceiptLine: { select: { goodsReceipt: { select: { id: true, referenceNumber: true } } } },
+                },
+              },
+            },
+          },
+          // A QUANTITY line's release rows, resolved below into the deliveries they
+          // drew from (quantitySources).
+          quantityConsumptions: { select: { id: true } },
+        },
+      },
+    },
+  });
+  if (!slip) return null;
+
+  // For QUANTITY lines: which goods receipt(s) each release drew from, FIFO,
+  // including releases made before per-delivery tracking existed.
+  const quantityPartIds = slip.lines
+    .filter((l: (typeof slip.lines)[number]) => l.part.trackingType === 'QUANTITY' && l.quantityConsumptions.length > 0)
+    .map((l: (typeof slip.lines)[number]) => l.partId);
+  const traces = await loadQuantityTraces(quantityPartIds);
+  return {
+    ...slip,
+    lines: slip.lines.map((l: (typeof slip.lines)[number]) => ({
+      ...l,
+      quantitySources:
+        l.part.trackingType === 'QUANTITY'
+          ? sourcesForReleases(traces.get(l.partId), l.quantityConsumptions.map((c: (typeof l.quantityConsumptions)[number]) => c.id))
+          : [],
+    })),
+  };
+}
+
+export async function listPartRequestSlips(branchId: string, search?: string) {
+  await requireUser();
+  branchId = await branchWithinReach('store.view', branchId);
+  const q = search?.trim();
+  return prisma.partRequestSlip.findMany({
+    take: 500, // newest 500; search reaches older records
+    where: {
+      branchId,
+      ...(q
+        ? {
+            OR: [
+              { referenceNumber: { contains: q, mode: 'insensitive' } },
+              { jobCard: { jobNumber: { contains: q, mode: 'insensitive' } } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      jobCard: { select: { id: true, jobNumber: true } },
+      requestedBy: { select: { fullName: true } },
+      lines: { select: { id: true } },
+    },
+  });
+}
+
+/** Store Part lines on this Job Card that are matched to a catalogue part
+ * and not covered by an active request. Part, quantity, unit and price all
+ * come from the match. */
+export async function getRequestablePartRequestLines(jobCardId: string) {
+  await requireUser();
+  return requestablePartRequestLines(prisma, jobCardId);
+}
+
+async function requestablePartRequestLines(db: Pick<typeof prisma, 'estimate' | 'partRequestSlip'>, jobCardId: string) {
+  const [estimate, existingSlips] = await Promise.all([
+    db.estimate.findUnique({
+      where: { jobCardId },
+      select: {
+        lineItems: {
+          where: { type: 'STORE_PART', matchedPartId: { not: null } },
+          select: {
+            id: true,
+            description: true,
+            quantity: true,
+            unitOfMeasure: true,
+            amount: true,
+            matchedPartId: true,
+            matchedPart: { select: { id: true, name: true, partNumber: true } },
+            partType: { select: { name: true } },
+          },
+        },
+      },
+    }),
+    db.partRequestSlip.findMany({
+      where: { jobCardId, status: { not: 'REJECTED' } },
+      select: { lines: { select: { estimateLineItemId: true } } },
+    }),
+  ]);
+  const alreadyRequestedLineIds = new Set(
+    existingSlips.flatMap((s: (typeof existingSlips)[number]) => s.lines.map((l: { estimateLineItemId: string | null }) => l.estimateLineItemId).filter(Boolean)),
+  );
+  return (estimate?.lineItems ?? []).filter((li: { id: string }) => !alreadyRequestedLineIds.has(li.id));
+}
+
+/** Raises a Store parts request (then HOD approval, Store approval,
+ * release) and moves the Job Card to AWAITING_PARTS. Takes no part or
+ * quantity input: everything comes from the matched estimate lines. */
+export async function requestPartRequestSlip(jobCardId: string): Promise<{ id: string; referenceNumber: string }> {
+  const user = await requireUser();
+  await authorizeOnJobCard('sourcing.request', jobCardId, 'requestPartRequestSlip');
+  const jobCard = await prisma.jobCard.findUnique({ where: { id: jobCardId }, select: { status: true, branchId: true } });
+  if (!jobCard) {
+    throw new SourcingActionError('Job Card not found.');
+  }
+  if (!SOURCEABLE_STATUSES.includes(jobCard.status as (typeof SOURCEABLE_STATUSES)[number])) {
+    throw new SourcingActionError("This Job Card isn't far enough along to request parts yet — it needs to be at least In Progress (the customer has approved the estimate).");
+  }
+  // Built and created with the Job Card locked: a double click (or two
+  // people) can't raise two requests for the same lines, which would reserve
+  // the same parts twice.
+  const { slip, requestableLines, referenceNumber } = await retryOnNumberClash('referenceNumber', () => prisma.$transaction(async (tx) => {
+    await lockExisting(tx, 'jobCard', [jobCardId]);
+    const requestableLines = await requestablePartRequestLines(tx, jobCardId);
+    if (requestableLines.length === 0) {
+      throw new SourcingActionError('There are no matched Store Part lines ready to request — everything has already been requested, or nothing has been matched yet.');
+    }
+
+    const referenceNumber = await generatePartRequestSlipNumber(tx);
+    const slip = await tx.partRequestSlip.create({
+      data: {
+        referenceNumber,
+        jobCardId,
+        branchId: jobCard.branchId,
+        requestedById: user.id,
+        lines: {
+          create: requestableLines.map((l: (typeof requestableLines)[number]) => ({
+            partId: l.matchedPartId as string,
+            estimateLineItemId: l.id,
+            quantityRequested: l.quantity,
+          })),
+        },
+      },
+    });
+    return { slip, requestableLines, referenceNumber };
+  }));
+
+  await syncJobCardSourcingStatus(jobCardId);
+  await writeAuditLog({
+    userId: user.id,
+    action: 'part_request_slip.requested',
+    entityType: 'PartRequestSlip',
+    entityId: slip.id,
+    metadata: { referenceNumber, lineCount: requestableLines.length },
+  });
+  // Each stage is also logged on the Job Card with the reference number,
+  // so its timeline shows the sourcing.
+  await writeAuditLog({
+    userId: user.id,
+    action: 'part_request_slip.requested',
+    entityType: 'JobCard',
+    entityId: jobCardId,
+    metadata: { referenceNumber, lineCount: requestableLines.length },
+  });
+
+  try {
+    const [emailContext, managers, requestedByUser, lineDetails] = await Promise.all([
+      getPartRequestEmailContext(jobCardId),
+      listEligibleManagersForBranch(jobCard.branchId),
+      prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }),
+      prisma.partRequestSlipLine.findMany({
+        where: { slipId: slip.id },
+        select: { quantityRequested: true, part: { select: { name: true, baseUnitOfMeasure: true } } },
+      }),
+    ]);
+    const orgContext = await getSourcingOrgContext(jobCard.branchId, emailContext.departmentName);
+    const portalUrl = portalBaseUrl();
+    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    for (const manager of managers.supervisors) {
+      await sendEmail(
+        manager.email,
+        `Parts request needs your approval — ${referenceNumber}`,
+        renderPartRequestApprovalNeededEmail({
+          recipientName: manager.fullName,
+          requestedByName: requestedByUser?.fullName ?? 'A team member',
+          referenceNumber,
+          jobNumber: emailContext.jobNumber,
+          customerName: emailContext.customer.fullName,
+          vehicle: emailContext.vehicle,
+          requestedAt: new Date(),
+          lines: lineDetails.map((l: (typeof lineDetails)[number]) => ({ partName: l.part.name, quantity: Number(l.quantityRequested), baseUnitOfMeasure: l.part.baseUnitOfMeasure })),
+          approvalUrl: `${portalUrl}/workshop/parts-requests/${slip.id}`,
+          logoUrl,
+          companyName: orgContext.companyName,
+          branchName: orgContext.branchName,
+          departmentName: orgContext.departmentName,
+        }),
+      );
+    }
+  } catch (err) {
+    logFailure('Failed to send Parts Request approval-needed emails', referenceNumber, err);
+  }
+
+  return { id: slip.id, referenceNumber };
+}
+
+/** Step 1 of 3: the Workshop HOD confirms the request before Store checks stock. */
+export async function approvePartRequestSlipByHod(slipId: string, notes?: string): Promise<void> {
+  // Catalogue check first (who may attempt this); branch eligibility and
+  // workflow state are checked below.
+  await authorize('store.prs.approve_hod', undefined, 'approvePartRequestSlipByHod');
+  const slip = await prisma.partRequestSlip.findUnique({ where: { id: slipId }, select: { status: true, branchId: true, jobCardId: true, referenceNumber: true, requestedById: true } });
+  if (!slip) {
+    throw new SourcingActionError('Request not found.');
+  }
+  if (slip.status !== 'PENDING_HOD_APPROVAL') {
+    throw new SourcingActionError('This request is not awaiting HOD approval.');
+  }
+  const user = await requireEligibleManager(slip.branchId, 'store.prs.approve_hod');
+  // Separation of duties: nobody approves their own request.
+  if (user.id === slip.requestedById && !(await signsAgainAsMaster(user.id, 'PartRequestSlip', slipId, 'manager approval'))) await refuse('store.prs.approve_hod', 'approvePartRequestSlipByHod', 'You raised this parts request, so another manager must approve it.');
+  // Nothing more is approved for a job that is cancelled or finished.
+  await assertJobStillOpen(prisma, slip);
+  const claimed = await prisma.partRequestSlip.updateMany({
+    where: { id: slipId, status: 'PENDING_HOD_APPROVAL' },
+    data: { status: 'PENDING_STORE_APPROVAL', hodApprovedById: user.id, hodApprovedAt: new Date(), hodNotes: notes?.trim() || undefined },
+  });
+  // Compare-and-set: if someone else already moved it on (double click,
+  // two people at once), nothing changes and this request stops here.
+  if (claimed.count === 0) throw new Error('This was just done by someone else — refresh to see the latest.');
+  await writeAuditLog({ userId: user.id, action: 'part_request_slip.hod_approved', entityType: 'PartRequestSlip', entityId: slipId });
+
+  // Job Card slips. Vehicle Service slips are handled in the `else if` below.
+  if (slip.jobCardId) {
+    await writeAuditLog({
+      userId: user.id,
+      action: 'part_request_slip.hod_approved',
+      entityType: 'JobCard',
+      entityId: slip.jobCardId,
+      metadata: { referenceNumber: slip.referenceNumber },
+    });
+
+    await notifyTechnicianAndSupervisorOfPartRequestStatus(slip.jobCardId, slipId, slip.referenceNumber, 'hod_approved');
+
+    // Now Store's turn: the same "approval needed" email, sent to Store.
+    try {
+      const [emailContext, storeOfficers, storeManagers, lineDetails] = await Promise.all([
+        getPartRequestEmailContext(slip.jobCardId),
+        listEligibleStoreOfficersForBranch(slip.branchId),
+        listEligibleStoreManagersForBranch(slip.branchId),
+        prisma.partRequestSlipLine.findMany({
+          where: { slipId },
+          select: { quantityRequested: true, part: { select: { name: true, baseUnitOfMeasure: true } } },
+        }),
+      ]);
+      const storeRecipients = new Map<string, { fullName: string; email: string }>();
+      for (const staffMember of [...storeOfficers.staff, ...storeManagers.staff]) {
+        storeRecipients.set(staffMember.id, staffMember);
+      }
+      const orgContext = await getSourcingOrgContext(slip.branchId, emailContext.departmentName);
+      const portalUrl = portalBaseUrl();
+      const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+      for (const recipient of storeRecipients.values()) {
+        await sendEmail(
+          recipient.email,
+          `Parts request needs your approval — ${slip.referenceNumber}`,
+          renderPartRequestApprovalNeededEmail({
+            recipientName: recipient.fullName,
+            requestedByName: 'The Workshop HOD',
+            referenceNumber: slip.referenceNumber,
+            jobNumber: emailContext.jobNumber,
+            customerName: emailContext.customer.fullName,
+            vehicle: emailContext.vehicle,
+            requestedAt: new Date(),
+            lines: lineDetails.map((l: (typeof lineDetails)[number]) => ({ partName: l.part.name, quantity: Number(l.quantityRequested), baseUnitOfMeasure: l.part.baseUnitOfMeasure })),
+            approvalUrl: `${portalUrl}/workshop/parts-requests/${slipId}`,
+            logoUrl,
+            companyName: orgContext.companyName,
+            branchName: orgContext.branchName,
+            departmentName: orgContext.departmentName,
+          }),
+        );
+      }
+    } catch (err) {
+      logFailure('Failed to send Parts Request Store-approval-needed emails', slip.referenceNumber, err);
+    }
+  }
+}
+
+/** Step 2 of 3: Store approves and reserves the stock. Reserving here, not
+ * at release, stops a later request from being promised the same units.
+ * Every line's availability (on hand minus reserved) is checked first. */
+export async function approvePartRequestSlipByStore(slipId: string, notes?: string): Promise<void> {
+  // Catalogue check first (who may attempt this); branch eligibility and
+  // workflow state are checked below.
+  await authorize('store.prs.release', undefined, 'approvePartRequestSlipByStore');
+  const slip = await prisma.partRequestSlip.findUnique({
+    where: { id: slipId },
+    select: {
+      status: true,
+      branchId: true,
+      jobCardId: true,
+      referenceNumber: true,
+      requestedById: true,
+      hodApprovedById: true,
+      lines: { select: { id: true, partId: true, quantityRequested: true, part: { select: { name: true } } } },
+    },
+  });
+  if (!slip) {
+    throw new SourcingActionError('Request not found.');
+  }
+  if (slip.status !== 'PENDING_STORE_APPROVAL') {
+    throw new SourcingActionError('This request is not awaiting Store approval.');
+  }
+  const user = await requireStoreStaff(slip.branchId, 'store.prs.release');
+  // Separation of duties: the person who asked for the parts, or gave the first approval, does not also approve them out of the Store.
+  if ((user.id === slip.requestedById || user.id === slip.hodApprovedById) && !(await signsAgainAsMaster(user.id, 'PartRequestSlip', slipId, 'store release'))) await refuse('store.prs.release', 'approvePartRequestSlipByStore', 'You already took part in this request (asked for it or approved it), so another member of the Store must approve it.');
+
+  for (const line of slip.lines) {
+    const stock = await prisma.partStock.findUnique({ where: { partId: line.partId } });
+    const available = Number(stock?.quantityOnHand ?? 0) - Number(stock?.quantityReserved ?? 0);
+    if (available < Number(line.quantityRequested)) {
+      throw new SourcingActionError(
+        `Not enough available stock for ${line.part.name} — ${available} available, ${Number(line.quantityRequested)} requested.`,
+      );
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Lock order: request, then the job's state, then stock. A cancellation
+    // uses the same order (lib/sourcing-lifecycle.ts), so they queue instead of
+    // deadlocking.
+    await lockRows(tx, 'partRequestSlip', [slipId]);
+    await assertJobStillOpen(tx, slip);
+    // Two storekeepers approving different requests for the same part: the
+    // check above is only a fast answer. Lock the stock rows and decide again
+    // against what is on hand and reserved now.
+    await lockRows(tx, 'partStockByPart', slip.lines.map((l: (typeof slip.lines)[number]) => l.partId));
+    const needed = new Map<string, number>();
+    for (const line of slip.lines) needed.set(line.partId, (needed.get(line.partId) ?? 0) + Number(line.quantityRequested));
+    const stockNow = await tx.partStock.findMany({ where: { partId: { in: Array.from(needed.keys()) } }, select: { partId: true, quantityOnHand: true, quantityReserved: true } });
+    for (const [partId, qty] of needed) {
+      const row = stockNow.find((r: (typeof stockNow)[number]) => r.partId === partId);
+      const available = Number(row?.quantityOnHand ?? 0) - Number(row?.quantityReserved ?? 0);
+      if (available < qty) {
+        const name = slip.lines.find((l: (typeof slip.lines)[number]) => l.partId === partId)?.part.name ?? 'A part';
+        throw new SourcingActionError(`${name} was just reserved for another request — ${Math.max(0, available)} available now, ${qty} requested.`);
+      }
+    }
+    for (const line of slip.lines) {
+      await tx.partStock.update({ where: { partId: line.partId }, data: { quantityReserved: { increment: line.quantityRequested } } });
+    }
+    const claimed = await tx.partRequestSlip.updateMany({
+      where: { id: slipId, status: 'PENDING_STORE_APPROVAL' },
+      data: { status: 'APPROVED', storeApprovedById: user.id, storeApprovedAt: new Date(), storeNotes: notes?.trim() || undefined },
+    });
+    // Compare-and-set: if someone else already moved it on (double click,
+    // two people at once), nothing changes and this request stops here.
+    if (claimed.count === 0) throw new Error('This was just done by someone else — refresh to see the latest.');
+  });
+
+  await writeAuditLog({ userId: user.id, action: 'part_request_slip.store_approved', entityType: 'PartRequestSlip', entityId: slipId });
+
+  if (slip.jobCardId) {
+    await writeAuditLog({
+      userId: user.id,
+      action: 'part_request_slip.store_approved',
+      entityType: 'JobCard',
+      entityId: slip.jobCardId,
+      metadata: { referenceNumber: slip.referenceNumber },
+    });
+
+    await notifyTechnicianAndSupervisorOfPartRequestStatus(slip.jobCardId, slipId, slip.referenceNumber, 'store_approved');
+  }
+}
+
+/** Step 3 of 3: a storekeeper releases the parts. Full release only (no
+ * partial or backorder). Turns the reservation into a stock reduction and
+ * updates the tracking records: oldest batches first for BATCH, the chosen
+ * units for SERIALIZED, FIFO receipt layers for QUANTITY. */
+export async function releasePartRequestSlip(
+  slipId: string,
+  receivedBy: { receivedByUserId?: string; receivedByName?: string },
+  lineSerials?: Record<string, string[]>,
+): Promise<void> {
+  // Catalogue check first (who may attempt this); branch eligibility and
+  // workflow state are checked below.
+  await authorize('store.prs.release', undefined, 'releasePartRequestSlip');
+  const slip = await prisma.partRequestSlip.findUnique({
+    where: { id: slipId },
+    select: {
+      status: true,
+      branchId: true,
+      jobCardId: true,
+      referenceNumber: true,
+      lines: {
+        select: {
+          id: true,
+          partId: true,
+          quantityRequested: true,
+          part: { select: { name: true, trackingType: true } },
+        },
+      },
+    },
+  });
+  if (!slip) {
+    throw new SourcingActionError('Request not found.');
+  }
+  if (slip.status !== 'APPROVED') {
+    throw new SourcingActionError('This request has not been approved for release.');
+  }
+  if (!receivedBy.receivedByUserId && !receivedBy.receivedByName?.trim()) {
+    throw new SourcingActionError('Record who is collecting this: a staff member or a name.');
+  }
+  const user = await requireStoreStaff(slip.branchId, 'store.prs.release');
+
+  // Validate before writing: a SERIALIZED line needs exactly as many serials
+  // as its quantity, each an in-stock unit of that part.
+  for (const line of slip.lines) {
+    if (line.part.trackingType === 'SERIALIZED') {
+      const serials = (lineSerials?.[line.id] ?? []).map((s) => s.trim()).filter(Boolean);
+      if (serials.length !== Number(line.quantityRequested)) {
+        throw new SourcingActionError(
+          `${line.part.name}: ${pluralize(serials.length, 'serial number')} provided, but ${Number(line.quantityRequested)} requested. These must match exactly.`,
+        );
+      }
+      const inStockCount = await prisma.partSerial.count({
+        where: { partId: line.partId, serialNumber: { in: serials }, status: 'IN_STOCK' },
+      });
+      if (inStockCount !== serials.length) {
+        throw new SourcingActionError(`${line.part.name}: one or more of the serial numbers provided aren't currently in stock for this part.`);
+      }
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Claim the slip first (compare-and-set) so a simultaneous release stops
+    // before touching stock, then lock this slip's stock rows in a fixed order
+    // so two releases of the same parts queue instead of deadlocking or both
+    // drawing down the same batches.
+    claimedOrStale(await tx.partRequestSlip.updateMany({
+      where: { id: slipId, status: 'APPROVED' },
+      data: {
+        status: 'RELEASED',
+        releasedById: user.id,
+        releasedAt: new Date(),
+        receivedByUserId: receivedBy.receivedByUserId,
+        receivedByName: receivedBy.receivedByName?.trim() || undefined,
+      },
+    }), 'This was just released by someone else — refresh to see the latest.');
+    // Never release parts to a job that is cancelled or finished.
+    await assertJobStillOpen(tx, slip);
+    await lockRows(tx, 'partStockByPart', slip.lines.map((l: (typeof slip.lines)[number]) => l.partId));
+    for (const line of slip.lines) {
+      const qty = Number(line.quantityRequested);
+      await tx.partStock.update({
+        where: { partId: line.partId },
+        data: { quantityOnHand: { decrement: qty }, quantityReserved: { decrement: qty } },
+      });
+
+      if (line.part.trackingType === 'BATCH') {
+        let remaining = qty;
+        const batches = await tx.partBatch.findMany({
+          where: { partId: line.partId, remainingQuantity: { gt: 0 } },
+          orderBy: { receivedAt: 'asc' },
+        });
+        for (const batch of batches) {
+          if (remaining <= 0) break;
+          const take = Math.min(remaining, Number(batch.remainingQuantity));
+          await tx.partBatch.update({ where: { id: batch.id }, data: { remainingQuantity: { decrement: take } } });
+          // Record which batch this release drew from, and how much, for warranty
+          // and quality traces.
+          await tx.partBatchConsumption.create({ data: { batchId: batch.id, slipLineId: line.id, quantityTaken: take } });
+          remaining -= take;
+        }
+        if (remaining > 0) {
+          // The aggregate is already correct; log the gap in the batch records.
+          logFailure('Batch records did not cover the full released quantity', line.partId, remaining);
+        }
+      } else if (line.part.trackingType === 'SERIALIZED') {
+        const serials = (lineSerials?.[line.id] ?? []).map((s) => s.trim()).filter(Boolean);
+        for (const serialNumber of serials) {
+          const issued = await tx.partSerial.updateMany({
+            where: { partId: line.partId, serialNumber, status: 'IN_STOCK' },
+            // Which release this unit was issued against, for warranty traces.
+            data: { status: 'ISSUED', issuedToSlipLineId: line.id },
+          });
+          // Another release may have issued this unit since the check above; never
+          // release a unit twice.
+          if (issued.count !== 1) throw new StaleStateError(`${line.part.name}: serial ${serialNumber} was just issued on another request — refresh and choose another unit.`);
+        }
+      } else {
+        // QUANTITY parts: each goods receipt line is a FIFO layer. Replay earlier
+        // receipts and releases to get what each delivery still holds, then draw
+        // oldest-first and record one row per delivery touched, so the part is
+        // traceable to its GRN. See lib/inventory/quantity-fifo.ts.
+        const [receiptLines, priorConsumptions] = await Promise.all([
+          tx.goodsReceiptLine.findMany({
+            where: { partId: line.partId },
+            select: { id: true, quantityInBaseUnit: true, goodsReceipt: { select: { receivedAt: true } } },
+          }),
+          tx.partQuantityConsumption.findMany({
+            where: { partId: line.partId },
+            select: { id: true, consumedAt: true, quantityTaken: true, goodsReceiptLineId: true },
+          }),
+        ]);
+        const layers = receiptLines.map((r: (typeof receiptLines)[number]) => ({
+          id: r.id,
+          receivedAt: r.goodsReceipt.receivedAt,
+          quantity: Number(r.quantityInBaseUnit),
+        }));
+        const current = replayQuantityFifo(
+          layers,
+          priorConsumptions.map((c: (typeof priorConsumptions)[number]) => ({
+            id: c.id,
+            consumedAt: c.consumedAt,
+            quantity: Number(c.quantityTaken),
+            goodsReceiptLineId: c.goodsReceiptLineId,
+          })),
+        );
+        const plan = planQuantityRelease(layers, current.layers, qty);
+        for (const portion of plan) {
+          await tx.partQuantityConsumption.create({
+            data: { partId: line.partId, slipLineId: line.id, quantityTaken: portion.quantity, goodsReceiptLineId: portion.goodsReceiptLineId },
+          });
+        }
+        if (plan.some((p: (typeof plan)[number]) => p.goodsReceiptLineId === null)) {
+          // As above: the aggregate is correct, but receipts didn't cover the release.
+          logFailure('Goods Receipt layers did not cover the full released quantity', line.partId);
+        }
+      }
+
+      await tx.partRequestSlipLine.update({ where: { id: line.id }, data: { quantityReleased: qty } });
+    }
+  });
+
+  if (slip.jobCardId) {
+    await syncJobCardSourcingStatus(slip.jobCardId);
+  }
+  await writeAuditLog({
+    userId: user.id,
+    action: 'part_request_slip.released',
+    entityType: 'PartRequestSlip',
+    entityId: slipId,
+    metadata: { receivedByUserId: receivedBy.receivedByUserId, receivedByName: receivedBy.receivedByName },
+  });
+  if (slip.jobCardId) {
+    await writeAuditLog({
+      userId: user.id,
+      action: 'part_request_slip.released',
+      entityType: 'JobCard',
+      entityId: slip.jobCardId,
+      metadata: { referenceNumber: slip.referenceNumber, receivedByUserId: receivedBy.receivedByUserId, receivedByName: receivedBy.receivedByName },
+    });
+
+    await notifyTechnicianAndSupervisorOfPartRequestStatus(slip.jobCardId, slipId, slip.referenceNumber, 'released');
+  }
+}
+
+/** Rejects a request still awaiting HOD or Store approval, by whoever would
+ * approve at that stage. Not possible once APPROVED, since stock is reserved. */
+export async function rejectPartRequestSlip(slipId: string, reason: string): Promise<void> {
+  const slip = await prisma.partRequestSlip.findUnique({ where: { id: slipId }, select: { status: true, branchId: true, jobCardId: true, referenceNumber: true } });
+  if (!slip) {
+    throw new SourcingActionError('Request not found.');
+  }
+  if (slip.status !== 'PENDING_HOD_APPROVAL' && slip.status !== 'PENDING_STORE_APPROVAL') {
+    throw new SourcingActionError('This request can no longer be rejected.');
+  }
+  if (!reason?.trim()) {
+    throw new SourcingActionError('A reason is required.');
+  }
+  const stage = slip.status === 'PENDING_HOD_APPROVAL' ? 'HOD' : 'STORE';
+  const user = stage === 'HOD' ? await requireEligibleManager(slip.branchId, 'store.prs.approve_hod') : await requireStoreStaff(slip.branchId, 'store.prs.release');
+
+  // Compare-and-set: only from the stage the rejecter saw. If Store approved
+  // it meanwhile, stock is reserved; a stale reject must not overwrite
+  // APPROVED and strand the reservation.
+  claimedOrStale(await prisma.partRequestSlip.updateMany({
+    where: { id: slipId, status: slip.status },
+    data: { status: 'REJECTED', rejectedById: user.id, rejectedAt: new Date(), rejectionStage: stage, rejectionReason: reason.trim() },
+  }));
+
+  if (slip.jobCardId) {
+    await syncJobCardSourcingStatus(slip.jobCardId);
+  }
+  await writeAuditLog({
+    userId: user.id,
+    action: 'part_request_slip.rejected',
+    entityType: 'PartRequestSlip',
+    entityId: slipId,
+    metadata: { stage, reason: reason.trim() },
+  });
+  if (slip.jobCardId) {
+    await writeAuditLog({
+      userId: user.id,
+      action: 'part_request_slip.rejected',
+      entityType: 'JobCard',
+      entityId: slip.jobCardId,
+      metadata: { referenceNumber: slip.referenceNumber, stage, reason: reason.trim() },
+    });
+
+    await notifyTechnicianAndSupervisorOfPartRequestStatus(slip.jobCardId, slipId, slip.referenceNumber, 'rejected', reason.trim());
+  }
+}

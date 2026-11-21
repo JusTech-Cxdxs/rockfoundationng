@@ -1,0 +1,99 @@
+import { signedInSession } from '@/lib/assist/server';
+import { Suspense, type ReactNode } from 'react';
+import { cookies, headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { prisma } from '@ejo/database';
+import { auth } from '@/lib/auth';
+import { currentAssist, getBranchView, getPrincipal } from '@/lib/authz/server';
+import { AssistBanner } from '@/components/AssistBanner';
+import { navigationFor } from '@/lib/authz/navigation';
+import { AppShell } from '@/components/AppShell';
+import { NotificationProvider } from '@/components/NotificationProvider';
+import { OfflineNotice } from '@/components/OfflineNotice';
+import { portalConfig } from '@/lib/site-config';
+import { decide, primaryRoleLabel, isHqRole } from '@/lib/authz/catalogue';
+import { EnyoPanel } from '@/components/enyo/EnyoPanel';
+import { NavProgress } from '@/components/NavProgress';
+import { SelectSearch } from '@/components/SelectSearch';
+import { BranchLensBar } from '@/components/BranchLensBar';
+import { getBranchLensOptions } from '@/lib/actions/branch-lens';
+
+/**
+ * Signed-in shell. The user's name and role come from Prisma (`fullName`),
+ * not Better Auth's session.user, whose `name` field our User model doesn't
+ * have. Notifications and the marquee are fetched once here for every page.
+ */
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const session = await signedInSession();
+  if (!session?.user?.id) {
+    // A cookie the server no longer accepts (session ended): clear it, then sign in —
+    // never a /login ↔ /dashboard loop with the middleware.
+    redirect('/signed-out');
+  }
+
+  // The person and their permissions are read in parallel (one round trip, not two).
+  const [userResult, principalResult, assistResult] = await Promise.allSettled([prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      fullName: true,
+      isActive: true,
+      organisationId: true,
+      organisation: { select: { name: true } },
+      roles: { select: { role: { select: { name: true, slug: true, isSuperAdmin: true } } } },
+      branch: { select: { name: true } },
+      department: { select: { name: true } },
+    },
+  }), getPrincipal(), currentAssist()]);
+  // Deactivated (or removed) while signed in: out, immediately.
+  if (userResult.status === 'rejected') throw userResult.reason;
+  const user = userResult.value;
+  if (!user?.isActive) redirect('/signed-out?reason=inactive');
+  // (A switched-off person never reaches this: their permissions are not loaded.)
+  if (principalResult.status === 'rejected') throw principalResult.reason;
+  const principal = principalResult.value;
+  // Working on a colleague's behalf: the menu is theirs, and a banner says so on every page.
+  const assist = assistResult.status === 'fulfilled' ? assistResult.value : null;
+
+
+  // Headquarters roles: the branch bar (all branches, or one) — not while working for a colleague.
+  const lens = assist ? null : await getBranchLensOptions().catch(() => null);
+  // The kind of branch in view: the menu offers only the areas that branch has (a plant has no Inventory; a workshop has no line).
+  const view = await getBranchView().catch(() => ({}));
+
+  // The role a person is shown with, and where: "Manager · Victoria Island" (a manager of the Victoria Island branch), "Store Manager · Store".
+  const roleSlugs = (user.roles ?? []).map((r: { role: { slug: string } }) => r.role.slug);
+  const isMaster = (user.roles ?? []).some((r: { role: { isSuperAdmin: boolean } }) => r.role.isSuperAdmin);
+  const roleLabel = primaryRoleLabel(roleSlugs, isMaster) ?? user.roles[0]?.role.name ?? 'No role assigned';
+  const hq = isHqRole(roleSlugs);
+  const where = isMaster ? null : hq ? 'Headquarters' : user.department?.name && !/^(manager|branch administrator)$/i.test(roleLabel) ? user.department.name : user.branch?.name ?? null;
+  const roleName = where ? `${roleLabel} · ${where}` : roleLabel;
+
+  // The menu folded to icons (desktop), remembered on this browser — read here so it never flickers.
+  const collapsed = (await cookies()).get('ejo-sidebar')?.value === 'collapsed';
+
+  return (
+    <NotificationProvider userId={session?.user?.id ? (assist ? `${session.user.id}.assist.${assist.subject.id}` : session.user.id) : null}>
+      <AppShell
+        items={assist ? navigationFor(principal, view).filter((i) => i.key !== 'mail') : navigationFor(principal, view)}
+        organisationName={user.organisation?.name ?? portalConfig.companyName}
+        userName={user?.fullName ?? 'Unknown user'}
+        roleName={roleName}
+        initialCollapsed={collapsed}
+        banner={assist ? <AssistBanner colleague={assist.subject.name} role={assist.subject.roleLabel} expiresAt={assist.expiresAt.toISOString()} /> : null}
+        lensBar={lens && lens.branches.length ? <BranchLensBar options={lens} /> : null}
+      >
+        {children}
+      </AppShell>
+      {/* Enyo: shows itself only when the status route says it is ready (administrators see a quiet "not switched on yet"). */}
+      <EnyoPanel
+        userId={session.user.id}
+        userName={user?.fullName ?? ''}
+        roleName={roleName}
+        canManage={decide(principal, 'enyo.manage').allowed}
+      />
+      <OfflineNotice />
+      <Suspense fallback={null}><NavProgress /></Suspense>
+      <SelectSearch />
+    </NotificationProvider>
+  );
+}

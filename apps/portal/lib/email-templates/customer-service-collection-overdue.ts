@@ -1,0 +1,41 @@
+import { renderEmailLayout, html, greeting, para, details } from './layout';
+import { ordinal } from '../utils/ordinal';
+
+export type CustomerServiceCollectionOverdueEmailOptions = {
+  customerName: string;
+  serviceNumber: string;
+  vehicleDescription: string;
+  /** e.g. "5 days" */
+  daysSinceCancellationLabel: string;
+  reminderNumber: number;
+  dashboardUrl: string;
+  logoUrl: string;
+  companyName: string;
+  branchName: string;
+};
+
+/** A cancelled Vehicle Service whose vehicle is still at the branch. */
+export function renderCustomerServiceCollectionOverdueEmail(o: CustomerServiceCollectionOverdueEmailOptions): string {
+  const bodyHtml = html`
+    ${greeting(o.customerName)}
+    ${para(`Vehicle Service ${o.serviceNumber} for your ${o.vehicleDescription} was cancelled ${o.daysSinceCancellationLabel} ago, and the vehicle is still with us at ${o.branchName || 'the branch'}. Please arrange to collect it as soon as you can.`)}
+    ${details([
+      ['Vehicle Service', o.serviceNumber],
+      ['Vehicle', o.vehicleDescription],
+      ['Cancelled', `${o.daysSinceCancellationLabel} ago`],
+      ['Reminder', `${ordinal(Math.max(1, o.reminderNumber))} reminder`],
+    ])}
+    ${para('If you need a different arrangement, please contact the branch and we will work it out with you.')}`;
+  return renderEmailLayout({
+    previewText: `Your ${o.vehicleDescription} is still at the branch. Please arrange collection.`,
+    companyName: o.companyName,
+    logoUrl: o.logoUrl,
+    orgContext: [o.branchName],
+    status: { label: 'Collection needed', tone: 'warning' },
+    heading: 'Please collect your vehicle',
+    bodyHtml,
+    ctaLabel: 'View in customer portal',
+    ctaUrl: o.dashboardUrl,
+    audience: 'customer',
+  });
+}

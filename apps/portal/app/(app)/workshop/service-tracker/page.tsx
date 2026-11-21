@@ -1,0 +1,362 @@
+import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
+import { guardAnyPage, allows, getPrincipal } from '@/lib/authz/server';
+import { prisma } from '@ejo/database';
+import { ServiceIntervalForm } from '@/components/ServiceIntervalForm';
+import { getServiceTracker } from '@/lib/actions/vehicle-service';
+import { currentUserIsMasterAdmin } from '@/lib/actions/workshop';
+import { bookServiceHref, separateVehicleServiceOn, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
+import { serviceAnchorHref } from '@/lib/vehicle-service-cycle';
+import { getWorkshopBranchId, workshopContactFor } from '@/lib/workshop-core';
+import { WhatsAppLink } from '@/components/WhatsAppLink';
+import { customerWhatsAppUrl, serviceReminderMessage } from '@/lib/whatsapp-messages';
+import { attendToOverdueVehicleFormAction, sendManualServiceReminderFormAction, runServiceRemindersNowFormAction } from '@/lib/actions/vehicle-service-form-handlers';
+import { LoadingLink } from '@/components/LoadingLink';
+import { FormPendingOverlay } from '@/components/FormPendingOverlay';
+import { SubmitButton } from '@/components/SubmitButton';
+import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
+import { pluralize } from '@/lib/utils/pluralize';
+import { formatDateOnly, formatDateTime } from '@/lib/utils/format-date';
+import { LiveSearchInput } from '@/components/LiveSearchInput';
+import { StopTrackingDialog } from '@/components/StopTrackingDialog';
+import { BackLink, PageTitle } from '@/components/ui';
+import { CustomerLink } from '@/components/CustomerLink';
+
+const STAGE_LABEL: Record<number, string> = { 1: '1st — Friendly', 2: '2nd — Follow-up', 3: '3rd — Due', 4: 'Overdue' };
+
+type Filter = 'all' | 'overdue' | 'due_soon' | 'on_track' | 'in_workshop' | 'attended' | 'lapsed';
+
+/**
+ * Service Tracker: aftercare once a vehicle has left. When each vehicle is
+ * next due, whether it is due soon, overdue or already back in, and the
+ * reminders sent for the current cycle.
+ */
+export default async function ServiceTrackerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string; q?: string; type?: string; status?: string; error?: string; sent?: string; evaluated?: string; failed?: string; editInterval?: string }>;
+}) {
+  await guardAnyPage(['workshop.view'], '/workshop');
+  const { filter: rawFilter, q, type: rawType, status, error, sent, evaluated, failed, editInterval } = await searchParams;
+  // Customer names link to their Customers (CRM) page for those who may open it.
+  const canSeeCustomers = await allows('crm.view');
+  const vehicleType = rawType === 'PASSENGER' || rawType === 'COMMERCIAL' ? rawType : null;
+  const filter: Filter = (['overdue', 'due_soon', 'on_track', 'in_workshop', 'attended', 'lapsed'] as const).includes(rawFilter as never) ? (rawFilter as Filter) : 'all';
+  const branchId = await getWorkshopBranchId();
+  const [tracker, workshop] = await Promise.all([getServiceTracker(branchId), workshopContactFor(branchId)]);
+  const { remindersLast30Days, canRunReminders } = tracker;
+  // The organisation's service interval: set here as well as on the Vehicle Service page (which has no Workshop tile in
+  // this edition). The same action and the same rule: Master Admin, for their own organisation.
+  const principal = await getPrincipal();
+  const intervalOrg = principal.organisationId && (await currentUserIsMasterAdmin())
+    ? await prisma.organisation.findUnique({ where: { id: principal.organisationId }, select: { id: true, primaryServiceIntervalKm: true, primaryServiceIntervalDays: true } })
+    : null;
+  // Passenger / Commercial filter narrows everything below, counts included.
+  const vehicles = vehicleType ? tracker.vehicles.filter((v) => v.vehicleType === vehicleType) : tracker.vehicles;
+
+  const counts = {
+    all: vehicles.length,
+    overdue: vehicles.filter((v) => v.status === 'OVERDUE' && !v.attendedAt && !v.lapsed).length,
+    lapsed: vehicles.filter((v) => v.lapsed && !v.attendedAt).length,
+    due_soon: vehicles.filter((v) => v.status === 'DUE_SOON' && !v.attendedAt).length,
+    on_track: vehicles.filter((v) => v.status === 'ON_TRACK').length,
+    in_workshop: vehicles.filter((v) => v.inWorkshop).length,
+    attended: vehicles.filter((v) => v.attendedAt).length,
+  };
+  const dueNow = vehicles.filter((v) => v.reminderDue).length;
+  const query = q?.trim().toLowerCase();
+  const shown = vehicles
+    .filter((v) =>
+      filter === 'all' ? true
+        : filter === 'lapsed' ? v.lapsed && !v.attendedAt
+        : filter === 'overdue' ? v.status === 'OVERDUE' && !v.attendedAt && !v.lapsed
+          : filter === 'due_soon' ? v.status === 'DUE_SOON' && !v.attendedAt
+            : filter === 'on_track' ? v.status === 'ON_TRACK'
+              : filter === 'in_workshop' ? Boolean(v.inWorkshop)
+                : Boolean(v.attendedAt),
+    )
+    .filter((v) => !query || [v.vehicleDescription, v.plateNumber ?? '', v.customerName, v.lastService.serviceNumber].join(' ').toLowerCase().includes(query));
+
+  // Full, literal class names only — Tailwind generates just the classes
+  // it can find as complete strings in the source.
+  const TONE = {
+    primary: { bg: 'bg-[var(--ejo-primary)]/5', border: 'border-[var(--ejo-primary)]/30', borderActive: 'border-[var(--ejo-primary)]', text: 'text-[var(--ejo-primary)]' },
+    success: { bg: 'bg-[var(--ejo-success)]/5', border: 'border-[var(--ejo-success)]/30', borderActive: 'border-[var(--ejo-success)]', text: 'text-[var(--ejo-success)]' },
+    warning: { bg: 'bg-[var(--ejo-warning)]/5', border: 'border-[var(--ejo-warning)]/30', borderActive: 'border-[var(--ejo-warning)]', text: 'text-[var(--ejo-warning)]' },
+    error: { bg: 'bg-[var(--ejo-error)]/5', border: 'border-[var(--ejo-error)]/30', borderActive: 'border-[var(--ejo-error)]', text: 'text-[var(--ejo-error)]' },
+    info: { bg: 'bg-[var(--ejo-info)]/5', border: 'border-[var(--ejo-info)]/30', borderActive: 'border-[var(--ejo-info)]', text: 'text-[var(--ejo-info)]' },
+  } as const;
+  const card = (key: Filter, label: string, value: number, tone: keyof typeof TONE) => {
+    const t = TONE[tone];
+    return (
+      <LoadingLink
+        key={key}
+        href={`/workshop/service-tracker?${[key === 'all' ? null : `filter=${key}`, q ? `q=${encodeURIComponent(q)}` : null, vehicleType ? `type=${vehicleType}` : null].filter(Boolean).join('&')}`}
+        className={`block rounded-[var(--ejo-radius-lg)] border p-4 transition hover:opacity-80 ${t.bg} ${filter === key ? t.borderActive : t.border}`}
+      >
+        <p className="text-xs text-[var(--ejo-text-muted)]">{label}</p>
+        <p className={`mt-1 text-2xl font-bold ${t.text}`}>{value}</p>
+      </LoadingLink>
+    );
+  };
+
+  return (
+    <div className="p-8">
+      <BackLink href="/workshop" label="Back to Workshop" className="mb-4" />
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <PageTitle icon="gauge">Service Tracker</PageTitle>
+          <p className="mt-1 max-w-3xl text-sm text-[var(--ejo-text-muted)]">
+            Vehicles that have left the workshop: when each is next due (mileage or date, whichever comes first),
+            where it stands now, and the reminders sent. Vehicles still with us are on{' '}
+            <LoadingLink href={separateVehicleServiceOn() ? '/workshop/vehicle-service-custody' : '/workshop/custody'} className="text-[var(--ejo-primary)] hover:underline">
+              Vehicles In Custody
+            </LoadingLink>
+            .
+          </p>
+        </div>
+        {intervalOrg ? <ServiceIntervalForm organisation={intervalOrg} editing={editInterval === 'true'} path="/workshop/service-tracker" /> : null}
+        {canRunReminders && dueNow > 0 ? (
+          <form action={runServiceRemindersNowFormAction}>
+            <FormPendingOverlay />
+            <SubmitButton
+              label={`Send all ${pluralize(dueNow, 'due reminder')}`}
+              pendingLabel="Sending…"
+              className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            />
+          </form>
+        ) : null}
+      </div>
+      <p className="mb-6 text-xs text-[var(--ejo-text-muted)]">
+        Reminders are never sent automatically. A Send button appears when one is due: a first note when the vehicle is due
+        soon (within 1,000 km or 30 days), follow-ups 7 working days apart, then an overdue reminder. Nothing is due while
+        the vehicle is back in the workshop or once it has been attended to.
+      </p>
+
+      {error ? (
+        <div className="mb-6 max-w-2xl"><FormFeedbackBanner kind="error" message={error} /></div>
+      ) : null}
+      {status === 'interval_updated' ? (
+        <div className="mb-6 max-w-2xl"><FormFeedbackBanner kind="success" message="Primary Service interval updated." /></div>
+      ) : null}
+      {status === 'reminder_sent' ? (
+        <div className="mb-6 max-w-2xl"><FormFeedbackBanner kind="success" message="Reminder sent to the customer." /></div>
+      ) : null}
+      {status === 'tracking_stopped' ? (
+        <div className="mb-6 max-w-2xl"><FormFeedbackBanner kind="success" message="Tracking stopped for this vehicle — it restarts automatically after its next completed service." /></div>
+      ) : null}
+      {status === 'attended' ? (
+        <div className="mb-6 max-w-2xl"><FormFeedbackBanner kind="success" message="Marked attended to — no further reminders for this prediction." /></div>
+      ) : null}
+      {status === 'reminders_run' ? (
+        <div className="mb-6 max-w-2xl">
+          <FormFeedbackBanner
+            kind="success"
+            message={`Reminder run complete — ${pluralize(Number(evaluated ?? 0), 'vehicle')} needed a reminder, ${pluralize(Number(sent ?? 0), 'reminder')} sent${Number(failed ?? 0) > 0 ? `, ${failed} failed` : ''}.`}
+          />
+        </div>
+      ) : null}
+
+      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        {card('all', 'Tracked vehicles', counts.all, 'primary')}
+        {card('on_track', 'On Track', counts.on_track, 'success')}
+        {card('due_soon', 'Due Soon', counts.due_soon, 'warning')}
+        {card('overdue', 'Overdue', counts.overdue, 'error')}
+        {card('in_workshop', 'In Workshop', counts.in_workshop, 'info')}
+        {counts.lapsed > 0 || filter === 'lapsed' ? card('lapsed', 'Lapsed (1 year+)', counts.lapsed, 'primary') : null}
+        <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-4">
+          <p className="text-xs text-[var(--ejo-text-muted)]">Reminders sent (30 days)</p>
+          <p className="mt-1 text-2xl font-bold text-[var(--ejo-text)]">{remindersLast30Days}</p>
+        </div>
+      </div>
+
+      <form className="mb-4 flex gap-2" action="/workshop/service-tracker">
+        {filter !== 'all' ? <input type="hidden" name="filter" value={filter} /> : null}
+        <select
+          name="type"
+          defaultValue={vehicleType ?? ''}
+          className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
+        >
+          <option value="">All vehicle types</option>
+          <option value="PASSENGER">Passenger</option>
+          <option value="COMMERCIAL">Commercial</option>
+        </select>
+        <LiveSearchInput
+          type="search" name="q"
+          defaultValue={q ?? ''}
+          placeholder="Search by vehicle, plate, customer or service number…"
+          className="w-full max-w-md rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
+        />
+        <button type="submit" className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-surface)]">
+          Search
+        </button>
+        {filter === 'attended' ? null : (
+          <LoadingLink href="/workshop/service-tracker?filter=attended" className="inline-flex items-center px-2 text-xs text-[var(--ejo-text-muted)] hover:underline">
+            Not being tracked ({counts.attended})
+          </LoadingLink>
+        )}
+      </form>
+
+      {shown.length === 0 ? (
+        <p className="text-sm text-[var(--ejo-text-muted)]">
+          {vehicles.length === 0 ? 'No vehicles are being tracked yet — tracking starts the moment a Vehicle Service is completed.' : 'Nothing matches this view.'}
+        </p>
+      ) : (
+        <ResponsiveTable className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--ejo-border)] bg-[var(--ejo-bg)] text-left text-xs text-[var(--ejo-text-muted)]">
+                <th className="px-3 py-2">Vehicle / Customer</th>
+                <th className="px-3 py-2">Last Service</th>
+                <th className="px-3 py-2">Next Due</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Reminders (this cycle)</th>
+                <th className="px-3 py-2 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((v) => {
+                const left = [
+                  v.kmRemaining !== null ? (v.kmRemaining <= 0 ? `${Math.abs(v.kmRemaining).toLocaleString('en-NG')} km over` : `${v.kmRemaining.toLocaleString('en-NG')} km left`) : null,
+                  v.daysRemaining !== null ? (v.daysRemaining <= 0 ? `${pluralize(Math.abs(v.daysRemaining), 'day')} over` : `${pluralize(v.daysRemaining, 'day')} left`) : null,
+                ].filter(Boolean).join(' · ');
+                const badge = v.inWorkshop
+                  ? { text: 'In Workshop', cls: 'bg-[var(--ejo-info)]/15 text-[var(--ejo-info)]' }
+                  : v.attendedAt
+                    ? { text: 'Attended To', cls: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]' }
+                    : v.lapsed
+                      ? { text: 'Lapsed', cls: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]' }
+                    : v.status === 'OVERDUE'
+                      ? { text: 'Overdue', cls: 'bg-[var(--ejo-error)]/15 text-[var(--ejo-error)]' }
+                      : v.status === 'DUE_SOON'
+                        ? { text: 'Due Soon', cls: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]' }
+                        : { text: 'On Track', cls: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' };
+              
+                return (
+                  <tr key={v.vehicleId} className="border-b border-[var(--ejo-border)] align-top last:border-0">
+                    <td className="px-3 py-2">
+                      <LoadingLink href={`/workshop/vehicles/${v.vehicleId}/edit`} className="font-medium text-[var(--ejo-primary)] hover:underline">
+                        {v.vehicleDescription}
+                      </LoadingLink>
+                      <div className="text-xs text-[var(--ejo-text-muted)]">
+                        {v.plateNumber ?? '—'} · <CustomerLink id={v.customerId} name={v.customerName} canView={canSeeCustomers} />
+                      </div>
+                    </td>
+                    <td data-label="Last Service" className="px-3 py-2 text-xs">
+                      <LoadingLink href={serviceAnchorHref(v)} className="text-[var(--ejo-primary)] hover:underline">
+                        {v.lastService.serviceNumber}
+                      </LoadingLink>
+                      {v.viaJobCard ? (
+                        <>
+                          {' '}via{' '}
+                          <LoadingLink href={`/workshop/job-cards/${v.viaJobCard.id}`} className="text-[var(--ejo-primary)] hover:underline">
+                            {v.viaJobCard.jobNumber}
+                          </LoadingLink>
+                        </>
+                      ) : null}
+                      <div className="text-[var(--ejo-text-muted)]">
+                        {v.lastService.date ? formatDateOnly(v.lastService.date) : '—'}
+                        {v.lastService.mileage != null ? ` · ${v.lastService.mileage.toLocaleString('en-NG')} km` : ''}
+                      </div>
+                    </td>
+                    <td data-label="Next Due" className="px-3 py-2 text-xs">
+                      <div className="text-[var(--ejo-text)]">
+                        {v.nextServiceDueOdometer != null ? `${v.nextServiceDueOdometer.toLocaleString('en-NG')} km` : ''}
+                        {v.nextServiceDueOdometer != null && v.nextServiceDueDate ? ' or ' : ''}
+                        {v.nextServiceDueDate ? formatDateOnly(v.nextServiceDueDate) : ''}
+                      </div>
+                      {left ? <div className="text-[var(--ejo-text-muted)]">{left}</div> : null}
+                    </td>
+                    <td data-label="Status" className="px-3 py-2">
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.cls}`}>{badge.text}</span>
+                      {v.inWorkshop ? (
+                        <div className="mt-1 text-xs">
+                          <LoadingLink
+                            href={v.inWorkshop.kind === 'JOB_CARD' ? `/workshop/job-cards/${v.inWorkshop.id}` : `/workshop/vehicle-service/${v.inWorkshop.id}`}
+                            className="text-[var(--ejo-primary)] hover:underline"
+                          >
+                            {v.inWorkshop.number}
+                          </LoadingLink>
+                        </div>
+                      ) : null}
+                    </td>
+                    <td data-label="Reminders (this cycle)" className="px-3 py-2 text-xs text-[var(--ejo-text-muted)]">
+                      {v.reminderDue ? (
+                        <div className="mb-1 font-medium text-[var(--ejo-warning)]">Due now: {STAGE_LABEL[v.reminderDue.stage]}</div>
+                      ) : v.nextReminderFrom ? (
+                        <div className="mb-1">
+                          {STAGE_LABEL[v.status === 'OVERDUE' ? 4 : v.reminders.lastStage === 1 ? 2 : 3]} available from {formatDateOnly(v.nextReminderFrom)}
+                          <div className="text-[10px]">Reminders are spaced 7 working days apart.</div>
+                        </div>
+                      ) : v.inWorkshop ? (
+                        <div className="mb-1">Held — in the workshop</div>
+                      ) : null}
+                      {v.reminders.sentThisCycle === 0 ? (
+                        'None sent yet'
+                      ) : (
+                        <>
+                          {pluralize(v.reminders.sentThisCycle, 'reminder')}
+                          {v.reminders.lastSentAt ? (
+                            <div>
+                              Last: {v.reminders.lastStage ? STAGE_LABEL[v.reminders.lastStage] ?? `Stage ${v.reminders.lastStage}` : ''} — {formatDateTime(v.reminders.lastSentAt)}
+                              {v.reminders.lastSentByName ? ` by ${v.reminders.lastSentByName}` : ''}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </td>
+                    <td data-actions className="px-3 py-2">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {v.reminderDue ? (
+                          <form action={sendManualServiceReminderFormAction}>
+                            <FormPendingOverlay />
+                            <input type="hidden" name="vehicleId" value={v.vehicleId} />
+                            <input type="hidden" name="returnTo" value="/workshop/service-tracker" />
+                            <SubmitButton
+                              label="Send reminder"
+                              pendingLabel="Sending…"
+                              className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-warning)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
+                            />
+                          </form>
+                        ) : null}
+                        {v.status !== 'ON_TRACK' && !v.inWorkshop && !v.attendedAt ? (
+                          // The same reminder on WhatsApp: the colleague sends it from their own phone; nothing is sent from here.
+                          <WhatsAppLink
+                            href={customerWhatsAppUrl({ phone: v.customerPhone, altPhone: v.customerAltPhone }, serviceReminderMessage({ customerName: v.customerName, organisation: v.customerIsOrganisation, vehicle: { make: v.vehicleDescription, plateNumber: v.plateNumber }, dueOdometer: v.nextServiceDueOdometer, dueDate: v.nextServiceDueDate, overdue: v.status === 'OVERDUE', workshop }))}
+                            testId="service-reminder-whatsapp"
+                          />
+                        ) : null}
+                        {v.status === 'OVERDUE' && !v.attendedAt && !v.inWorkshop ? (
+                          <form action={attendToOverdueVehicleFormAction}>
+                            <FormPendingOverlay />
+                            <input type="hidden" name="serviceId" value={v.lastService.id} />
+                            <input type="hidden" name="returnTo" value="/workshop/service-tracker" />
+                            <SubmitButton
+                              label="Attend To"
+                              pendingLabel="…"
+                              className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-error)] px-3 py-1 text-xs font-medium text-[var(--ejo-error)] hover:bg-[var(--ejo-error)]/10"
+                            />
+                          </form>
+                        ) : null}
+                        {!v.inWorkshop && !v.attendedAt ? (
+                          <StopTrackingDialog vehicleId={v.vehicleId} vehicleLabel={`${v.vehicleDescription}${v.plateNumber ? ` — ${v.plateNumber}` : ''}`} returnTo="/workshop/service-tracker" />
+                        ) : null}
+                        {!v.inWorkshop ? (
+                          <LoadingLink
+                            href={bookServiceHref(v.vehicleId)}
+                            className="self-start whitespace-nowrap rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
+                          >
+                            {separateVehicleServiceOn() ? 'Book in' : OPEN_SERVICE_JOB_CARD}
+                          </LoadingLink>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </ResponsiveTable>
+      )}
+    </div>
+  );
+}

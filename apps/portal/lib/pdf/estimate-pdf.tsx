@@ -1,0 +1,249 @@
+import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
+import { PLATFORM } from '../brand';
+import { PDF_FONT, registerPdfFonts } from './fonts';
+import type { EstimatePdfLineItem, EstimatePdfProps } from './document-types';
+export type { EstimatePdfLineItem, EstimatePdfProps } from './document-types';
+
+const styles = StyleSheet.create({
+  page: { paddingTop: 32, paddingBottom: 32, paddingHorizontal: 36, fontSize: 10, fontFamily: PDF_FONT, color: '#0F172A' },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
+  logo: { width: 44, height: 53 },
+  wordmarkWrap: { marginLeft: 8 },
+  wordmarkTop: { fontSize: 20, fontFamily: PDF_FONT, fontWeight: 'bold' },
+  wordmarkBottomRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  wordmarkRule: { flex: 1, borderBottomWidth: 1, borderBottomColor: '#D6890B', marginRight: 5 },
+  wordmarkBottom: { fontSize: 10, fontFamily: PDF_FONT, fontWeight: 'bold', color: '#334155' },
+  docTitleWrap: { marginLeft: 'auto', alignItems: 'flex-end' },
+  docTitle: { fontSize: 13, fontFamily: PDF_FONT, fontWeight: 'bold', color: '#0A1628' },
+  docRef: { fontSize: 11, marginTop: 2 },
+  ruleThick: { borderBottomWidth: 1.5, borderBottomColor: '#D6890B', marginTop: 12, paddingTop: 8 },
+  eyebrow: { fontSize: 8, fontFamily: PDF_FONT, fontWeight: 'bold', color: '#94A3B8', letterSpacing: 0.5 },
+  legalName: { fontSize: 11, fontFamily: PDF_FONT, fontWeight: 'bold', marginTop: 2 },
+  smallMuted: { fontSize: 9, color: '#475569', marginTop: 1 },
+  ruleThin: { borderBottomWidth: 0.5, borderBottomColor: '#E2E8F0', marginTop: 10, paddingTop: 8 },
+  fieldGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 16 },
+  field: { width: '50%', marginBottom: 10 },
+  fieldLabel: { fontSize: 8, fontFamily: PDF_FONT, fontWeight: 'bold', color: '#94A3B8', letterSpacing: 0.5 },
+  fieldValue: { fontSize: 11, fontFamily: PDF_FONT, fontWeight: 'bold', marginTop: 1 },
+  table: { marginTop: 16 },
+  tHeadRow: { flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: '#0F172A', paddingBottom: 5 },
+  tRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#E2E8F0', paddingVertical: 5 },
+  tFoot: { flexDirection: 'row', borderTopWidth: 1.5, borderTopColor: '#0F172A', paddingTop: 6, marginTop: 2 },
+  colSn: { width: '6%' },
+  colDesc: { width: '54%' },
+  colQty: { width: '18%', textAlign: 'right' },
+  colAmt: { width: '22%', textAlign: 'right' },
+  th: { fontSize: 8, fontFamily: PDF_FONT, fontWeight: 'bold', color: '#475569' },
+  subtotalsBox: { marginTop: 10, alignItems: 'flex-end' },
+  subtotalRow: { flexDirection: 'row', justifyContent: 'space-between', width: 220, marginBottom: 2 },
+  subtotalLabel: { fontSize: 9, color: '#475569' },
+  subtotalValue: { fontSize: 9 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', width: 220, marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#E2E8F0' },
+  totalLabel: { fontSize: 11, fontFamily: PDF_FONT, fontWeight: 'bold' },
+  totalValue: { fontSize: 11, fontFamily: PDF_FONT, fontWeight: 'bold' },
+  depositBox: { marginTop: 16, backgroundColor: '#FEF3C7', borderWidth: 0.5, borderColor: '#FDE68A', borderRadius: 6, padding: 12 },
+  depositEyebrow: { fontSize: 8, fontFamily: PDF_FONT, fontWeight: 'bold', color: '#B45309', letterSpacing: 0.5 },
+  depositAmount: { fontSize: 15, fontFamily: PDF_FONT, fontWeight: 'bold', marginTop: 2 },
+  depositNote: { fontSize: 8.5, color: '#78350F', marginTop: 4 },
+  paymentTitle: { fontSize: 10, fontFamily: PDF_FONT, fontWeight: 'bold', marginTop: 16, marginBottom: 6 },
+  paymentBox: { backgroundColor: '#F8FAFC', borderWidth: 0.5, borderColor: '#E2E8F0', borderRadius: 6, padding: 12 },
+  paymentLine: { fontSize: 9, marginBottom: 2 },
+  paymentOptionTitle: { fontSize: 9.5, fontFamily: PDF_FONT, fontWeight: 'bold', marginBottom: 4 },
+  paymentNote: { fontSize: 8, color: '#64748B', marginTop: 2 },
+  paymentDivider: { borderTopWidth: 0.5, borderTopColor: '#E2E8F0', marginTop: 8, paddingTop: 8 },
+  footer: { marginTop: 28, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: '#E2E8F0', textAlign: 'center' },
+  footerText: { fontSize: 8, color: '#94A3B8' },
+  footerCredit: { fontSize: 7, color: '#CBD5E1', marginTop: 3 },
+});
+
+
+
+/**
+ * The customer's estimate PDF, attached to the estimate-approved email.
+ * Its props have no line `type`, so the internal Store Part / External /
+ * Labour / Sundry breakdown can't reach the customer. Every quantity
+ * carries its unit.
+ */
+export function EstimatePdf(props: EstimatePdfProps) {
+  registerPdfFonts();
+  const {
+    organisation, branch, logoUrl, jobNumber, customerName, customerAddress,
+    vehicleDescription, plateNumber, chassisNumber, lineItems,
+    servicesSubtotal, labourSubtotal, sundrySubtotal, discountAmount, vatLabel, vatAmount, totalAmount,
+    minimumDepositAmount, depositPercent, bankName, accountName, accountNumber, paymentRemarkSuggestion,
+    referenceLabel = 'JOB CARD',
+  } = props;
+
+  const nameWords = organisation.name.trim().split(/\s+/);
+  const wordmarkTop = nameWords[0] ?? organisation.name;
+  const wordmarkBottom = nameWords.slice(1).join(' ');
+  const registrationLine = [organisation.poBox ? `P.O. Box ${organisation.poBox}` : null, organisation.rcNumber ? `RC Number: ${organisation.rcNumber}` : null].filter(Boolean).join('   ·   ');
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        {/* The organisation's logo, very faint, behind every page (a watermark, repeated on each page). */}
+        <Image fixed src={logoUrl} style={{ position: 'absolute', top: 250, left: 70, width: 455, opacity: 0.045 }} />
+        <View style={styles.headerRow}>
+          {/* @react-pdf/renderer's own Image primitive, not an HTML
+              <img> — it renders directly into the PDF's content
+              stream and has no alt prop at all; the jsx-a11y rule
+              can't tell the two apart since they share a name. */}
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image src={logoUrl} style={styles.logo} />
+          <View style={styles.wordmarkWrap}>
+            <Text style={styles.wordmarkTop}>{wordmarkTop}</Text>
+            {wordmarkBottom ? (
+              <View style={styles.wordmarkBottomRow}>
+                <View style={styles.wordmarkRule} />
+                <Text style={styles.wordmarkBottom}>{wordmarkBottom}</Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.docTitleWrap}>
+            <Text style={styles.docTitle}>Service Estimate</Text>
+            <Text style={styles.docRef}>{jobNumber}</Text>
+          </View>
+        </View>
+
+        <View style={styles.ruleThick}>
+          {organisation.legalName ? (
+            <>
+              <Text style={styles.eyebrow}>LEGAL OPERATIONAL LEDGER / CORPORATE HQ</Text>
+              <Text style={styles.legalName}>{organisation.legalName}</Text>
+            </>
+          ) : null}
+          {organisation.hqAddress ? <Text style={styles.smallMuted}>{organisation.hqAddress}</Text> : null}
+          {registrationLine ? <Text style={styles.smallMuted}>{registrationLine}</Text> : null}
+          {organisation.hotlines.length > 0 ? <Text style={styles.smallMuted}>General Hotlines: {organisation.hotlines.join('  |  ')}</Text> : null}
+          {organisation.website ? <Text style={styles.smallMuted}>Website: {organisation.website}</Text> : null}
+          {organisation.email ? <Text style={styles.smallMuted}>Email: {organisation.email}</Text> : null}
+        </View>
+
+        <View style={styles.ruleThin}>
+          <Text style={styles.eyebrow}>EXECUTING FACILITY / BRANCH</Text>
+          <Text style={styles.legalName}>{branch.name}</Text>
+          {branch.address ? <Text style={styles.smallMuted}>{branch.address}</Text> : null}
+          {branch.hotlines.length > 0 ? <Text style={styles.smallMuted}>Facility Hotlines: {branch.hotlines.join('  |  ')}</Text> : null}
+          {branch.email ? <Text style={styles.smallMuted}>Email: {branch.email}</Text> : null}
+        </View>
+
+        <View style={styles.fieldGrid}>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>{referenceLabel}</Text>
+            <Text style={styles.fieldValue}>{jobNumber}</Text>
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>CUSTOMER</Text>
+            <Text style={styles.fieldValue}>{customerName}</Text>
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>VEHICLE</Text>
+            <Text style={styles.fieldValue}>{vehicleDescription}</Text>
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>PLATE NO.</Text>
+            <Text style={styles.fieldValue}>{plateNumber ?? '—'}</Text>
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>VIN / CHASSIS</Text>
+            <Text style={styles.fieldValue}>{chassisNumber ?? '—'}</Text>
+          </View>
+          {customerAddress ? (
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>CUSTOMER ADDRESS</Text>
+              <Text style={styles.fieldValue}>{customerAddress}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.table}>
+          <View style={styles.tHeadRow}>
+            <Text style={[styles.th, styles.colSn]}>S/N</Text>
+            <Text style={[styles.th, styles.colDesc]}>Description</Text>
+            <Text style={[styles.th, styles.colQty]}>Quantity</Text>
+            <Text style={[styles.th, styles.colAmt]}>Amount</Text>
+          </View>
+          {lineItems.map((li, i) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <View style={styles.tRow} key={i}>
+              <Text style={styles.colSn}>{i + 1}</Text>
+              <Text style={styles.colDesc}>{li.description}</Text>
+              <Text style={styles.colQty}>{li.quantity}{li.unitLabel ? ` ${li.unitLabel}` : ''}</Text>
+              <Text style={styles.colAmt}>{li.amount}</Text>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.subtotalsBox}>
+          {servicesSubtotal ? (
+            <View style={styles.subtotalRow}>
+              <Text style={styles.subtotalLabel}>Parts &amp; Services</Text>
+              <Text style={styles.subtotalValue}>{servicesSubtotal}</Text>
+            </View>
+          ) : null}
+          {labourSubtotal ? (
+            <View style={styles.subtotalRow}>
+              <Text style={styles.subtotalLabel}>Labour</Text>
+              <Text style={styles.subtotalValue}>{labourSubtotal}</Text>
+            </View>
+          ) : null}
+          {sundrySubtotal ? (
+            <View style={styles.subtotalRow}>
+              <Text style={styles.subtotalLabel}>Sundry</Text>
+              <Text style={styles.subtotalValue}>{sundrySubtotal}</Text>
+            </View>
+          ) : null}
+          {discountAmount ? (
+            <View style={styles.subtotalRow}>
+              <Text style={styles.subtotalLabel}>Discount</Text>
+              <Text style={styles.subtotalValue}>{discountAmount}</Text>
+            </View>
+          ) : null}
+          {vatLabel && vatAmount ? (
+            <View style={styles.subtotalRow}>
+              <Text style={styles.subtotalLabel}>{vatLabel}</Text>
+              <Text style={styles.subtotalValue}>{vatAmount}</Text>
+            </View>
+          ) : null}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Total Estimate</Text>
+            <Text style={styles.totalValue}>{totalAmount}</Text>
+          </View>
+        </View>
+
+        {minimumDepositAmount ? (
+          <View style={styles.depositBox}>
+            <Text style={styles.depositEyebrow}>{depositPercent ? `DEPOSIT BEFORE WORK STARTS (${depositPercent}%)` : 'DEPOSIT BEFORE WORK STARTS'}</Text>
+            <Text style={styles.depositAmount}>{minimumDepositAmount}</Text>
+            <Text style={styles.depositNote}>Work begins once you approve the estimate and this deposit is received and confirmed.</Text>
+          </View>
+        ) : (
+          <View style={styles.depositBox}>
+            <Text style={styles.depositEyebrow}>YOUR APPROVAL</Text>
+            <Text style={styles.depositNote}>Work begins once you approve this estimate. See our email for how to approve it, or call us.</Text>
+          </View>
+        )}
+
+        <Text style={styles.paymentTitle}>How to pay</Text>
+        <View style={styles.paymentBox}>
+          <Text style={styles.paymentOptionTitle}>Option 1 — Bank transfer</Text>
+          <Text style={styles.paymentLine}>Bank: {bankName}</Text>
+          <Text style={styles.paymentLine}>Account Name: {accountName}</Text>
+          <Text style={styles.paymentLine}>Account Number: {accountNumber}</Text>
+          <Text style={styles.paymentLine}>Payment Reference: {paymentRemarkSuggestion}</Text>
+          <Text style={styles.paymentNote}>Please use this reference so we can match your payment to this record.</Text>
+          <View style={styles.paymentDivider}>
+            <Text style={styles.paymentOptionTitle}>Option 2 — Pay in person</Text>
+            <Text style={styles.paymentLine}>Pay the cashier at our {branch.name} office; they&apos;ll confirm your payment on our system.</Text>
+          </View>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>{organisation.legalName ?? organisation.name}{organisation.hqAddress ? ` · ${organisation.hqAddress}` : ''}</Text>
+          <Text style={styles.footerCredit}>{PLATFORM.poweredBy}</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}

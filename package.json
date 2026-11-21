@@ -1,0 +1,50 @@
+{
+  "name": "ejo100",
+  "private": true,
+  "version": "1.0.0",
+  "description": "EJO 100 Enterprise Platform - reusable Enterprise Operating System (EnterpriseOS)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:website": "npm run dev --workspace=apps/website",
+    "dev:portal": "npm run dev --workspace=apps/portal",
+    "dev:api": "npm run start:dev --workspace=apps/api",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "demo:reset": "npx tsx apps/portal/scripts/demo-reset.ts",
+    "demo:people": "npx tsx apps/portal/scripts/demo-people.ts",
+    "demo:ensure": "npx tsx apps/portal/scripts/demo-ensure.ts",
+    "demo:pulse": "npx tsx apps/portal/scripts/demo-pulse.ts",
+    "demo:tour-doc": "npx tsx apps/portal/scripts/demo-tour-doc.ts",
+    "brand:sync": "cp packages/enyo/src/brand.ts apps/portal/lib/brand.ts && cp packages/enyo/src/brand.ts apps/website/lib/brand.ts",
+    "vercel:portal": "npm install --include=dev --no-audit --no-fund && npx prisma generate --schema=packages/database/prisma/schema.prisma && npm run build --workspace=packages/database && node scripts/db-push-if-vercel.js && node scripts/seed-if-vercel.js && npm run build --workspace=apps/portal",
+    "vercel:website": "npm install --include=dev --no-audit --no-fund && npx prisma generate --schema=packages/database/prisma/schema.prisma && npm run build --workspace=packages/database && npm run build --workspace=apps/website"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "typescript": "5.9.3"
+  },
+  "overrides": {
+    "typescript": "5.9.3",
+    "next": {
+      ".": "15.5.28",
+      "postcss": "^8.5.30"
+    },
+    "multer": "^2.5.0",
+    "postcss": "^8.5.30"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "prisma@5.22.0": true,
+    "unrs-resolver@1.12.2": true,
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true
+  }
+}

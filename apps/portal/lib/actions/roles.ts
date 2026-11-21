@@ -1,0 +1,96 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { prisma } from '@ejo/database';
+import { writeAuditLog } from '@/lib/workshop-core';
+import { authorize, getPrincipal, inMyOrganisation } from '@/lib/authz/server';
+import { PERMISSIONS, ROLE_GRANTS, scopeFor, type PermissionKey } from '@/lib/authz/catalogue';
+import { permissionShown, roleShown } from '@/lib/edition';
+
+export type RoleForEditor = { id: string; name: string; slug: string; isPlatform: boolean; users: number; defaults: PermissionKey[]; added: PermissionKey[] };
+
+/** Roles of the person's organisation, with default and added permissions —
+ * as this edition shows them: with Store, Warranty and the plant off, their
+ * permissions and the roles that only do that work are left out (the roles
+ * stay in the database and their holders keep them). */
+export async function listRolesForEditor(): Promise<RoleForEditor[]> {
+  await authorize('admin.roles.manage', undefined, 'roles.list');
+  const me = await prisma.user.findUnique({ where: { id: (await getPrincipal()).userId }, select: { organisationId: true } });
+  const roles = await prisma.role.findMany({
+    where: { ...(me?.organisationId ? { organisationId: me.organisationId } : {}), ...((await getPrincipal()).isSuperAdmin ? {} : { isSuperAdmin: false }) },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, slug: true, isSuperAdmin: true, _count: { select: { users: true } }, permissions: { select: { permission: { select: { key: true } } } } },
+  });
+  return roles.filter((r: (typeof roles)[number]) => roleShown(r.slug)).map((r: (typeof roles)[number]) => ({
+    id: r.id, name: r.name, slug: r.slug, isPlatform: r.isSuperAdmin, users: r._count.users,
+    defaults: (Object.keys(ROLE_GRANTS[r.slug] ?? {}) as PermissionKey[]).filter((k) => permissionShown(k)),
+    added: r.permissions.map((p: { permission: { key: string } }) => p.permission.key).filter((k: string): k is PermissionKey => k in PERMISSIONS && permissionShown(k)),
+  }));
+}
+
+async function editableRole(roleId: string) {
+  const p = await getPrincipal();
+  const [me, role] = await Promise.all([
+    prisma.user.findUnique({ where: { id: p.userId }, select: { organisationId: true } }),
+    prisma.role.findUnique({ where: { id: roleId }, select: { id: true, name: true, slug: true, isSuperAdmin: true, organisationId: true } }),
+  ]);
+  if (!role) throw new Error('That role no longer exists — refresh the page.');
+  if (role.isSuperAdmin) throw new Error('The Master Administrator role belongs to the platform team and already holds everything.');
+  if (!p.isSuperAdmin && role.organisationId !== me?.organisationId) throw new Error('You can only change roles in your own organisation.');
+  // Nobody widens their own access: a role you hold is changed by another administrator.
+  if (!p.isSuperAdmin && p.roleSlugs.includes(role.slug)) throw new Error('You cannot change a role you hold yourself — ask another administrator.');
+  return { p, role };
+}
+
+/** Add a catalogue permission to a role (database grant). */
+export async function grantRolePermission(roleId: string, key: string): Promise<void> {
+  await authorize('admin.roles.manage', undefined, 'roles.grant');
+  if (!(key in PERMISSIONS)) throw new Error('That permission does not exist.');
+  const { p, role } = await editableRole(roleId);
+  if (key in (ROLE_GRANTS[role.slug] ?? {})) throw new Error('This role already includes that permission by default.');
+  // No one hands out more than they hold: outside the Organisation Administrator (and the platform team),
+  // a permission can only be added to a role by someone who has it themselves, and never to an administrator role.
+  if (!p.isSuperAdmin && !p.roleSlugs.includes('administrator')) {
+    if (role.slug === 'administrator' || role.slug === 'branch-administrator') throw new Error('Only an Organisation Administrator can change the administrator roles.');
+    if (scopeFor(p, key as PermissionKey) === null) throw new Error('You can only add a permission you hold yourself — ask an Organisation Administrator.');
+  }
+  const perm = await prisma.permission.upsert({ where: { key }, update: {}, create: { key, description: PERMISSIONS[key as PermissionKey].label } });
+  await prisma.rolePermission.upsert({ where: { roleId_permissionId: { roleId, permissionId: perm.id } }, update: {}, create: { roleId, permissionId: perm.id } });
+  await writeAuditLog({ userId: p.userId, action: 'role.permission_granted', entityType: 'Role', entityId: roleId, metadata: { role: role.name, permission: PERMISSIONS[key as PermissionKey].label } });
+  // Everyone holding the role is emailed their full, current access by the
+  // 10-minute job — one email for a batch of changes (lib/access-notices.ts).
+  revalidatePath('/roles');
+  revalidatePath('/permissions');
+}
+
+/** Remove an added permission from a role (defaults cannot be removed here). */
+export async function revokeRolePermission(roleId: string, key: string): Promise<void> {
+  await authorize('admin.roles.manage', undefined, 'roles.revoke');
+  const { p, role } = await editableRole(roleId);
+  const perm = await prisma.permission.findUnique({ where: { key }, select: { id: true } });
+  const removed = perm ? (await prisma.rolePermission.deleteMany({ where: { roleId, permissionId: perm.id } })).count : 0;
+  // Nothing was added, so nothing changed: no audit entry, no access-changed email.
+  if (removed === 0) return;
+  await writeAuditLog({ userId: p.userId, action: 'role.permission_revoked', entityType: 'Role', entityId: roleId, metadata: { role: role.name, permission: PERMISSIONS[key as PermissionKey]?.label ?? key } });
+  revalidatePath('/roles');
+  revalidatePath('/permissions');
+}
+
+export type RoleHolder = { id: string; fullName: string; branch: string | null; isActive: boolean };
+
+/** Who holds a role (this organisation only), for the role's own page. At most 200. */
+export async function listRoleHolders(roleId: string): Promise<RoleHolder[]> {
+  await authorize('admin.roles.manage', undefined, 'roles.holders');
+  const p = await getPrincipal();
+  // The role itself must be this organisation's (out of reach behaves like none).
+  const role = await prisma.role.findUnique({ where: { id: String(roleId ?? '') }, select: { id: true, organisationId: true, isSuperAdmin: true } });
+  if (!role || (!p.isSuperAdmin && (role.isSuperAdmin || !(await inMyOrganisation(role.organisationId))))) return [];
+  const me = await prisma.user.findUnique({ where: { id: p.userId }, select: { organisationId: true } });
+  const rows = await prisma.userRole.findMany({
+    where: { roleId: role.id, user: me?.organisationId ? { organisationId: me.organisationId } : {} },
+    orderBy: { user: { fullName: 'asc' } },
+    take: 200,
+    select: { user: { select: { id: true, fullName: true, isActive: true, branch: { select: { name: true } } } } },
+  });
+  return rows.map((r: (typeof rows)[number]) => ({ id: r.user.id, fullName: r.user.fullName, isActive: r.user.isActive, branch: r.user.branch?.name ?? null }));
+}

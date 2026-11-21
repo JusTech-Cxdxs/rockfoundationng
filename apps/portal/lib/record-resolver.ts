@@ -1,0 +1,100 @@
+import { prisma } from '@ejo/database';
+import { recordUrl } from '@/lib/notification-rules';
+import { REFERENCE_PATTERN, referenceUrl } from '@/lib/search-plan';
+
+export { REFERENCE_PATTERN };
+
+/**
+ * Turns (record type, id) pairs into a readable name and the EXACT page —
+ * "JC-2026-000013", "Toyota Hilux — KJA453GX", "Part BP-102 Brake pads" —
+ * and sends child records to their parent's page (an estimate line → its Job
+ * Card, a payment → its Job Card, a GRN line → its goods receipt).
+ * One batched query per record type, never one per row. Server-only.
+ */
+/** branchId: the branch the record belongs to (when it has one) — lets feeds apply the same reach rules as the pages. */
+export type ResolvedRecord = { label: string; url: string; branchId?: string | null };
+type Pair = { type: string; id: string };
+
+const words = (t: string) => t.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/ ([A-Z])/g, (_, c: string) => ` ${c.toLowerCase()}`);
+const jcUrl = (id: string) => `/workshop/job-cards/${id}`;
+
+export async function resolveRecords(pairs: Pair[]): Promise<Map<string, ResolvedRecord>> {
+  const out = new Map<string, ResolvedRecord>();
+  const byType = new Map<string, Set<string>>();
+  for (const p of pairs) {
+    if (!p.id) continue;
+    const t = p.type.replace(/^db:/, '');
+    if (!byType.has(t)) byType.set(t, new Set());
+    byType.get(t)!.add(p.id);
+  }
+  const set = (type: string, id: string, label: string, url: string, branchId?: string | null) => {
+    out.set(`${type}:${id}`, { label, url, branchId });
+    out.set(`db:${type}:${id}`, { label, url, branchId });
+  };
+  const ids = (t: string) => [...(byType.get(t) ?? [])];
+  const jobs: Promise<unknown>[] = [];
+  const run = (t: string, f: (list: string[]) => Promise<void>) => { const list = ids(t); if (list.length) jobs.push(f(list).catch(() => undefined)); };
+
+  run('JobCard', async (l) => { for (const r of await prisma.jobCard.findMany({ where: { id: { in: l } }, select: { id: true, branchId: true, jobNumber: true } })) set('JobCard', r.id, r.jobNumber, jcUrl(r.id), r.branchId); });
+  run('CustomerVehicle', async (l) => { for (const r of await prisma.customerVehicle.findMany({ where: { id: { in: l } }, select: { id: true, make: true, model: true, plateNumber: true } })) set('CustomerVehicle', r.id, `${[r.make, r.model].filter(Boolean).join(' ') || 'Vehicle'}${r.plateNumber ? ` — ${r.plateNumber}` : ''}`, `/workshop/vehicles/${r.id}/edit`); });
+  run('Customer', async (l) => { for (const r of await prisma.customer.findMany({ where: { id: { in: l } }, select: { id: true, fullName: true } })) set('Customer', r.id, r.fullName, `/crm/customers/${r.id}`); });
+  run('Part', async (l) => { for (const r of await prisma.part.findMany({ where: { id: { in: l } }, select: { id: true, branchId: true, partNumber: true, name: true } })) set('Part', r.id, `${r.partNumber} ${r.name}`, `/inventory/parts/${r.id}`, r.branchId); });
+  run('PricingAlert', async (l) => { for (const r of await prisma.pricingAlert.findMany({ where: { id: { in: l } }, select: { id: true, part: { select: { id: true, partNumber: true, name: true } } } })) set('PricingAlert', r.id, `Pricing alert — ${r.part.partNumber} ${r.part.name}`, `/inventory/parts/${r.part.id}`); });
+  run('GoodsReceipt', async (l) => { for (const r of await prisma.goodsReceipt.findMany({ where: { id: { in: l } }, select: { id: true, branchId: true, referenceNumber: true } })) set('GoodsReceipt', r.id, r.referenceNumber, `/inventory/goods-receipts/${r.id}`, r.branchId); });
+  run('GoodsReceiptLine', async (l) => { for (const r of await prisma.goodsReceiptLine.findMany({ where: { id: { in: l } }, select: { id: true, goodsReceipt: { select: { id: true, referenceNumber: true } }, part: { select: { partNumber: true } } } })) set('GoodsReceiptLine', r.id, `${r.goodsReceipt.referenceNumber} · ${r.part.partNumber}`, `/inventory/goods-receipts/${r.goodsReceipt.id}`); });
+  run('PartRequestSlip', async (l) => { for (const r of await prisma.partRequestSlip.findMany({ where: { id: { in: l } }, select: { id: true, branchId: true, referenceNumber: true } })) set('PartRequestSlip', r.id, r.referenceNumber, `/workshop/parts-requests/${r.id}`, r.branchId); });
+  run('PartRequestSlipLine', async (l) => { for (const r of await prisma.partRequestSlipLine.findMany({ where: { id: { in: l } }, select: { id: true, slip: { select: { id: true, referenceNumber: true } } } })) set('PartRequestSlipLine', r.id, r.slip.referenceNumber, `/workshop/parts-requests/${r.slip.id}`); });
+  const parentOf = (r: { jobCard: { id: string; jobNumber: string; branchId: string } | null }) => (r.jobCard ? { label: r.jobCard.jobNumber, url: jcUrl(r.jobCard.id), branchId: r.jobCard.branchId } : null);
+  const PARENT = { jobCard: { select: { id: true, jobNumber: true, branchId: true } } } as const;
+  run('Payment', async (l) => { for (const r of await prisma.payment.findMany({ where: { id: { in: l } }, select: { id: true, ...PARENT } })) { const p = parentOf(r); if (p) set('Payment', r.id, `Payment on ${p.label}`, p.url, p.branchId); } });
+  run('Refund', async (l) => { for (const r of await prisma.refund.findMany({ where: { id: { in: l } }, select: { id: true, referenceNumber: true, ...PARENT } })) { const p = parentOf(r); if (p) set('Refund', r.id, `${r.referenceNumber} on ${p.label}`, p.url, p.branchId); } });
+  run('Estimate', async (l) => { for (const r of await prisma.estimate.findMany({ where: { id: { in: l } }, select: { id: true, jobCard: { select: { id: true, jobNumber: true } } } })) set('Estimate', r.id, `Estimate on ${r.jobCard.jobNumber}`, jcUrl(r.jobCard.id)); });
+  run('EstimateLineItem', async (l) => { for (const r of await prisma.estimateLineItem.findMany({ where: { id: { in: l } }, select: { id: true, estimate: { select: { jobCard: { select: { id: true, jobNumber: true } } } } } })) set('EstimateLineItem', r.id, `Estimate line on ${r.estimate.jobCard.jobNumber}`, jcUrl(r.estimate.jobCard.id)); });
+  run('VehicleInspection', async (l) => { for (const r of await prisma.vehicleInspection.findMany({ where: { id: { in: l } }, select: { id: true, jobCard: { select: { id: true, jobNumber: true, branchId: true } } } })) if (r.jobCard) set('VehicleInspection', r.id, `Inspection on ${r.jobCard.jobNumber}`, jcUrl(r.jobCard.id), r.jobCard.branchId); });
+  run('VehicleGateExit', async (l) => { for (const r of await prisma.vehicleGateExit.findMany({ where: { id: { in: l } }, select: { id: true, branchId: true, exitNumber: true } })) set('VehicleGateExit', r.id, r.exitNumber, `/security/vehicles/exits/${r.id}`, r.branchId); });
+  run('SupportTicket', async (l) => { for (const r of await prisma.supportTicket.findMany({ where: { id: { in: l } }, select: { id: true, branchId: true, number: true } })) set('SupportTicket', r.id, r.number, `/crm/support/${r.id}`, r.branchId); });
+  run('Broadcast', async (l) => { for (const r of await prisma.broadcast.findMany({ where: { id: { in: l } }, select: { id: true, broadcastNumber: true } })) set('Broadcast', r.id, r.broadcastNumber, `/notifications/broadcasts/${r.id}`); });
+  run('User', async (l) => { for (const r of await prisma.user.findMany({ where: { id: { in: l } }, select: { id: true, fullName: true } })) set('User', r.id, r.fullName, '/users'); });
+  await Promise.all(jobs);
+  // Anything not resolved (deleted since, or a type without its own page):
+  // a readable type name and the best page we know — never a raw id.
+  for (const p of pairs) {
+    const k = `${p.type}:${p.id}`;
+    if (!out.has(k)) {
+      const t = p.type.replace(/^db:/, '');
+      out.set(k, { label: words(t).replace(/^./, (c) => c.toUpperCase()), url: recordUrl(t, p.id) });
+    }
+  }
+  return out;
+}
+
+// ── Reference numbers in text → exact pages ────────────────────────────
+
+// Every reference number (PREFIX-YYYY-NNNNNN) and its page: lib/search-plan.ts.
+
+/**
+ * Finds every reference number in the given texts and returns
+ * number → exact page. One batched query per prefix. Unknown numbers (e.g.
+ * deleted records) are simply left as plain text.
+ */
+export async function resolveReferenceNumbers(texts: (string | null | undefined)[]): Promise<Map<string, string>> {
+  const found = new Set<string>();
+  for (const t of texts) for (const m of (t ?? '').matchAll(REFERENCE_PATTERN)) found.add(m[0]);
+  const by = (p: string) => [...found].filter((n) => n.startsWith(`${p}-`));
+  const out = new Map<string, string>();
+  const jobs: Promise<unknown>[] = [];
+  const q = (p: string, f: (nums: string[]) => Promise<void>) => { const nums = by(p); if (nums.length) jobs.push(f(nums).catch(() => undefined)); };
+  q('JC', async (n) => { for (const r of await prisma.jobCard.findMany({ where: { jobNumber: { in: n } }, select: { id: true, jobNumber: true } })) out.set(r.jobNumber, referenceUrl('JC', r.id)); });
+  q('VX', async (n) => { for (const r of await prisma.vehicleGateExit.findMany({ where: { exitNumber: { in: n } }, select: { id: true, exitNumber: true } })) out.set(r.exitNumber, referenceUrl('VX', r.id)); });
+  q('SUP', async (n) => { for (const r of await prisma.supportTicket.findMany({ where: { number: { in: n } }, select: { id: true, number: true } })) out.set(r.number, referenceUrl('SUP', r.id)); });
+  q('BC', async (n) => { for (const r of await prisma.broadcast.findMany({ where: { broadcastNumber: { in: n } }, select: { id: true, broadcastNumber: true } })) out.set(r.broadcastNumber, referenceUrl('BC', r.id)); });
+  q('PRS', async (n) => { for (const r of await prisma.partRequestSlip.findMany({ where: { referenceNumber: { in: n } }, select: { id: true, referenceNumber: true } })) out.set(r.referenceNumber, referenceUrl('PRS', r.id)); });
+  q('GRN', async (n) => { for (const r of await prisma.goodsReceipt.findMany({ where: { referenceNumber: { in: n } }, select: { id: true, referenceNumber: true } })) out.set(r.referenceNumber, referenceUrl('GRN', r.id)); });
+  q('RF', async (n) => { for (const r of await prisma.refund.findMany({ where: { referenceNumber: { in: n } }, select: { referenceNumber: true, jobCardId: true } })) if (r.jobCardId) out.set(r.referenceNumber, jcUrl(r.jobCardId)); });
+  q('INV', async (n) => { for (const r of await prisma.invoice.findMany({ where: { invoiceNumber: { in: n } }, select: { invoiceNumber: true, jobCardId: true } })) out.set(r.invoiceNumber, jcUrl(r.jobCardId)); });
+  q('RCT', async (n) => { for (const r of await prisma.payment.findMany({ where: { receiptNumber: { in: n } }, select: { receiptNumber: true, jobCardId: true } })) if (r.receiptNumber && r.jobCardId) out.set(r.receiptNumber, jcUrl(r.jobCardId)); });
+  q('IMP', async (n) => { for (const r of await prisma.importJob.findMany({ where: { number: { in: n } }, select: { id: true, number: true } })) out.set(r.number, referenceUrl('IMP', r.id)); });
+  q('EXP', async (n) => { for (const r of await prisma.exportJob.findMany({ where: { number: { in: n } }, select: { id: true, number: true } })) out.set(r.number, referenceUrl('EXP', r.id)); });
+  await Promise.all(jobs);
+  return out;
+}

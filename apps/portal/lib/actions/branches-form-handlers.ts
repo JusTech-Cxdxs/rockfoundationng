@@ -1,0 +1,44 @@
+'use server';
+
+import { friendlyError } from '@/lib/errors';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { updateBranch } from './branches';
+
+function str(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function strList(formData: FormData, key: string): string[] {
+  return formData
+    .getAll(key)
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+export async function updateBranchFormAction(formData: FormData) {
+  const branchId = str(formData, 'branchId');
+  try {
+    await updateBranch(branchId, {
+      name: str(formData, 'name'),
+      code: str(formData, 'code'),
+      address: str(formData, 'address'),
+      email: str(formData, 'email'),
+      hotlines: strList(formData, 'hotlines'),
+      bankName: String(formData.get('bankName') ?? ''),
+      bankAccountName: String(formData.get('bankAccountName') ?? ''),
+      bankAccountNumber: String(formData.get('bankAccountNumber') ?? ''),
+      ...(formData.has('sapPlant') ? { sapPlant: String(formData.get('sapPlant') ?? '') } : {}),
+      ...(formData.has('type') ? { type: String(formData.get('type') ?? '') } : {}),
+    });
+  } catch (err) {
+    const message = friendlyError(err, 'Could not update branch details.', 'branches-form-handlers');
+    redirect(`/branches/${branchId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/branches/${branchId}`);
+  revalidatePath('/branches');
+  redirect(`/branches/${branchId}?status=updated`);
+}

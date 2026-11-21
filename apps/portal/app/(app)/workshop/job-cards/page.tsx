@@ -1,0 +1,219 @@
+import { FormJumpLink } from '@/components/ui/FormJumpLink';
+import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
+import { guardAnyPage, allows } from '@/lib/authz/server';
+import { OrgTrail } from '@/components/OrgTrail';
+import { LoadingLink } from '@/components/LoadingLink';
+import { getJobCardOutcomes } from '@/lib/actions/visit-outcomes';
+import { OutcomeFilterTabs } from '@/components/OutcomeFilterTabs';
+import { matchesOutcomeFilter, outcomeBadge, parseOutcomeFilter, OUTCOME_FILTERS } from '@/lib/visit-outcome';
+import { listJobCards } from '@/lib/actions/workshop';
+import { createJobCardFormAction } from '@/lib/actions/workshop-form-handlers';
+import { SubmitButton } from '@/components/SubmitButton';
+import { FormPendingOverlay } from '@/components/FormPendingOverlay';
+import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
+import { CustomerVehiclePicker } from '@/components/CustomerVehiclePicker';
+import { CategoryFilterTabs } from '@/components/CategoryFilterTabs';
+import { ComplaintListInput } from '@/components/ComplaintListInput';
+import { BinnedNotice } from '@/components/RecycleBinPanel';
+import { LiveSearchInput } from '@/components/LiveSearchInput';
+import { BackLink, PageHeader, StatusChip } from '@/components/ui';
+import { CustomerLink } from '@/components/CustomerLink';
+import { parseJobCardPrefill } from '@/lib/enyo/prefill';
+import { checkJobCardPrefill, checkServiceVehiclePrefill } from '@/lib/enyo/prefill-server';
+import { ServiceJobCardBadge } from '@/components/ServiceJobCardBadge';
+import { ExportAction } from '@/components/ExportAction';
+
+const STATUS_LABEL: Record<string, string> = {
+  CHECKED_IN: 'Checked In',
+  IN_PROGRESS: 'In Progress',
+  AWAITING_PARTS: 'Awaiting Parts',
+  QUALITY_CHECK: 'Quality Check',
+  AWAITING_CUSTOMER_APPROVAL: 'Awaiting Customer Approval',
+  COMPLETED: 'Completed',
+  READY_FOR_COLLECTION: 'Ready for Collection',
+  CLOSED: 'Closed',
+  CHECKED_OUT: 'Checked Out',
+  CANCELLED: 'Cancelled',
+};
+
+
+/** "What is this visit for?": each choice a pill at least 44px tall, the radio itself covering it (see the form). */
+const VISIT_PILL = 'relative flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-[var(--ejo-border)] px-4 font-medium has-[:checked]:border-[var(--ejo-primary)] has-[:checked]:bg-[var(--ejo-primary)]/10 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--ejo-primary)]';
+const VISIT_RADIO = 'peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none rounded-full opacity-0';
+const VISIT_DOT = 'h-4 w-4 shrink-0 rounded-full border-2 border-[var(--ejo-border)] peer-checked:border-[var(--ejo-primary)] peer-checked:bg-[var(--ejo-primary)] peer-checked:shadow-[inset_0_0_0_2px_var(--ejo-surface)]';
+
+export default async function WorkshopJobCardsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; type?: string; status?: string; error?: string; outcome?: string; binned?: string; prefill?: string; customerId?: string; vehicleId?: string; complaint?: string | string[]; mileage?: string; service?: string; vehicle?: string }>;
+}) {
+  await guardAnyPage(['workshop.view'], '/workshop');
+  const sp = await searchParams;
+  const { q, type, error, outcome: rawOutcome, binned } = sp;
+  // A form prepared by Enyo: validated, checked against this person's
+  // organisation and rights, and only ever filled in — never submitted.
+  const enyoPrefill = await checkJobCardPrefill(parseJobCardPrefill(sp));
+  // "Open a service Job Card" from a vehicle (?service=1&vehicle=<id>): Service
+  // is chosen, and the vehicle and its owner filled in (checked the same way).
+  const forService = sp.service === '1';
+  const prefill = enyoPrefill ?? (forService ? await checkServiceVehiclePrefill(sp.vehicle) : null);
+  // Customer names link to their Customers (CRM) page for those who may open it.
+  const canSeeCustomers = await allows('crm.view');
+  const outcomeFilter = parseOutcomeFilter(rawOutcome);
+  const vehicleType = type === 'PASSENGER' || type === 'COMMERCIAL' ? type : undefined;
+  const jobCards = await listJobCards(undefined, q, vehicleType);
+  // How each Job Card ended — completed normally, or cancelled (refunded or
+  // not). Works alongside the Passenger / Commercial filter above.
+  const outcomes = await getJobCardOutcomes(jobCards.map((jc: (typeof jobCards)[number]) => jc.id));
+  const outcomeCounts = Object.fromEntries(
+    OUTCOME_FILTERS.map((f) => [f.key, jobCards.filter((jc: (typeof jobCards)[number]) => outcomes[jc.id] && matchesOutcomeFilter(f.key, outcomes[jc.id]!.outcome, outcomes[jc.id]!.refund)).length]),
+  );
+  const shown = outcomeFilter ? jobCards.filter((jc: (typeof jobCards)[number]) => outcomes[jc.id] && matchesOutcomeFilter(outcomeFilter, outcomes[jc.id]!.outcome, outcomes[jc.id]!.refund)) : jobCards;
+
+  return (
+    <div className="p-8">
+      <BackLink href="/workshop" label="Back to Workshop" className="mb-4" />
+      <BinnedNotice reference={binned} />
+      {error ? <FormFeedbackBanner kind="error" message={error} /> : null}
+      <PageHeader
+        icon="clipboard"
+        title="Job Cards"
+        description={<><OrgTrail area="Workshop" /></>}
+        actions={<span className="flex flex-wrap items-center gap-2"><ExportAction kind="job-cards" params={sp} /><ExportAction kind="invoices" params={{ q: sp.q }} label="Export invoices" /></span>}
+      />
+
+      <CategoryFilterTabs basePath="/workshop/job-cards" currentType={vehicleType} preserveParams={{ q }} />
+      <OutcomeFilterTabs basePath="/workshop/job-cards" current={outcomeFilter} preserveParams={{ q, type: vehicleType }} counts={outcomeCounts} />
+
+      <form className="mb-6 flex gap-2" action="/workshop/job-cards">
+        {vehicleType ? <input type="hidden" name="type" value={vehicleType} /> : null}
+        <LiveSearchInput
+          type="search" name="q"
+          defaultValue={q ?? ''}
+          placeholder="Search by job number, customer, vehicle/VIN, or technician…"
+          className="w-full max-w-md rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
+        />
+        <button
+          type="submit"
+          className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-surface)]"
+        >
+          Search
+        </button>
+      </form>
+
+      <FormJumpLink target="open-job-card">New Job Card</FormJumpLink>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <ResponsiveTable className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
+          {shown.length === 0 ? (
+            <div className="p-8 text-center text-sm text-[var(--ejo-text-muted)]">
+              {q
+                ? `No Job Cards match "${q}".`
+                : vehicleType || outcomeFilter
+                  ? 'No Job Cards match this filter.'
+                  : 'No Job Cards yet. Open the first one using the form on the right.'}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--ejo-border)] text-left text-[var(--ejo-text-muted)]">
+                  <th className="px-4 py-3 font-medium">Job #</th>
+                  <th className="px-4 py-3 font-medium">Customer</th>
+                  <th className="px-4 py-3 font-medium">Vehicle</th>
+                  <th className="px-4 py-3 font-medium">Technician</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Outcome</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((jc: (typeof jobCards)[number]) => (
+                  <tr key={jc.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                    <td className="px-4 py-3 font-medium">
+                      <LoadingLink href={`/workshop/job-cards/${jc.id}`} className="text-[var(--ejo-primary)] hover:underline">
+                        {jc.jobNumber}
+                      </LoadingLink>
+                      {jc.isService ? <ServiceJobCardBadge className="mt-1 block" /> : null}
+                      {jc.escalatedFromVehicleService ? (
+                        <LoadingLink
+                          href={`/workshop/vehicle-service/${jc.escalatedFromVehicleService.id}`}
+                          className="mt-1 block w-fit rounded-full bg-[var(--ejo-warning)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--ejo-warning)] hover:underline"
+                          title="This Job Card continues an escalated Vehicle Service"
+                        >
+                          Escalated from {jc.escalatedFromVehicleService.serviceNumber}
+                        </LoadingLink>
+                      ) : null}
+                    </td>
+                    <td data-label="Customer" className="px-4 py-3 text-[var(--ejo-text-muted)]"><CustomerLink id={jc.customerId} name={jc.customer.fullName} canView={canSeeCustomers} /></td>
+                    <td data-label="Vehicle" className="px-4 py-3 text-[var(--ejo-text-muted)]">
+                      <LoadingLink href={`/workshop/vehicles/${jc.vehicle.id}/edit`} className="hover:underline hover:text-[var(--ejo-text)]">
+                        {jc.vehicle.plateNumber || [jc.vehicle.make, jc.vehicle.model].filter(Boolean).join(' ') || '—'}
+                      </LoadingLink>
+                    </td>
+                    <td data-label="Technician" className="px-4 py-3 text-[var(--ejo-text-muted)]">
+                      {jc.assignedTechnician?.fullName ?? 'Unassigned'}
+                    </td>
+                    <td data-label="Status" className="px-4 py-3">
+                      <StatusChip status={jc.status} label={STATUS_LABEL[jc.status]} />
+                    </td>
+                    <td data-label="Outcome" className="px-4 py-3">
+                      {(() => {
+                        const o = outcomes[jc.id];
+                        const badge = o ? outcomeBadge(o.outcome, o.refund) : null;
+                        return badge ? <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.className}`}>{badge.label}</span> : <span className="text-xs text-[var(--ejo-text-muted)]">In progress</span>;
+                      })()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </ResponsiveTable>
+
+        <div id="open-job-card" className="h-fit rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 xl:sticky xl:top-6 scroll-mt-20">
+          <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Open Job Card</h2>
+          {enyoPrefill ? (
+            <p role="status" className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-primary)]/30 bg-[var(--ejo-primary)]/5 px-3 py-2 text-xs text-[var(--ejo-text)]">
+              Prepared by Enyo. Check the details, choose the supervisor and press &ldquo;Open Job Card&rdquo; — nothing is saved until you do.
+            </p>
+          ) : null}
+          <form action={createJobCardFormAction} className="mt-4 space-y-3">
+            <FormPendingOverlay />
+            <fieldset>
+              <legend className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">What is this visit for?</legend>
+              {/* Two thumb-sized pills. The real radio covers its whole pill (see-through), so the
+                  whole pill is the control for touch, keyboard and screen readers; the dot only shows the choice. */}
+              <div className="grid grid-cols-2 gap-2 text-sm text-[var(--ejo-text)]">
+                <label className={VISIT_PILL}>
+                  <input type="radio" name="visitType" value="REPAIR" defaultChecked={!forService} data-testid="visit-type-repair" className={VISIT_RADIO} />
+                  <span aria-hidden="true" className={VISIT_DOT} />
+                  Repair
+                </label>
+                <label className={VISIT_PILL}>
+                  <input type="radio" name="visitType" value="SERVICE" defaultChecked={forService} data-testid="visit-type-service" className={VISIT_RADIO} />
+                  <span aria-hidden="true" className={VISIT_DOT} />
+                  Service
+                </label>
+              </div>
+              <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">A routine service starts the vehicle&rsquo;s next-service count when it is checked out. Enter the mileage so the next service can be worked out by distance too.</p>
+            </fieldset>
+            <CustomerVehiclePicker initialCustomer={prefill?.customer} initialVehicleId={prefill?.vehicleId} />
+            <div>
+              <label htmlFor="job-card-mileage" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Mileage at check-in (km) <span className="font-normal">— needed for a service</span></label>
+              <input id="job-card-mileage" name="mileageAtCheckIn" type="number" defaultValue={prefill?.mileage ?? undefined} className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
+                Complaints / reasons for visit <span className="text-[var(--ejo-error)]">*</span>
+              </label>
+              <ComplaintListInput initial={prefill?.complaints} />
+            </div>
+            <SubmitButton
+              label="Open Job Card"
+              pendingLabel="Opening…"
+              className="w-full rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+            />
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

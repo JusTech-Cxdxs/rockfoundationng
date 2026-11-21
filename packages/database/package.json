@@ -1,0 +1,30 @@
+{
+  "name": "@ejo/database",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "postinstall": "prisma generate --schema=$( [ -f prisma/schema.prisma ] && echo prisma/schema.prisma || echo packages/database/prisma/schema.prisma )",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "tsc -p tsconfig.test.json && node --test .test-out/tests/*.test.js"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "better-auth": "~1.7.22"
+  },
+  "devDependencies": {
+    "prisma": "5.22.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

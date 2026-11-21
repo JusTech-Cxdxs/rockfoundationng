@@ -1,0 +1,7 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd ../.. && npm run vercel:website",
+  "regions": [
+    "fra1"
+  ]
+}

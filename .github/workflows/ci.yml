@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+
+# A newer push to the same branch cancels the run still going (saves Actions minutes).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # A throwaway PostgreSQL for the "two users at once" tests
+    # (apps/portal/tests/concurrency.db.test.ts). Never a real database.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: ci-test-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Dummy values — CI never talks to a real database (db-push-if-vercel.js
+      # only runs when VERCEL is set), but Prisma reads these at schema-parse
+      # time even for `generate`, so they must exist and be well-formed. Port
+      # 5999 has nothing listening (the test Postgres service is on 5432), so the
+      # build behaves exactly as before: no database reachable.
+      DATABASE_URL: 'postgresql://user:password@localhost:5999/rockfoundation'
+      DIRECT_URL: 'postgresql://user:password@localhost:5999/rockfoundation'
+      BETTER_AUTH_SECRET: 'ci-placeholder-secret-do-not-use-in-production'
+      BETTER_AUTH_URL: 'http://localhost:3001'
+      NEXT_PUBLIC_PORTAL_URL: 'http://localhost:3001'
+      NEXT_PUBLIC_WEBSITE_URL: 'http://localhost:3000'
+      TEST_DATABASE_URL: 'postgresql://postgres:ci-test-only@localhost:5432/postgres'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+      - run: npm install
+      # Every other workspace's typecheck, build and lint read the compiled
+      # @ejo/database (dist/index.d.ts), so it is built first.
+      - run: npm run build --workspace=packages/database
+      - run: npm run lint
+      - run: npm run typecheck
+      # Authorization catalogue (allowed AND denied cases), every data-changing
+      # server action is guarded, integrity under concurrency (source checks
+      # plus real parallel transactions against the Postgres service above).
+      - run: npm run test --workspace=apps/portal
+      # The data journal: before/after values kept, rolled-back work never recorded.
+      - run: npm run test --workspace=packages/database
+      # Enyo's engine: model client, agent loop, tool checks, guardrails, streaming protocol.
+      - run: npm run test --workspace=packages/enyo
+      # Enyo on the website: a customer finds only their own jobs, ticket numbers, limits, safe answers.
+      - run: npm run test --workspace=apps/website
+      - run: npm run build
+      # Known vulnerabilities in production dependencies — reported on every push
+      # (report-only so a new advisory never blocks an urgent fix; review the log).
+      - name: Dependency vulnerability report
+        run: npm audit --omit=dev --audit-level=high || echo "::warning::npm audit found vulnerabilities — review the log above"
+

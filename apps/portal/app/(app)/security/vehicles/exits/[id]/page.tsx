@@ -1,0 +1,50 @@
+import { allows, guardAnyPage } from '@/lib/authz/server';
+import { notFound } from 'next/navigation';
+import { getVehicleGateExit, getVehicleExitHistory } from '@/lib/actions/security';
+import { LoadingLink } from '@/components/LoadingLink';
+import { SecurityNav } from '@/components/SecurityNav';
+import { SecurityHistory } from '@/components/SecurityHistory';
+import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
+import { PrintMenu } from '@/components/print/PrintMenu';
+import { formatDateTime } from '@/lib/utils/format-date';
+import { BackLink, PageTitle } from '@/components/ui';
+
+export default async function VehicleExitPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ status?: string }> }) {
+  await guardAnyPage(['security.view'], '/security/vehicles');
+  const { id } = await params;
+  const { status } = await searchParams;
+  const [x, history] = await Promise.all([getVehicleGateExit(id), getVehicleExitHistory(id)]);
+  if (!x) notFound();
+  const rec = x.jobCard ? { number: x.jobCard.jobNumber, href: `/workshop/job-cards/${x.jobCardId}`, released: x.jobCard.checkedOutAt, customer: x.jobCard.customer.fullName } : null;
+  const Row = ({ k, val }: { k: string; val: string | null | undefined }) => <div className="flex justify-between gap-3 py-1.5 text-sm"><dt className="text-[var(--ejo-text-muted)]">{k}</dt><dd className="text-right font-medium text-[var(--ejo-text)]">{val || '—'}</dd></div>;
+  return (
+    <div className="p-4 sm:p-8">
+      <BackLink href="/security/vehicles/exits" label="Back to Gate passes" className="mb-4" />
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <PageTitle icon="car">{x.exitNumber}</PageTitle>
+          <p className="mt-1 text-sm text-[var(--ejo-text-muted)]">Vehicle left the gate {formatDateTime(x.exitedAt)}</p>
+        </div>
+        <PrintMenu orgHref={`/print/vehicle-exit/${x.id}`} clientHref={`/print/vehicle-exit/${x.id}?variant=client`} clientLabel="Customer Copy" align="right" />
+      </div>
+      <SecurityNav active="/security/vehicles/exits" />
+      {status === 'vehicle_out' ? <div className="mb-6 max-w-2xl"><FormFeedbackBanner kind="success" message="Exit recorded. Print the gate pass: the customer copy goes with the collector, the workshop copy stays in the gate file." /></div> : null}
+      <dl className="mb-6 max-w-2xl rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+        <Row k="Vehicle" val={[x.vehicle.make, x.vehicle.model].filter(Boolean).join(' ') || 'Vehicle'} />
+        <Row k="Plate" val={x.vehicle.plateNumber} />
+        <Row k="VIN" val={x.vehicle.chassisNumber} />
+        <Row k="Job Card" val={rec?.number} />
+        <Row k="Customer" val={rec?.customer} />
+        <Row k="Released by the Workshop" val={rec?.released ? formatDateTime(rec.released) : null} />
+        <Row k="Collected by" val={x.driverName} />
+        <Row k="Confirmed at the gate by" val={x.exitedBy.fullName} />
+        <Row k="Notes" val={x.notes} />
+        <p className="mt-2 flex flex-wrap gap-4 text-xs">
+          {rec && (await allows('workshop.job_card.view')) ? <LoadingLink href={rec.href} className="text-[var(--ejo-primary)] hover:underline">Open {rec.number}</LoadingLink> : null}
+          <LoadingLink href={`/workshop/vehicles/${x.vehicleId}/edit`} className="text-[var(--ejo-primary)] hover:underline">Open the vehicle</LoadingLink>
+        </p>
+      </dl>
+      <SecurityHistory history={history} />
+    </div>
+  );
+}

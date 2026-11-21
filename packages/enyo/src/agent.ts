@@ -1,0 +1,243 @@
+/**
+ * The agent loop: ask the model, run the tools it asks for (as the person),
+ * feed the results back, until it answers. Bounded in steps, tool calls and
+ * time, and every figure in the final answer is checked against the tool results.
+ */
+import type { LlmConfig } from './config';
+import { LlmError, llmErrorMessage, MAX_RETRY_WAIT_MS, retryAfterMs, stream, type ChatMessage, type ToolCall, type Usage } from './llm';
+import { clip, stripCitationMarks, ungroundedFigures } from './guardrails';
+import { parseArgs, toolSpec, validateArgs, type Source, type Tool, type ToolResult } from './tools';
+import type { EnyoDraft, EnyoEvent } from './protocol';
+
+export type ToolRun = { name: string; args: Record<string, unknown>; ok: boolean; refused: boolean; ms: number };
+
+export type AgentResult = {
+  answer: string;
+  /** The assistant and tool messages to store after the user's message. */
+  transcript: ChatMessage[];
+  toolRuns: ToolRun[];
+  sources: Source[];
+  drafts: EnyoDraft[];
+  usage: Usage;
+  model: string;
+  /** Money figures in the answer that no tool returned. */
+  unverified: number[];
+  /** `detail` / `status` come from the model server: for the error log, never for the person. */
+  error?: { kind: string; message: string; detail?: string; status?: number; code?: string };
+};
+
+export type AgentOptions<Ctx> = {
+  config: LlmConfig;
+  system: string;
+  /** Earlier turns (already trimmed to a budget) and the new user message last. */
+  messages: ChatMessage[];
+  tools: Tool<Ctx>[];
+  ctx: Ctx;
+  emit: (e: EnyoEvent) => void;
+  signal?: AbortSignal;
+  maxSteps?: number;
+  maxToolCalls?: number;
+  /** How much of each tool result the model sees. */
+  maxToolChars?: number;
+  /** Total time for the whole answer, all steps included (default 55 s, under a 60 s function limit). */
+  deadlineMs?: number;
+  fetchImpl?: typeof fetch;
+  /**
+   * When the very first request is refused for its SIZE or for the rate
+   * (free tiers limit tokens per minute), try once more with fewer tools,
+   * fewer earlier turns and, optionally, another model — before telling the
+   * person anything went wrong.
+   */
+  retrySmaller?: { tools: Tool<Ctx>[]; model?: string; keepMessages?: number };
+};
+
+/** The model server refused the request because of its size or the per-minute budget. */
+export function isBudgetError(err: unknown): boolean {
+  if (!(err instanceof LlmError)) return false;
+  if (err.kind === 'rate_limited') return true;
+  if (err.status === 413) return true;
+  return err.kind === 'rejected' && /too large|too long|tokens per minute|\bTPM\b|rate limit|context length|maximum context|reduce the length/i.test(`${err.detail ?? ''} ${err.code ?? ''}`);
+}
+
+const isDraft = (d: unknown): d is { draft: EnyoDraft } => !!d && typeof d === 'object' && 'draft' in (d as Record<string, unknown>);
+
+export async function runAgent<Ctx>(o: AgentOptions<Ctx>): Promise<AgentResult> {
+  const maxSteps = o.maxSteps ?? 6;
+  const maxToolCalls = o.maxToolCalls ?? 10;
+  const maxToolChars = o.maxToolChars ?? 8000;
+  let byName = new Map(o.tools.map((t) => [t.name, t]));
+  let specs = o.tools.map(toolSpec);
+  const convo: ChatMessage[] = [{ role: 'system', content: o.system }, ...o.messages];
+  let config = o.config;
+  let retried = false;
+  let budgetWaits = 0;
+  const transcript: ChatMessage[] = [];
+  const toolRuns: ToolRun[] = [];
+  const evidence: unknown[] = [];
+  const sources: Source[] = [];
+  const drafts: EnyoDraft[] = [];
+  const usage: Usage = { tokensIn: 0, tokensOut: 0 };
+  let model = o.config.model;
+  let answer = '';
+  let calls = 0;
+  const deadlineAt = Date.now() + (o.deadlineMs ?? 55_000);
+  const deadline = AbortSignal.timeout(o.deadlineMs ?? 55_000);
+  const signal = o.signal ? AbortSignal.any([o.signal, deadline]) : deadline;
+  const outOfTime = () => deadline.aborted && !o.signal?.aborted;
+
+  for (let step = 0; step < maxSteps; step += 1) {
+    // The last step allows no tool calls, so the model must answer with what it has. The tools
+    // stay declared (an OpenAI-compatible request leaves them out), so the request matches
+    // the earlier steps of the same answer.
+    const lastStep = step === maxSteps - 1 || calls >= maxToolCalls;
+    let text = '';
+    let toolCalls: ToolCall[] = [];
+    let providerContent: unknown[] | undefined;
+    let refusal: string | undefined;
+    try {
+      for await (const piece of stream(config, { messages: convo, tools: specs, toolChoice: lastStep ? 'none' : 'auto', signal }, o.fetchImpl)) {
+        if (piece.type === 'text') {
+          text += piece.text;
+          o.emit({ type: 'text', text: piece.text });
+        } else {
+          toolCalls = piece.completion.toolCalls;
+          providerContent = piece.completion.providerContent;
+          if (piece.completion.finishReason === 'refusal') refusal = piece.completion.content;
+          usage.tokensIn += piece.completion.usage.tokensIn;
+          usage.tokensOut += piece.completion.usage.tokensOut;
+          model = piece.completion.model;
+        }
+      }
+    } catch (err) {
+      // Too big or too often on the first try (nothing said yet): once more, smaller.
+      if (step === 0 && !text && !retried && o.retrySmaller && isBudgetError(err) && !outOfTime() && !o.signal?.aborted) {
+        retried = true;
+        const r = o.retrySmaller;
+        byName = new Map(r.tools.map((t) => [t.name, t]));
+        specs = r.tools.map(toolSpec);
+        if (r.model) config = { ...config, model: r.model };
+        const keep = r.keepMessages ?? 4;
+        const rest = convo.slice(1);
+        // The kept history starts with a question, never half a conversation.
+        let kept = rest.slice(-keep);
+        while (kept.length > 1 && kept[0]!.role !== 'user') kept = kept.slice(1);
+        convo.splice(1, convo.length - 1, ...kept);
+        // "Too many questions": a short pause first, so the per-minute budget can recover.
+        if (err instanceof LlmError && err.kind === 'rate_limited') await new Promise((ok) => setTimeout(ok, 1500));
+        step -= 1;
+        continue;
+      }
+      // The per-minute budget ran out part-way (after a tool or two): wait for it and try the same step again,
+      // rather than throwing away what was gathered — when there is time left to do so.
+      if (err instanceof LlmError && err.kind === 'rate_limited' && budgetWaits < 2 && !outOfTime() && !o.signal?.aborted) {
+        const asked = retryAfterMs(err.detail) ?? 4_000;
+        const left = deadlineAt - Date.now();
+        if (asked <= MAX_RETRY_WAIT_MS && left > asked + 8_000) {
+          budgetWaits += 1;
+          o.emit({ type: 'status', text: 'Waiting a moment for my thinking engine…' });
+          await new Promise((ok) => setTimeout(ok, asked + 250));
+          step -= 1;
+          continue;
+        }
+      }
+      const kind = outOfTime() ? 'timeout' : err instanceof LlmError ? err.kind : 'bad_response';
+      const message = llmErrorMessage(kind as never);
+      const extra = err instanceof LlmError ? { ...(err.detail ? { detail: err.detail } : {}), ...(err.status ? { status: err.status } : {}), ...(err.code ? { code: err.code } : {}) } : {};
+      return { answer: stripCitationMarks(answer + text), transcript, toolRuns, sources, drafts, usage, model, unverified: [], error: { kind, message, ...extra } };
+    }
+
+    // Declined: the polite sentence is the answer, not whatever was said before it.
+    if (refusal !== undefined) {
+      answer += refusal;
+      transcript.push({ role: 'assistant', content: refusal });
+      break;
+    }
+
+    if (!toolCalls.length) {
+      answer += text;
+      transcript.push({ role: 'assistant', content: text });
+      break;
+    }
+
+    // Text before a tool call ("Let me check…") stays part of the answer.
+    answer += text ? `${text}\n\n` : '';
+    if (text) o.emit({ type: 'text', text: '\n\n' });
+    // The model's own turn goes back to it exactly as it came (providerContent), for the rest of this answer.
+    const assistantTurn: ChatMessage = { role: 'assistant', content: text, toolCalls, ...(providerContent ? { providerContent } : {}) };
+    convo.push(assistantTurn);
+    transcript.push(assistantTurn);
+
+    for (const call of toolCalls) {
+      if (signal.aborted) {
+        const kind = outOfTime() ? 'timeout' : 'aborted';
+        return { answer: stripCitationMarks(answer), transcript, toolRuns, sources, drafts, usage, model, unverified: [], error: { kind, message: llmErrorMessage(kind) } };
+      }
+      calls += 1;
+      const tool = byName.get(call.name);
+      let result: ToolResult;
+      let args: Record<string, unknown> = {};
+      const started = Date.now();
+      let invalidInput = false;
+      if (!tool) {
+        result = { ok: false, message: `There is no tool called "${call.name}".` };
+      } else if (call.invalidInput) {
+        // Cut off or not the shape the tool asks for: not run, and the model sees what it sent.
+        invalidInput = true;
+        result = { ok: false, message: 'Invalid input.' };
+      } else if (calls > maxToolCalls) {
+        result = { ok: false, message: 'Too many lookups for one question. Answer with what you have.' };
+      } else {
+        const parsed = validateArgs(tool.parameters, parseArgs(call.arguments));
+        if (!parsed.ok) {
+          result = { ok: false, message: `Invalid arguments: ${parsed.message}` };
+        } else {
+          args = parsed.args;
+          o.emit({ type: 'status', text: tool.status });
+          try {
+            // A slow lookup never runs past the deadline: the model answers with what it has.
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const slow = { ok: false as const, message: 'That lookup took too long. Answer with what you have and say what could not be checked.' };
+            result = await Promise.race([
+              tool.run(args, o.ctx),
+              new Promise<ToolResult>((resolve) => {
+                // At most 20 s per lookup, and always leaving ~8 s for the model to answer.
+                timer = setTimeout(() => resolve(slow), Math.max(2_000, Math.min(20_000, deadlineAt - Date.now() - 8_000)));
+                signal.addEventListener('abort', () => resolve(slow), { once: true });
+              }),
+            ]).finally(() => clearTimeout(timer));
+          } catch {
+            // Tool code throws only on unexpected failures; the details stay in the server log.
+            result = { ok: false, message: 'That lookup failed. Tell the person it could not be checked right now.' };
+          }
+        }
+      }
+      const refused = !result.ok && !!result.refused;
+      toolRuns.push({ name: call.name, args, ok: result.ok, refused, ms: Date.now() - started });
+      o.emit({ type: 'tool', name: call.name, ok: result.ok, ...(refused ? { refused: true } : {}) });
+      if (result.ok) {
+        evidence.push(result.data);
+        for (const s of result.sources ?? []) if (!sources.some((x) => x.label === s.label && x.href === s.href)) sources.push(s);
+        if (isDraft(result.data)) {
+          drafts.push(result.data.draft);
+          o.emit({ type: 'draft', draft: result.data.draft });
+        }
+      }
+      const content = result.ok
+        ? clip(JSON.stringify(result.data), maxToolChars)
+        : invalidInput
+          ? JSON.stringify({ INVALID_JSON: clip(call.arguments, maxToolChars) })
+          : JSON.stringify({ error: result.message, ...(refused ? { refused: true } : {}) });
+      const toolTurn: ChatMessage = { role: 'tool', toolCallId: call.id, name: call.name, content, ...(result.ok ? {} : { isError: true }) };
+      convo.push(toolTurn);
+      transcript.push(toolTurn);
+    }
+  }
+
+  answer = stripCitationMarks(answer);
+  if (sources.length) o.emit({ type: 'sources', sources });
+  const unverified = ungroundedFigures(answer, evidence);
+  if (unverified.length) {
+    o.emit({ type: 'notice', text: "I couldn't match one or more amounts in this answer to the records. Please check them on the page before relying on them." });
+  }
+  return { answer, transcript, toolRuns, sources, drafts, usage, model, unverified };
+}

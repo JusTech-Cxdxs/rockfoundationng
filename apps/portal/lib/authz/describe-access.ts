@@ -1,0 +1,50 @@
+import { PERMISSIONS, ROLE_GRANTS, ROLE_LABELS, scopeFor, type PermissionKey, type Principal, type Scope } from './catalogue';
+import { permissionShown } from '../edition';
+
+/**
+ * A person's access in plain words — exactly what the catalogue grants them
+ * right now (their roles' defaults plus anything an administrator added to a
+ * role). Used in the welcome / access-changed emails and on the profile
+ * page, so what people are told always matches what the system enforces.
+ */
+export type AccessLine = { key: PermissionKey; label: string; where: string; added: boolean };
+export type AccessGroup = { module: string; lines: AccessLine[] };
+
+const WHERE: Record<Scope, string> = {
+  ALL: 'across the whole organisation',
+  BRANCH: 'in your branch',
+  DEPARTMENT: 'in your department',
+  ASSIGNED: 'on work assigned to you',
+  OWN: 'for yourself',
+};
+
+/** The catalogue label in plain words for the person themselves: the scope
+ * hint after " — " and role hints in brackets are dropped (the scope is
+ * stated separately, from what the person actually holds). */
+export function plainLabel(label: string): string {
+  return label.split(' — ')[0]!.replace(/\s*\([^)]*\)\s*$/, '').replace(/\bfor themselves\b/, 'for yourself').trim();
+}
+
+/** `shown`: which permissions this edition describes — those of the areas it
+ * switches off are not (they open nothing; lib/edition.ts). Tests of the
+ * whole catalogue pass `() => true`. */
+export function describeAccess(p: Principal, shown: (key: string) => boolean = permissionShown): AccessGroup[] {
+  if (p.isSuperAdmin) return [{ module: 'Platform', lines: [] }];
+  const byModule = new Map<string, AccessLine[]>();
+  for (const key of (Object.keys(PERMISSIONS) as PermissionKey[]).filter((k) => shown(k))) {
+    const scope = scopeFor(p, key);
+    if (!scope) continue;
+    const fromRoles = p.roleSlugs.some((s) => ROLE_GRANTS[s]?.[key]);
+    const added = !fromRoles && Boolean(p.extraGrants?.[key]);
+    const { module, label } = PERMISSIONS[key];
+    const list = byModule.get(module) ?? [];
+    const plain = plainLabel(label);
+    list.push({ key, label: plain, where: /for yourself$/.test(plain) ? '' : WHERE[scope], added });
+    byModule.set(module, list);
+  }
+  return [...byModule.entries()].map(([module, lines]) => ({ module, lines }));
+}
+
+export function roleLabel(slug: string, name: string): string {
+  return ROLE_LABELS[slug] ?? name;
+}

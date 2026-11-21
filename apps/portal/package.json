@@ -1,0 +1,57 @@
+{
+  "name": "@ejo/portal",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "rm -rf .test-out && tsc ../../packages/ui/src/article.ts --module commonjs --target es2022 --strict --outDir ../../packages/ui/src && tsc -p tsconfig.test.json && node --test .test-out/tests/*.test.js; s=$?; rm -f ../../packages/ui/src/article.js; exit $s"
+  },
+  "dependencies": {
+    "@ejo/database": "*",
+    "@ejo/enyo": "*",
+    "@ejo/types": "*",
+    "@ejo/ui": "*",
+    "@ejo/utils": "*",
+    "@react-pdf/renderer": "^4.9.0",
+    "better-auth": "~1.7.22",
+    "fflate": "^0.8.3",
+    "framer-motion": "^11.18.2",
+    "imapflow": "^2.4.2",
+    "mailparser": "^3.14.1",
+    "next": "15.5.28",
+    "nodemailer": "^10.3.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "recharts": "^3.10.1",
+    "sanitize-html": "^2.18.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^24.19.2",
+    "@types/nodemailer": "^6.4.24",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@types/sanitize-html": "^2.16.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.5.28",
+    "hoodiecrow-imap": "^2.1.0",
+    "jsqr": "^1.4.0",
+    "pg": "^8.23.1",
+    "smtp-server": "^3.19.22",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3"
+  }
+}

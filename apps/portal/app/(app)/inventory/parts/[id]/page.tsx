@@ -1,0 +1,960 @@
+import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
+import { provenanceOf } from '@/lib/data-exchange/provenance-server';
+import { ProvenanceCard } from '@/components/ProvenanceCard';
+import { getRecycleBinOffer } from '@/lib/actions/recycle-bin';
+import { RecycleBinPanel } from '@/components/RecycleBinPanel';
+import { guardAnyPage, allows } from '@/lib/authz/server';
+import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
+import { notFound } from 'next/navigation';
+import { durationLabel } from '@/lib/warranty-state';
+import { isPolicyId, policyAuditLabel } from '@/lib/audit-policy-label';
+import { humanizeAction } from '@/lib/humanize-action';
+import { SearchableSelect } from '@/components/SearchableSelect';
+import { IssuedToLinks } from '@/components/IssuedToLinks';
+import { listWarrantyPolicies, getPartWarrantyTrace, getWarrantyRoles, searchPartWarrantyPolicyOptions, loadPartWarrantyPolicyOptions, resolveWarrantyPolicyNames } from '@/lib/actions/warranty';
+import { PartWarrantyTraceTable } from '@/components/PartWarrantyTraceTable';
+import { coverageLabel, REMEDY_LABEL } from '@/lib/warranty-claim-status';
+import { setPartWarrantyPolicyFormAction } from '@/lib/actions/warranty-form-handlers';
+import { getPart, getPartAuditTrail } from '@/lib/actions/store';
+import { getLastEditInfo } from '@/lib/actions/workshop';
+import { createPartFitmentFormAction, updatePartFitmentFormAction, deletePartFitmentFormAction } from '@/lib/actions/store-form-handlers';
+import { LoadingLink } from '@/components/LoadingLink';
+import { SellingPriceCalculator } from '@/components/SellingPriceCalculator';
+import { TargetMarginEditor } from '@/components/TargetMarginEditor';
+import { pluralizeWord } from '@/lib/utils/pluralize';
+import { SubmitButton } from '@/components/SubmitButton';
+import { FormPendingOverlay } from '@/components/FormPendingOverlay';
+import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
+import { formatDateTimeCompact, formatDateTime, formatDateOnly } from '@/lib/utils/format-date';
+import { BackLink, PageTitle } from '@/components/ui';
+import { CustomerLink } from '@/components/CustomerLink';
+
+const TRACKING_TYPE_LABEL: Record<string, string> = {
+  QUANTITY: 'Quantity',
+  BATCH: 'Batch',
+  SERIALIZED: 'Serialized',
+};
+
+const PART_AUDIT_ACTION_LABEL: Record<string, string> = {
+  'part.created': 'Part created',
+  'part.updated': 'Part updated',
+  'part.alternative_units_updated': 'Alternative units updated',
+  'part.fitment_added': 'Vehicle fitment added',
+  'part.fitment_updated': 'Vehicle fitment updated',
+  'part.fitment_removed': 'Vehicle fitment removed',
+  'part.selling_price_set': 'Selling price updated',
+  'part.target_margin_set': 'Target margin updated',
+  'part.warranty_policy_set': 'Warranty changed',
+  'part.stock_levels_set': 'Stock levels changed',
+};
+
+function formatQty(value: unknown): string {
+  return Number(value).toLocaleString('en-NG', { maximumFractionDigits: 3 });
+}
+
+function formatNaira(value: number): string {
+  return `₦${value.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * A single part's detail — stock on hand and full FIFO traceability for
+ * every tracking type: batches for a BATCH part, individual serials for a
+ * SERIALIZED one, and one FIFO layer per delivery (GRN) for a QUANTITY one
+ * (lib/inventory/quantity-fifo.ts).
+ */
+export default async function PartDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string; status?: string; editFitmentId?: string; editWarranty?: string }>;
+}) {
+  await guardAnyPage(['store.view'], '/inventory');
+  const { id } = await params;
+  const { error, status, editFitmentId, editWarranty } = await searchParams;
+  const part = await getPart(id);
+  const [partWarrantyPolicies, partWarrantyTrace, warrantyRoles] = await Promise.all([listWarrantyPolicies('PART'), getPartWarrantyTrace(id), getWarrantyRoles()]);
+  if (!part) notFound();
+  // Customer names link to their Customers (CRM) page for those who may open it.
+  const canSeeCustomers = await allows('crm.view');
+  // Delivery costs and margins are for the Store, Finance, management and Warranty — not the workshop floor.
+  const [canSeeCosts, canManage] = await Promise.all([Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k, { branchId: part.branchId }))).then((xs) => xs.some(Boolean)), allows('store.parts.manage', { branchId: part.branchId })]);
+  const [lastEdit, auditTrail, binOffer, origin] = await Promise.all([
+    getLastEditInfo('Part', id, 'part.updated'), getPartAuditTrail(id), getRecycleBinOffer('Part', id),
+    provenanceOf({ branchId: part.branchId, createdAt: part.createdAt, createdBy: part.createdBy.fullName, importJobId: part.importJobId, externalSource: part.externalSource, externalId: part.externalId, numberLabel: 'material number' }),
+  ]);
+  // Older warranty-change entries stored a policy id — show its name.
+  const policyIdsInTrail = auditTrail
+    .filter((e: (typeof auditTrail)[number]) => e.action === 'part.warranty_policy_set' && e.metadata && typeof e.metadata === 'object')
+    .flatMap((e: (typeof auditTrail)[number]) => [(e.metadata as { from?: unknown }).from, (e.metadata as { to?: unknown }).to])
+    .filter(isPolicyId);
+  const policyNames = await resolveWarrantyPolicyNames(policyIdsInTrail);
+  const policyLabel = (v: unknown) => policyAuditLabel(v, policyNames);
+
+  return (
+    <div className="p-8">
+      <BackLink href="/inventory/parts" label="Back to Parts Catalog" className="mb-4" />
+      <div className="mb-2 flex items-center gap-2">
+        <PageTitle icon="package">{part.name}</PageTitle>
+        <span className="rounded-full bg-[var(--ejo-info)]/15 px-2.5 py-0.5 text-xs font-medium text-[var(--ejo-info)]">
+          {TRACKING_TYPE_LABEL[part.trackingType] ?? part.trackingType}
+        </span>
+        {canManage ? (
+          <LoadingLink
+            href={`/inventory/parts/${id}/edit`}
+            className="ml-auto text-xs font-medium text-[var(--ejo-primary)] hover:underline"
+          >
+            Edit
+          </LoadingLink>
+        ) : null}
+      </div>
+      {part.category ? <p className="mb-6 text-sm text-[var(--ejo-text-muted)]">{part.category}</p> : null}
+
+      {error ? (
+        <div className="mb-6 max-w-2xl">
+          <FormFeedbackBanner kind="error" message={error} />
+        </div>
+      ) : null}
+      {status === 'updated' ? (
+        <div className="mb-6 max-w-2xl">
+          <FormFeedbackBanner kind="success" message="Part updated." />
+        </div>
+      ) : null}
+      {status === 'fitment_added' ? (
+        <div className="mb-6 max-w-2xl">
+          <FormFeedbackBanner kind="success" message="Fitment added." />
+        </div>
+      ) : null}
+      {status === 'fitment_removed' ? (
+        <div className="mb-6 max-w-2xl">
+          <FormFeedbackBanner kind="success" message="Fitment removed." />
+        </div>
+      ) : null}
+      {status === 'fitment_updated' ? (
+        <div className="mb-6 max-w-2xl">
+          <FormFeedbackBanner kind="success" message="Fitment updated." />
+        </div>
+      ) : null}
+      {status === 'selling_price_set' ? (
+        <div className="mb-6 max-w-2xl">
+          <FormFeedbackBanner kind="success" message="Selling price updated." />
+        </div>
+      ) : null}
+
+      {status === 'warranty_policy_set' ? (
+        <div className="mb-6 max-w-2xl">
+          <FormFeedbackBanner kind="success" message="Warranty updated — parts released from now on carry this warranty automatically." />
+        </div>
+      ) : null}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-6">
+          {!canSeeCosts ? (
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Stock</h2>
+              <p className="mt-1 text-sm text-[var(--ejo-text-muted)]">Stock on hand is shown alongside. Delivery costs, batches and profit are kept to the Store, Finance and management.</p>
+            </div>
+          ) : part.trackingType === 'BATCH' ? (
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Batches</h2>
+              <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
+                Revenue and profit are estimated from the part&apos;s current selling price; earlier sales may have
+                been at a different price.
+              </p>
+              {part.batches.length === 0 ? (
+                <p className="mt-2 text-sm text-[var(--ejo-text-muted)]">No batches recorded yet.</p>
+              ) : (
+                <ResponsiveTable flush className="mt-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]">
+                        <th className="px-3 py-2">Batch No.</th>
+                        <th className="px-3 py-2">Source GRN</th>
+                        <th className="px-3 py-2">Received</th>
+                        <th className="px-3 py-2">Sold So Far</th>
+                        <th className="px-3 py-2">Remaining</th>
+                        <th className="px-3 py-2">Revenue (Est.)</th>
+                        <th className="px-3 py-2">Profit (Est.)</th>
+                        <th className="px-3 py-2">Received At</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        // The oldest batch with stock left, which FIFO
+                        // issues next (see requestStoreMatching).
+                        const activeBatchId = part.batches.find((b: (typeof part.batches)[number]) => Number(b.remainingQuantity) > 0)?.id ?? null;
+                        return part.batches.map((batch: (typeof part.batches)[number]) => {
+                        const received = Number(batch.receivedQuantity);
+                        const remaining = Number(batch.remainingQuantity);
+                        const soldSoFar = Math.max(0, received - remaining);
+                        const unitCostForBatch = batch.goodsReceiptLine?.unitCost !== null && batch.goodsReceiptLine?.unitCost !== undefined ? Number(batch.goodsReceiptLine.unitCost) : null;
+                        const sellingPrice = part.sellingPrice !== null ? Number(part.sellingPrice) : null;
+                        const revenue = sellingPrice !== null ? soldSoFar * sellingPrice : null;
+                        const cogs = unitCostForBatch !== null ? soldSoFar * unitCostForBatch : null;
+                        const profit = revenue !== null && cogs !== null ? revenue - cogs : null;
+                        return (
+                          <tr key={batch.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                            <td className="px-3 py-2 font-medium text-[var(--ejo-text)]">
+                              {batch.batchNumber}
+                              {batch.id === activeBatchId ? (
+                                <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[var(--ejo-success)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ejo-success)]">
+                                  ● Active / Selling Now
+                                </span>
+                              ) : null}
+                            </td>
+                            <td data-label="Source GRN" className="px-3 py-2 text-[var(--ejo-text-muted)]">
+                              {batch.goodsReceiptLine?.goodsReceipt ? (
+                                <LoadingLink href={`/inventory/goods-receipts/${batch.goodsReceiptLine.goodsReceipt.id}`} className="text-[var(--ejo-primary)] hover:underline">
+                                  {batch.goodsReceiptLine.goodsReceipt.referenceNumber}
+                                </LoadingLink>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td data-label="Received" className="px-3 py-2 text-[var(--ejo-text-muted)]">
+                              {formatQty(received)} {pluralizeWord(received, part.baseUnitOfMeasure)}
+                            </td>
+                            <td data-label="Sold So Far" className="px-3 py-2 text-[var(--ejo-text)]">
+                              {formatQty(soldSoFar)} {pluralizeWord(soldSoFar, part.baseUnitOfMeasure)}
+                            </td>
+                            <td data-label="Remaining" className={`px-3 py-2 ${remaining === 0 ? 'text-[var(--ejo-text-muted)]' : 'text-[var(--ejo-text)]'}`}>
+                              {formatQty(remaining)} {pluralizeWord(remaining, part.baseUnitOfMeasure)}
+                            </td>
+                            <td data-label="Revenue (Est.)" className="px-3 py-2 text-[var(--ejo-text)]">{revenue !== null ? formatNaira(revenue) : '—'}</td>
+                            <td data-label="Profit (Est.)" className={`px-3 py-2 font-medium ${profit !== null && profit < 0 ? 'text-[var(--ejo-error)]' : 'text-[var(--ejo-success)]'}`}>
+                              {profit !== null ? formatNaira(profit) : '—'}
+                            </td>
+                            <td data-label="Received At" className="px-3 py-2 text-[var(--ejo-text-muted)]">{formatDateOnly(new Date(batch.receivedAt))}</td>
+                          </tr>
+                        );
+                        });
+                      })()}
+                    </tbody>
+                    <tfoot>
+                      {(() => {
+                        const totalReceived = part.batches.reduce((sum: number, b: (typeof part.batches)[number]) => sum + Number(b.receivedQuantity), 0);
+                        const totalRemaining = part.batches.reduce((sum: number, b: (typeof part.batches)[number]) => sum + Number(b.remainingQuantity), 0);
+                        const totalSold = Math.max(0, totalReceived - totalRemaining);
+                        const totalRevenueAndProfit = part.batches.reduce(
+                          (acc: { revenue: number; profit: number }, batch: (typeof part.batches)[number]) => {
+                            const received = Number(batch.receivedQuantity);
+                            const remaining = Number(batch.remainingQuantity);
+                            const soldSoFar = Math.max(0, received - remaining);
+                            const unitCostForBatch = batch.goodsReceiptLine?.unitCost !== null && batch.goodsReceiptLine?.unitCost !== undefined ? Number(batch.goodsReceiptLine.unitCost) : null;
+                            const sellingPrice = part.sellingPrice !== null ? Number(part.sellingPrice) : null;
+                            const revenue = sellingPrice !== null ? soldSoFar * sellingPrice : 0;
+                            const cogs = unitCostForBatch !== null ? soldSoFar * unitCostForBatch : 0;
+                            return { revenue: acc.revenue + revenue, profit: acc.profit + (revenue - cogs) };
+                          },
+                          { revenue: 0, profit: 0 },
+                        );
+                        return (
+                          <tr className="border-t border-[var(--ejo-border)] font-medium text-[var(--ejo-text)]">
+                            <td className="px-3 py-2" colSpan={2}>
+                              Total
+                            </td>
+                            <td className="px-3 py-2">
+                              {formatQty(totalReceived)} {pluralizeWord(totalReceived, part.baseUnitOfMeasure)}
+                            </td>
+                            <td className="px-3 py-2">
+                              {formatQty(totalSold)} {pluralizeWord(totalSold, part.baseUnitOfMeasure)}
+                            </td>
+                            <td className="px-3 py-2">
+                              {formatQty(totalRemaining)} {pluralizeWord(totalRemaining, part.baseUnitOfMeasure)}
+                            </td>
+                            <td className="px-3 py-2">{formatNaira(totalRevenueAndProfit.revenue)}</td>
+                            <td className={totalRevenueAndProfit.profit < 0 ? 'px-3 py-2 text-[var(--ejo-error)]' : 'px-3 py-2 text-[var(--ejo-success)]'}>
+                              {formatNaira(totalRevenueAndProfit.profit)}
+                            </td>
+                            <td />
+                          </tr>
+                        );
+                      })()}
+                    </tfoot>
+                  </table>
+                  {part.batches.some((b: (typeof part.batches)[number]) => b.consumptions.length > 0) ? (
+                    <div className="mt-4 border-t border-[var(--ejo-border)] pt-4">
+                      <p className="mb-2 text-xs font-medium text-[var(--ejo-text-muted)]">
+                        Sold to: every issue from this batch, for warranty or defect tracing
+                      </p>
+                      <div className="space-y-1.5">
+                        {part.batches
+                          .flatMap((batch: (typeof part.batches)[number]) => batch.consumptions.map((c: (typeof batch.consumptions)[number]) => ({ batch, c })))
+                          .map(({ batch, c }: { batch: (typeof part.batches)[number]; c: (typeof part.batches)[number]['consumptions'][number] }) => {
+                            const source = c.slipLine.slip.jobCard ?? c.slipLine.slip.vehicleService;
+                            return (
+                              <div key={c.id} className="flex items-center justify-between text-xs">
+                                <span className="text-[var(--ejo-text)]">
+                                  {formatQty(Number(c.quantityTaken))} {pluralizeWord(Number(c.quantityTaken), part.baseUnitOfMeasure)} from{' '}
+                                  <span className="font-medium">{batch.batchNumber}</span> — {source ? <CustomerLink id={source.customer.id} name={source.customer.fullName} canView={canSeeCustomers} /> : '—'}
+                                </span>
+                                <IssuedToLinks slip={c.slipLine.slip} />
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ) : null}
+                </ResponsiveTable>
+              )}
+            </div>
+          ) : part.trackingType === 'SERIALIZED' ? (
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Serial numbers</h2>
+              <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
+                Every unit received, tracked individually. Profit is estimated from the part&apos;s current selling
+                price; units still in stock have no profit yet.
+              </p>
+              {part.serials.length === 0 ? (
+                <p className="mt-2 text-sm text-[var(--ejo-text-muted)]">No serial numbers recorded yet.</p>
+              ) : (
+                <ResponsiveTable flush className="mt-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]">
+                        <th className="px-3 py-2">Serial Number</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Destination PRS</th>
+                        <th className="px-3 py-2">Source GRN</th>
+                        <th className="px-3 py-2">Profit (Est.)</th>
+                        <th className="px-3 py-2">Received At</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        // The oldest unit still on the shelf — the one FIFO
+                        // says should go out next, the serial equivalent of
+                        // a batch's "Active / Selling Now".
+                        const nextOutSerialId = part.serials.find((x: (typeof part.serials)[number]) => x.status === 'IN_STOCK')?.id ?? null;
+                        return part.serials.map((serial: (typeof part.serials)[number]) => {
+                        const unitCostForSerial = serial.goodsReceiptLine?.unitCost !== null && serial.goodsReceiptLine?.unitCost !== undefined ? Number(serial.goodsReceiptLine.unitCost) : null;
+                        const sellingPrice = part.sellingPrice !== null ? Number(part.sellingPrice) : null;
+                        const isIssued = serial.status !== 'IN_STOCK';
+                        const profit = isIssued && sellingPrice !== null && unitCostForSerial !== null ? sellingPrice - unitCostForSerial : null;
+                        return (
+                          <tr key={serial.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                            <td className="px-3 py-2 font-medium text-[var(--ejo-text)]">
+                              {serial.serialNumber}
+                              {serial.id === nextOutSerialId ? (
+                                <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[var(--ejo-success)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ejo-success)]">
+                                  ● Next Out (FIFO)
+                                </span>
+                              ) : null}
+                            </td>
+                            <td data-label="Status" className="px-3 py-2">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  isIssued ? 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]' : 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]'
+                                }`}
+                              >
+                                {isIssued ? 'Issued' : 'In Stock'}
+                              </span>
+                            </td>
+                            <td data-label="Destination PRS" className="px-3 py-2 text-[var(--ejo-text-muted)]">
+                              {serial.issuedToSlipLine ? (
+                                <IssuedToLinks slip={serial.issuedToSlipLine.slip} showCustomer canSeeCustomers={canSeeCustomers} />
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td data-label="Source GRN" className="px-3 py-2 text-[var(--ejo-text-muted)]">
+                              {serial.goodsReceiptLine?.goodsReceipt ? (
+                                <LoadingLink href={`/inventory/goods-receipts/${serial.goodsReceiptLine.goodsReceipt.id}`} className="text-[var(--ejo-primary)] hover:underline">
+                                  {serial.goodsReceiptLine.goodsReceipt.referenceNumber}
+                                </LoadingLink>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td data-label="Profit (Est.)" className={`px-3 py-2 font-medium ${profit !== null && profit < 0 ? 'text-[var(--ejo-error)]' : 'text-[var(--ejo-success)]'}`}>
+                              {profit !== null ? formatNaira(profit) : '—'}
+                            </td>
+                            <td data-label="Received At" className="px-3 py-2 text-[var(--ejo-text-muted)]">{formatDateOnly(new Date(serial.receivedAt))}</td>
+                          </tr>
+                        );
+                        });
+                      })()}
+                    </tbody>
+                    <tfoot>
+                      {(() => {
+                        const totalUnits = part.serials.length;
+                        const issuedCount = part.serials.filter((s: (typeof part.serials)[number]) => s.status !== 'IN_STOCK').length;
+                        const inStockCount = totalUnits - issuedCount;
+                        const sellingPrice = part.sellingPrice !== null ? Number(part.sellingPrice) : null;
+                        const totalProfit = part.serials.reduce((sum: number, s: (typeof part.serials)[number]) => {
+                          if (s.status === 'IN_STOCK') return sum;
+                          const unitCostForSerial = s.goodsReceiptLine?.unitCost !== null && s.goodsReceiptLine?.unitCost !== undefined ? Number(s.goodsReceiptLine.unitCost) : null;
+                          if (sellingPrice === null || unitCostForSerial === null) return sum;
+                          return sum + (sellingPrice - unitCostForSerial);
+                        }, 0);
+                        return (
+                          <tr className="border-t border-[var(--ejo-border)] font-medium text-[var(--ejo-text)]">
+                            <td className="px-3 py-2">
+                              {pluralizeWord(totalUnits, 'Unit')} total ({inStockCount} in stock, {issuedCount} issued)
+                            </td>
+                            <td data-label="Status" />
+                            <td data-label="Destination PRS" />
+                            <td data-label="Source GRN" />
+                            <td data-label="Profit (Est.)" className={totalProfit < 0 ? 'px-3 py-2 text-[var(--ejo-error)]' : 'px-3 py-2 text-[var(--ejo-success)]'}>{formatNaira(totalProfit)}</td>
+                            <td data-label="Received At" />
+                          </tr>
+                        );
+                      })()}
+                    </tfoot>
+                  </table>
+                  {part.serials.some((x: (typeof part.serials)[number]) => x.issuedToSlipLine) ? (
+                    <div className="mt-4 border-t border-[var(--ejo-border)] pt-4">
+                      <p className="mb-2 text-xs font-medium text-[var(--ejo-text-muted)]">
+                        Sold to: every issue of this part, for warranty or defect tracing
+                      </p>
+                      <div className="space-y-1.5">
+                        {part.serials
+                          .filter((x: (typeof part.serials)[number]) => x.issuedToSlipLine)
+                          .map((x: (typeof part.serials)[number]) => {
+                            // Same as Batch "Sold To", plus the serial number.
+                            const slip = x.issuedToSlipLine!.slip;
+                            const owner = slip.jobCard?.customer ?? slip.vehicleService?.customer ?? null;
+                            return (
+                              <div key={x.id} className="flex items-center justify-between gap-3 text-xs">
+                                <span className="text-[var(--ejo-text)]">
+                                  1 {pluralizeWord(1, part.baseUnitOfMeasure)} (Serial <span className="font-medium">{x.serialNumber}</span>) from{' '}
+                                  {x.goodsReceiptLine?.goodsReceipt ? (
+                                    <LoadingLink href={`/inventory/goods-receipts/${x.goodsReceiptLine.goodsReceipt.id}`} className="font-medium text-[var(--ejo-primary)] hover:underline">
+                                      {x.goodsReceiptLine.goodsReceipt.referenceNumber}
+                                    </LoadingLink>
+                                  ) : (
+                                    <span className="font-medium">no Goods Receipt on record</span>
+                                  )}{' '}
+                                  — {owner ? <CustomerLink id={owner.id} name={owner.fullName} canView={canSeeCustomers} /> : '—'}
+                                </span>
+                                <span className="shrink-0"><IssuedToLinks slip={slip} /></span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ) : null}
+                </ResponsiveTable>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Stock summary</h2>
+              <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
+                Tracked by quantity. Each delivery (GRN) is a FIFO layer: stock is issued from the oldest delivery
+                first, and each release records the delivery it came from. Revenue and profit are estimated from the
+                current selling price against each delivery&apos;s cost.
+              </p>
+
+              {part.goodsReceiptLines.length > 0 ? (
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-medium text-[var(--ejo-text-muted)]">Deliveries (GRNs) that make up this total</p>
+                  <ResponsiveTable flush>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]">
+                          <th className="px-3 py-2">Source GRN</th>
+                          <th className="px-3 py-2">Received</th>
+                          <th className="px-3 py-2">Sold So Far</th>
+                          <th className="px-3 py-2">Remaining</th>
+                          <th className="px-3 py-2">Revenue (Est.)</th>
+                          <th className="px-3 py-2">Profit (Est.)</th>
+                          <th className="px-3 py-2">Received At</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          // Each delivery is a FIFO layer. Sold/remaining
+                          // come from lib/inventory/quantity-fifo.ts, the
+                          // same code the release uses.
+                          const trace = part.quantityTrace;
+                          const sellingPrice = part.sellingPrice !== null ? Number(part.sellingPrice) : null;
+                          const fifoLines = [...part.goodsReceiptLines].sort(
+                            (a: (typeof part.goodsReceiptLines)[number], b: (typeof part.goodsReceiptLines)[number]) =>
+                              new Date(a.goodsReceipt.receivedAt).getTime() - new Date(b.goodsReceipt.receivedAt).getTime(),
+                          );
+                          return fifoLines.map((line: (typeof part.goodsReceiptLines)[number]) => {
+                            const received = Number(line.quantityInBaseUnit);
+                            const layer = trace?.fifo.layers.get(line.id);
+                            const soldSoFar = layer?.taken ?? 0;
+                            const remaining = layer?.remaining ?? received;
+                            const unitCostForLine = received > 0 && line.totalCost !== null ? Number(line.totalCost) / received : null;
+                            const revenue = sellingPrice !== null ? soldSoFar * sellingPrice : null;
+                            const cogs = unitCostForLine !== null ? soldSoFar * unitCostForLine : null;
+                            const profit = revenue !== null && cogs !== null ? revenue - cogs : null;
+                            return (
+                              <tr key={line.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                                <td className="px-3 py-2 text-[var(--ejo-text-muted)]">
+                                  <LoadingLink href={`/inventory/goods-receipts/${line.goodsReceipt.id}`} className="text-[var(--ejo-primary)] hover:underline">
+                                    {line.goodsReceipt.referenceNumber}
+                                  </LoadingLink>
+                                  {trace?.fifo.activeLayerId === line.id ? (
+                                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-[var(--ejo-success)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ejo-success)]">
+                                      ● Active / Selling Now
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td data-label="Received" className="px-3 py-2 text-[var(--ejo-text-muted)]">
+                                  {formatQty(received)} {pluralizeWord(received, part.baseUnitOfMeasure)}
+                                </td>
+                                <td data-label="Sold So Far" className="px-3 py-2 text-[var(--ejo-text)]">
+                                  {formatQty(soldSoFar)} {pluralizeWord(soldSoFar, part.baseUnitOfMeasure)}
+                                </td>
+                                <td data-label="Remaining" className={`px-3 py-2 ${remaining === 0 ? 'text-[var(--ejo-text-muted)]' : 'text-[var(--ejo-text)]'}`}>
+                                  {formatQty(remaining)} {pluralizeWord(remaining, part.baseUnitOfMeasure)}
+                                </td>
+                                <td data-label="Revenue (Est.)" className="px-3 py-2 text-[var(--ejo-text)]">{revenue !== null ? formatNaira(revenue) : '—'}</td>
+                                <td data-label="Profit (Est.)" className={`px-3 py-2 font-medium ${profit !== null && profit < 0 ? 'text-[var(--ejo-error)]' : 'text-[var(--ejo-success)]'}`}>
+                                  {profit !== null ? formatNaira(profit) : '—'}
+                                </td>
+                                <td data-label="Received At" className="px-3 py-2 text-[var(--ejo-text-muted)]">{formatDateOnly(new Date(line.goodsReceipt.receivedAt))}</td>
+                              </tr>
+                            );
+                          });
+                        })()}
+                      </tbody>
+                      <tfoot>
+                        {(() => {
+                          // Summed per delivery, like the batch totals.
+                          const trace = part.quantityTrace;
+                          const sellingPrice = part.sellingPrice !== null ? Number(part.sellingPrice) : null;
+                          let totalReceived = 0;
+                          let totalSold = 0;
+                          let totalRemaining = 0;
+                          let totalCogs = 0;
+                          let cogsKnown = true;
+                          for (const l of part.goodsReceiptLines) {
+                            const received = Number(l.quantityInBaseUnit);
+                            const layer = trace?.fifo.layers.get(l.id);
+                            const sold = layer?.taken ?? 0;
+                            totalReceived += received;
+                            totalSold += sold;
+                            totalRemaining += layer?.remaining ?? received;
+                            if (sold > 0) {
+                              if (l.totalCost !== null && received > 0) totalCogs += sold * (Number(l.totalCost) / received);
+                              else cogsKnown = false;
+                            }
+                          }
+                          const totalRevenue = sellingPrice !== null ? totalSold * sellingPrice : null;
+                          const totalProfit = totalRevenue !== null && cogsKnown ? totalRevenue - totalCogs : null;
+                          return (
+                            <tr className="border-t border-[var(--ejo-border)] font-medium text-[var(--ejo-text)]">
+                              <td className="px-3 py-2">Total</td>
+                              <td data-label="Received" className="px-3 py-2">
+                                {formatQty(totalReceived)} {pluralizeWord(totalReceived, part.baseUnitOfMeasure)}
+                              </td>
+                              <td data-label="Sold So Far" className="px-3 py-2">
+                                {formatQty(totalSold)} {pluralizeWord(totalSold, part.baseUnitOfMeasure)}
+                              </td>
+                              <td data-label="Remaining" className="px-3 py-2">
+                                {formatQty(totalRemaining)} {pluralizeWord(totalRemaining, part.baseUnitOfMeasure)}
+                              </td>
+                              <td data-label="Revenue (Est.)" className="px-3 py-2">{totalRevenue !== null ? formatNaira(totalRevenue) : '—'}</td>
+                              <td data-label="Profit (Est.)" className={totalProfit !== null && totalProfit < 0 ? 'px-3 py-2 text-[var(--ejo-error)]' : 'px-3 py-2 text-[var(--ejo-success)]'}>
+                                {totalProfit !== null ? formatNaira(totalProfit) : '—'}
+                              </td>
+                              <td data-label="Received At" />
+                            </tr>
+                          );
+                        })()}
+                      </tfoot>
+                    </table>
+                  </ResponsiveTable>
+                </div>
+              ) : null}
+
+              {part.quantityConsumptions.length > 0 ? (
+                <div className="mt-6 border-t border-[var(--ejo-border)] pt-4">
+                  <p className="mb-2 text-xs font-medium text-[var(--ejo-text-muted)]">
+                    Sold to: every issue of this part, for warranty or defect tracing
+                  </p>
+                  <div className="space-y-1.5">
+                    {part.quantityConsumptions.map((c: (typeof part.quantityConsumptions)[number]) => {
+                      const source = c.slipLine.slip.jobCard ?? c.slipLine.slip.vehicleService;
+                      const allocations = part.quantityTrace?.fifo.allocations.get(c.id) ?? [];
+                      return (
+                        <div key={c.id} className="flex items-center justify-between gap-3 text-xs">
+                          <span className="text-[var(--ejo-text)]">
+                            {allocations.length > 0
+                              ? allocations.map((a: (typeof allocations)[number], i: number) => {
+                                  const delivery = a.goodsReceiptLineId ? part.quantityTrace?.deliveries.get(a.goodsReceiptLineId) : undefined;
+                                  return (
+                                    <span key={i}>
+                                      {i > 0 ? ' + ' : ''}
+                                      {formatQty(a.quantity)} {pluralizeWord(a.quantity, part.baseUnitOfMeasure)} from{' '}
+                                      {delivery ? (
+                                        <LoadingLink href={`/inventory/goods-receipts/${delivery.goodsReceiptId}`} className="font-medium text-[var(--ejo-primary)] hover:underline">
+                                          {delivery.referenceNumber}
+                                        </LoadingLink>
+                                      ) : (
+                                        <span className="font-medium">no Goods Receipt on record</span>
+                                      )}
+                                    </span>
+                                  );
+                                })
+                              : `${formatQty(Number(c.quantityTaken))} ${pluralizeWord(Number(c.quantityTaken), part.baseUnitOfMeasure)}`}{' '}
+                            — {source ? <CustomerLink id={source.customer.id} name={source.customer.fullName} canView={canSeeCustomers} /> : '—'}
+                          </span>
+                          <span className="shrink-0"><IssuedToLinks slip={c.slipLine.slip} /></span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {part.trackingType === 'SERIALIZED' ? (
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Units in stock</h2>
+              {(() => {
+                // getPart() returns every serial ever received (for the
+                // history table), so filter to units still in stock.
+                const inStockSerials = part.serials.filter((s: (typeof part.serials)[number]) => s.status === 'IN_STOCK');
+                return inStockSerials.length === 0 ? (
+                  <p className="mt-2 text-sm text-[var(--ejo-text-muted)]">No units currently in stock.</p>
+                ) : (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {inStockSerials.map((serial: (typeof part.serials)[number]) => (
+                      <span
+                        key={serial.id}
+                        className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-1.5 text-xs font-medium text-[var(--ejo-text)]"
+                      >
+                        {serial.serialNumber}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : null}
+
+          {part.alternativeUnits.length > 0 ? (
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Alternative units</h2>
+              <ul className="mt-3 space-y-1 text-sm text-[var(--ejo-text)]">
+                {part.alternativeUnits.map((unit: (typeof part.alternativeUnits)[number]) => (
+                  <li key={unit.id}>
+                    1 {unit.unitName} = {formatQty(unit.conversionFactor)} {pluralizeWord(Number(unit.conversionFactor), part.baseUnitOfMeasure)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          {canSeeCosts ? (<>
+          <SellingPriceCalculator
+            key={part.sellingPrice?.toString() ?? 'unset'}
+            partId={part.id}
+            partName={part.name}
+            baseUnitOfMeasure={part.baseUnitOfMeasure}
+            currentSellingPrice={part.sellingPrice !== null ? Number(part.sellingPrice) : null}
+            targetMarginPercent={part.targetMarginPercent !== null ? Number(part.targetMarginPercent) : null}
+            lastReceipt={
+              part.goodsReceiptLines[0]
+                ? {
+                    referenceNumber: part.goodsReceiptLines[0].goodsReceipt.referenceNumber,
+                    quantityReceivedInUnit: Number(part.goodsReceiptLines[0].quantityReceivedInUnit),
+                    unitUsed: part.goodsReceiptLines[0].unitUsed,
+                    quantityInBaseUnit: Number(part.goodsReceiptLines[0].quantityInBaseUnit),
+                    unitCostInBaseUnit: part.goodsReceiptLines[0].unitCost !== null ? Number(part.goodsReceiptLines[0].unitCost) : null,
+                    totalCost: part.goodsReceiptLines[0].totalCost !== null ? Number(part.goodsReceiptLines[0].totalCost) : null,
+                  }
+                : null
+            }
+          />
+
+          <TargetMarginEditor
+            key={`${part.targetMarginPercent?.toString() ?? 'unset'}-${part.pricingMethod}`}
+            partId={part.id}
+            currentTargetMarginPercent={part.targetMarginPercent !== null ? Number(part.targetMarginPercent) : null}
+            currentPricingMethod={part.pricingMethod}
+          />
+          </>) : null}
+
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+            <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Vehicle fitment</h2>
+            <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
+              {part.fitments.length === 0
+                ? "No fitment recorded, so this part fits every vehicle (right for universal parts such as fluids). Add a fitment only if it depends on the vehicle."
+                : 'Only fits the vehicle configurations listed below.'}
+            </p>
+            {part.fitments.length > 0 ? (
+              <ResponsiveTable flush className="mt-3">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]">
+                      <th className="px-2 py-1.5">Make</th>
+                      <th className="px-2 py-1.5">Model</th>
+                      <th className="px-2 py-1.5">Engine</th>
+                      <th className="px-2 py-1.5">Years</th>
+                      <th className="px-2 py-1.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {part.fitments.map((fitment: (typeof part.fitments)[number]) =>
+                      editFitmentId === fitment.id ? (
+                        <tr key={fitment.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                          <td colSpan={5} className="py-2">
+                            <form action={updatePartFitmentFormAction} className="flex flex-wrap items-center gap-2">
+                              <FormPendingOverlay />
+                              <input type="hidden" name="partId" value={part.id} />
+                              <input type="hidden" name="fitmentId" value={fitment.id} />
+                              <input
+                                name="make"
+                                required
+                                defaultValue={fitment.make}
+                                placeholder="Make"
+                                className="w-24 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-2 py-1.5 text-xs text-[var(--ejo-text)]"
+                              />
+                              <input
+                                name="model"
+                                defaultValue={fitment.model ?? ''}
+                                placeholder="Model (optional)"
+                                className="w-24 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-2 py-1.5 text-xs text-[var(--ejo-text)]"
+                              />
+                              <input
+                                name="engineType"
+                                defaultValue={fitment.engineType ?? ''}
+                                placeholder="Engine (optional)"
+                                className="w-32 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-2 py-1.5 text-xs text-[var(--ejo-text)]"
+                              />
+                              <input
+                                name="yearFrom"
+                                type="number"
+                                defaultValue={fitment.yearFrom ?? ''}
+                                placeholder="Year from"
+                                className="w-20 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-2 py-1.5 text-xs text-[var(--ejo-text)]"
+                              />
+                              <input
+                                name="yearTo"
+                                type="number"
+                                defaultValue={fitment.yearTo ?? ''}
+                                placeholder="Year to"
+                                className="w-20 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-2 py-1.5 text-xs text-[var(--ejo-text)]"
+                              />
+                              <SubmitButton
+                                label="Save"
+                                pendingLabel="Saving…"
+                                className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                              />
+                              <LoadingLink
+                                href={`/inventory/parts/${part.id}`}
+                                className="text-xs text-[var(--ejo-text-muted)] hover:text-[var(--ejo-text)]"
+                              >
+                                Cancel
+                              </LoadingLink>
+                            </form>
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={fitment.id} className="border-b border-[var(--ejo-border)] last:border-0">
+                          <td className="px-2 py-1.5 font-medium text-[var(--ejo-text)]">{fitment.make}</td>
+                          <td data-label="Model" className="px-2 py-1.5 text-[var(--ejo-text)]">{fitment.model ?? 'Any'}</td>
+                          <td data-label="Engine" className="px-2 py-1.5 text-[var(--ejo-text-muted)]">{fitment.engineType ?? 'Any'}</td>
+                          <td data-label="Years" className="px-2 py-1.5 text-[var(--ejo-text-muted)]">
+                            {fitment.yearFrom || fitment.yearTo ? `${fitment.yearFrom ?? '…'}–${fitment.yearTo ?? '…'}` : 'Any'}
+                          </td>
+                          <td data-actions className="px-2 py-1.5 text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              <LoadingLink
+                                href={`/inventory/parts/${part.id}?editFitmentId=${fitment.id}`}
+                                className="text-xs text-[var(--ejo-primary)] hover:underline"
+                              >
+                                Edit
+                              </LoadingLink>
+                              <form action={deletePartFitmentFormAction} className="inline">
+                                <input type="hidden" name="partId" value={part.id} />
+                                <input type="hidden" name="fitmentId" value={fitment.id} />
+                                <button type="submit" className="text-xs text-[var(--ejo-error)] hover:underline">
+                                  Remove
+                                </button>
+                              </form>
+                            </div>
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </ResponsiveTable>
+            ) : null}
+
+            <details className="mt-4 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] p-3">
+              <summary className="cursor-pointer text-xs font-medium text-[var(--ejo-text)]">+ Add a vehicle fitment</summary>
+              <form action={createPartFitmentFormAction} className="mt-3 space-y-2">
+                <FormPendingOverlay />
+                <input type="hidden" name="partId" value={part.id} />
+                <div className="grid grid-cols-2 gap-2">
+                  <input name="make" required placeholder="Make, e.g. Isuzu" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                  <input name="model" placeholder="Model (optional — leave blank to fit every model of this Make)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                </div>
+                <input name="engineType" placeholder="Engine (optional — leave blank to fit every engine of this make/model)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input name="yearFrom" type="number" placeholder="Year from (optional)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                  <input name="yearTo" type="number" placeholder="Year to (optional)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                </div>
+                <SubmitButton
+                  label="Add Fitment"
+                  pendingLabel="Adding…"
+                  className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                />
+              </form>
+            </details>
+          </div>
+          {(() => {
+            const current = partWarrantyPolicies.find((p: (typeof partWarrantyPolicies)[number]) => p.id === part.warrantyPolicyId) ?? null;
+            const editing = editWarranty === '1' && warrantyRoles.canApprove;
+            return (
+              <div id="warranty" className="scroll-mt-24 rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Warranty</h2>
+                  {warrantyRoles.canApprove && !editing ? (
+                    <LoadingLink href={`/inventory/parts/${part.id}?editWarranty=1#warranty`} className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-3 py-1 text-xs font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]">
+                      {current ? 'Change' : 'Add warranty'}
+                    </LoadingLink>
+                  ) : null}
+                </div>
+                {editing ? (
+                  <div className="mt-3 space-y-3">
+                    <form action={setPartWarrantyPolicyFormAction} className="space-y-2">
+                      <FormPendingOverlay />
+                      <input type="hidden" name="partId" value={part.id} />
+                      <label className="block text-xs font-medium text-[var(--ejo-text-muted)]">Warranty policy</label>
+                      <SearchableSelect
+                        name="policyId"
+                        required
+                        search={searchPartWarrantyPolicyOptions}
+                        loadDefaultOptions={loadPartWarrantyPolicyOptions}
+                        defaultOptionsLabel="Active part policies"
+                        placeholder="Search policies by name, code or provider…"
+                        emptyMessage="No active part policy matches — add one under Warranty → Policies."
+                        minQueryLength={1}
+                        defaultValue={current?.id}
+                        defaultLabel={current ? `${current.name} — ${durationLabel(current)}${current.distanceLimit ? ` / ${current.distanceLimit.toLocaleString('en-NG')} km` : ''}` : undefined}
+                      />
+                      <div className="flex gap-2">
+                        <SubmitButton label="Save" pendingLabel="Saving…" className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90" />
+                        <LoadingLink href={`/inventory/parts/${part.id}#warranty`} className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]">Cancel</LoadingLink>
+                      </div>
+                    </form>
+                    {current ? (
+                      <form action={setPartWarrantyPolicyFormAction}>
+                        <FormPendingOverlay />
+                        <input type="hidden" name="partId" value={part.id} />
+                        <input type="hidden" name="policyId" value="" />
+                        <SubmitButton label="Remove warranty from this part" pendingLabel="Removing…" className="text-xs font-medium text-[var(--ejo-error)] hover:underline" />
+                      </form>
+                    ) : null}
+                    <p className="text-[11px] text-[var(--ejo-text-muted)]">Applies to units released from now on; warranties already issued keep their terms. The warranty department is emailed.</p>
+                  </div>
+                ) : current ? (
+                  <div className="mt-2 space-y-1 text-sm">
+                    <p className="text-[var(--ejo-text)]">
+                      <LoadingLink href={`/warranty/policies/${current.id}`} className="font-medium text-[var(--ejo-primary)] hover:underline">{current.name}</LoadingLink> ({current.code})
+                      {current.isSample ? <span className="ml-2 rounded-full bg-[var(--ejo-warning)]/15 px-2 py-0.5 text-[11px] font-medium text-[var(--ejo-warning)]">Sample terms</span> : null}
+                    </p>
+                    <p className="text-xs text-[var(--ejo-text-muted)]">
+                      {durationLabel(current)}{current.distanceLimit ? ` or ${current.distanceLimit.toLocaleString('en-NG')} km, whichever comes first` : ''} · pays for {coverageLabel(current).toLowerCase()} · remedy: {(REMEDY_LABEL[current.defaultRemedy] ?? '').toLowerCase()} · {current.provider.name}
+                    </p>
+                    <p className="text-xs text-[var(--ejo-text-muted)]">Every unit released to a customer gets its own warranty number automatically.</p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-[var(--ejo-text-muted)]">No warranty.</p>
+                )}
+              </div>
+            );
+          })()}
+          {part.warrantyPolicyId || partWarrantyTrace.length > 0 ? <PartWarrantyTraceTable rows={partWarrantyTrace} canSeeCustomers={canSeeCustomers} /> : null}
+        </div>
+
+        <div className="h-fit space-y-4 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto xl:pb-6">
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+            <p className="text-xs text-[var(--ejo-text-muted)]">On Hand</p>
+            <p className="mt-1 text-2xl font-bold text-[var(--ejo-text)]">
+              {part.stock ? formatQty(part.stock.quantityOnHand) : '0'}{' '}
+              <span className="text-sm font-normal text-[var(--ejo-text-muted)]">
+                {pluralizeWord(part.stock ? Number(part.stock.quantityOnHand) : 0, part.baseUnitOfMeasure)}
+              </span>
+            </p>
+            {part.stock && Number(part.stock.quantityReserved) > 0 ? (
+              <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">{formatQty(part.stock.quantityReserved)} reserved</p>
+            ) : null}
+          </div>
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+            <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Details</h2>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div>
+                <dt className="text-xs text-[var(--ejo-text-muted)]">Part Number</dt>
+                <dd className="text-[var(--ejo-text)]">{part.partNumber ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-[var(--ejo-text-muted)]">Base Unit</dt>
+                <dd className="text-[var(--ejo-text)]">{part.baseUnitOfMeasure}</dd>
+              </div>
+              {part.reorderPoint ? (
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Reorder Point</dt>
+                  <dd className="text-[var(--ejo-text)]">{formatQty(part.reorderPoint)}</dd>
+                </div>
+              ) : null}
+              {part.description ? (
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Description</dt>
+                  <dd className="text-[var(--ejo-text)]">{part.description}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-xs text-[var(--ejo-text-muted)]">Added By</dt>
+                <dd className="text-[var(--ejo-text)]">{part.createdBy.fullName}</dd>
+              </div>
+              {lastEdit ? (
+                <div>
+                  <dt className="text-xs text-[var(--ejo-text-muted)]">Last Edited</dt>
+                  <dd className="text-[var(--ejo-text)]">
+                    {formatDateTimeCompact(lastEdit.at)}
+                    <br />by {lastEdit.userName}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
+            <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Audit trail</h2>
+            {auditTrail.length === 0 ? (
+              <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">No edits recorded yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {auditTrail.map((entry: (typeof auditTrail)[number]) => (
+                  <li key={entry.id} className="text-sm">
+                    <p className="font-medium text-[var(--ejo-text)]">{PART_AUDIT_ACTION_LABEL[entry.action] ?? humanizeAction(entry.action)}</p>
+                    {entry.action === 'part.stock_levels_set' && entry.metadata && typeof entry.metadata === 'object' ? (
+                      <p className="text-xs text-[var(--ejo-text)]">
+                        {(() => {
+                          const m = entry.metadata as { from?: { reorderPoint?: number | null; safetyStock?: number | null }; to?: { reorderPoint?: number | null; safetyStock?: number | null } };
+                          const f = (v: number | null | undefined) => (v === null || v === undefined ? 'not set' : String(v));
+                          return `Reorder ${f(m.from?.reorderPoint)} → ${f(m.to?.reorderPoint)} · safety ${f(m.from?.safetyStock)} → ${f(m.to?.safetyStock)}`;
+                        })()}
+                      </p>
+                    ) : null}
+                    {entry.action === 'part.warranty_policy_set' && entry.metadata && typeof entry.metadata === 'object' ? (
+                      <p className="text-xs text-[var(--ejo-text)]">
+                        {policyLabel((entry.metadata as { from?: unknown }).from)} → {policyLabel((entry.metadata as { to?: unknown }).to)}
+                      </p>
+                    ) : null}
+                    <p className="text-xs text-[var(--ejo-text-muted)]">{entry.userName}</p>
+                    <p className="text-xs text-[var(--ejo-text-muted)]">{formatDateTime(new Date(entry.createdAt))}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <ProvenanceCard p={origin} />
+          <RecycleBinPanel offer={binOffer} entity="Part" id={id} />
+        </div>
+      </div>
+    </div>
+  );
+}

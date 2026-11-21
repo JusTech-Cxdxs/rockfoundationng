@@ -1,0 +1,329 @@
+'use server';
+
+import { friendlyError } from '@/lib/errors';
+
+/**
+ * <form action={...}> wrappers around lib/actions/store.ts, same pattern as
+ * workshop-form-handlers.ts.
+ */
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { createPart, recordGoodsReceipt, updateGoodsReceipt, updateGoodsReceiptLineCost, updatePart, setPartAlternativeUnits, setPartSellingPrice, setPartTargetMargin, dismissPricingAlert, syncPartPriceToTargetMargin, createPartFitment, updatePartFitment, deletePartFitment, createPartCategory, createPartType, matchEstimateStorePartLine, requestStoreMatching, jobCardHasUnmatchedStoreParts,
+  setPartStockLevels,
+} from './store';
+
+function str(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function num(formData: FormData, key: string): number | undefined {
+  const raw = str(formData, key);
+  if (!raw) return undefined;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+export async function createPartFormAction(formData: FormData) {
+  const branchId = str(formData, 'branchId');
+  const trackingType = str(formData, 'trackingType');
+  try {
+    const altUnitName = str(formData, 'altUnitName');
+    const altUnitFactor = num(formData, 'altUnitFactor');
+    const warrantyChoice = str(formData, 'warrantyChoice');
+    if (warrantyChoice !== 'YES' && warrantyChoice !== 'NO') throw new Error('Choose whether this part carries a warranty.');
+    const warrantyPolicyId = warrantyChoice === 'YES' ? str(formData, 'warrantyPolicyId') : '';
+    if (warrantyChoice === 'YES' && !warrantyPolicyId) throw new Error('Choose the warranty policy for this part.');
+    await createPart({
+      branchId,
+      name: str(formData, 'name'),
+      description: str(formData, 'description') || undefined,
+      partTypeId: str(formData, 'partTypeId'),
+      trackingType: trackingType as 'QUANTITY' | 'BATCH' | 'SERIALIZED',
+      baseUnitOfMeasure: str(formData, 'baseUnitOfMeasure'),
+      reorderPoint: num(formData, 'reorderPoint'),
+      safetyStock: num(formData, 'safetyStock'),
+      alternativeUnits: altUnitName && altUnitFactor ? [{ unitName: altUnitName, conversionFactor: altUnitFactor }] : undefined,
+      warrantyPolicyId: warrantyPolicyId || null,
+    });
+  } catch (err) {
+    const message = friendlyError(err, 'Could not create part.', 'store-form-handlers');
+    redirect(`/inventory/parts?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/inventory/parts');
+  redirect('/inventory/parts?status=part_created');
+}
+
+export async function recordGoodsReceiptFormAction(formData: FormData) {
+  const branchId = str(formData, 'branchId');
+  const partId = str(formData, 'partId');
+  try {
+    // One <input name="serialNumbers"> per serial, so a serial containing a
+    // comma is never split.
+    const serialNumbers = formData.getAll('serialNumbers')
+      .map((s) => (typeof s === 'string' ? s.trim() : ''))
+      .filter(Boolean);
+    await recordGoodsReceipt({
+      idempotencyKey: str(formData, 'idempotencyKey') || undefined,
+      branchId,
+      supplierName: str(formData, 'supplierName'),
+      notes: str(formData, 'notes') || undefined,
+      lines: [
+        {
+          partId,
+          quantityReceivedInUnit: num(formData, 'quantityReceivedInUnit') ?? 0,
+          unitUsed: str(formData, 'unitUsed'),
+          totalCost: num(formData, 'totalCost') ?? 0,
+          batchNumber: str(formData, 'batchNumber') || undefined,
+          serialNumbers: serialNumbers.length > 0 ? serialNumbers : undefined,
+        },
+      ],
+    });
+  } catch (err) {
+    const message = friendlyError(err, 'Could not record goods receipt.', 'store-form-handlers');
+    redirect(`/inventory/goods-receipts/new?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/inventory/goods-receipts');
+  revalidatePath('/inventory/parts');
+  redirect('/inventory/goods-receipts?status=receipt_recorded');
+}
+
+export async function updatePartFormAction(formData: FormData) {
+  const id = str(formData, 'id');
+  try {
+    // Validate alternative units first, so a bad unit throws before any other
+    // field is saved.
+    const unitNames = formData.getAll('altUnitName').map((v) => (typeof v === 'string' ? v : ''));
+    const unitFactors = formData.getAll('altUnitFactor').map((v) => (typeof v === 'string' ? v : ''));
+    const units = unitNames
+      .map((unitName, i) => ({ unitName, conversionFactor: Number(unitFactors[i]) }))
+      .filter((u) => u.unitName.trim() && u.conversionFactor > 0);
+    await setPartAlternativeUnits(id, units);
+
+    await updatePart({
+      id,
+      name: str(formData, 'name'),
+      description: str(formData, 'description') || undefined,
+      category: str(formData, 'category') || undefined,
+      partNumber: str(formData, 'partNumber') || undefined,
+      reorderPoint: num(formData, 'reorderPoint'),
+      safetyStock: num(formData, 'safetyStock'),
+    });
+  } catch (err) {
+    const message = friendlyError(err, 'Could not update this part.', 'store-form-handlers');
+    redirect(`/inventory/parts/${id}/edit?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/parts/${id}`);
+  revalidatePath('/inventory/parts');
+  redirect(`/inventory/parts/${id}?status=updated`);
+}
+
+export async function setPartSellingPriceFormAction(formData: FormData) {
+  const id = str(formData, 'id');
+  try {
+    await setPartSellingPrice(id, num(formData, 'sellingPrice') ?? 0);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not set the selling price.', 'store-form-handlers');
+    redirect(`/inventory/parts/${id}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/parts/${id}`);
+  redirect(`/inventory/parts/${id}?status=selling_price_set`);
+}
+
+export async function setPartTargetMarginFormAction(formData: FormData) {
+  const id = str(formData, 'id');
+  try {
+    const pricingMethod = str(formData, 'pricingMethod') === 'MARKUP' ? 'MARKUP' : 'MARGIN';
+    await setPartTargetMargin(id, num(formData, 'targetValue') ?? 0, pricingMethod);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not set the target.', 'store-form-handlers');
+    redirect(`/inventory/parts/${id}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/parts/${id}`);
+  redirect(`/inventory/parts/${id}?status=target_margin_set`);
+}
+
+export async function dismissPricingAlertFormAction(formData: FormData) {
+  const alertId = str(formData, 'alertId');
+  const branchId = str(formData, 'branchId');
+  try {
+    await dismissPricingAlert(alertId, str(formData, 'notes'));
+  } catch (err) {
+    const message = friendlyError(err, 'Could not dismiss this pricing alert.', 'store-form-handlers');
+    redirect(`/inventory/pricing?branchId=${branchId}&error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/inventory/pricing');
+  redirect(`/inventory/pricing?branchId=${branchId}&status=dismissed`);
+}
+
+export async function syncPartPriceToTargetMarginFormAction(formData: FormData) {
+  const alertId = str(formData, 'alertId');
+  const branchId = str(formData, 'branchId');
+  try {
+    await syncPartPriceToTargetMargin(alertId);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not sync the selling price.', 'store-form-handlers');
+    redirect(`/inventory/pricing?branchId=${branchId}&error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/inventory/pricing');
+  redirect(`/inventory/pricing?branchId=${branchId}&status=synced`);
+}
+
+export async function createPartFitmentFormAction(formData: FormData) {
+  const partId = str(formData, 'partId');
+  try {
+    await createPartFitment({
+      partId,
+      make: str(formData, 'make'),
+      model: str(formData, 'model'),
+      engineType: str(formData, 'engineType') || undefined,
+      yearFrom: num(formData, 'yearFrom'),
+      yearTo: num(formData, 'yearTo'),
+    });
+  } catch (err) {
+    const message = friendlyError(err, 'Could not add this fitment.', 'store-form-handlers');
+    redirect(`/inventory/parts/${partId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/parts/${partId}`);
+  redirect(`/inventory/parts/${partId}?status=fitment_added`);
+}
+
+export async function updatePartFitmentFormAction(formData: FormData) {
+  const partId = str(formData, 'partId');
+  const fitmentId = str(formData, 'fitmentId');
+  try {
+    await updatePartFitment(fitmentId, {
+      make: str(formData, 'make'),
+      model: str(formData, 'model'),
+      engineType: str(formData, 'engineType') || undefined,
+      yearFrom: num(formData, 'yearFrom'),
+      yearTo: num(formData, 'yearTo'),
+    });
+  } catch (err) {
+    const message = friendlyError(err, 'Could not update this fitment.', 'store-form-handlers');
+    redirect(`/inventory/parts/${partId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/parts/${partId}`);
+  redirect(`/inventory/parts/${partId}?status=fitment_updated`);
+}
+
+export async function deletePartFitmentFormAction(formData: FormData) {
+  const partId = str(formData, 'partId');
+  const fitmentId = str(formData, 'fitmentId');
+  try {
+    await deletePartFitment(fitmentId);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not remove this fitment.', 'store-form-handlers');
+    redirect(`/inventory/parts/${partId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/parts/${partId}`);
+  redirect(`/inventory/parts/${partId}?status=fitment_removed`);
+}
+
+export async function createPartCategoryFormAction(formData: FormData) {
+  const branchId = str(formData, 'branchId');
+  try {
+    await createPartCategory(branchId, str(formData, 'name'), str(formData, 'code'), str(formData, 'description') || undefined);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not create this Part Category.', 'store-form-handlers');
+    redirect(`/inventory/part-types?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/inventory/part-types');
+  redirect('/inventory/part-types?status=category_created');
+}
+
+export async function createPartTypeFormAction(formData: FormData) {
+  const branchId = str(formData, 'branchId');
+  try {
+    await createPartType(branchId, str(formData, 'categoryId'), str(formData, 'name'), str(formData, 'description') || undefined);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not create this Part Type.', 'store-form-handlers');
+    redirect(`/inventory/part-types?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/inventory/part-types');
+  redirect('/inventory/part-types?status=type_created');
+}
+
+export async function matchEstimateStorePartLineFormAction(formData: FormData) {
+  const lineItemId = str(formData, 'lineItemId');
+  const jobCardId = str(formData, 'jobCardId');
+  try {
+    const partId = str(formData, 'partId');
+    if (!partId) {
+      throw new Error('Pick a Part to match this line to.');
+    }
+    await matchEstimateStorePartLine(lineItemId, partId);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not match this line.', 'store-form-handlers');
+    redirect(`/inventory/estimate-matching/${jobCardId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath('/inventory/estimate-matching');
+  if (jobCardId) revalidatePath(`/workshop/job-cards/${jobCardId}`);
+  // Stay on this Job Card's matching page until its last line is matched
+  // (when the "matching complete" email goes out).
+  const stillHasUnmatched = jobCardId ? await jobCardHasUnmatchedStoreParts(jobCardId) : false;
+  redirect(stillHasUnmatched ? `/inventory/estimate-matching/${jobCardId}?status=line_matched` : '/inventory/estimate-matching?status=line_matched');
+}
+
+export async function requestStoreMatchingFormAction(formData: FormData) {
+  const jobCardId = str(formData, 'jobCardId');
+  try {
+    await requestStoreMatching(jobCardId, str(formData, 'note') || undefined);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not request Store matching.', 'store-form-handlers');
+    redirect(`/workshop/job-cards/${jobCardId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/workshop/job-cards/${jobCardId}`);
+  redirect(`/workshop/job-cards/${jobCardId}?status=matching_requested`);
+}
+
+export async function updateGoodsReceiptFormAction(formData: FormData) {
+  const id = str(formData, 'id');
+  try {
+    await updateGoodsReceipt(id, {
+      supplierName: str(formData, 'supplierName'),
+      notes: str(formData, 'notes') || undefined,
+    });
+  } catch (err) {
+    const message = friendlyError(err, 'Could not update this Goods Receipt.', 'store-form-handlers');
+    redirect(`/inventory/goods-receipts/${id}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/goods-receipts/${id}`);
+  revalidatePath('/inventory/goods-receipts');
+  redirect(`/inventory/goods-receipts/${id}?status=updated`);
+}
+
+export async function updateGoodsReceiptLineCostFormAction(formData: FormData) {
+  const goodsReceiptId = str(formData, 'goodsReceiptId');
+  const lineId = str(formData, 'lineId');
+  try {
+    await updateGoodsReceiptLineCost(lineId, num(formData, 'unitCost') ?? 0);
+  } catch (err) {
+    const message = friendlyError(err, 'Could not update this cost.', 'store-form-handlers');
+    redirect(`/inventory/goods-receipts/${goodsReceiptId}?error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/goods-receipts/${goodsReceiptId}`);
+  redirect(`/inventory/goods-receipts/${goodsReceiptId}?status=cost_updated`);
+}
+
+export async function setPartStockLevelsFormAction(formData: FormData) {
+  const partId = String(formData.get('partId') ?? '');
+  // Only ever back to an Inventory page of this portal — never an address
+  // supplied by the form (https://…, //host, \host would be an open redirect).
+  const returnTo = String(formData.get('returnTo') ?? '');
+  const back = returnTo.startsWith('/inventory/') && !returnTo.includes('//') && !returnTo.includes('\\') ? returnTo : `/inventory/parts/${encodeURIComponent(partId)}`;
+  const read = (k: string) => {
+    const v = String(formData.get(k) ?? '').trim();
+    return v === '' ? null : Number(v);
+  };
+  try {
+    await setPartStockLevels(partId, read('reorderPoint'), read('safetyStock'));
+  } catch (err) {
+    const message = friendlyError(err, 'Could not update the stock levels.', 'store-form-handlers');
+    redirect(`${back}${back.includes('?') ? '&' : '?'}error=${encodeURIComponent(message)}`);
+  }
+  revalidatePath(`/inventory/parts/${partId}`);
+  revalidatePath('/inventory/analytics');
+  redirect(`${back}${back.includes('?') ? '&' : '?'}status=levels_set`);
+}

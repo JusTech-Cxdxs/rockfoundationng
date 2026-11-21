@@ -1,0 +1,46 @@
+import { notFound } from 'next/navigation';
+import { prisma } from '@ejo/database';
+import { requireCustomer } from '@/lib/customer-portal/session';
+import { customerEstimateLines, jobCardEstimateSelect, jobCardItem, jobCardItemSelect } from '@/lib/customer-portal/data';
+import { ServiceDetail } from '@/components/customer/ServiceDetail';
+
+export const metadata = { title: 'Job Card' };
+
+const branchSelect = { name: true, address: true, hotlines: true, email: true, bankName: true, bankAccountName: true, bankAccountNumber: true } as const;
+
+/**
+ * One Job Card. Found by id AND the signed-in customer's id — someone
+ * else's Job Card is "not found". The estimate shows only once the
+ * customer has been notified of it, and only the lines billed to the
+ * customer. No internal notes, diagnosis, costs or staff names.
+ */
+export default async function JobCardPage({ params }: { params: Promise<{ id: string }> }) {
+  const me = await requireCustomer();
+  const { id } = await params;
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) notFound();
+  const jc = await prisma.jobCard.findFirst({
+    where: { id, customerId: me.id },
+    select: {
+      ...jobCardItemSelect,
+      complaint: true,
+      mileageAtCheckIn: true,
+      complaints: { orderBy: { sequenceNumber: 'asc' }, select: { description: true } },
+      // With the service interval, for a service Job Card's next-service point.
+      branch: { select: { ...branchSelect, businessUnit: jobCardItemSelect.branch.select.businessUnit } },
+      estimate: { select: jobCardEstimateSelect },
+      warranties: { where: { customerId: me.id }, select: { id: true, warrantyNumber: true, subjectDescription: true, endsAt: true, status: true } },
+    },
+  });
+  if (!jc) notFound();
+  const item = jobCardItem(jc);
+  return (
+    <ServiceDetail
+      item={item}
+      complaints={jc.complaints.length ? jc.complaints.map((c) => c.description) : jc.complaint ? [jc.complaint] : []}
+      lines={customerEstimateLines(jc.estimate)}
+      branch={jc.branch ? { name: jc.branch.name, address: jc.branch.address, hotlines: jc.branch.hotlines, email: jc.branch.email, bank: { bankName: jc.branch.bankName, accountName: jc.branch.bankAccountName, accountNumber: jc.branch.bankAccountNumber } } : null}
+      mileage={jc.mileageAtCheckIn}
+      warranties={jc.warranties.map((w) => ({ id: w.id, number: w.warrantyNumber, subject: w.subjectDescription, endsAt: w.endsAt, status: String(w.status) }))}
+    />
+  );
+}
