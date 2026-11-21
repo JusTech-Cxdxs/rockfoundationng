@@ -12,7 +12,7 @@ import { pluralize } from './utils/pluralize';
  *    recoverable from the warranty provider; GOODWILL / INTERNAL lines are
  *    given away (no revenue; their cost still counts).
  *  • COST OF SALES = issued parts at their actual goods-receipt cost +
- *    sublet cash actually disbursed (external procurement).
+ *    sublet (outside work) cost.
  *  • GROSS PROFIT = sales − cost of sales.
  *  • CASH: collections = payments − refunds in the period; receivables =
  *    what customers still owe on finished jobs.
@@ -20,7 +20,7 @@ import { pluralize } from './utils/pluralize';
 
 export type Line = { type: string; amount: number; billTo: string };
 export type Job = {
-  kind: 'JC' | 'SV';
+  kind: 'JC';
   id: string;
   number: string;
   customer: string;
@@ -42,7 +42,6 @@ export type Job = {
   dueDate?: Date | null;
 };
 export type Purchase = { at: Date; cost: number };
-export type Settlement = { at: Date; amount: number };
 
 const DAY = 86400000;
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -73,7 +72,7 @@ function inRange(d: Date | null, from: Date, to: Date) {
   return d !== null && +d >= +from && +d < +to;
 }
 
-function periodTotals(jobs: Job[], purchases: Purchase[], settlements: Settlement[], from: Date, to: Date) {
+function periodTotals(jobs: Job[], purchases: Purchase[], from: Date, to: Date) {
   const done = jobs.filter((j) => !j.cancelled && inRange(j.finishedAt, from, to));
   const m = done.map(jobMoney);
   const t = (k: keyof ReturnType<typeof jobMoney>) => r2(sum(m.map((x) => x[k] as number)));
@@ -81,15 +80,13 @@ function periodTotals(jobs: Job[], purchases: Purchase[], settlements: Settlemen
   const cost = t('cost');
   const partsCost = r2(sum(done.map((j) => j.partsCost)));
   const subletCost = r2(sum(done.map((j) => j.subletCost)));
-  // Detailed earnings: every billable line type, and Job Cards vs services.
+  // Detailed earnings: every billable line type.
   const byType: Record<string, number> = { LABOUR: 0, INTERNAL_JOB: 0, STORE_PART: 0, EXTERNAL_PART: 0, EXTERNAL_JOB: 0, SUNDRY: 0 };
-  const bySource = { JC: 0, SV: 0 };
   for (const j of done) {
     for (const l of j.lines) {
       if (l.billTo === 'GOODWILL' || l.billTo === 'INTERNAL') continue;
       const k = l.type in byType ? l.type : 'SUNDRY';
       byType[k] = (byType[k] ?? 0) + (l.amount || 0);
-      bySource[j.kind] += l.amount || 0;
     }
   }
   const refundsInPeriod = r2(sum(jobs.flatMap((j) => j.refunds.filter((p) => inRange(p.at, from, to)).map((p) => p.amount))));
@@ -97,7 +94,6 @@ function periodTotals(jobs: Job[], purchases: Purchase[], settlements: Settlemen
   return {
     jobsCompleted: done.length,
     jobCardsCompleted: done.filter((j) => j.kind === 'JC').length,
-    servicesCompleted: done.filter((j) => j.kind === 'SV').length,
     jobsOpened: jobs.filter((j) => inRange(j.openedAt, from, to)).length,
     cancelled: jobs.filter((j) => j.cancelled && inRange(j.openedAt, from, to)).length,
     labour: t('labour'), parts: t('parts'), sublet: t('sublet'), sundry: t('sundry'),
@@ -110,9 +106,8 @@ function periodTotals(jobs: Job[], purchases: Purchase[], settlements: Settlemen
     averageJob: done.length ? r2(sales / done.length) : null,
     collections,
     refunds: refundsInPeriod,
-    earnings: { labour: r2(byType.LABOUR!), internalJobs: r2(byType.INTERNAL_JOB!), storeParts: r2(byType.STORE_PART!), outsideParts: r2(byType.EXTERNAL_PART!), outsideJobs: r2(byType.EXTERNAL_JOB!), sundry: r2(byType.SUNDRY!), jobCards: r2(bySource.JC), vehicleServices: r2(bySource.SV) },
+    earnings: { labour: r2(byType.LABOUR!), internalJobs: r2(byType.INTERNAL_JOB!), storeParts: r2(byType.STORE_PART!), outsideParts: r2(byType.EXTERNAL_PART!), outsideJobs: r2(byType.EXTERNAL_JOB!), sundry: r2(byType.SUNDRY!) },
     purchases: r2(sum(purchases.filter((p) => inRange(p.at, from, to)).map((p) => p.cost))),
-    warrantySettled: r2(sum(settlements.filter((s) => inRange(s.at, from, to)).map((s) => s.amount))),
   };
 }
 export type PeriodTotals = ReturnType<typeof periodTotals>;
@@ -156,13 +151,13 @@ export function workingDaysSince(a: Date, b: Date): number {
   return n;
 }
 
-export function computeMasterAnalytics(input: { jobs: Job[]; purchases: Purchase[]; settlements: Settlement[]; from: Date; to: Date; now?: Date }) {
+export function computeMasterAnalytics(input: { jobs: Job[]; purchases: Purchase[]; from: Date; to: Date; now?: Date }) {
   const now = input.now ?? new Date();
-  const { jobs, purchases, settlements, from, to } = input;
+  const { jobs, purchases, from, to } = input;
   const span = +to - +from;
   const prevFrom = new Date(+from - span);
-  const current = periodTotals(jobs, purchases, settlements, from, to);
-  const previous = periodTotals(jobs, purchases, settlements, prevFrom, from);
+  const current = periodTotals(jobs, purchases, from, to);
+  const previous = periodTotals(jobs, purchases, prevFrom, from);
   const change = (a: number | null, b: number | null) => (a === null || b === null ? null : b === 0 ? (a === 0 ? 0 : null) : Math.round(((a - b) / Math.abs(b)) * 1000) / 10);
 
   // ── Position now (not period-bound)
@@ -183,7 +178,6 @@ export function computeMasterAnalytics(input: { jobs: Job[]; purchases: Purchase
   const position = {
     wipJobs: open.length,
     wipJobCards: open.filter((j) => j.kind === 'JC').length,
-    wipServices: open.filter((j) => j.kind === 'SV').length,
     wipValue: r2(sum(open.map((j) => jobMoney(j).sales))),
     receivables: r2(sum(finishedOwing.map((x) => x.m.owed))),
     receivableJobs: finishedOwing.length,
@@ -199,7 +193,7 @@ export function computeMasterAnalytics(input: { jobs: Job[]; purchases: Purchase
   const weeks = Array.from({ length: 12 }, (_, i) => {
     const s = new Date(+thisMonday - (11 - i) * 7 * DAY);
     const e = new Date(+s + 7 * DAY);
-    const t = periodTotals(jobs, purchases, settlements, s, e);
+    const t = periodTotals(jobs, purchases, s, e);
     return { label: s.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', day: 'numeric', month: 'short' }), sales: t.sales, grossProfit: t.grossProfit, jobs: t.jobsCompleted, collections: t.collections };
   });
 
@@ -243,11 +237,11 @@ export function computeMasterAnalytics(input: { jobs: Job[]; purchases: Purchase
   const today = lagosYmd(now);
   const wdTotal = workingDaysBetween(monthStart, monthEndDate);
   const wdDone = workingDaysBetween(monthStart, today);
-  const monthSoFar = periodTotals(jobs, purchases, settlements, new Date(`${monthStart}T00:00:00+01:00`), new Date(+now + 1));
+  const monthSoFar = periodTotals(jobs, purchases, new Date(`${monthStart}T00:00:00+01:00`), new Date(+now + 1));
   // The previous CALENDAR month — what "tracking below last month" compares with,
   // whatever period the page is showing.
   const pm = Number(monthStart.slice(5, 7)) === 1 ? `${Number(monthStart.slice(0, 4)) - 1}-12-01` : `${monthStart.slice(0, 5)}${String(Number(monthStart.slice(5, 7)) - 1).padStart(2, '0')}-01`;
-  const lastMonth = periodTotals(jobs, purchases, settlements, new Date(`${pm}T00:00:00+01:00`), new Date(`${monthStart}T00:00:00+01:00`));
+  const lastMonth = periodTotals(jobs, purchases, new Date(`${pm}T00:00:00+01:00`), new Date(`${monthStart}T00:00:00+01:00`));
   const predictive = {
     trendPerWeek: r2(fit.slope),
     forecast,

@@ -5,7 +5,7 @@ import { requireUser } from './workshop';
 import { allows, orgWhere, reachWhere } from '@/lib/authz/server';
 import { computeMasterAnalytics, type Job } from '@/lib/master-analytics';
 import { lagosYmd } from '@/lib/nigeria-calendar';
-import { featureOn, moduleIsOn } from '@/lib/modules';
+import { moduleIsOn } from '@/lib/modules';
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 
@@ -39,9 +39,9 @@ function periodRange(key: PeriodKey, now: Date, custom?: { from?: string; to?: s
   return { from: at(y, m), to: tomorrow, label: `${at(y, m).toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', month: 'long', year: 'numeric' })} to date` };
 }
 
-const SLIP_JOB = { slipLine: { select: { slip: { select: { jobCardId: true, vehicleServiceId: true } } } } } as const;
+const SLIP_JOB = { slipLine: { select: { slip: { select: { jobCardId: true } } } } } as const;
 
-/** `opts.history` false: leave out the invoices from SAP before EJO (EJO's own figures only). */
+/** `opts.history` false: leave out the invoices from the old system before EJO (EJO's own figures only). */
 export async function getMasterAnalytics(periodKey?: string, custom?: { from?: string; to?: string }, opts: { history?: boolean } = {}) {
   if (!(await canSeeMasterAnalytics())) throw new Error('The master dashboard is for the Master Admin, Administrators, the Manager and Finance.');
   const now = new Date();
@@ -50,46 +50,35 @@ export async function getMasterAnalytics(periodKey?: string, custom?: { from?: s
   const since = new Date(Math.min(+from - (+to - +from), +now - 100 * 86400000) - 86400000);
   // Branch-aware: a branch-scoped viewer sees exactly their branch's business.
   const reach = await reachWhere('analytics.business.view');
-  const viaJob = reach.branchId ? { OR: [{ jobCard: reach }, { vehicleService: reach }] } : {};
-  // Claims belong to the organisation through their customer (a claim need not have a job).
-  const claimsMine = reach.branchId && typeof reach.branchId === 'string' ? viaJob : { customer: await orgWhere() };
-  // Store (goods receipts, parts issued), outside purchases (EPR) and warranty
-  // settlements only where they are part of this edition (lib/modules.ts):
+  // The Store (goods receipts, parts issued) only while it is on (lib/modules.ts):
   // otherwise not queried, and the parts cost is said plainly to be not tracked.
-  const storeOn = moduleIsOn('inventory'), eprOn = featureOn('externalProcurement'), warrantyOn = moduleIsOn('warranty');
-  const partsCostNote = eprOn ? null : storeOn ? 'Outside parts cost not tracked' : 'Parts cost not tracked';
+  const storeOn = moduleIsOn('inventory');
+  const partsCostNote = storeOn ? null : 'Parts cost not tracked';
 
-  const [jcs, svs, grn, claims] = await Promise.all([
+  const [jcs, grn] = await Promise.all([
     prisma.jobCard.findMany({
       where: { ...reach, OR: [{ createdAt: { gte: since } }, { status: { notIn: ['CHECKED_OUT', 'CANCELLED', 'CLOSED'] } }, { checkedOutAt: { gte: since } }, { completedAt: { gte: since } }, { closedAt: { gte: since } }, { payments: { some: { recordedAt: { gte: since } } } }, { refunds: { some: { recordedAt: { gte: since } } } }] },
       select: { id: true, jobNumber: true, status: true, createdAt: true, completedAt: true, checkedOutAt: true, closedAt: true, customerId: true, cancellationRequests: { where: { status: 'APPROVED' }, orderBy: { decidedAt: 'desc' }, take: 1, select: { decidedAt: true } }, customer: { select: { fullName: true, customerType: true } }, invoice: { select: { dueDate: true } }, estimate: { select: { lineItems: { select: { type: true, amount: true, billTo: true } } } }, payments: { select: { amount: true, recordedAt: true } }, refunds: { select: { amount: true, recordedAt: true } } },
     }),
-    prisma.vehicleService.findMany({
-      where: { ...reach, OR: [{ createdAt: { gte: since } }, { status: { notIn: ['COLLECTED', 'CANCELLED', 'ESCALATED'] } }, { collectedAt: { gte: since } }, { completedAt: { gte: since } }, { closedAt: { gte: since } }, { payments: { some: { recordedAt: { gte: since } } } }, { refunds: { some: { recordedAt: { gte: since } } } }] },
-      select: { id: true, serviceNumber: true, status: true, createdAt: true, checkedInAt: true, completedAt: true, collectedAt: true, closedAt: true, cancelledAt: true, customerId: true, customer: { select: { fullName: true } }, serviceEstimate: { select: { lineItems: { select: { type: true, amount: true } } } }, payments: { select: { amount: true, recordedAt: true } }, refunds: { select: { amount: true, recordedAt: true } } },
-    }),
     storeOn ? prisma.goodsReceiptLine.findMany({ where: { goodsReceipt: { ...reach, receivedAt: { gte: since } } }, select: { totalCost: true, goodsReceipt: { select: { receivedAt: true } } } }) : [],
-    warrantyOn ? prisma.warrantyClaim.findMany({ where: { ...claimsMine, settledAt: { gte: since } }, select: { settledAt: true, settledAmount: true } }) : [],
   ]);
 
-  // Parts and sublet cost of EXACTLY the jobs loaded above — whenever the parts
-  // were issued (a job opened months ago still carries all of its cost) and
+  // Parts cost of EXACTLY the jobs loaded above — whenever the parts were
+  // issued (a job opened months ago still carries all of its cost) and
   // nothing for jobs outside the window.
   const jcIds = jcs.map((j: { id: string }) => j.id);
-  const svIds = svs.map((v: { id: string }) => v.id);
-  const ofLoadedJobs = { OR: [{ jobCardId: { in: jcIds } }, { vehicleServiceId: { in: svIds } }] };
-  const [qty, batch, serial, eprs] = jcIds.length + svIds.length === 0 ? [[], [], [], []] as const : await Promise.all([
+  const ofLoadedJobs = { jobCardId: { in: jcIds } };
+  const [qty, batch, serial] = jcIds.length === 0 ? [[], [], []] as const : await Promise.all([
     storeOn ? prisma.partQuantityConsumption.findMany({ where: { slipLine: { slip: ofLoadedJobs } }, select: { quantityTaken: true, goodsReceiptLine: { select: { unitCost: true } }, ...SLIP_JOB } }) : [],
     storeOn ? prisma.partBatchConsumption.findMany({ where: { slipLine: { slip: ofLoadedJobs } }, select: { quantityTaken: true, batch: { select: { goodsReceiptLine: { select: { unitCost: true } } } }, ...SLIP_JOB } }) : [],
-    storeOn ? prisma.partSerial.findMany({ where: { issuedToSlipLine: { slip: ofLoadedJobs } }, select: { goodsReceiptLine: { select: { unitCost: true } }, issuedToSlipLine: { select: { slip: { select: { jobCardId: true, vehicleServiceId: true } } } } } }) : [],
-    eprOn ? prisma.externalProcurementRequest.findMany({ where: { jobCardId: { in: jcIds }, disbursedAmount: { not: null } }, select: { jobCardId: true, disbursedAmount: true } }) : [],
+    storeOn ? prisma.partSerial.findMany({ where: { issuedToSlipLine: { slip: ofLoadedJobs } }, select: { goodsReceiptLine: { select: { unitCost: true } }, issuedToSlipLine: { select: { slip: { select: { jobCardId: true } } } } } }) : [],
   ]);
 
   // Parts cost per job (actual goods-receipt cost), and issues with no cost.
   const cost = new Map<string, number>();
   const uncosted = new Map<string, number>();
-  const add = (job: { jobCardId: string | null; vehicleServiceId: string | null } | undefined | null, qtyTaken: number, unitCost: unknown) => {
-    const k = job?.jobCardId ? `JC:${job.jobCardId}` : job?.vehicleServiceId ? `SV:${job.vehicleServiceId}` : null;
+  const add = (job: { jobCardId: string | null } | undefined | null, qtyTaken: number, unitCost: unknown) => {
+    const k = job?.jobCardId ? `JC:${job.jobCardId}` : null;
     if (!k) return;
     if (unitCost === null || unitCost === undefined) uncosted.set(k, (uncosted.get(k) ?? 0) + 1);
     else cost.set(k, (cost.get(k) ?? 0) + qtyTaken * Number(unitCost));
@@ -97,8 +86,6 @@ export async function getMasterAnalytics(periodKey?: string, custom?: { from?: s
   for (const q of qty) add(q.slipLine.slip, Number(q.quantityTaken), q.goodsReceiptLine?.unitCost);
   for (const b of batch) add(b.slipLine.slip, Number(b.quantityTaken), b.batch.goodsReceiptLine?.unitCost);
   for (const s of serial) add(s.issuedToSlipLine?.slip, 1, s.goodsReceiptLine?.unitCost);
-  const sublet = new Map<string, number>();
-  for (const e of eprs) sublet.set(e.jobCardId, (sublet.get(e.jobCardId) ?? 0) + num(e.disbursedAmount));
 
   const jcCancelled = (j: { status: string; completedAt: Date | null; cancellationRequests: { decidedAt: Date | null }[] }) => {
     if (j.status === 'CANCELLED') return true;
@@ -116,29 +103,17 @@ export async function getMasterAnalytics(periodKey?: string, custom?: { from?: s
       finishedAt: jcCancelled(j) ? null : j.completedAt ?? j.checkedOutAt ?? j.closedAt ?? null,
       cancelled: jcCancelled(j),
       lines: (j.estimate?.lineItems ?? []).map((l: { type: string; amount: unknown; billTo: string }) => ({ type: l.type, amount: num(l.amount), billTo: l.billTo })),
-      partsCost: cost.get(`JC:${j.id}`) ?? 0, partsIssuedWithoutCost: uncosted.get(`JC:${j.id}`) ?? 0, subletCost: sublet.get(j.id) ?? 0,
+      partsCost: cost.get(`JC:${j.id}`) ?? 0, partsIssuedWithoutCost: uncosted.get(`JC:${j.id}`) ?? 0, subletCost: 0,
       payments: pay(j.payments), refunds: pay(j.refunds),
       organisation: j.customer.customerType === 'ORGANIZATION', dueDate: j.invoice?.dueDate ?? null,
-    })),
-    // Escalated services moved to a Job Card — counted there, not twice.
-    ...svs.filter((v: (typeof svs)[number]) => v.status !== 'ESCALATED').map((v: (typeof svs)[number]) => ({
-      kind: 'SV' as const, id: v.id, number: v.serviceNumber, customer: v.customer.fullName, customerId: v.customerId, status: v.status,
-      // A booking is not open work until the vehicle is actually received.
-      openedAt: v.checkedInAt ?? v.createdAt,
-      finishedAt: v.status === 'CANCELLED' || v.cancelledAt ? null : v.completedAt ?? v.collectedAt ?? v.closedAt ?? null,
-      cancelled: v.status === 'CANCELLED' || Boolean(v.cancelledAt),
-      lines: (v.serviceEstimate?.lineItems ?? []).map((l: { type: string; amount: unknown }) => ({ type: l.type, amount: num(l.amount), billTo: 'CUSTOMER' })),
-      partsCost: cost.get(`SV:${v.id}`) ?? 0, partsIssuedWithoutCost: uncosted.get(`SV:${v.id}`) ?? 0, subletCost: 0,
-      payments: pay(v.payments), refunds: pay(v.refunds),
     })),
   ];
   const analytics = computeMasterAnalytics({
     jobs,
     purchases: grn.map((g: (typeof grn)[number]) => ({ at: g.goodsReceipt.receivedAt, cost: num(g.totalCost) })),
-    settlements: claims.map((c: (typeof claims)[number]) => ({ at: c.settledAt as Date, amount: num(c.settledAmount) })),
     from, to, now,
   });
-  // Invoices from SAP (or, with no SAP link, from the previous system through Data Exchange) before EJO 100 (v-A3): read-only history, reported beside EJO's own figures (never mixed into
+  // Invoices from the previous system (brought in through Data Exchange) before EJO: read-only history, reported beside EJO's own figures (never mixed into
   // sales, margins or projections, which are EJO's) and added to the top customers, marked.
   const day = (d: Date) => new Date(`${lagosYmd(d)}T00:00:00.000Z`);
   const prevFrom = new Date(+from - (+to - +from));
