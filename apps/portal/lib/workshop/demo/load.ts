@@ -37,15 +37,14 @@ const id = () => randomUUID();
 
 /**
  * The models a load registers, in the order a removal deletes them (children
- * first). The Vehicle Service models are kept for records an earlier daily
- * pulse made.
+ * first).
  */
 const REMOVE_ORDER = [
-  'SupportReply', 'SupportTicket', 'AppointmentParticipant', 'Appointment', 'Broadcast', 'Announcement', 'ImportJob', 'ExportJob',
-  'SecurityIncident', 'ContractorAttendance', 'ContractorPass', 'ExitPassPerson', 'ExitPass', 'Visit', 'GateDelivery', 'RoadTestPermit', 'VehicleGateExit', 'ServiceReminderLog',
+  'SupportReply', 'SupportTicket', 'Broadcast', 'Announcement', 'ImportJob', 'ExportJob',
+  'VehicleGateExit', 'ServiceReminderLog',
   'Invoice', 'EstimateApprovalLink', 'Payment', 'Refund', 'CancellationRequest', 'CloseRequest', 'EstimateLineItem', 'Estimate', 'JobCardComplaint',
-  'VehicleServiceCancellationRequest', 'VehicleServiceComplaint', 'VehicleService', 'JobCard',
-  'CustomerContact', 'CustomerAddress', 'CustomerCompany', 'CustomerVehicle', 'Customer', 'MeetingRoom', 'AuditLog',
+  'JobCard',
+  'CustomerContact', 'CustomerAddress', 'CustomerCompany', 'CustomerVehicle', 'Customer', 'AuditLog',
 ] as const;
 type Model = (typeof REMOVE_ORDER)[number];
 
@@ -75,8 +74,8 @@ export async function removeWorkshopDemo(organisationId: string): Promise<number
   return removed;
 }
 
-type NumberPrefix = 'JC' | 'SV' | 'RF' | 'INV' | 'RCT' | 'VIS' | 'VP' | 'EP' | 'VX' | 'RT' | 'INC' | 'DLV' | 'CTR' | 'APT' | 'BC' | 'SUP' | 'IMP' | 'EXP';
-/** The next free PREFIX-YEAR-NNNNNN numbers, continuing from what the database holds (and the Recycle bin, for job cards and services). */
+type NumberPrefix = 'JC' | 'RF' | 'INV' | 'RCT' | 'VX' | 'BC' | 'SUP' | 'IMP' | 'EXP';
+/** The next free PREFIX-YEAR-NNNNNN numbers, continuing from what the database holds (and the Recycle bin, for job cards). */
 export class Numbers {
   private next = new Map<string, number>();
   constructor(private readonly reader: (prefix: string) => Promise<number>) {}
@@ -89,9 +88,8 @@ export class Numbers {
   }
 }
 const NUMBER_FIELDS: Record<NumberPrefix, [string, string]> = {
-  JC: ['jobCard', 'jobNumber'], SV: ['vehicleService', 'serviceNumber'], RF: ['refund', 'referenceNumber'], INV: ['invoice', 'invoiceNumber'], RCT: ['payment', 'receiptNumber'],
-  VIS: ['visit', 'visitNumber'], VP: ['visit', 'passNumber'], EP: ['exitPass', 'passNumber'], VX: ['vehicleGateExit', 'exitNumber'], RT: ['roadTestPermit', 'permitNumber'], INC: ['securityIncident', 'incidentNumber'], DLV: ['gateDelivery', 'deliveryNumber'], CTR: ['contractorPass', 'passNumber'],
-  APT: ['appointment', 'appointmentNumber'], BC: ['broadcast', 'broadcastNumber'], SUP: ['supportTicket', 'number'], IMP: ['importJob', 'number'], EXP: ['exportJob', 'number'],
+  JC: ['jobCard', 'jobNumber'], RF: ['refund', 'referenceNumber'], INV: ['invoice', 'invoiceNumber'], RCT: ['payment', 'receiptNumber'],
+  VX: ['vehicleGateExit', 'exitNumber'], BC: ['broadcast', 'broadcastNumber'], SUP: ['supportTicket', 'number'], IMP: ['importJob', 'number'], EXP: ['exportJob', 'number'],
 };
 export async function highestInUse(start: string): Promise<number> {
   const prefix = start.slice(0, start.indexOf('-')) as NumberPrefix;
@@ -99,7 +97,7 @@ export async function highestInUse(start: string): Promise<number> {
   const delegate = (prisma as unknown as Record<string, { findFirst: (args: unknown) => Promise<Record<string, string | null> | null> }>)[model]!;
   const row = await delegate.findFirst({ where: { [field]: { startsWith: start } }, orderBy: { [field]: 'desc' }, select: { [field]: true } });
   const refs = [row?.[field] ?? null];
-  if (prefix === 'JC' || prefix === 'SV') refs.push(await highestBinnedReference(prefix === 'JC' ? 'JobCard' : 'VehicleService', start));
+  if (prefix === 'JC') refs.push(await highestBinnedReference('JobCard', start));
   return highestSequence(start, refs);
 }
 
@@ -226,7 +224,6 @@ export async function loadWorkshopDemo(organisationId: string, anchor: Date = ne
     if (jc.cancellation) await prisma.cancellationRequest.create({ data: { id: reg('CancellationRequest', id()), jobCardId: jid, reason: jc.cancellation.reason, requestedById: frontdesk, requestedAt: jc.cancellation.requestedAt, status: jc.cancellation.status, decidedById: jc.cancellation.decidedAt ? manager : null, decidedAt: jc.cancellation.decidedAt, decisionNotes: jc.cancellation.decidedAt ? 'Approved; the deposit is refunded where one was paid.' : null, createdAt: jc.cancellation.requestedAt } });
     if (jc.refund) await prisma.refund.create({ data: { id: reg('Refund', id()), referenceNumber: await numbers.take('RF', jc.refund.at), jobCardId: jid, amount: money(jc.refund.amount), method: jc.refund.method, paidToName: jc.refund.paidToName, reason: jc.refund.reason, recordedById: finance, recordedAt: jc.refund.at, createdAt: jc.refund.at, idempotencyKey: `demo:${organisationId}:${jc.key}:refund` } });
     if (jc.close) await prisma.closeRequest.create({ data: { id: reg('CloseRequest', id()), jobCardId: jid, requestedById: frontdesk, requestedAt: jc.close.requestedAt, status: jc.close.status, decidedById: jc.close.decidedAt ? manager : null, decidedAt: jc.close.decidedAt, createdAt: jc.close.requestedAt } });
-    if (jc.roadTest) await prisma.roadTestPermit.create({ data: { id: reg('RoadTestPermit', id()), permitNumber: await numbers.take('RT', jc.roadTest.requestedAt), branchId: branch.id, status: jc.roadTest.status, jobCardId: jid, vehicleId: vehicleIds.get(jc.vehicleKey)!, requestedById: sup, driverId: tech, purpose: jc.roadTest.purpose, route: 'Victoria Island → Ozumba Mbadiwe Avenue → Lekki toll gate → back', expectedDurationMinutes: 45, managerApprovedById: jc.roadTest.approvedAt ? manager : null, managerApprovedAt: jc.roadTest.approvedAt, gateOutAt: jc.roadTest.outAt, gateOutById: jc.roadTest.outAt ? gate : null, startOdometer: jc.roadTest.startOdometer, gateInAt: jc.roadTest.inAt, gateInById: jc.roadTest.inAt ? gate : null, endOdometer: jc.roadTest.endOdometer, createdAt: jc.roadTest.requestedAt } });
     if (jc.gateExit) gateExits.push({ at: jc.gateExit.at, vehicleKey: jc.vehicleKey, driverName: jc.gateExit.driverName, jobCardId: jid });
     for (const a of jc.audit) {
       if (a.action === 'invoice.issued') continue; // written above, with its number
@@ -242,38 +239,7 @@ export async function loadWorkshopDemo(organisationId: string, anchor: Date = ne
     audit(by(rm.byKey), 'vehicle.service_reminder_sent', 'CustomerVehicle', vid, rm.sentAt, { reminderNumber: rm.reminderNumber, trigger: rm.trigger });
   }
 
-  // ── Security ───────────────────────────────────────────────────────────
-  const cso = role('chief-security-officer');
-  const deptHead = role('department-head');
-  for (const v of [...plan.visits].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) {
-    await prisma.visit.create({ data: { id: reg('Visit', id()), visitNumber: await numbers.take('VIS', v.createdAt), passNumber: v.checkedInAt ? await numbers.take('VP', v.checkedInAt) : null, branchId: branch.id, status: v.status, visitorName: v.visitorName, company: v.company, phone: v.phone, vehicleType: v.vehicleType, vehiclePlate: v.plate, purpose: v.purpose, hostUserId: by(v.hostKey), expectedAt: v.expectedAt, expectedDurationMinutes: v.durationMinutes, isWalkIn: v.walkIn, registeredById: v.walkIn ? gate : frontdesk, receivedAt: v.checkedInAt, receivedById: v.checkedInAt ? gate : null, checkedInAt: v.checkedInAt, checkedInById: v.checkedInAt ? gate : null, checkedOutAt: v.checkedOutAt, checkedOutById: v.checkedOutAt ? gate : null, createdAt: v.createdAt } });
-  }
-  for (const ep of [...plan.exitPasses].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) {
-    const eid = reg('ExitPass', id());
-    await prisma.exitPass.create({ data: { id: eid, passNumber: await numbers.take('EP', ep.createdAt), branchId: branch.id, status: ep.status, requestedById: by(ep.requestedByKey), reason: ep.reason, returning: ep.returning, expectedOutAt: ep.expectedOutAt, expectedReturnAt: ep.expectedReturnAt, expectedDurationMinutes: ep.durationMinutes, headApprovedById: ep.headAt ? deptHead : null, headApprovedAt: ep.headAt, managerApprovedById: ep.managerAt ? manager : null, managerApprovedAt: ep.managerAt, declinedById: ep.declinedAt ? manager : null, declinedAt: ep.declinedAt, declineReason: ep.declineReason, gateOutAt: ep.gateOutAt, gateOutById: ep.gateOutAt ? gate : null, gateInAt: ep.gateInAt, gateInById: ep.gateInAt ? gate : null, createdAt: ep.createdAt } });
-    await prisma.exitPassPerson.createMany({ data: ep.people.map((p) => ({ id: reg('ExitPassPerson', id()), exitPassId: eid, userId: by(p.key), name: p.name, employeeId: p.employeeId, designation: p.designation })) });
-  }
-  for (const inc of [...plan.incidents].sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime())) await prisma.securityIncident.create({ data: { id: reg('SecurityIncident', id()), incidentNumber: await numbers.take('INC', inc.occurredAt), branchId: branch.id, type: inc.type, severity: inc.severity, status: inc.status, occurredAt: inc.occurredAt, location: inc.location, description: inc.description, actionTaken: inc.actionTaken, reportedById: by(inc.reportedByKey), assignedToId: inc.assignedToKey ? by(inc.assignedToKey) : null, resolution: inc.resolution, closedAt: inc.closedAt, closedById: inc.closedAt ? cso : null, createdAt: inc.occurredAt } });
-  for (const d of [...plan.deliveries].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())) await prisma.gateDelivery.create({ data: { id: reg('GateDelivery', id()), deliveryNumber: await numbers.take('DLV', d.createdAt), branchId: branch.id, status: d.status, supplierName: d.supplierName, items: d.items, expectedAt: d.expectedAt, driverName: d.driverName, vehicleType: 'TRUCK', vehiclePlate: d.plate, registeredById: frontdesk, arrivedAt: d.arrivedAt, arrivedById: d.arrivedAt ? gate : null, receivedAt: d.receivedAt, receivedById: d.receivedAt ? frontdesk : null, leftAt: d.leftAt, leftById: d.leftAt ? gate : null, createdAt: d.createdAt } });
-  for (const c of plan.contractors) {
-    const cid = reg('ContractorPass', id());
-    await prisma.contractorPass.create({ data: { id: cid, passNumber: await numbers.take('CTR', c.managerAt), branchId: branch.id, status: c.status, company: c.company, work: c.work, workArea: c.workArea, leadName: c.leadName, teamSize: c.teamSize, validFrom: c.validFrom, validUntil: c.validUntil, hostUserId: by(c.hostKey), requestedById: by(c.requestedByKey), managerApprovedById: manager, managerApprovedAt: c.managerAt, createdAt: c.managerAt } });
-    await prisma.contractorAttendance.createMany({ data: c.attendance.map((a) => ({ id: reg('ContractorAttendance', id()), passId: cid, workersPresent: a.workers, signedInAt: a.inAt, signedInById: gate, signedOutAt: a.outAt, signedOutById: a.outAt ? gate : null })) });
-  }
-
-  // ── Scheduling, broadcasts, support, Data Exchange ─────────────────────
-  const roomIds = new Map<string, string>();
-  for (const room of plan.rooms) {
-    const existing = await prisma.meetingRoom.findUnique({ where: { branchId_name: { branchId: branch.id, name: room.name } }, select: { id: true } });
-    const rid = existing?.id ?? reg('MeetingRoom', id());
-    if (!existing) await prisma.meetingRoom.create({ data: { id: rid, branchId: branch.id, name: room.name, location: room.location, capacity: room.capacity } });
-    roomIds.set(room.key, rid);
-  }
-  for (const a of [...plan.appointments].sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime())) {
-    const aid = reg('Appointment', id());
-    await prisma.appointment.create({ data: { id: aid, appointmentNumber: await numbers.take('APT', a.createdAt), branchId: branch.id, status: a.status, title: a.title, agenda: a.agenda, ownerId: by(a.ownerKey), createdById: by(a.ownerKey), startsAt: a.startsAt, endsAt: a.endsAt, roomId: a.roomKey ? roomIds.get(a.roomKey)! : null, location: a.location, completedAt: a.status === 'COMPLETED' ? a.endsAt : null, cancelledAt: a.status === 'CANCELLED' ? a.startsAt : null, createdAt: a.createdAt } });
-    if (a.participantKeys.length) await prisma.appointmentParticipant.createMany({ data: a.participantKeys.map((k) => ({ id: reg('AppointmentParticipant', id()), appointmentId: aid, userId: by(k) })) });
-  }
+  // ── Broadcasts, support, Data Exchange ─────────────────────────────────
   for (const b of [...plan.broadcasts].sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime())) await prisma.broadcast.create({ data: { id: reg('Broadcast', id()), broadcastNumber: await numbers.take('BC', b.createdAt), ...base, category: b.category as 'NEWS', title: b.title, message: b.message, audience: b.audience as 'ALL', audienceIds: b.audience === 'BRANCH' ? [branch.id] : [], startsAt: b.startsAt, endsAt: b.endsAt, sendEmail: false, createdById: by(b.byKey), createdAt: b.createdAt } });
   await prisma.announcement.create({ data: { id: reg('Announcement', id()), ...base, message: plan.announcement.message, expiresAt: plan.announcement.expiresAt, createdById: by(plan.announcement.byKey), createdAt: plan.announcement.createdAt } });
   let queue = await prisma.supportQueue.findFirst({ where: { organisationId, isDefault: true }, select: { id: true } });

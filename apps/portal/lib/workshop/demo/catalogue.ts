@@ -183,18 +183,6 @@ export const JOB_LINES: Record<string, LineSpec[]> = {
 export const serviceKindFor = (m: Pick<CatalogueModel, 'diesel' | 'key'>): 'service' | 'service-diesel' | 'service-van' => (['hiace', 'h100', 'sprinter'].includes(m.key) ? 'service-van' : m.diesel ? 'service-diesel' : 'service');
 
 // ── Security, scheduling, support texts ─────────────────────────────────
-export const VISITOR_PURPOSES = ['Bringing a vehicle for service', 'Collecting a vehicle', 'Parts delivery from a vendor', 'Insurance assessor inspection', 'Estimate discussion with the supervisor', 'Fleet account meeting', 'Job interview', 'Paying an invoice'];
-export const VISITOR_COMPANIES = ['', '', 'Parts vendor (demo)', 'Insurance assessor (demo)', '', 'Fleet customer', '', ''];
-export const EXIT_REASONS = ['Buy parts at Ladipo market', 'Bank: lodge the day’s cash', 'Roadside call-out to a customer in Lekki', 'Deliver a vehicle to a fleet customer’s office', 'Medical appointment', 'Collect an injector set from the diesel specialist'];
-export const INCIDENTS: { type: string; severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; location: string; text: string; action: string }[] = [
-  { type: 'Vehicle leaving without release', severity: 'HIGH', location: 'Main gate', text: 'A driver tried to take a vehicle out before it was released; stopped at the gate.', action: 'Vehicle returned to the yard; Front Desk and Finance informed.' },
-  { type: 'Lost visitor pass', severity: 'LOW', location: 'Reception', text: 'A visitor could not find the pass issued at the gate.', action: 'Pass cancelled; a new pass issued against ID.' },
-  { type: 'Property damage', severity: 'MEDIUM', location: 'Yard, bay 4', text: 'A reversing bus scraped the yard barrier.', action: 'Barrier inspected; driver statement taken.' },
-  { type: 'Suspicious activity', severity: 'MEDIUM', location: 'Perimeter fence, back street', text: 'Two persons loitering at the fence after close of business.', action: 'Patrol increased; the estate security post informed.' },
-  { type: 'Employee going out without an exit pass', severity: 'MEDIUM', location: 'Pedestrian gate', text: 'A technician left the premises at 11:40 without a pass.', action: 'Returned at 12:10; supervisor informed.' },
-  { type: 'Fire or safety hazard', severity: 'HIGH', location: 'Wash bay', text: 'Oil and water on the floor near the pressure washer’s socket.', action: 'Area cordoned off; floor cleaned; socket cover replaced.' },
-];
-export const APPOINTMENT_TITLES = ['Fleet account review', 'Estimate discussion', 'Weekly workshop planning', 'Overdue invoices review with Finance', 'Safety toolbox talk', 'Customer complaint follow-up', 'Service Tracker review: vehicles due', 'Training: estimates with discounts and VAT', 'Security briefing', 'Monthly fleet report'];
 export const BROADCASTS: { category: 'NEWS' | 'ANNOUNCEMENT' | 'IMPORTANT' | 'URGENT' | 'SECURITY_ALERT' | 'MAINTENANCE' | 'GREETING'; title: string; message: string; daysAgo: number; days: number; audience: 'ALL' | 'BRANCH' | 'CUSTOMERS_ALL' }[] = [
   { category: 'MAINTENANCE', title: 'Generator service on Saturday', message: 'The standby generator will be serviced on Saturday from 08:00 to 12:00. Expect short power interruptions in the workshop and the wash bay.', daysAgo: 3, days: 6, audience: 'BRANCH' },
   { category: 'ANNOUNCEMENT', title: 'Fleet invoices: month-end review', message: 'Finance reviews every fleet invoice past its due date on the last Friday of the month. Supervisors: make sure every finished job card has its invoice.', daysAgo: 10, days: 30, audience: 'BRANCH' },

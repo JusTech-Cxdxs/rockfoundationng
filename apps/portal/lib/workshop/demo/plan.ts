@@ -27,8 +27,8 @@
 import { billingTotals, depositOf, type BillingTotals } from '@ejo/utils/billing';
 import { DEMO_CUSTOMERS, DEMO_STAFF, demoPerson, type DemoStaff } from '../../demo/people';
 import {
-  APPOINTMENT_TITLES, BROADCASTS, COLOURS, COMMERCIAL_COMPLAINTS, COMPANIES, DEMO_SOURCE, EXIT_REASONS, EXPORTS, IMPORTS, INCIDENTS, INDIVIDUALS, JOB_LINES, MODELS, OTHER_JOBS, PASSENGER_COMPLAINTS,
-  PLATE_PREFIXES, SERVICE_TEXTS, TICKETS, VISITOR_COMPANIES, VISITOR_PURPOSES, serviceKindFor, type CatalogueCustomer, type CatalogueModel, type LineSpec,
+  BROADCASTS, COLOURS, COMMERCIAL_COMPLAINTS, COMPANIES, DEMO_SOURCE, EXPORTS, IMPORTS, INDIVIDUALS, JOB_LINES, MODELS, OTHER_JOBS, PASSENGER_COMPLAINTS,
+  PLATE_PREFIXES, SERVICE_TEXTS, TICKETS, serviceKindFor, type CatalogueCustomer, type CatalogueModel, type LineSpec,
 } from './catalogue';
 
 export { DEMO_SOURCE };
