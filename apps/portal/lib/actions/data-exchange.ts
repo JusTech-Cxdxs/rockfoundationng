@@ -1,12 +1,12 @@
 'use server';
 
 /**
- * Data Exchange — bringing existing records in from SAP and spreadsheets.
+ * Data Exchange: bringing existing records in from Zoho, an old system and spreadsheets.
  *
  * The flow, for every kind of record (lib/data-exchange/fields.ts):
  *   1. upload   the browser reads the file and sends its rows in blocks
  *               (UPLOADING → UPLOADED); nothing live is touched;
- *   2. match    which column feeds which field (auto-matched, SAP names
+ *   2. match    which column feeds which field (auto-matched, Zoho's names
  *               included; saved as reusable profiles);
  *   3. check    every row checked and matched to existing records, in
  *               batches (VALIDATING → VALIDATED); still nothing live;
@@ -27,7 +27,7 @@ import { writeAuditLog } from '@/lib/workshop-core';
 import { requireUser } from '@/lib/actions/workshop';
 import { lagosYear } from '@/lib/utils/format-date';
 import { highestSequence } from '@/lib/recycle-bin/numbers';
-import { ENTITIES, autoMap, cleanMapping, isEntityKey, mappingProblems, profileFromMapping, type EntityKey, type Mapping } from '@/lib/data-exchange/fields';
+import { ENTITIES, IMPORT_SOURCE, autoMap, cleanMapping, isEntityKey, mappingProblems, profileFromMapping, type EntityKey, type ImportSource, type Mapping } from '@/lib/data-exchange/fields';
 import { moveManyToBinInTx } from '@/lib/recycle-bin/server';
 import { checkPartRow, checkSupplierRow } from '@/lib/data-exchange/check-inventory';
 import { findCustomers } from '@/lib/data-exchange/lookup-server';
@@ -193,7 +193,7 @@ export type ImportJobDetail = ImportJobRow & {
   headers: string[];
   mapping: Mapping | null;
   matchMode: 'ADD_ONLY' | 'FILL_BLANKS' | 'UPDATE';
-  sourceSystem: 'SAP' | 'LEGACY';
+  sourceSystem: ImportSource;
   possibleDuplicates: 'SKIP' | 'ADD';
   matchedRows: number;
   error: string | null;
@@ -261,7 +261,7 @@ export async function getImportJob(jobId: string): Promise<ImportJobDetail> {
     headers: Array.isArray(job.headers) ? (job.headers as unknown[]).map(String) : [],
     mapping: (job.mapping as Mapping | null) ?? null,
     matchMode: job.matchMode === 'FILL_BLANKS' || job.matchMode === 'UPDATE' ? job.matchMode : 'ADD_ONLY',
-    sourceSystem: job.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP',
+    sourceSystem: IMPORT_SOURCE,
     possibleDuplicates: job.possibleDuplicates === 'ADD' ? 'ADD' : 'SKIP',
     preview: preview.map((r) => ({ rowNumber: r.rowNumber, cells: (r.cells as unknown[]).map((c) => String(c ?? '')) })),
     problems: problems.map((r) => ({ rowNumber: r.rowNumber, status: r.status, issues: (r.issues as Issue[] | null) ?? [], matchedBy: r.matchedBy })),
@@ -284,7 +284,7 @@ export async function getImportJob(jobId: string): Promise<ImportJobDetail> {
 // ── 1. Upload ───────────────────────────────────────────────────────────
 
 /** Starts an import: the file's name, fingerprint, headers and row count, read in the browser. */
-export async function createImportJob(input: { entity: string; fileName: string; fileSha256: string; headers: string[]; fileRows: number; sourceSystem?: string; branchId?: string; asOf?: string }): Promise<{ id: string; number: string; sameFileBefore: { number: string } | null }> {
+export async function createImportJob(input: { entity: string; fileName: string; fileSha256: string; headers: string[]; fileRows: number; branchId?: string; asOf?: string }): Promise<{ id: string; number: string; sameFileBefore: { number: string } | null }> {
   await authorize('dataexchange.import.run', undefined, 'createImportJob', 'Only the people who bring records into the system can start an import.');
   const { userId, organisationId } = await exchangeOrg();
   if (!isEntityKey(input.entity)) throw new DataExchangeError('Choose what the file holds.');
@@ -322,7 +322,7 @@ export async function createImportJob(input: { entity: string; fileName: string;
   for (let attempt = 0; attempt < 4 && !job; attempt += 1) {
     try {
       job = await prisma.importJob.create({
-        data: { number: await nextImportNumber(), organisationId, entity, fileName: name, fileSha256: sha, fileRows, headers, mapping: autoMap(entity, headers), sourceSystem: input.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP', createdById: userId, branchId, asOf },
+        data: { number: await nextImportNumber(), organisationId, entity, fileName: name, fileSha256: sha, fileRows, headers, mapping: autoMap(entity, headers), sourceSystem: IMPORT_SOURCE, createdById: userId, branchId, asOf },
         select: { id: true, number: true },
       });
     } catch (err) {
@@ -370,7 +370,7 @@ export async function finishImportUpload(jobId: string): Promise<{ rows: number 
 // ── 2. Match columns ────────────────────────────────────────────────────
 
 /** Which column feeds which field, and how matches are treated. Any earlier checking is redone. */
-export async function saveImportMapping(jobId: string, input: { mapping: Record<string, unknown>; matchMode?: string; sourceSystem?: string; possibleDuplicates?: string; saveAsProfile?: string }): Promise<{ problems: string[] }> {
+export async function saveImportMapping(jobId: string, input: { mapping: Record<string, unknown>; matchMode?: string; possibleDuplicates?: string; saveAsProfile?: string }): Promise<{ problems: string[] }> {
   await authorize('dataexchange.import.run', undefined, 'saveImportMapping', 'Only the people who bring records into the system can match the columns.');
   const job = await myImportJob(jobId);
   const { userId, organisationId } = await exchangeOrg();
@@ -382,8 +382,7 @@ export async function saveImportMapping(jobId: string, input: { mapping: Record<
   // An update from an edited export (P10): only the lists an export writes, and only with the EJO record matched.
   const matchMode = input.matchMode === 'FILL_BLANKS' ? 'FILL_BLANKS' : input.matchMode === 'UPDATE' && isRoundTripEntity(entity) ? 'UPDATE' : 'ADD_ONLY';
   if (input.matchMode === 'UPDATE' && !isRoundTripEntity(entity)) problems.push(`Updating from an edited export is for customers, vehicles, parts and suppliers, not ${ENTITIES[entity].plural}.`);
-  // Or SAP's own extract (C1b): each row found by its SAP number (KUNNR, EQUNR, LIFNR, MATNR), and only by it.
-  if (matchMode === 'UPDATE' && mapping.ejoRecord == null && !(input.sourceSystem !== 'LEGACY' && mapping.externalId != null)) problems.push(input.sourceSystem === 'LEGACY' ? 'Match the “EJO record” column: each row is found by it, and only by it.' : 'Match the “EJO record” column (an edited export from EJO) or the SAP number column (SAP’s own file): each row is found by it, and only by it.');
+  if (matchMode === 'UPDATE' && mapping.ejoRecord == null) problems.push('Match the “EJO record” column: each row is found by it, and only by it.');
   if (problems.length) return { problems };
   await prisma.$transaction(async (tx) => {
     const moved = await tx.importJob.updateMany({
@@ -391,7 +390,7 @@ export async function saveImportMapping(jobId: string, input: { mapping: Record<
       data: {
         mapping, status: 'UPLOADED', error: null,
         matchMode,
-        sourceSystem: input.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP',
+        sourceSystem: IMPORT_SOURCE,
         possibleDuplicates: input.possibleDuplicates === 'ADD' ? 'ADD' : 'SKIP',
         goodRows: 0, warningRows: 0, rejectedRows: 0, duplicateRows: 0, matchedRows: 0,
       },
@@ -414,7 +413,7 @@ export async function saveImportMapping(jobId: string, input: { mapping: Record<
 
 // ── 3. Check ────────────────────────────────────────────────────────────
 
-/** Existing vehicles these keys point at (SAP number within the organisation, VIN, plate — the last two are unique on the platform). */
+/** Existing vehicles these keys point at (old-system number within the organisation, VIN, plate; the last two are unique on the platform). */
 async function findVehicles(db: Prisma.TransactionClient | typeof prisma, organisationId: string, source: string, keys: { ext: string[]; vin: string[]; plate: string[] }) {
   const [byExt, byVin, byPlate] = await Promise.all([
     keys.ext.length ? db.customerVehicle.findMany({ where: { externalSource: source, externalId: { in: keys.ext }, customer: { organisationId } }, select: { id: true, externalId: true } }) : [],
@@ -575,12 +574,12 @@ export async function checkImportBatch(jobId: string, after = 0): Promise<{ done
     const check = await roundTripTotals(job.id);
     await prisma.importJob.update({ where: { id: job.id }, data: { totals: { check } } });
   }
-  // Opening stock: the quantity and value that will load, to reconcile against SAP before approving.
+  // Opening stock: the quantity and value that will load, to reconcile against the stock count before approving.
   if (entity === 'stock') {
     const check = await stockTotalsOfRows(job.id, mapping, ['GOOD', 'WARNING']);
     await prisma.importJob.update({ where: { id: job.id }, data: { totals: { check } } });
   }
-  // Invoice history: how many invoices, how much, over which years — to reconcile with SAP before approving.
+  // Invoice history: how many invoices, how much, over which years — to reconcile with the old system before approving.
   if (entity === 'invoices') {
     const check = await invoiceTotalsOfRows(job.id, mapping, ['GOOD', 'WARNING']);
     await prisma.importJob.update({ where: { id: job.id }, data: { totals: { check } } });
@@ -595,7 +594,7 @@ export async function checkImportBatch(jobId: string, after = 0): Promise<{ done
     const check = await staffTotalsOfRows(job.id, mapping, ['GOOD', 'WARNING']);
     await prisma.importJob.update({ where: { id: job.id }, data: { totals: { check } } });
   }
-  // Job history: how many past jobs, over which dates — to reconcile with SAP's order list before approving.
+  // Job history: how many past jobs, over which dates — to reconcile with the old system's job list before approving.
   if (entity === 'jobs') {
     const check = await jobTotalsOfRows(job.id, mapping, ['GOOD', 'WARNING']);
     await prisma.importJob.update({ where: { id: job.id }, data: { totals: { check } } });
@@ -787,7 +786,7 @@ async function loadCustomers(tx: Prisma.TransactionClient, job: JobForLoad, mapp
   }
 
   if (creates.length) {
-    const source = job.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP';
+    const source = IMPORT_SOURCE;
     await tx.customer.createMany({
       skipDuplicates: true,
       data: creates.map(({ id, v, email }) => ({
@@ -818,7 +817,7 @@ async function loadCustomers(tx: Prisma.TransactionClient, job: JobForLoad, mapp
     if (!cur.altPhone && f.v.altPhone && f.v.altPhone !== cur.phone) { data.altPhone = f.v.altPhone; filled.push('altPhone'); }
     if (!cur.address && f.v.address) { data.address = f.v.address; filled.push('address'); }
     if (!cur.customerSince && f.v.customerSince) { data.customerSince = new Date(`${f.v.customerSince}T00:00:00.000Z`); filled.push('customerSince'); }
-    if (!cur.externalId && f.v.externalId) { data.externalId = f.v.externalId; data.externalSource = job.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP'; filled.push('externalId'); }
+    if (!cur.externalId && f.v.externalId) { data.externalId = f.v.externalId; data.externalSource = IMPORT_SOURCE; filled.push('externalId'); }
     if (!cur.email && f.v.email && !(await tx.customer.findUnique({ where: { email: f.v.email }, select: { id: true } }))) { data.email = f.v.email; filled.push('email'); }
     if (filled.length) {
       await tx.customer.update({ where: { id: f.id }, data });
@@ -843,7 +842,7 @@ async function loadVehicles(tx: Prisma.TransactionClient, job: JobForLoad, mappi
   const results: Result[] = [];
   const creates: { rowId: string; id: string; customerId: string; v: VehicleValues }[] = [];
   const fills: { rowId: string; id: string; v: VehicleValues }[] = [];
-  const source = job.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP';
+  const source = IMPORT_SOURCE;
   for (const { r, c } of checked) {
     const v = c.values;
     if (!v) { results.push({ id: r.id, status: 'SKIPPED', resultId: null, note: 'Could not be read again when loading.' }); continue; }
@@ -1036,7 +1035,7 @@ export async function undoImportBatch(jobId: string): Promise<{ done: boolean; l
       const mapping = (job.mapping as Mapping | null) ?? {};
       for (const r of rows.filter((x) => x.status === 'UPDATED' && x.resultId && x.filled.length)) {
         if (entity === 'parts') {
-          const v = checkPartRow(r.cells as unknown[], mapping, job.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP').values;
+          const v = checkPartRow(r.cells as unknown[], mapping).values;
           const cur = await tx.part.findUnique({ where: { id: r.resultId! }, select: { category: true, barcode: true, sellingPrice: true, reorderPoint: true, safetyStock: true, externalId: true } });
           if (!v || !cur) continue;
           const data: Prisma.PartUpdateInput = {};
@@ -1333,8 +1332,7 @@ export type ExchangeEvent = {
 /**
  * One Lagos calendar month of Data Exchange activity, day by day: imports
  * started, loaded, confirmed by Finance, undone, released and cancelled —
- * each opening its import. (Exports and the daily SAP files join this
- * timeline when they arrive.)
+ * each opening its import.
  */
 export async function getDataExchangeTimeline(month?: string): Promise<{ month: string; events: ExchangeEvent[] }> {
   const [run, approve] = await Promise.all([canRun(), canApprove()]);

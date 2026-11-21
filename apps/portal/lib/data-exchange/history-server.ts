@@ -1,16 +1,16 @@
 /**
- * Data Exchange — SAP history (v-A3). Server only (never a 'use server'
+ * Data Exchange: history from before EJO. Server only (never a 'use server'
  * file): lib/actions/data-exchange.ts checks who is asking, locks the import
  * and calls these inside its transactions.
  *
- *  • Invoice history: SAP invoices from before EJO 100, each linked to its
- *    customer (by SAP customer number, then phone) and, when its VIN is a
- *    vehicle in the system, to that vehicle. Read-only; counted in the
- *    customer's spend and last visit and in the CRM and Headquarters
- *    analytics, always labelled "from SAP, before EJO".
- *  • Job and service history (P4): SAP service orders / old job cards from
- *    before EJO, each linked to its customer (by SAP number, phone, email —
- *    or the owner of the vehicle named by VIN or plate) and to the vehicle;
+ *  • Invoice history: invoices from the old system or QuickBooks, each
+ *    linked to its customer (by customer number, then phone) and, when its
+ *    VIN is a vehicle in the system, to that vehicle. Read-only; counted in
+ *    the customer's spend and last visit and in the CRM and analytics,
+ *    always labelled "from before EJO".
+ *  • Job and service history: old job cards from before EJO, each linked to
+ *    its customer (by customer number, phone, email, or the owner of the
+ *    vehicle named by VIN or plate) and to the vehicle;
  *    counted as a visit, shown on the customer and the vehicle, and the
  *    anchor of the vehicle's next-service clock until EJO completes a
  *    service of its own.
@@ -19,10 +19,9 @@
  * delete — and loading the same file again restores the voided rows.
  */
 import { prisma, type Prisma } from '@ejo/database';
-import { featureOn } from '@/lib/modules';
-import { checkInvoiceRow, checkJobRow, invoiceRange, type JobValues } from './check-history';
+import { checkInvoiceRow, checkJobRow, type JobValues } from './check-history';
 import type { Issue } from './check';
-import type { EntityKey, Mapping } from './fields';
+import { IMPORT_SOURCE, type EntityKey, type Mapping } from './fields';
 import { findCustomers } from './lookup-server';
 import { newId, writeLoadResults, type LoadRow, type Result, type RowUpdate } from './rows-server';
 
@@ -33,34 +32,27 @@ export const isHistoryEntity = (e: string): e is HistoryEntity => e === 'invoice
 
 export type HistoryJob = { id: string; number: string; organisationId: string; branchId: string | null; sourceSystem: string; createdById: string };
 
-const src = (s: string) => (s === 'LEGACY' ? 'LEGACY' : 'SAP');
+/** Where the import's rows came from, as stored on each record (externalSource). */
+const src = (s: string) => s || IMPORT_SOURCE;
 const dayDate = (d: string) => new Date(`${d}T00:00:00.000Z`);
 
 // ── Lookups ───────────────────────────────────────────────────────────
 
-/** The numbering range an invoice row belongs to: SAP's, or the old system's (each with company code and year when the file gives either). */
-const rangeOf = (job: HistoryJob, v: { source: string }) => invoiceRange(src(job.sourceSystem), v.source);
-const invKey = (range: string, number: string) => `${range}|${number.toUpperCase()}`;
+/** An invoice or job is the same one when it comes from the same system with the same number. */
+const invKey = (source: string, number: string) => `${source}|${number.toUpperCase()}`;
 
-type KnownInvoice = { id: string; voided: boolean; importJobId: string | null; fiscalYear: number | null; companyCode: string | null };
+type KnownInvoice = { id: string; voided: boolean; importJobId: string | null };
 
 /** Invoices already in the history (voided ones too: a reload restores them). */
 async function findInvoices(db: Db, organisationId: string, numbers: string[]) {
   if (!numbers.length) return new Map<string, KnownInvoice>();
-  const rows = await db.historicalInvoice.findMany({ where: { organisationId, invoiceNumber: { in: [...new Set(numbers)] } }, select: { id: true, invoiceNumber: true, externalSource: true, voidedAt: true, importJobId: true, fiscalYear: true, companyCode: true } });
-  return new Map(rows.map((r) => [invKey(r.externalSource, r.invoiceNumber), { id: r.id, voided: Boolean(r.voidedAt), importJobId: r.importJobId, fiscalYear: r.fiscalYear, companyCode: r.companyCode }]));
+  const rows = await db.historicalInvoice.findMany({ where: { organisationId, invoiceNumber: { in: [...new Set(numbers)] } }, select: { id: true, invoiceNumber: true, externalSource: true, voidedAt: true, importJobId: true } });
+  return new Map(rows.map((r) => [invKey(r.externalSource, r.invoiceNumber), { id: r.id, voided: Boolean(r.voidedAt), importJobId: r.importJobId }]));
 }
 
-/**
- * The invoice already in the history for this row. An old system's invoice loaded before its file's year
- * counted is stored under plain "LEGACY": it is the same invoice when its year and company code agree.
- */
-function knownInvoice(existing: Map<string, KnownInvoice>, job: HistoryJob, v: { source: string; invoiceNumber: string; fiscalYear: number; companyCode: string | null }): KnownInvoice | undefined {
-  const range = rangeOf(job, v);
-  const hit = existing.get(invKey(range, v.invoiceNumber));
-  if (hit || range === 'LEGACY' || !range.startsWith('LEGACY/')) return hit;
-  const old = existing.get(invKey('LEGACY', v.invoiceNumber));
-  return old && old.fiscalYear === v.fiscalYear && (old.companyCode ?? null) === (v.companyCode ?? null) ? old : undefined;
+/** The invoice already in the history for this row: the same number from the same system. */
+function knownInvoice(existing: Map<string, KnownInvoice>, job: HistoryJob, v: { invoiceNumber: string }): KnownInvoice | undefined {
+  return existing.get(invKey(src(job.sourceSystem), v.invoiceNumber));
 }
 
 /** The organisation's vehicles with these chassis numbers (as stored: capitals, no spaces). */
@@ -70,7 +62,7 @@ async function findVehiclesByVin(db: Db, organisationId: string, vins: string[])
   return new Map(rows.map((r) => [String(r.chassisNumber).toUpperCase(), { id: r.id, customerId: r.customerId }]));
 }
 
-/** Past jobs already in the history (voided ones too: a reload restores them), by numbering range and number. */
+/** Past jobs already in the history (voided ones too: a reload restores them), by source and number. */
 async function findJobs(db: Db, organisationId: string, numbers: string[]) {
   if (!numbers.length) return new Map<string, { id: string; voided: boolean; importJobId: string | null }>();
   const rows = await db.historicalJob.findMany({ where: { organisationId, jobNumber: { in: [...new Set(numbers)] } }, select: { id: true, jobNumber: true, externalSource: true, voidedAt: true, importJobId: true } });
@@ -86,7 +78,7 @@ async function findVehiclesByPlate(db: Db, organisationId: string, plates: strin
   return new Map(rows.map((r) => [r.k, { id: r.id, customerId: r.customerId }]));
 }
 
-type JobLookups = { cust: Awaited<ReturnType<typeof findCustomers>>; existing: Awaited<ReturnType<typeof findJobs>>; byVin: Awaited<ReturnType<typeof findVehiclesByVin>>; byPlate: Awaited<ReturnType<typeof findVehiclesByPlate>>; branch: { name: string; sapPlant: string | null } | null };
+type JobLookups = { cust: Awaited<ReturnType<typeof findCustomers>>; existing: Awaited<ReturnType<typeof findJobs>>; byVin: Awaited<ReturnType<typeof findVehiclesByVin>>; byPlate: Awaited<ReturnType<typeof findVehiclesByPlate>>; branch: { name: string; code: string | null } | null };
 
 async function jobLookups(db: Db, job: HistoryJob, checked: { c: ReturnType<typeof checkJobRow> }[]): Promise<JobLookups> {
   const vals = checked.map((x) => x.c.values).filter((v): v is JobValues => Boolean(v));
@@ -99,12 +91,12 @@ async function jobLookups(db: Db, job: HistoryJob, checked: { c: ReturnType<type
     findJobs(db, job.organisationId, vals.map((v) => v.jobNumber)),
     findVehiclesByVin(db, job.organisationId, vals.map((v) => v.vinKey).filter((v): v is string => Boolean(v))),
     findVehiclesByPlate(db, job.organisationId, vals.map((v) => v.plateKey).filter((v): v is string => Boolean(v))),
-    job.branchId ? db.branch.findUnique({ where: { id: job.branchId }, select: { name: true, sapPlant: true } }) : null,
+    job.branchId ? db.branch.findUnique({ where: { id: job.branchId }, select: { name: true, code: true } }) : null,
   ]);
   return { cust, existing, byVin, byPlate, branch };
 }
 
-/** The customer and vehicle a job row points at, by the SAP customer number, phone or email, or through the vehicle's owner; and whether its Branch cell names the import's branch. */
+/** The customer and vehicle a job row points at, by customer number, phone or email, or through the vehicle's owner; and whether its Branch cell names the import's branch (by name or code). */
 function resolveJob(v: JobValues, L: JobLookups, job: HistoryJob): { owner: string | null; vehicle: { id: string; customerId: string } | null; branchProblem: string | null; branchNote: string | null; vehicleNote: string | null } {
   const vehicle = (v.vinKey && L.byVin.get(v.vinKey)) || (v.plateKey && L.byPlate.get(v.plateKey)) || null;
   const byEmail = v.customer.email ? L.cust.email.get(v.customer.email) : undefined;
@@ -113,12 +105,10 @@ function resolveJob(v: JobValues, L: JobLookups, job: HistoryJob): { owner: stri
   let branchNote: string | null = null;
   if (v.branch && L.branch) {
     const k = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const plantCode = /^\d{1,4}$/.test(v.branch.trim());
-    if (plantCode && !L.branch.sapPlant) branchNote = (featureOn('sap') ? `SAP plant ${v.branch.trim()} could not be checked against ${L.branch.name}: the branch has no SAP plant code yet (set it under Branches).` : `Branch “${v.branch.trim()}” could not be checked against ${L.branch.name}: it is a number, not the branch’s name.`);
-    else {
-      const ok = k(v.branch) === k(L.branch.name) || (L.branch.sapPlant ? v.branch.trim().replace(/^0+/, '') === L.branch.sapPlant.replace(/^0+/, '') : false) || k(L.branch.name).includes(k(v.branch));
-      if (!ok) branchProblem = `This row is for the branch “${v.branch}”, but this import loads into ${L.branch.name}. Import it into its own branch.`;
-    }
+    const byCode = Boolean(L.branch.code) && k(v.branch) === k(L.branch.code ?? '');
+    const ok = byCode || k(v.branch) === k(L.branch.name) || k(L.branch.name).includes(k(v.branch));
+    if (!ok && /^\d{1,4}$/.test(v.branch.trim())) branchNote = `Branch “${v.branch.trim()}” could not be checked against ${L.branch.name}: it is a number, not the branch’s name or code.`;
+    else if (!ok) branchProblem = `This row is for the branch “${v.branch}”, but this import loads into ${L.branch.name}. Import it into its own branch.`;
   }
   let vehicleNote: string | null = null;
   if ((v.vinKey || v.plateKey) && !vehicle) vehicleNote = 'The vehicle is not in EJO yet, so the job is kept on the customer only (it links to the vehicle once the vehicles file is loaded and this file loaded again).';
@@ -232,7 +222,7 @@ export async function loadHistoryRows(tx: Tx, entity: HistoryEntity, job: Histor
   return entity === 'invoices' ? loadInvoices(tx, job, mapping, rows) : loadJobs(tx, job, mapping, rows);
 }
 
-/** How many past jobs will load, over which dates (shown in the check, for reconciling with SAP). */
+/** How many past jobs will load, over which dates (shown in the check, for reconciling with the old system). */
 export async function jobTotalsOfRows(jobId: string, mapping: Mapping, statuses: string[]): Promise<{ lines: number; quantity: number; value: number; from: string | null; to: string | null }> {
   let after = 0; let lines = 0; let value = 0; let from: string | null = null; let to: string | null = null;
   for (;;) {
@@ -254,7 +244,7 @@ async function loadJobs(tx: Tx, job: HistoryJob, mapping: Mapping, rows: LoadRow
   const checked = rows.map((r) => ({ r, c: checkJobRow(r.cells as unknown[], mapping) }));
   // Matched again now: a customer or vehicle may have been added since the check.
   const L = await jobLookups(tx, job, checked);
-  const range = src(job.sourceSystem);
+  const source = src(job.sourceSystem);
   const results: Result[] = [];
   const creates: Prisma.HistoricalJobCreateManyInput[] = [];
   const createRow = new Map<string, string>();
@@ -266,7 +256,7 @@ async function loadJobs(tx: Tx, job: HistoryJob, mapping: Mapping, rows: LoadRow
     const { owner, vehicle, branchProblem } = resolveJob(v, L, job);
     if (branchProblem) { results.push({ id: r.id, status: 'SKIPPED', resultId: null, note: branchProblem }); continue; }
     if (!owner) { results.push({ id: r.id, status: 'SKIPPED', resultId: null, note: 'The customer is no longer in the system; not loaded.' }); continue; }
-    const k = invKey(range, v.jobNumber);
+    const k = invKey(source, v.jobNumber);
     const hit = L.existing.get(k);
     if (hit && !hit.voided) { results.push({ id: r.id, status: 'SKIPPED', resultId: hit.id, note: 'Already in the history; left as it is.' }); continue; }
     if (hit && hit.voided) { restore.push({ rowId: r.id, id: hit.id }); continue; }
@@ -276,9 +266,9 @@ async function loadJobs(tx: Tx, job: HistoryJob, mapping: Mapping, rows: LoadRow
     createRow.set(id, r.id);
     creates.push({
       id, organisationId: job.organisationId, branchId: job.branchId, customerId: owner, vehicleId: vehicle?.id ?? null,
-      vin: v.vin, vinKey: v.vinKey, plateNumber: v.plate, kind: v.kind, jobNumber: v.jobNumber, notificationNumber: v.notificationNumber, invoiceNumber: v.invoiceNumber, equipmentNumber: v.equipmentNumber, orderType: v.orderType,
-      openedAt: dayDate(v.openedAt), completedAt: v.completedAt ? dayDate(v.completedAt) : null, mileage: v.mileage, description: v.description, workDone: v.workDone, technician: v.technician, workCentre: v.workCentre,
-      labourAmount: v.labourAmount, partsAmount: v.partsAmount, totalAmount: v.totalAmount, status: v.status, externalSource: range, importJobId: job.id,
+      vin: v.vin, vinKey: v.vinKey, plateNumber: v.plate, kind: v.kind, jobNumber: v.jobNumber, invoiceNumber: v.invoiceNumber,
+      openedAt: dayDate(v.openedAt), completedAt: v.completedAt ? dayDate(v.completedAt) : null, mileage: v.mileage, description: v.description, workDone: v.workDone, technician: v.technician,
+      labourAmount: v.labourAmount, partsAmount: v.partsAmount, totalAmount: v.totalAmount, status: v.status, externalSource: source, importJobId: job.id,
     });
   }
   if (creates.length) {
@@ -311,7 +301,7 @@ async function loadInvoices(tx: Tx, job: HistoryJob, mapping: Mapping, rows: Loa
     if (!v) { results.push({ id: r.id, status: 'SKIPPED', resultId: null, note: 'Could not be read again when loading.' }); continue; }
     const owner = invoiceOwner(cust, v);
     if (!owner) { results.push({ id: r.id, status: 'SKIPPED', resultId: null, note: 'The customer is no longer in the system; not loaded.' }); continue; }
-    const k = invKey(rangeOf(job, v), v.invoiceNumber);
+    const k = invKey(src(job.sourceSystem), v.invoiceNumber);
     const hit = knownInvoice(existing, job, v);
     if (hit && !hit.voided) { results.push({ id: r.id, status: 'SKIPPED', resultId: hit.id, note: 'Already in the history; left as it is.' }); continue; }
     if (hit && hit.voided) { restore.push({ rowId: r.id, id: hit.id }); continue; }
@@ -322,7 +312,7 @@ async function loadInvoices(tx: Tx, job: HistoryJob, mapping: Mapping, rows: Loa
     creates.push({
       id, organisationId: job.organisationId, branchId: job.branchId, customerId: owner, vehicleId: v.vinKey ? vehicles.get(v.vinKey)?.id ?? null : null,
       vin: v.vin, vinKey: v.vinKey, invoiceNumber: v.invoiceNumber, invoiceDate: dayDate(v.invoiceDate), amount: v.amount,
-      documentType: v.documentType, description: v.description, externalSource: rangeOf(job, v), companyCode: v.companyCode, fiscalYear: v.fiscalYear, importJobId: job.id,
+      documentType: v.documentType, description: v.description, externalSource: src(job.sourceSystem), importJobId: job.id,
     });
   }
   if (creates.length) {

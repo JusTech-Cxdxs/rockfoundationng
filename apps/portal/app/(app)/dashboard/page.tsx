@@ -48,9 +48,6 @@ const QUICK: { key: PermissionKey; label: string; href: string; icon: IconName }
   { key: 'store.grn.record', label: 'Record goods receipt', href: '/inventory/goods-receipts/new', icon: 'receipt' },
   { key: 'store.view', label: 'Parts catalog', href: '/inventory/parts', icon: 'package' },
   { key: 'notifications.broadcast.send', label: 'New broadcast', href: '/notifications/broadcasts/new', icon: 'megaphone' },
-  // Everyone: their own help desk and features guide.
-  { key: 'security.exit_pass.request', label: 'Get help', href: '/support/help', icon: 'help' },
-  { key: 'security.exit_pass.request', label: 'What I can do here', href: '/support/features', icon: 'sparkles' },
 ];
 
 /** The "at a glance" tiles: an icon per destination; colour only when it means something. */

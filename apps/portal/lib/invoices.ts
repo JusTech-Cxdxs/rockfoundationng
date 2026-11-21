@@ -208,7 +208,7 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<boolean> {
         balanceDue: balance > 0 ? nairaForPdf(balance) : null,
         ...(await bankDetailsFor(inv.branch.id)),
         dashboardUrl: customerLinks(websiteUrl).jobCard(inv.jobCard.id),
-        logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+        logoUrl: `${websiteUrl}/brand/emblem.png`,
         companyName: inv.organisation.name,
         branchName: inv.branch.name,
       }),

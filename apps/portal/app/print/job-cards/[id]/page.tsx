@@ -74,7 +74,7 @@ export default async function PrintJobCardPage({
   const coveredTotal = billingSplit(lineItems).covered;
   const totalPaid = jobCard.payments.reduce((sum: number, p: (typeof jobCard.payments)[number]) => sum + Number(p.amount), 0);
   const vehicleSummary = [jobCard.vehicle.year, jobCard.vehicle.make, jobCard.vehicle.model, jobCard.vehicle.engineType].filter(Boolean).join(' ') || 'No vehicle details on file';
-  const accentColor = wasCancelled ? '#DC2626' : '#D6890B';
+  const accentColor = wasCancelled ? '#DC2626' : '#EC3237';
   // Working days up to check-out (lib/visit-durations, as on the Job Card
   // page). In Service ends at completion, cancellation or check-out.
   const durations = visitDurations({
@@ -102,7 +102,7 @@ export default async function PrintJobCardPage({
       <DocumentHeader
         organisation={organisation}
         branch={jobCard.branch}
-        logoUrl={`${portalBaseUrl()}/images/logo/logo.png`}
+        logoUrl={`${portalBaseUrl()}/brand/logo.png`}
         documentTitle={
           wasCancelled
             ? (isOrgCopy ? 'Job Card — Cancelled, Vehicle Returned' : 'Vehicle Return Receipt (Cancelled)')

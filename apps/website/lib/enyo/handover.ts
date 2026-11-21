@@ -167,7 +167,7 @@ export async function openHandover(ctx: WebCtx, contact: HandoverContact, topicR
 
   const companyName = org?.name || ctx.organisationName || siteConfig.organisationName;
   const site = websiteBaseUrl();
-  const logoUrl = `${site}/images/logo/email-logo.png`;
+  const logoUrl = `${site}/brand/emblem.png`;
   const staffTo = [branch?.email, org?.email, siteConfig.contact.email].map((e) => (e ?? '').trim()).find(Boolean) ?? null;
   const portal = portalBaseUrl();
   const staffUrl = `${portal}/crm/support/${ticket.id}`;
@@ -210,7 +210,7 @@ async function emailOnly(ctx: WebCtx, contact: HandoverContact, topic: string, s
   try {
     const site = websiteBaseUrl();
     const m = renderSupportTicketStaffEmail({
-      companyName: ctx.organisationName || siteConfig.organisationName, logoUrl: `${site}/images/logo/email-logo.png`, ticketNumber: 'not saved — please log it', channelLabel: ctx.mode === 'CUSTOMER' ? 'Customer portal' : 'Website', branchName: branch?.name ?? null,
+      companyName: ctx.organisationName || siteConfig.organisationName, logoUrl: `${site}/brand/emblem.png`, ticketNumber: 'not saved — please log it', channelLabel: ctx.mode === 'CUSTOMER' ? 'Customer portal' : 'Website', branchName: branch?.name ?? null,
       contactName: contact.name, contactPhone: contact.phone, contactEmail: contact.email, subject: topic, summary, url: `${portalBaseUrl()}/crm/support`,
     });
     await sendEmail(staffTo, m.subject, m.html);

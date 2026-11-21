@@ -49,7 +49,7 @@ export default async function PrintJobCardEstimatePage({
       isOrgCopy={variant !== 'client'}
       organisation={organisation}
       branch={jobCard.branch}
-      logoUrl={`${portalUrl}/images/logo/logo.png`}
+      logoUrl={`${portalUrl}/brand/logo.png`}
       kindLabel="Job Card"
       referenceNumber={jobCard.jobNumber}
       customer={{ name: jobCard.customer.fullName, address: jobCard.customer.address, phone: jobCard.customer.phone, email: jobCard.customer.email }}

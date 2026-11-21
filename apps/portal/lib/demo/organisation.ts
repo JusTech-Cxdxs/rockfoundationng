@@ -78,7 +78,7 @@ export async function ensureDemoOrganisation(prisma: PrismaClient, slug: string 
       depositPercent: 50,
       discountApprovalPercent: 10,
       isDemo: true,
-      branding: { create: { primaryColor: '#F09E2C', secondaryColor: '#0A1628', accentColor: '#D6890B' } },
+      branding: { create: { primaryColor: '#3E4095', secondaryColor: '#3E4095', accentColor: '#EC3237' } },
     },
     select: { id: true, name: true, slug: true },
   });

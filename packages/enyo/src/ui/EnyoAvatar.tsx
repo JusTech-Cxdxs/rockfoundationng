@@ -54,8 +54,8 @@ const TEETH = '#fffaf5';
 const TONGUE = '#de7783';
 // Dressed in the D'Phoenix colours: a navy top with orange trim.
 const TOP = '#13294b';
-const TOP_SHADE = '#0a1628';
-const TRIM = '#f09e2c';
+const TOP_SHADE = '#3E4095';
+const TRIM = '#3E4095';
 const GOLD = '#e2b04a';
 const GOLD_SHINE = '#f7dc8f';
 const BROW = '#3b241b';
@@ -66,7 +66,7 @@ const PUPIL = '#170d09';
 
 /** Styles shared by every avatar on the page (React hoists and de-duplicates this tag). */
 const CSS = `
-.enyo-av{--enyo-av-bg:#fdf1dc;--enyo-av-ring:#d6890b;display:inline-block;flex:none;line-height:0}
+.enyo-av{--enyo-av-bg:#EEF0FB;--enyo-av-ring:#EC3237;display:inline-block;flex:none;line-height:0}
 :root[data-theme='dark'] .enyo-av{--enyo-av-bg:#1c2c47}
 @media (prefers-color-scheme: dark){:root:not([data-theme='light']) .enyo-av{--enyo-av-bg:#1c2c47}}
 .enyo-av svg{display:block;overflow:visible}

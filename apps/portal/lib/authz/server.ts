@@ -4,14 +4,13 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@ejo/database';
 import { requireUser } from '@/lib/actions/workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
-import { decide as catalogueDecide, hasBranchLens, scopeFor, type Decision, type PermissionKey, type Principal, type RecordContext, PERMISSIONS } from './catalogue';
+import { decide as catalogueDecide, effectiveRoles, hasBranchLens, scopeFor, type Decision, type PermissionKey, type Principal, type RecordContext, PERMISSIONS } from './catalogue';
 import { isOffPermission } from '@/lib/edition';
 import { AREA_VIEW, moduleInView } from './navigation';
 
 /**
  * Every server-side check in this file goes through here: a permission that
- * belongs to an area this edition switches off (lib/edition.ts — the Store,
- * Warranty, the assembly plant, outside purchases, news, data requests) is
+ * belongs to a module switched off (lib/edition.ts: the parts Store) is
  * refused for everyone, the platform team included, so a pasted link or a
  * direct call to a switched-off action does nothing. Switching the module
  * back on (lib/modules.ts) restores the catalogue's own decision.
@@ -44,6 +43,15 @@ const soleOrganisationId = unstable_cache(
   { revalidate: 300, tags: ['org-structure'] },
 );
 
+/** The optional roles an organisation has switched on, shared across requests
+ * for a minute (switching one on or off takes effect within a minute). */
+const optionalRolesOf = unstable_cache(
+  async (organisationId: string): Promise<string[]> =>
+    (await prisma.organisation.findUnique({ where: { id: organisationId }, select: { optionalRoles: true } }))?.optionalRoles ?? [],
+  ['org-optional-roles-v1'],
+  { revalidate: 60, tags: ['org-roles'] },
+);
+
 /** A person's principal, loaded once per request. */
 const principalFor = cache(async (userId: string): Promise<Principal> => {
   const u = await prisma.user.findUnique({
@@ -58,16 +66,20 @@ const principalFor = cache(async (userId: string): Promise<Principal> => {
   // Fails CLOSED: a staff account with no organisation (once there is more than
   // one organisation) reaches no branch at all — never "every branch".
   const orgBranchIds = isSuperAdmin ? undefined : organisationId ? await branchesOfOrganisation(organisationId) : [];
-  const roles = u?.roles ?? [];
+  // Optional roles the organisation has switched off count for nothing, and
+  // Front Desk covers their steps (lib/authz/catalogue.ts, effectiveRoles).
+  const enabledOptional = organisationId ? await optionalRolesOf(organisationId) : [];
+  const effective = effectiveRoles((u?.roles ?? []).map((r: { role: { slug: string } }) => r.role.slug), enabledOptional);
+  const roles = (u?.roles ?? []).filter((r: { role: { slug: string } }) => effective.roleSlugs.includes(r.role.slug));
   // Database grants can ADD permissions the catalogue defines (scope: branch).
-  const extra: Partial<Record<PermissionKey, 'BRANCH'>> = {};
+  const extra: Partial<Record<PermissionKey, 'BRANCH' | 'ALL' | 'DEPARTMENT' | 'ASSIGNED' | 'OWN'>> = { ...effective.cover };
   for (const r of roles) for (const rp of r.role.permissions) if (rp.permission.key in PERMISSIONS) extra[rp.permission.key as PermissionKey] = 'BRANCH';
   return {
     userId,
     isSuperAdmin,
     organisationId,
     orgBranchIds,
-    roleSlugs: roles.map((r: { role: { slug: string } }) => r.role.slug),
+    roleSlugs: effective.roleSlugs,
     branchId: u?.branchId ?? null,
     departmentId: u?.departmentId ?? null,
     extraGrants: extra,
@@ -130,13 +142,13 @@ export const getBranchView = cache(async (): Promise<{ ownBranchType: string | n
  * their own branch; a person who sees the whole organisation and has chosen
  * one branch in the branch bar is told so by the bar, with the way back.
  */
-export async function areaNotAtMyBranch(moduleKey: 'workshop' | 'inventory'): Promise<{ branchName: string; branchType: string; hasPlant: boolean } | null> {
+export async function areaNotAtMyBranch(moduleKey: 'workshop' | 'inventory'): Promise<{ branchName: string; branchType: string } | null> {
   const p = await getPrincipal();
   const view = await getBranchView();
   if (view.lensBranchType || !view.ownBranchType || !p.branchId) return null;
   if (moduleInView(p, moduleKey, [AREA_VIEW[moduleKey]!], view)) return null;
   const b = await prisma.branch.findUnique({ where: { id: p.branchId }, select: { name: true } });
-  return { branchName: b?.name ?? 'Your branch', branchType: view.ownBranchType, hasPlant: view.ownBranchType === 'ASSEMBLY_PLANT' && decide(p, 'plant.view').allowed };
+  return { branchName: b?.name ?? 'Your branch', branchType: view.ownBranchType };
 }
 
 /** The cookie holding the branch lens (a branch id; empty = all branches). */
@@ -273,7 +285,7 @@ export async function reachWhere(key: PermissionKey, opts: { lens?: boolean } = 
 export type TypedReach = {
   where: { branchId: { in: string[] } };
   branchIds: string[];
-  branches: { id: string; name: string; sapPlant: string | null }[];
+  branches: { id: string; name: string }[];
   reason: 'ok' | 'no-access' | 'no-branch-of-type' | 'lens-elsewhere';
   /** When the lens points at a branch of another kind: the branches of this kind the person could look at instead. */
   elsewhere: { id: string; name: string }[];
@@ -283,7 +295,7 @@ export async function typedReach(key: PermissionKey, types: readonly string[], o
   const d = decide(p, key);
   const none = (reason: TypedReach['reason'], elsewhere: { id: string; name: string }[] = []): TypedReach => ({ where: { branchId: { in: [] } }, branchIds: [], branches: [], reason, elsewhere });
   if (!d.allowed) return none('no-access');
-  const sel = { id: true, name: true, sapPlant: true } as const;
+  const sel = { id: true, name: true } as const;
   const ofType = { type: { in: types as BranchTypeName[] }, isActive: true } as const;
   if (d.scope === 'BRANCH' && p.branchId) {
     const b = await prisma.branch.findMany({ where: { id: p.branchId, ...ofType }, select: sel });
@@ -299,10 +311,10 @@ export async function typedReach(key: PermissionKey, types: readonly string[], o
   }
   return { where: { branchId: { in: all.map((x) => x.id) } }, branchIds: all.map((x) => x.id), branches: all, reason: 'ok', elsewhere: [] };
 }
-type BranchTypeName = 'WORKSHOP' | 'ASSEMBLY_PLANT' | 'SALES' | 'HEAD_OFFICE' | 'WAREHOUSE';
+type BranchTypeName = 'WORKSHOP' | 'HEAD_OFFICE' | 'WAREHOUSE';
 
 /** A branch id from a request is usable for this area only if it is in the person's reach AND of a fitting kind. */
-export async function typedBranchWithinReach(key: PermissionKey, types: readonly string[], branchId: string | null | undefined): Promise<{ id: string; name: string; sapPlant: string | null } | null> {
+export async function typedBranchWithinReach(key: PermissionKey, types: readonly string[], branchId: string | null | undefined): Promise<{ id: string; name: string } | null> {
   if (!branchId) return null;
   const r = await typedReach(key, types, { lens: false });
   return r.branches.find((b) => b.id === branchId) ?? null;

@@ -1,11 +1,11 @@
 /**
- * Data Exchange — suppliers, parts and opening stock (v-A2). Server only
+ * Data Exchange: suppliers, parts and opening stock. Server only
  * (never a 'use server' file): lib/actions/data-exchange.ts checks who is
  * asking, locks the import and calls these inside its transactions.
  *
- *  • Suppliers: the organisation's list, matched by SAP vendor number, then
+ *  • Suppliers: the organisation's list, matched by old-system number, then
  *    name. New ones added; matches left alone or their blanks filled.
- *  • Parts: one branch's catalogue, matched by SAP material number, then
+ *  • Parts: one branch's catalogue, matched by old-system number, then
  *    part number. New ones added with their alternative unit; matches left
  *    alone or their blanks filled (never their stock or tracking).
  *  • Opening stock: for parts with no stock history yet, as one
@@ -17,7 +17,7 @@
 import { prisma, type Prisma } from '@ejo/database';
 import { checkPartRow, checkStockRow, checkSupplierRow, partKey, type PartValues, type StockValues, type SupplierValues } from './check-inventory';
 import type { Issue } from './check';
-import type { EntityKey, Mapping } from './fields';
+import { IMPORT_SOURCE, type EntityKey, type Mapping } from './fields';
 import { keyVal, newId, writeLoadResults, type LoadRow, type Result, type RowUpdate } from './rows-server';
 
 type Tx = Prisma.TransactionClient;
@@ -27,7 +27,8 @@ export const isInventoryEntity = (e: string): e is InventoryEntity => e === 'sup
 
 export type InvJob = { id: string; number: string; organisationId: string; branchId: string | null; sourceSystem: string; matchMode: string; createdById: string; approvedById: string | null; asOf: Date | null };
 
-const src = (s: string) => (s === 'LEGACY' ? 'LEGACY' : 'SAP');
+/** Where the import's rows came from, as stored on each record (externalSource). */
+const src = (s: string) => s || IMPORT_SOURCE;
 
 // ── Lookups ───────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ async function findSuppliers(db: Db, organisationId: string, source: string, ext
 type PartHit = { id: string; trackingType: string; baseUnit: string; units: Map<string, number> };
 
 /**
- * The branch's parts by part number and by SAP number, with their units.
+ * The branch's parts by part number and by old-system number, with their units.
  * Looked up through the (branch, part number) index — the number as written
  * and in capitals — so it stays fast with a catalogue of any size (a scan
  * that changed every row's case would slow down as the catalogue grows).
@@ -93,7 +94,7 @@ export async function checkInventoryRows(entity: InventoryEntity, job: InvJob, m
   }
   if (!job.branchId) throw new Error('This import has no branch.');
   if (entity === 'parts') {
-    const checked = rows.map((r) => ({ r, c: checkPartRow(r.cells as unknown[], mapping, source) }));
+    const checked = rows.map((r) => ({ r, c: checkPartRow(r.cells as unknown[], mapping) }));
     const found = await findParts(prisma, job.branchId, source, checked.map((x) => x.c.values?.partNumber).filter((v): v is string => Boolean(v)), checked.map((x) => x.c.values?.externalId?.toUpperCase()).filter((v): v is string => Boolean(v)));
     for (const { r, c } of checked) {
       const ext = c.values?.externalId?.toUpperCase();
@@ -120,7 +121,7 @@ export async function checkInventoryRows(entity: InventoryEntity, job: InvJob, m
       else if (history.has(part.id)) fail('partNumber', 'This part already has stock history (deliveries, stock on hand or issues). Opening stock is only for parts with none yet; record a goods receipt instead.');
       else {
         if (v.unit && !part.units.has(v.unit.toUpperCase())) fail('unit', `“${v.unit}” is not one of this part’s units (${[...part.units.keys()].map((u) => u.toLowerCase()).join(', ')}).`);
-        if (part.trackingType === 'BATCH' && !v.batch) fail('batch', 'This part is batch-tracked: give the batch number (SAP CHARG).');
+        if (part.trackingType === 'BATCH' && !v.batch) fail('batch', 'This part is batch-tracked: give the batch number.');
         if (part.trackingType === 'SERIALIZED') {
           if (!v.serials.length) fail('serials', 'This part is serial-tracked: list its serial numbers (one per unit).');
           const clash = v.serials.filter((s) => takenSerials.has(s));
@@ -195,7 +196,7 @@ async function loadSuppliers(tx: Tx, job: InvJob, mapping: Mapping, rows: LoadRo
 async function loadParts(tx: Tx, job: InvJob, mapping: Mapping, rows: LoadRow[]): Promise<void> {
   const source = src(job.sourceSystem);
   const branchId = job.branchId!;
-  const checked = rows.map((r) => ({ r, c: checkPartRow(r.cells as unknown[], mapping, source) }));
+  const checked = rows.map((r) => ({ r, c: checkPartRow(r.cells as unknown[], mapping) }));
   const found = await findParts(tx, branchId, source, checked.map((x) => x.c.values?.partNumber).filter((v): v is string => Boolean(v)), checked.map((x) => x.c.values?.externalId?.toUpperCase()).filter((v): v is string => Boolean(v)));
   const results: Result[] = [];
   const creates: { rowId: string; id: string; v: PartValues }[] = [];
@@ -274,7 +275,7 @@ async function loadStock(tx: Tx, job: InvJob, mapping: Mapping, rows: LoadRow[])
     await tx.goodsReceipt.create({
       data: {
         id: receiptId, branchId, referenceNumber: await nextGrnNumber(tx, lagosYear),
-        supplierName: `Opening balance — ${job.sourceSystem === 'LEGACY' ? 'old system' : 'SAP'} (${job.number})`,
+        supplierName: `Opening balance: old system (${job.number})`,
         receivedById: job.approvedById ?? job.createdById, receivedAt, isOpeningBalance: true, importJobId: job.id,
         notes: `Stock the branch held at the cut-over, brought in by import ${job.number}.${locations.length ? ` Storage locations: ${locations.join(', ')}.` : ''}`,
       },
@@ -286,7 +287,7 @@ async function loadStock(tx: Tx, job: InvJob, mapping: Mapping, rows: LoadRow[])
         batchNumber: l.part.trackingType === 'BATCH' ? l.v.batch : null,
       })),
     });
-    // One batch per part and batch number: SAP lists a batch once per storage location, so those are added together.
+    // One batch per part and batch number: a stock report can list a batch once per storage location, so those are added together.
     const batchGroups = new Map<string, { partId: string; batchNumber: string; qty: number; lineId: string }>();
     for (const l of lines.filter((x) => x.part.trackingType === 'BATCH' && x.v.batch)) {
       const k = `${l.part.id}|${l.v.batch}`;

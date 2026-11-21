@@ -22,7 +22,7 @@ const samples: EmailSample[] = [
     name: 'customer-password-reset',
     template: 'website: renderCustomerPasswordResetEmail',
     audience: 'customer',
-    render: () => renderCustomerPasswordResetEmail({ fullName: 'Adaeze Okafor', email: 'adaeze@example.com', url: `${SAMPLE_WEBSITE}/customer-portal/reset-password?token=abc`, expiresInMinutes: 60, companyName: "D'Phoenix Autocare", logoUrl: `${SAMPLE_WEBSITE}/images/logo/email-logo.png` }),
+    render: () => renderCustomerPasswordResetEmail({ fullName: 'Adaeze Okafor', email: 'adaeze@example.com', url: `${SAMPLE_WEBSITE}/customer-portal/reset-password?token=abc`, expiresInMinutes: 60, companyName: "D'Phoenix Autocare", logoUrl: `${SAMPLE_WEBSITE}/brand/emblem.png` }),
   },
 ];
 
@@ -31,7 +31,7 @@ for (const s of samples) {
   const r = s.render();
   const html = typeof r === 'string' ? r : r.html;
   const subject = typeof r === 'string' ? (s.subject ?? '(subject set at the call site)') : r.subject;
-  const local = html.split(`${SAMPLE_PORTAL}/images/logo/email-logo.png`).join('email-logo.png').split(`${SAMPLE_WEBSITE}/images/logo/email-logo.png`).join('email-logo.png');
+  const local = html.split(`${SAMPLE_PORTAL}/brand/emblem.png`).join('email-logo.png').split(`${SAMPLE_WEBSITE}/brand/emblem.png`).join('email-logo.png');
   writeFileSync(join(out, `${s.name}.html`), local);
   writeFileSync(join(out, `${s.name}.txt`), `Subject: ${subject}\n\n${htmlToText(html)}`);
   rows.push(`<tr><td><a href="${s.name}.html">${s.name}</a></td><td>${s.audience}</td><td>${escapeHtml(subject)}</td><td><a href="${s.name}.txt">text</a></td></tr>`);

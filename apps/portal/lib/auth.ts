@@ -56,7 +56,7 @@ export const auth = betterAuth({
       const base = portalBaseUrl();
       const org = await prisma.user.findUnique({ where: { id: user.id }, select: { organisation: { select: { name: true } } } }).catch(() => null);
       const companyName = org?.organisation?.name ?? portalConfig.organisationName;
-      const message = renderPasswordResetEmail({ fullName: name, email: user.email, url, companyName, logoUrl: `${base}/images/logo/email-logo.png` });
+      const message = renderPasswordResetEmail({ fullName: name, email: user.email, url, companyName, logoUrl: `${base}/brand/emblem.png` });
       await sendEmail(user.email, message.subject, message.html, undefined, { observer: false });
     },
     // Afterwards: a notice that the password was set or changed, so someone
@@ -76,7 +76,7 @@ export const auth = betterAuth({
         renderEmailLayout({
           previewText: 'Confirm this address to finish setting up your EJO 100 account.',
           companyName: portalConfig.organisationName,
-          logoUrl: `${base}/images/logo/email-logo.png`,
+          logoUrl: `${base}/brand/emblem.png`,
           status: { label: 'Security', tone: 'info' },
           heading: 'Confirm your email address',
           bodyHtml: html`${greeting(name)}${para('Please confirm this email address to finish setting up your EJO 100 account. If you did not expect this, you can ignore the email.')}`,
@@ -234,7 +234,7 @@ async function sendPasswordChangedNotice(user: { id: string; email: string; name
     const org = await prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true, organisation: { select: { name: true } } } }).catch(() => null);
     const m = renderWorkflowNoticeEmail({
       companyName: org?.organisation?.name ?? portalConfig.organisationName,
-      logoUrl: `${base}/images/logo/email-logo.png`,
+      logoUrl: `${base}/brand/emblem.png`,
       recipientName: org?.fullName ?? user.name ?? null,
       subject: 'Your EJO 100 password was changed',
       heading: 'Your password was changed',

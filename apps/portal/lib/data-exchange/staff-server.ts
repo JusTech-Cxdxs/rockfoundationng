@@ -17,7 +17,7 @@ import { hashPassword } from 'better-auth/crypto';
 import { randomBytes } from 'node:crypto';
 import { checkStaffRow, ROLES_NEVER_IMPORTED, type StaffValues } from './check-staff';
 import type { Issue } from './check';
-import type { Mapping } from './fields';
+import { IMPORT_SOURCE, type Mapping } from './fields';
 import { newId, writeLoadResults, type LoadRow, type Result, type RowUpdate } from './rows-server';
 import { formatEmployeeId } from '../employee-id';
 import { nextEmployeeId } from '../staff-onboarding';
@@ -28,7 +28,8 @@ type Tx = Prisma.TransactionClient;
 type Db = Tx | typeof prisma;
 export type StaffJob = { id: string; number: string; organisationId: string; sourceSystem: string; createdById: string; approvedById: string | null };
 
-const src = (s: string) => (s === 'LEGACY' ? 'LEGACY' : 'SAP');
+/** Where the import's rows came from, as stored on each record (externalSource). */
+const src = (s: string) => s || IMPORT_SOURCE;
 const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 type Branch = { id: string; name: string; code: string | null; sapPlant: string | null };

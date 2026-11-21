@@ -9,7 +9,7 @@ import { AppShell } from '@/components/AppShell';
 import { NotificationProvider } from '@/components/NotificationProvider';
 import { OfflineNotice } from '@/components/OfflineNotice';
 import { portalConfig } from '@/lib/site-config';
-import { decide, primaryRoleLabel, isHqRole } from '@/lib/authz/catalogue';
+import { decide, primaryRoleLabel, isOwnerRole } from '@/lib/authz/catalogue';
 import { EnyoPanel } from '@/components/enyo/EnyoPanel';
 import { NavProgress } from '@/components/NavProgress';
 import { SelectSearch } from '@/components/SelectSearch';
@@ -55,12 +55,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // The kind of branch in view: the menu offers only the areas that branch has (a plant has no Inventory; a workshop has no line).
   const view = await getBranchView().catch(() => ({}));
 
-  // The role a person is shown with, and where: "Manager · Victoria Island" (a manager of the Victoria Island branch), "Store Manager · Store".
+  // The role a person is shown with, and where: "Front Desk · Ota Workshop", "Technician · Mechanical".
   const roleSlugs = (user.roles ?? []).map((r: { role: { slug: string } }) => r.role.slug);
   const isMaster = (user.roles ?? []).some((r: { role: { isSuperAdmin: boolean } }) => r.role.isSuperAdmin);
   const roleLabel = primaryRoleLabel(roleSlugs, isMaster) ?? user.roles[0]?.role.name ?? 'No role assigned';
-  const hq = isHqRole(roleSlugs);
-  const where = isMaster ? null : hq ? 'Headquarters' : user.department?.name && !/^(manager|branch administrator)$/i.test(roleLabel) ? user.department.name : user.branch?.name ?? null;
+  const where = isMaster || isOwnerRole(roleSlugs) ? null : user.department?.name ?? user.branch?.name ?? null;
   const roleName = where ? `${roleLabel} · ${where}` : roleLabel;
 
   // The menu folded to icons (desktop), remembered on this browser — read here so it never flickers.

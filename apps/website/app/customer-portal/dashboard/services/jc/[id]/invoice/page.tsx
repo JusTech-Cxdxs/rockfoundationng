@@ -53,7 +53,7 @@ export default async function CustomerInvoicePage({ params }: { params: Promise<
         <PrintButton />
       </div>
       <article id="customer-invoice" className="mx-auto max-w-3xl rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-white p-6 text-[#0F172A] sm:p-10">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-[#D6890B] pb-4">
+        <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-[#EC3237] pb-4">
           <div>
             <p className="text-2xl font-extrabold">{inv.organisation.name}</p>
             {inv.organisation.legalName && inv.organisation.legalName !== inv.organisation.name ? <p className="text-sm font-semibold">{inv.organisation.legalName}</p> : null}
@@ -62,7 +62,7 @@ export default async function CustomerInvoicePage({ params }: { params: Promise<
             <p className="mt-1 text-xs text-[#475569]">{[inv.branch.name, inv.branch.address].filter(Boolean).join(' — ')}</p>
           </div>
           <div className="text-right">
-            <p className="text-lg font-bold text-[#0A1628]">Invoice</p>
+            <p className="text-lg font-bold text-[#3E4095]">Invoice</p>
             <p className="font-mono text-sm">{inv.invoiceNumber}</p>
             <p className="text-xs text-[#475569]">{fmtDate(inv.issuedAt)}</p>
             {inv.dueDate ? <p className="text-xs font-semibold text-[#475569]">Payment due by {fmtDate(inv.dueDate)}</p> : null}
@@ -119,8 +119,8 @@ export default async function CustomerInvoicePage({ params }: { params: Promise<
         ) : null}
 
         <footer className="mt-8 text-center">
-          <p className="font-bold text-[#0A1628]">Thank you for choosing {inv.organisation.name}.</p>
-          <div className="mx-auto mt-2 w-40 border-t-2 border-[#D6890B]" />
+          <p className="font-bold text-[#3E4095]">Thank you for choosing {inv.organisation.name}.</p>
+          <div className="mx-auto mt-2 w-40 border-t-2 border-[#EC3237]" />
         </footer>
       </article>
     </div>

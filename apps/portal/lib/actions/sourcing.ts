@@ -77,7 +77,7 @@ async function notifyTechnicianAndSupervisorOfPartRequestStatus(
     const recipients = await prisma.user.findMany({ where: { id: { in: recipientIds }, isActive: true }, select: { fullName: true, email: true } });
     const orgContext = await getSourcingOrgContext(jobCard.branchId, jobCard.departmentName);
     const portalUrl = portalBaseUrl();
-    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    const logoUrl = `${portalUrl}/brand/emblem.png`;
     for (const recipient of recipients) {
       await sendEmail(
         recipient.email,
@@ -233,7 +233,7 @@ async function syncJobCardSourcingStatus(jobCardId: string): Promise<void> {
           jobNumber: jobCard.jobNumber,
           vehicleDescription: [jobCard.vehicle.make, jobCard.vehicle.model].filter(Boolean).join(' ') || 'Vehicle',
           dashboardUrl: `${customerLinks(websiteUrl).jobCard(jobCardId)}`,
-          logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+          logoUrl: `${websiteUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
         }),
@@ -471,7 +471,7 @@ export async function requestPartRequestSlip(jobCardId: string): Promise<{ id: s
     ]);
     const orgContext = await getSourcingOrgContext(jobCard.branchId, emailContext.departmentName);
     const portalUrl = portalBaseUrl();
-    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    const logoUrl = `${portalUrl}/brand/emblem.png`;
     for (const manager of managers.supervisors) {
       await sendEmail(
         manager.email,
@@ -555,7 +555,7 @@ export async function approvePartRequestSlipByHod(slipId: string, notes?: string
       }
       const orgContext = await getSourcingOrgContext(slip.branchId, emailContext.departmentName);
       const portalUrl = portalBaseUrl();
-      const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+      const logoUrl = `${portalUrl}/brand/emblem.png`;
       for (const recipient of storeRecipients.values()) {
         await sendEmail(
           recipient.email,

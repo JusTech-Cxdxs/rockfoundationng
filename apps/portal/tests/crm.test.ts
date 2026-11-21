@@ -154,7 +154,7 @@ test('profile gaps, open jobs and the hub filters, sort and pages', () => {
 test('welcome email: a set-password link and what the portal is for — never a password, names escaped', () => {
   const { subject, html } = renderCustomerWelcomeEmail({
     kind: 'welcome', customerName: 'Ada <b>Obi</b>', email: 'ada@example.com', setPasswordUrl: 'https://site.example/customer-portal/reset-password?token=tok_123', setPasswordHours: 72,
-    signInUrl: 'https://site.example/customer-portal', logoUrl: 'https://site.example/images/logo/logo.png', companyName: 'Phoenix Nigeria', branchName: 'Ajah Branch',
+    signInUrl: 'https://site.example/customer-portal', logoUrl: 'https://site.example/brand/logo.png', companyName: 'Phoenix Nigeria', branchName: 'Ajah Branch',
     branchContact: { address: 'Plot 3, Ajah', phones: ['0800 000 0000'], email: 'ajah@example.com' },
   });
   assert.match(subject, /Welcome/);

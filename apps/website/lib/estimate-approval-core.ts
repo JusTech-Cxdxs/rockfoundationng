@@ -197,7 +197,7 @@ function tellStaff(jc: JobRow, o: { via: AnswerVia; answer: EstimateAnswer; note
       });
       for (const p of people) {
         const m = renderEstimateAnswerStaffEmail({
-          companyName: jc.branch.businessUnit.organisation.name, logoUrl: `${websiteBaseUrl()}/images/logo/email-logo.png`,
+          companyName: jc.branch.businessUnit.organisation.name, logoUrl: `${websiteBaseUrl()}/brand/emblem.png`,
           recipientName: p.fullName, jobNumber: jc.jobNumber, customerName: jc.customer.fullName, branchName: jc.branch.name,
           answer: o.answer === 'approve' ? 'approved' : 'declined', via: o.via, note: o.note, workStarted,
           depositWaiting: depositDue > 0 ? naira(depositDue) : null, url: `${portalBaseUrl()}/workshop/job-cards/${jc.id}`,

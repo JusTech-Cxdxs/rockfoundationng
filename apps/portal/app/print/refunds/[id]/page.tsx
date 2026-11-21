@@ -45,11 +45,11 @@ export default async function PrintRefundPage({ params, searchParams }: { params
       <DocumentHeader
         organisation={organisation}
         branch={record.branch}
-        logoUrl={`${portalBaseUrl()}/images/logo/logo.png`}
+        logoUrl={`${portalBaseUrl()}/brand/logo.png`}
         documentTitle={isOrgCopy ? 'Refund Receipt — Organisation Copy' : 'Refund Receipt'}
         referenceNumber={refund.referenceNumber}
         statusLabel="Refunded"
-        accentColor="#D6890B"
+        accentColor="#EC3237"
       />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', marginTop: '20px' }}>
         <Field label="CUSTOMER" value={record.customer.fullName} />

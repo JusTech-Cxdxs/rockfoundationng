@@ -12,10 +12,7 @@ import { RoundTripChanges } from '@/components/data-exchange/RoundTripChanges';
 
 const ROUND_TRIP: readonly string[] = ROUND_TRIP_ENTITIES;
 import { IMPORT_STEPS, bytesText, importStatus } from '@/lib/data-exchange/status';
-import { featureOn } from '@/lib/modules';
 
-/** With the SAP link off (lib/modules.ts), files come from Zoho, an old system or a spreadsheet: no SAP wording. */
-const SAP = featureOn('sap');
 import { Icon, SectionCard, StatusChip } from '@/components/ui';
 
 const nf = (n: number) => n.toLocaleString('en-NG');
@@ -231,7 +228,7 @@ export function ImportJobView({ job }: { job: ImportJobDetail }) {
       ) : null}
 
       {['VALIDATED', 'AWAITING_APPROVAL', 'APPROVED', 'LOADING', 'PAUSED', 'COMPLETED', 'UNDOING', 'UNDONE'].includes(job.status) ? (
-        <SectionCard icon="check" title="What the check found" description={job.matchMode === 'UPDATE' ? `${nf(job.fileRows)} rows in the file · each found by its EJO record${SAP ? ' (or, from SAP’s own file, its SAP number)' : ''} and compared with the record as it is now · only the changes below are made, nothing is added, and an empty cell leaves a field as it is` : `${nf(job.fileRows)} rows in the file · ${job.matchMode === 'FILL_BLANKS' ? 'existing records get only their empty fields filled' : 'existing records are left as they are'} · nothing is ever overwritten`}
+        <SectionCard icon="check" title="What the check found" description={job.matchMode === 'UPDATE' ? `${nf(job.fileRows)} rows in the file · each found by its EJO record and compared with the record as it is now · only the changes below are made, nothing is added, and an empty cell leaves a field as it is` : `${nf(job.fileRows)} rows in the file · ${job.matchMode === 'FILL_BLANKS' ? 'existing records get only their empty fields filled' : 'existing records are left as they are'} · nothing is ever overwritten`}
           actions={<>
             {job.rejectedRows + job.duplicateRows > 0 ? <a className={secondary} href={`/data-exchange/imports/${job.id}/rows?kind=rejects`}><Icon name="download" size={14} /> Rejected rows (to fix in Excel)</a> : null}
             {job.possible.length ? <a className={secondary} href={`/data-exchange/imports/${job.id}/rows?kind=possible`}><Icon name="download" size={14} /> Possible duplicates</a> : null}
@@ -246,19 +243,19 @@ export function ImportJobView({ job }: { job: ImportJobDetail }) {
           {job.entity === 'stock' && job.totals?.check ? (
             <div className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-primary)]/30 bg-[var(--ejo-primary)]/5 p-3 text-sm text-[var(--ejo-text)]">
               <p className="font-medium">To load into {job.branch?.name ?? 'the branch'}: {nf(job.totals.check.lines)} stock lines · {qf(job.totals.check.quantity)} units · <span className="tabular-nums">{naira(job.totals.check.value)}</span></p>
-              <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Compare these with {SAP ? 'the SAP stock report' : 'the stock count'} for the same branch and date{job.asOf ? ` (${new Date(job.asOf).toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium' })})` : ''} before sending it for approval. It loads as opening-balance goods receipts on that date.</p>
+              <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Compare these with the stock count for the same branch and date{job.asOf ? ` (${new Date(job.asOf).toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium' })})` : ''} before sending it for approval. It loads as opening-balance goods receipts on that date.</p>
             </div>
           ) : null}
           {job.entity === 'invoices' && job.totals?.check ? (
             <div className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-primary)]/30 bg-[var(--ejo-primary)]/5 p-3 text-sm text-[var(--ejo-text)]">
               <p className="font-medium">To load as history of {job.branch?.name ?? 'the branch'}: {nf(job.totals.check.lines)} invoices · <span className="tabular-nums">{naira(job.totals.check.value)}</span>{job.totals.check.from && job.totals.check.to ? ` · dated ${day(job.totals.check.from)} to ${day(job.totals.check.to)}` : ''}</p>
-              <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Compare these with {SAP ? 'SAP’s billing or customer line-item report' : 'the invoice list in Zoho or the old system'} for the same period before sending it for approval. Invoices already in the history are not counted again.</p>
+              <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Compare these with the invoice list in QuickBooks, Zoho or the old system for the same period before sending it for approval. Invoices already in the history are not counted again.</p>
             </div>
           ) : null}
           {job.entity === 'openJobs' && job.totals?.check ? (
             <div className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-primary)]/30 bg-[var(--ejo-primary)]/5 p-3 text-sm text-[var(--ejo-text)]">
               <p className="font-medium">To open in {job.branch?.name ?? 'the branch'}: {nf(job.totals.check.lines)} job cards{job.totals.check.estimates ? <> · estimates <span className="tabular-nums">{naira(job.totals.check.estimates)}</span></> : null}{job.totals.check.value ? <> · <span className="tabular-nums">{naira(job.totals.check.value)}</span> already paid</> : null}{job.totals.check.from && job.totals.check.to ? ` · opened ${day(job.totals.check.from)} to ${day(job.totals.check.to)}` : ''}</p>
-              <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Each becomes a live job card at its stage, with its old number kept, its estimate marked approved before EJO and its deposit as an opening payment that Finance confirms after the load. Nobody is emailed. Compare the count with the workshop’s open job cards {SAP ? 'in SAP (IW38)' : 'in the old system'} before sending it for approval.</p>
+              <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Each becomes a live job card at its stage, with its old number kept, its estimate marked approved before EJO and its deposit as an opening payment that Finance confirms after the load. Nobody is emailed. Compare the count with the workshop’s open job cards in the old system before sending it for approval.</p>
             </div>
           ) : null}
           {job.entity === 'staff' && job.totals?.check ? (
@@ -271,7 +268,7 @@ export function ImportJobView({ job }: { job: ImportJobDetail }) {
           {job.entity === 'jobs' && job.totals?.check ? (
             <div className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-primary)]/30 bg-[var(--ejo-primary)]/5 p-3 text-sm text-[var(--ejo-text)]">
               <p className="font-medium">To load as history of {job.branch?.name ?? 'the branch'}: {nf(job.totals.check.lines)} past jobs{job.totals.check.value ? <> · <span className="tabular-nums">{naira(job.totals.check.value)}</span> charged</> : null}{job.totals.check.from && job.totals.check.to ? ` · opened ${day(job.totals.check.from)} to ${day(job.totals.check.to)}` : ''}</p>
-              <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Compare with {SAP ? 'SAP’s service order list (IW38 / IW39)' : 'the old system’s job card list'} for the same period before sending it for approval. Jobs already in the history are not counted again. Nothing here is editable afterwards: it is history.</p>
+              <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Compare with the old system’s job card list for the same period before sending it for approval. Jobs already in the history are not counted again. Nothing here is editable afterwards: it is history.</p>
             </div>
           ) : null}
           {job.problems.length ? (
@@ -366,7 +363,7 @@ export function ImportJobView({ job }: { job: ImportJobDetail }) {
               {job.entity === 'openJobs' ? (
                 <p className="font-medium text-[var(--ejo-text)]">Opening payments now on the {nf(job.totals.loaded.lines)} job cards this import opened in {job.branch?.name ?? 'the branch'}: <span className="tabular-nums">{naira(job.totals.loaded.value)}</span> (deposits taken before EJO). Finance confirms them against the old system’s receipts.</p>
               ) : job.entity === 'invoices' ? (
-                <p className="font-medium text-[var(--ejo-text)]">Invoice history now in EJO 100 from this import: <span className="tabular-nums">{naira(job.totals.loaded.value)}</span> on {nf(job.totals.loaded.lines)} invoices. It counts in each customer’s spend and last visit, the <a className="font-medium text-[var(--ejo-primary)] hover:underline" href="/crm">CRM</a> and <a className="font-medium text-[var(--ejo-primary)] hover:underline" href="/headquarters">Headquarters</a>, marked “{SAP ? 'from SAP, before EJO' : 'before EJO'}”.</p>
+                <p className="font-medium text-[var(--ejo-text)]">Invoice history now in EJO from this import: <span className="tabular-nums">{naira(job.totals.loaded.value)}</span> on {nf(job.totals.loaded.lines)} invoices. It counts in each customer’s spend and last visit, the <a className="font-medium text-[var(--ejo-primary)] hover:underline" href="/crm">CRM</a> and <a className="font-medium text-[var(--ejo-primary)] hover:underline" href="/analytics">Business Analytics</a>, marked “before EJO”.</p>
               ) : (
                 <p className="font-medium text-[var(--ejo-text)]">Stock value now in {job.branch?.name ?? 'the branch'}: <span className="tabular-nums">{naira(job.totals.loaded.value)}</span> ({qf(job.totals.loaded.quantity)} units on {nf(job.totals.loaded.lines)} lines)</p>
               )}
@@ -428,7 +425,7 @@ function ApprovePanel({ job, pending, act }: { job: ImportJobDetail; pending: bo
   return (
     <div className="space-y-3">
       <p className="text-sm text-[var(--ejo-text)]">
-        {job.entity === 'invoices' && job.totals?.check ? <>Approving loads <strong>{nf(job.totals.check.lines)}</strong> {SAP ? 'SAP invoices' : 'invoices'} worth <strong>{naira(job.totals.check.value)}</strong> as read-only history of {job.branch?.name ?? 'the branch'}; they count in the customers’ spend and the analytics, and Finance then confirms the totals. </> : null}
+        {job.entity === 'invoices' && job.totals?.check ? <>Approving loads <strong>{nf(job.totals.check.lines)}</strong> invoices worth <strong>{naira(job.totals.check.value)}</strong> as read-only history of {job.branch?.name ?? 'the branch'}; they count in the customers’ spend and the analytics, and Finance then confirms the totals. </> : null}
         {job.entity === 'stock' && job.totals?.check ? <>Approving loads <strong>{naira(job.totals.check.value)}</strong> of opening stock ({nf(job.totals.check.lines)} lines) into {job.branch?.name ?? 'the branch'} as opening-balance receipts; Finance then confirms the value. </> : null}
         {job.matchMode === 'UPDATE' ? <>Approving changes <strong>{nf(job.totals?.check?.lines ?? 0)}</strong> {def.plural} ({nf(job.totals?.check?.quantity ?? 0)} fields) exactly as previewed below, each recorded in its history with what it was; a field changed in EJO since the check is left as it is. Nothing is added. It can be undone afterwards: each field still as the file left it goes back.</> : <>
         Approving loads <strong>{nf(job.goodRows + job.warningRows)}</strong> rows into {def.plural}{job.branch ? ` of ${job.branch.name}` : ''}: new ones are added{job.matchMode === 'FILL_BLANKS' ? ', and existing ones get only their empty fields filled' : ', existing ones are left as they are'}. Rejected and duplicate rows ({nf(job.rejectedRows + job.duplicateRows)}) are not loaded. It can be undone afterwards while no work has been recorded on what it added.</>}
@@ -472,7 +469,7 @@ function MappingEditor({ job, onSaved }: { job: ImportJobDetail; onSaved: () => 
     setError(null); setProblems([]);
     startTransition(async () => {
       try {
-        const r = await saveImportMapping(job.id, { mapping, matchMode, sourceSystem: job.sourceSystem, possibleDuplicates: possible, saveAsProfile: profileName });
+        const r = await saveImportMapping(job.id, { mapping, matchMode, possibleDuplicates: possible, saveAsProfile: profileName });
         if (r.problems.length) { setProblems(r.problems); return; }
         onSaved();
       } catch (err) { setError(err instanceof Error ? err.message : 'The columns could not be saved.'); }
@@ -480,7 +477,7 @@ function MappingEditor({ job, onSaved }: { job: ImportJobDetail; onSaved: () => 
   };
 
   return (
-    <SectionCard icon="match" title="Match the columns" description={`Which column of ${job.fileName} feeds each field. Columns were matched by their names${SAP ? ' (SAP field names included)' : ' (Zoho’s column names included)'}; check them, then check the file.`}
+    <SectionCard icon="match" title="Match the columns" description={`Which column of ${job.fileName} feeds each field. Columns were matched by their names (Zoho’s column names included); check them, then check the file.`}
       actions={job.profiles.length ? (
         <label className="flex items-center gap-2 text-xs text-[var(--ejo-text-muted)]">Use a saved matching
           <select className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-2 py-1 text-xs text-[var(--ejo-text)]" defaultValue="" onChange={(e) => { const p = job.profiles.find((x) => x.id === e.target.value); if (p) setMapping(mappingFromProfile(job.entity, p.mapping, job.headers)); }}>
@@ -490,7 +487,7 @@ function MappingEditor({ job, onSaved }: { job: ImportJobDetail; onSaved: () => 
         </label>
       ) : null}>
       <div className="divide-y divide-[var(--ejo-border)] rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)]">
-        {def.fields.filter((f) => SAP || !f.sapOnly || mapping[f.key] != null).map((f) => {
+        {def.fields.map((f) => {
           const idx = mapping[f.key];
           const example = typeof idx === 'number' ? sample[idx] : '';
           return (
@@ -521,11 +518,11 @@ function MappingEditor({ job, onSaved }: { job: ImportJobDetail; onSaved: () => 
 
       <fieldset className="mt-4 space-y-2">
         <legend className="text-sm font-medium text-[var(--ejo-text)]">When a {def.noun} is already in the system</legend>
-        {([['ADD_ONLY', `Leave it as it is (add only new ${def.plural})`], ['FILL_BLANKS', 'Fill in only its empty fields (nothing is overwritten)'], ...(ROUND_TRIP.includes(job.entity) ? [['UPDATE', SAP ? `Update ${def.plural} exported from EJO, or from SAP’s own file (found by their EJO record or SAP number; each change previewed before approval)` : `Update ${def.plural} exported from EJO (found by their EJO record; each change previewed before approval)`] as const] : [])] as const).map(([v, label]) => (
+        {([['ADD_ONLY', `Leave it as it is (add only new ${def.plural})`], ['FILL_BLANKS', 'Fill in only its empty fields (nothing is overwritten)'], ...(ROUND_TRIP.includes(job.entity) ? [['UPDATE', `Update ${def.plural} exported from EJO (found by their EJO record; each change previewed before approval)`] as const] : [])] as const).map(([v, label]) => (
           <label key={v} className="flex items-center gap-2 text-sm text-[var(--ejo-text)]"><input type="radio" name="matchMode" checked={matchMode === v} onChange={() => setMatchMode(v)} className="accent-[var(--ejo-primary)]" />{label}</label>
         ))}
       </fieldset>
-      {matchMode === 'UPDATE' ? <p className="mt-1 text-xs text-[var(--ejo-text-muted)]" data-testid="round-trip-help">Export the {def.plural} from EJO, change what needs changing in Excel, and upload the file as it is. Rows are found only by the “EJO record” column{SAP ? ' — or, for SAP’s own extract (source SAP, no EJO record column), only by the SAP number' : ''}; nothing new is added; an empty cell leaves a field as it is; {job.entity === 'parts' ? 'a part’s number, how it is tracked and its base unit are changed on its page' : job.entity === 'vehicles' ? 'a vehicle’s chassis number and owner are changed on its page, and mileage never goes down' : 'nothing is ever blanked'}.</p> : null}
+      {matchMode === 'UPDATE' ? <p className="mt-1 text-xs text-[var(--ejo-text-muted)]" data-testid="round-trip-help">Export the {def.plural} from EJO, change what needs changing in Excel, and upload the file as it is. Rows are found only by the “EJO record” column; nothing new is added; an empty cell leaves a field as it is; {job.entity === 'parts' ? 'a part’s number, how it is tracked and its base unit are changed on its page' : job.entity === 'vehicles' ? 'a vehicle’s chassis number and owner are changed on its page, and mileage never goes down' : 'nothing is ever blanked'}.</p> : null}
       {job.entity === 'customers' ? (
         <fieldset className="mt-4 space-y-2">
           <legend className="text-sm font-medium text-[var(--ejo-text)]">A row that may be an existing customer (same phone, no matching number or email)</legend>
@@ -536,7 +533,7 @@ function MappingEditor({ job, onSaved }: { job: ImportJobDetail; onSaved: () => 
       ) : null}
       <div className="mt-4">
         <label htmlFor="profile-name" className="text-sm font-medium text-[var(--ejo-text)]">Save this matching for next time <span className="font-normal text-[var(--ejo-text-muted)]">(optional)</span></label>
-        <input id="profile-name" value={profileName} onChange={(e) => setProfileName(e.target.value)} maxLength={80} placeholder={SAP ? 'e.g. SAP customer master' : 'e.g. Zoho contacts'} className="mt-1 w-full max-w-sm rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+        <input id="profile-name" value={profileName} onChange={(e) => setProfileName(e.target.value)} maxLength={80} placeholder="e.g. Zoho contacts" className="mt-1 w-full max-w-sm rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
       </div>
       {problems.length ? <ul role="alert" className="mt-3 list-disc pl-5 text-sm text-[var(--ejo-error)]">{problems.map((p) => <li key={p}>{p}</li>)}</ul> : null}
       {error ? <p role="alert" className="mt-3 text-sm text-[var(--ejo-error)]">{error}</p> : null}

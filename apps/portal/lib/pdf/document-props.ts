@@ -22,7 +22,7 @@ export function letterhead(org: Org, branch: Branch, portalUrl: string): Letterh
   return {
     organisation: { name: org.name, legalName: org.legalName, hqAddress: org.hqAddress, poBox: org.poBox, rcNumber: org.rcNumber, hotlines: org.hotlines, website: org.website, email: org.email },
     branch: { name: branch.name, address: branch.address, hotlines: branch.hotlines, email: branch.email },
-    logoUrl: `${portalUrl.replace(/\/$/, '')}/images/logo/logo.png`,
+    logoUrl: `${portalUrl.replace(/\/$/, '')}/brand/logo.png`,
   };
 }
 

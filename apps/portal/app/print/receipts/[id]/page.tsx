@@ -44,11 +44,11 @@ export default async function PrintReceiptPage({ params }: { params: Promise<{ i
       <DocumentHeader
         organisation={organisation}
         branch={jc.branch}
-        logoUrl={`${portalBaseUrl()}/images/logo/logo.png`}
+        logoUrl={`${portalBaseUrl()}/brand/logo.png`}
         documentTitle="Payment Receipt"
         referenceNumber={payment.receiptNumber!}
         statusLabel={balanceAfter > 0 ? 'Part payment' : 'Paid in full'}
-        accentColor="#D6890B"
+        accentColor="#EC3237"
       />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', marginTop: '20px' }}>
         <Field label="RECEIPT NO." value={payment.receiptNumber!} />
@@ -85,8 +85,8 @@ export default async function PrintReceiptPage({ params }: { params: Promise<{ i
 
       <SignatureBlock issuerLabel="Received By (Finance)" issuerName={payment.recordedBy.fullName} collectorLabel="Paid By" collectorName={customerName} />
       <div style={{ marginTop: '20px', textAlign: 'center' }}>
-        <div style={{ fontSize: '12px', fontWeight: 700, color: '#0A1628' }}>Thank you for choosing {organisation.name}.</div>
-        <div style={{ borderTop: '2px solid #D6890B', width: '120px', margin: '6px auto 0' }} />
+        <div style={{ fontSize: '12px', fontWeight: 700, color: '#3E4095' }}>Thank you for choosing {organisation.name}.</div>
+        <div style={{ borderTop: '2px solid #EC3237', width: '120px', margin: '6px auto 0' }} />
       </div>
       <DocumentFooter organisation={organisation} />
     </div>

@@ -1,5 +1,5 @@
 /**
- * Data Exchange — updating records from an edited export (P10), the server
+ * Data Exchange: updating records from an edited export, the server
  * part of round-trip.ts. Server only (never a 'use server' file):
  * lib/actions/data-exchange.ts checks who is asking, locks the import and
  * calls these inside its transactions.
@@ -17,7 +17,7 @@
 import { Prisma, prisma } from '@ejo/database';
 import { checkCustomerRow, checkVehicleRow, type Checked, type Issue } from './check';
 import { checkPartRow, checkSupplierRow } from './check-inventory';
-import type { Mapping } from './fields';
+import { IMPORT_SOURCE, type Mapping } from './fields';
 import { diffRecord, ejoRecordOf, UPDATABLE, type Change, type Plain, type RoundTripEntity } from './round-trip';
 import { writeLoadResults, type LoadRow, type Result, type RowUpdate } from './rows-server';
 import { lockRows } from '../integrity';
@@ -33,10 +33,10 @@ const AUDIT: Record<RoundTripEntity, { type: string; action: string; lock: 'cust
   suppliers: { type: 'Supplier', action: 'supplier.updated', lock: 'supplier', noun: 'supplier' },
 };
 
-function parse(entity: RoundTripEntity, cells: unknown[], mapping: Mapping, source: string): Checked<unknown> {
+function parse(entity: RoundTripEntity, cells: unknown[], mapping: Mapping): Checked<unknown> {
   if (entity === 'customers') return checkCustomerRow(cells, mapping);
   if (entity === 'vehicles') return checkVehicleRow(cells, mapping, new Date().getFullYear(), true);
-  if (entity === 'parts') return checkPartRow(cells, mapping, source === 'LEGACY' ? 'LEGACY' : 'SAP');
+  if (entity === 'parts') return checkPartRow(cells, mapping);
   return checkSupplierRow(cells, mapping);
 }
 
@@ -63,7 +63,7 @@ async function currentOf(db: Db, entity: RoundTripEntity, job: RoundTripJob, ids
 /** A value another record already holds where it must be unique: why the change cannot be made, or null. */
 async function taken(db: Db, entity: RoundTripEntity, job: RoundTripJob, id: string, cur: Record<string, Plain>, c: Change): Promise<string | null> {
   const to = String(c.to);
-  const source = (cur.externalSource as string | null) ?? (job.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP');
+  const source = (cur.externalSource as string | null) ?? IMPORT_SOURCE;
   if (entity === 'customers' && c.field === 'email') {
     const other = await db.customer.findUnique({ where: { email: to.toLowerCase() }, select: { id: true, organisationId: true } });
     if (other && other.id !== id) return other.organisationId === job.organisationId ? `Another customer already uses ${to}: open their page instead.` : `${to} is already registered on the platform: use another email for this customer.`;
@@ -93,55 +93,21 @@ async function writeChanges(db: Db, rows: { id: string; changes: Change[] | null
   await db.$executeRaw`UPDATE import_rows AS r SET changes = v.c::jsonb FROM unnest(${ids}::text[], ${json}::text[]) AS v(id, c) WHERE r.id = v.id`;
 }
 
-/** The SAP number a row of SAP's own extract carries (KUNNR, EQUNR, LIFNR, MATNR), without SAP's leading zeros. */
-function sapKeyOf(values: unknown): string | null {
-  const v = String((values as { externalId?: unknown } | null)?.externalId ?? '').trim().replace(/^0+(?=\d)/, '');
-  return v ? v.slice(0, 60) : null;
-}
-
-/**
- * C1b — SAP's master data back in: the records with these SAP numbers, fenced
- * to the organisation (a part to the import's branch, by its SAP number or,
- * kept as SAP's MATNR, its part number). 'MANY' when a number is on more than
- * one record (never guessed).
- */
-async function sapMatches(db: Db, entity: RoundTripEntity, job: RoundTripJob, keys: string[]): Promise<Map<string, string | 'MANY'>> {
-  const out = new Map<string, string | 'MANY'>();
-  const want = [...new Set(keys)];
-  if (!want.length) return out;
-  const put = (k: string | null, id: string) => { if (!k) return; const key = k.replace(/^0+(?=\d)/, ''); const had = out.get(key); out.set(key, had && had !== id ? 'MANY' : id); };
-  const sap = { externalSource: 'SAP', externalId: { in: want } };
-  if (entity === 'customers') for (const r of await db.customer.findMany({ where: { organisationId: job.organisationId, ...sap }, select: { id: true, externalId: true } })) put(r.externalId, r.id);
-  else if (entity === 'suppliers') for (const r of await db.supplier.findMany({ where: { organisationId: job.organisationId, ...sap }, select: { id: true, externalId: true } })) put(r.externalId, r.id);
-  else if (entity === 'vehicles') for (const r of await db.customerVehicle.findMany({ where: { customer: { organisationId: job.organisationId }, ...sap }, select: { id: true, externalId: true } })) put(r.externalId, r.id);
-  else if (job.branchId) {
-    for (const r of await db.part.findMany({ where: { branchId: job.branchId, OR: [sap, { externalSource: 'SAP', externalId: null, partNumber: { in: want } }] }, select: { id: true, externalId: true, partNumber: true } })) put(r.externalId ?? r.partNumber, r.id);
-  }
-  return out;
-}
-
 /** Checks a block of rows: each found by its EJO record, its changes worked out and kept for the preview. */
 export async function checkRoundTripRows(entity: RoundTripEntity, job: RoundTripJob, mapping: Mapping, rows: { id: string; cells: Prisma.JsonValue }[]): Promise<RowUpdate[]> {
-  const parsed = rows.map((r) => ({ r, c: parse(entity, r.cells as unknown[], mapping, job.sourceSystem), ejo: ejoRecordOf(r.cells as unknown[], mapping) }));
-  // C1b — SAP's own extract (no EJO record column): each row found by its SAP number, and only by it.
-  const bySap = mapping.ejoRecord == null && job.sourceSystem === 'SAP' ? await sapMatches(prisma, entity, job, parsed.map((x) => sapKeyOf(x.c.values)).filter((k): k is string => Boolean(k))) : null;
-  const checked = parsed.map((x) => {
-    const sap = bySap ? sapKeyOf(x.c.values) : null;
-    const hit = sap ? bySap!.get(sap) : undefined;
-    return { ...x, sap, id: x.ejo ?? (hit && hit !== 'MANY' ? hit : null), many: hit === 'MANY' };
+  const checked = rows.map((r) => {
+    const ejo = ejoRecordOf(r.cells as unknown[], mapping);
+    return { r, c: parse(entity, r.cells as unknown[], mapping), ejo, id: ejo };
   });
   const current = await currentOf(prisma, entity, job, [...new Set(checked.map((x) => x.id).filter((x): x is string => Boolean(x)))]);
   const updates: RowUpdate[] = [];
   const changes: { id: string; changes: Change[] | null }[] = [];
-  for (const { r, c, ejo, sap, id, many } of checked) {
+  for (const { r, c, ejo, id } of checked) {
     const issues: Issue[] = [...c.issues];
-    const fail = (message: string) => issues.push({ field: bySap ? 'externalId' : 'ejoRecord', level: 'error', message });
+    const fail = (message: string) => issues.push({ field: 'ejoRecord', level: 'error', message });
     let found: Change[] | null = null;
     const cur = id ? current.get(id) : undefined;
-    if (bySap && !sap) fail(`No SAP number: an update from SAP’s file finds each ${AUDIT[entity].noun} by its SAP number only.`);
-    else if (bySap && many) fail(`SAP number ${sap} is on more than one ${AUDIT[entity].noun} in EJO: put it right on their pages first.`);
-    else if (bySap && !cur) fail(`No ${AUDIT[entity].noun} in EJO has SAP number ${sap}${entity === 'parts' ? ' in this branch’s catalogue' : ''}: to add new ones, import the file with “Add new only”.`);
-    else if (!ejo && !bySap) fail('No EJO record: “Update records exported from EJO” changes only records exported from EJO (their “EJO record” column). To add new ones, import the file with “Add new only”.');
+    if (!ejo) fail('No EJO record: “Update records exported from EJO” changes only records exported from EJO (their “EJO record” column). To add new ones, import the file with “Add new only”.');
     else if (!cur) fail(entity === 'parts' ? 'This EJO record is not a part of this branch’s catalogue: export the branch’s own parts, or start the import in the part’s branch.' : `This EJO record is not one of your organisation’s ${entity}.`);
     else if (c.values) {
       const d = diffRecord(entity, cur, c.values as never, r.cells as unknown[], mapping);
@@ -154,7 +120,7 @@ export async function checkRoundTripRows(entity: RoundTripEntity, job: RoundTrip
     }
     const failed = issues.some((i) => i.level === 'error');
     changes.push({ id: r.id, changes: failed ? null : found });
-    updates.push({ id: r.id, status: failed ? 'REJECTED' : issues.length ? 'WARNING' : 'GOOD', issues, matchedId: cur ? id : null, matchedBy: cur ? (ejo ? 'ejo' : 'sap') : null, keys: ejo ? [`ejo:${ejo}`] : sap ? [`sap:${sap}`] : [] });
+    updates.push({ id: r.id, status: failed ? 'REJECTED' : issues.length ? 'WARNING' : 'GOOD', issues, matchedId: cur ? id : null, matchedBy: cur ? 'ejo' : null, keys: ejo ? [`ejo:${ejo}`] : [] });
   }
   await writeChanges(prisma, changes);
   return updates;
@@ -165,7 +131,7 @@ function data(entity: RoundTripEntity, cur: Record<string, Plain>, changes: Chan
   const out: Record<string, unknown> = {};
   for (const c of changes) {
     if (c.field === 'customerSince') out.customerSince = c.to === null ? null : new Date(`${c.to}T00:00:00.000Z`);
-    else if (c.field === 'externalId') { out.externalId = c.to === null ? null : String(c.to).replace(/^0+(?=\d)/, ''); if (!cur.externalSource && c.to !== null) out.externalSource = job.sourceSystem === 'LEGACY' ? 'LEGACY' : 'SAP'; }
+    else if (c.field === 'externalId') { out.externalId = c.to === null ? null : String(c.to).replace(/^0+(?=\d)/, ''); if (!cur.externalSource && c.to !== null) out.externalSource = IMPORT_SOURCE; }
     else if (c.field === 'email') out.email = c.to === null ? null : String(c.to).toLowerCase();
     else out[c.field] = c.to;
   }

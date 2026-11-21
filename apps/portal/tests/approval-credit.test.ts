@@ -82,7 +82,7 @@ test('one rule: the hard-coded 70% is gone from both apps', () => {
 
 test('no deposit wording when none applies: the estimate PDF has no deposit box', () => {
   const p = jobEstimatePdfProps({
-    letterhead: { organisation: { name: 'Demo Autocare', legalName: null, hqAddress: null, poBox: null, rcNumber: null, hotlines: [], website: null, email: null }, branch: { name: 'Lekki', address: null, hotlines: [], email: null }, logoUrl: 'https://portal.example.com/images/logo/logo.png' },
+    letterhead: { organisation: { name: 'Demo Autocare', legalName: null, hqAddress: null, poBox: null, rcNumber: null, hotlines: [], website: null, email: null }, branch: { name: 'Lekki', address: null, hotlines: [], email: null }, logoUrl: 'https://portal.example.com/brand/logo.png' },
     bank: { bankName: 'Example Bank', accountName: 'Demo', accountNumber: '0001112223' },
     jobNumber: 'JC-2026-000001', customer: { fullName: 'Example Fleet Limited', address: null }, vehicle: { make: 'Toyota', model: 'Hilux', plateNumber: null, chassisNumber: null },
     lineItems: [{ type: 'LABOUR', description: 'Service', quantity: 1, amount: 10000, unitOfMeasure: null }],

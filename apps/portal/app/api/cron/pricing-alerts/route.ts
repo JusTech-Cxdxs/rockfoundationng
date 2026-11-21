@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   const groups = moduleIsOn('inventory') ? await getOpenPricingAlertsForDigest() : [];
   const portalUrl = portalBaseUrl();
-  const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+  const logoUrl = `${portalUrl}/brand/emblem.png`;
 
   let emailsSent = 0;
   let emailsFailed = 0;

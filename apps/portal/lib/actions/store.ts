@@ -336,7 +336,7 @@ export async function setPartSellingPrice(partId: string, sellingPrice: number):
     }
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
-    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    const logoUrl = `${portalUrl}/brand/emblem.png`;
     for (const recipient of recipients.values()) {
       await sendEmail(
         recipient.email,
@@ -411,7 +411,7 @@ export async function setPartTargetMargin(partId: string, targetValue: number, p
     }
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
-    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    const logoUrl = `${portalUrl}/brand/emblem.png`;
     const equivalentMarkup = marginToMarkup(targetMarginPercent);
     for (const recipient of recipients.values()) {
       await sendEmail(
@@ -867,7 +867,7 @@ export async function requestStoreMatching(jobCardId: string, note?: string): Pr
     }
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
-    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    const logoUrl = `${portalUrl}/brand/emblem.png`;
 
     for (const recipient of storeRecipients.values()) {
       await sendEmail(
@@ -945,7 +945,7 @@ async function sendStoreMatchingCompleteNotification(
   try {
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
-    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    const logoUrl = `${portalUrl}/brand/emblem.png`;
     const statusRecipientIds = [jobCard.supervisorId, jobCard.assignedTechnicianId].filter((id): id is string => Boolean(id));
     const statusRecipients = await prisma.user.findMany({ where: { id: { in: statusRecipientIds } }, select: { fullName: true, email: true } });
     for (const recipient of statusRecipients) {
@@ -1620,7 +1620,7 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
           serialNumbers: line.part.trackingType === 'SERIALIZED' ? (line.serialNumbers ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
           notes: input.notes?.trim() || undefined,
           dashboardUrl: `${portalUrl}/inventory/parts/${line.partId}`,
-          logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+          logoUrl: `${websiteUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
         });
@@ -1646,7 +1646,7 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
         recipients.set(staffMember.id, staffMember);
       }
       const portalUrl = portalBaseUrl();
-      const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+      const logoUrl = `${portalUrl}/brand/emblem.png`;
       const formatNairaForAlert = (value: number) => `₦${value.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       for (const alert of newAlertsForEmail) {
         const recommendedPrice = roundedPriceForTargetMargin(alert.newUnitCost, alert.targetMarginPercent);
@@ -1854,7 +1854,7 @@ export async function syncPartPriceToTargetMargin(alertId: string): Promise<void
     }
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
-    const logoUrl = `${portalUrl}/images/logo/email-logo.png`;
+    const logoUrl = `${portalUrl}/brand/emblem.png`;
     for (const recipient of recipients.values()) {
       await sendEmail(
         recipient.email,
@@ -1999,7 +1999,7 @@ async function notifyStoreOfGoodsReceiptEdit(branchId: string, editedByName: str
           referenceNumber,
           changeSummary,
           goodsReceiptUrl: `${portalUrl}/inventory/goods-receipts`,
-          logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+          logoUrl: `${portalUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
           departmentName: orgContext.departmentName,

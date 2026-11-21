@@ -346,7 +346,7 @@ async function tellReactivated(userId: string): Promise<void> {
     if (!u) return;
     const base = portalBaseUrl();
     const m = renderWorkflowNoticeEmail({
-      companyName: u.organisation?.name ?? portalConfig.organisationName, logoUrl: `${base}/images/logo/email-logo.png`, recipientName: u.fullName,
+      companyName: u.organisation?.name ?? portalConfig.organisationName, logoUrl: `${base}/brand/emblem.png`, recipientName: u.fullName,
       subject: 'Your EJO 100 account is switched on again',
       heading: 'You can sign in again',
       intro: 'Your administrator switched your EJO 100 account back on. Your roles are as they were.',

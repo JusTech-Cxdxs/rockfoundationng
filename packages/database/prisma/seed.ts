@@ -74,9 +74,9 @@ async function main() {
       branding: {
         create: {
           // The website's own colours: orange, navy and the logo gold.
-          primaryColor: '#F09E2C',
-          secondaryColor: '#0A1628',
-          accentColor: '#D6890B',
+          primaryColor: '#3E4095',
+          secondaryColor: '#3E4095',
+          accentColor: '#EC3237',
         },
       },
     },

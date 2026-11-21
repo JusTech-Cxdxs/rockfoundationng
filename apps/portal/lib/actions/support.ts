@@ -352,7 +352,7 @@ export async function replyToSupportTicket(ticketId: string, body: string, then:
           reply: text,
           statusLabel: SUPPORT_STATUS_FOR_CUSTOMER[status],
           portalUrl: t.customerId && site ? `${site}/customer-portal/dashboard/support` : responseUrl(t.token),
-          logoUrl: `${site || portalBaseUrl()}/images/logo/email-logo.png`,
+          logoUrl: `${site || portalBaseUrl()}/brand/emblem.png`,
           companyName: org?.name ?? PLATFORM.name,
           branchName: branch?.name ?? null,
         });

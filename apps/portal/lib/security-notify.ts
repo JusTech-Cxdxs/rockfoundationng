@@ -44,7 +44,7 @@ export async function notifyGateOfRelease(jobCardId: string, actorId: string | n
           heading: 'A vehicle has been released to leave',
           lines,
           actionUrl: `${portal}/security/vehicles/release/${jobCardId}`,
-          logoUrl: `${portal}/images/logo/email-logo.png`,
+          logoUrl: `${portal}/brand/emblem.png`,
           companyName: rec.branch.businessUnit?.organisation?.name ?? PLATFORM.name,
           branchName: rec.branch.name,
         }));

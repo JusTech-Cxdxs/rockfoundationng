@@ -1,4 +1,3 @@
-import { featureOn } from '@/lib/modules';
 import Link from 'next/link';
 import { guardAnyPage } from '@/lib/authz/server';
 import { getDataExchangeTimeline, type ExchangeEvent } from '@/lib/actions/data-exchange';
@@ -36,7 +35,7 @@ export default async function DataExchangeTimelinePage({ searchParams }: { searc
   const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('en-NG', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   return (
     <div className="w-full space-y-6 p-4 sm:p-8">
-      <PageHeader icon="calendar" back={{ href: '/data-exchange', label: 'Back to Data Exchange' }} title="Data Exchange, day by day" description={`Every import started, loaded, confirmed by Finance, undone or released, and every list exported, by day (Lagos time). Choose a day to see its list; each opens its import or export.${featureOn('sap') ? ' The daily SAP files will appear here too once they are in use.' : ''}`} />
+      <PageHeader icon="calendar" back={{ href: '/data-exchange', label: 'Back to Data Exchange' }} title="Data Exchange, day by day" description={`Every import started, loaded, confirmed by Finance, undone or released, and every list exported, by day (Lagos time). Choose a day to see its list; each opens its import or export.`} />
       <SectionCard icon="calendar" title={label} actions={<span className="flex gap-2 text-sm"><Link className="font-medium text-[var(--ejo-primary)] hover:underline" href={`/data-exchange/timeline?month=${prev}`}>← Previous</Link><Link className="font-medium text-[var(--ejo-primary)] hover:underline" href={`/data-exchange/timeline?month=${next}`}>Next →</Link></span>}>
         <div role="grid" aria-label={`Data Exchange activity, ${label}`} className="grid grid-cols-7 gap-1 text-center text-xs">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div key={d} role="columnheader" className="py-1 font-medium text-[var(--ejo-text-muted)]">{d}</div>)}

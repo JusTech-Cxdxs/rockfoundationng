@@ -208,7 +208,7 @@ async function notifyJobCardCreatorOfDecision(params: {
         rejectionReason: params.rejectionReason,
         notes: params.notes,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${params.jobCardId}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
         departmentName: orgContext.departmentName,
@@ -1001,7 +1001,7 @@ export async function createJobCard(input: CreateJobCardInput) {
         vehicleDescription: [vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle',
         complaints: created.complaints.map((c: (typeof created.complaints)[number]) => c.description),
         jobCardUrl: `${portalUrl}/workshop/job-cards/${created.id}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
         departmentName: orgContext.departmentName,
@@ -1025,7 +1025,7 @@ export async function createJobCard(input: CreateJobCardInput) {
         vehicleDescription: [vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle',
         complaints: created.complaints.map((c: (typeof created.complaints)[number]) => c.description),
         dashboardUrl: `${customerLinks(websiteUrl).jobCard(created.id)}`,
-        logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+        logoUrl: `${websiteUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
         departmentName: orgContext.departmentName,
@@ -1216,7 +1216,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
       const websiteUrl = websiteBaseUrl();
       const vehicleDescription = [jobCard.vehicle.make, jobCard.vehicle.model].filter(Boolean).join(' ') || 'Vehicle';
       const dashboardUrl = `${customerLinks(websiteUrl).jobCard(id)}`;
-      const logoUrl = `${websiteUrl}/images/logo/email-logo.png`;
+      const logoUrl = `${websiteUrl}/brand/emblem.png`;
       // Has this Job Card been sent back for rework before? (This move isn't
       // counted; its audit entry is written after these emails.)
       const reworkedBefore =
@@ -1336,8 +1336,8 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
       const vehicleDescription = [jobCard.vehicle.make, jobCard.vehicle.model].filter(Boolean).join(' ') || 'Vehicle';
       const dashboardUrl = `${websiteUrl}/customer-portal/dashboard`;
       const jobCardUrl = `${portalUrl}/workshop/job-cards/${id}`;
-      const websiteLogoUrl = `${websiteUrl}/images/logo/email-logo.png`;
-      const portalLogoUrl = `${portalUrl}/images/logo/email-logo.png`;
+      const websiteLogoUrl = `${websiteUrl}/brand/emblem.png`;
+      const portalLogoUrl = `${portalUrl}/brand/emblem.png`;
       const realCollectedByName = result.collectedByName ?? collectedByName?.trim() ?? 'the customer';
       // A Job Card opened as a service (not a cancelled hand-back): tell the customer when the next service is due.
       const nextService = jobCard.isService && priorStatus !== JobCardStatus.CANCELLED ? await serviceJobCardCycle(id).catch(() => null) : null;
@@ -1590,7 +1590,7 @@ export async function reassignSupervisor(jobCardId: string, newSupervisorId: str
         vehicleDescription: [jobCard.vehicle.make, jobCard.vehicle.model].filter(Boolean).join(' ') || 'Vehicle',
         complaints: jobCard.complaints.map((c: (typeof jobCard.complaints)[number]) => c.description),
         jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
         departmentName: orgContext.departmentName,
@@ -1668,7 +1668,7 @@ export async function assignTechnician(jobCardId: string, technicianId: string) 
         complaints: jobCard.complaints.map((c: (typeof jobCard.complaints)[number]) => c.description),
         supervisorName: jobCard.supervisor?.fullName ?? 'Supervisor',
         jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCard.id}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
         departmentName: orgContext.departmentName,
@@ -1731,7 +1731,7 @@ async function notifySupervisorOfTechnicianResponse(params: {
         technicianName: technician?.fullName ?? 'Technician',
         rejectionReason: params.rejectionReason,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${params.jobCardId}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
         departmentName: orgContext.departmentName,
@@ -2342,7 +2342,7 @@ async function sendEstimateNudge(params: {
         customerName: jobCard.customer.fullName,
         note: params.note,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${params.jobCardId}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
         departmentName: orgContext.departmentName,
@@ -2494,7 +2494,7 @@ export async function submitEstimateForValidation(jobCardId: string): Promise<vo
         submittedByName: submitter?.fullName ?? 'A team member',
         totalAmount: `₦${total.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
         departmentName: orgContext.departmentName,
@@ -2539,13 +2539,13 @@ const managersForBranchShared = unstable_cache(async (branchId: string): Promise
 
 /** There is no single assigned manager: any eligible manager for the branch
  * (or a Master Admin) may act, and the first to act completes the step. */
-type ManagerPermission = 'workshop.close.approve' | 'workshop.estimate.final_approve' | 'store.prs.approve_hod' | 'procurement.epr.approve';
+type ManagerPermission = 'workshop.close.approve' | 'workshop.estimate.final_approve' | 'store.prs.approve_hod';
 
 export async function requireEligibleManager(branchId: string, key: ManagerPermission = 'workshop.close.approve'): Promise<{ id: string }> {
   const user = await requireUser();
   // Authorization Catalogue (Manager by default, plus Roles-page
   // grants; Master Admin always), checked against the record's branch.
-  await authorize(key, { branchId, homeBranch: true }, `manager:${key}`, 'Only a Manager for this branch can approve this.');
+  await authorize(key, { branchId, homeBranch: true }, `manager:${key}`, 'Only the Owner can approve this.');
   return user;
 }
 
@@ -2620,7 +2620,7 @@ export async function approveEstimate(jobCardId: string): Promise<void> {
           approvedByName: approver?.fullName ?? 'The supervisor',
           totalAmount: `₦${total.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-          logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+          logoUrl: `${portalUrl}/brand/emblem.png`,
           companyName,
           branchName,
         }),
@@ -2726,7 +2726,7 @@ export async function approveEstimateAsManager(jobCardId: string, approveDiscoun
         approvedByManagerName: manager?.fullName ?? 'The manager',
         totalAmount: `₦${total.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: estimate.jobCard.branch.businessUnit.organisation.name,
         branchName: estimate.jobCard.branch.name,
       }),
@@ -2886,7 +2886,7 @@ export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promi
         ...(await bankDetailsFor(estimate.jobCard.branch.id)),
         paymentRemarkSuggestion,
         dashboardUrl: `${customerLinks(websiteUrl).jobCard(jobCardId)}`,
-        logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+        logoUrl: `${websiteUrl}/brand/emblem.png`,
         companyName: estimate.jobCard.branch.businessUnit.organisation.name,
         branchName: estimate.jobCard.branch.name,
       }),
@@ -3201,7 +3201,7 @@ export async function recordPayment(
           totalEstimate: formatNaira(settled.totalNow),
           balanceRemaining: balance > 0 ? formatNaira(balance) : undefined,
           jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-          logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+          logoUrl: `${portalUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
           departmentName: orgContext.departmentName,
@@ -3245,7 +3245,7 @@ export async function recordPayment(
               customerName: jobCard.customer.fullName,
               totalPaid: formatNaira(newTotal),
               jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-              logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+              logoUrl: `${portalUrl}/brand/emblem.png`,
               companyName: orgContext.companyName,
               branchName: orgContext.branchName,
               departmentName: orgContext.departmentName,
@@ -3262,7 +3262,7 @@ export async function recordPayment(
               totalPaidSoFar: formatNaira(newTotal),
               totalEstimate: formatNaira(settled.totalNow),
               jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-              logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+              logoUrl: `${portalUrl}/brand/emblem.png`,
               companyName: orgContext.companyName,
               branchName: orgContext.branchName,
               departmentName: orgContext.departmentName,
@@ -3291,7 +3291,7 @@ export async function recordPayment(
         totalEstimate: formatNaira(settled.totalNow),
         balanceRemaining: balance > 0 ? formatNaira(balance) : undefined,
         dashboardUrl: `${customerLinks(websiteUrl).jobCard(jobCardId)}`,
-        logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+        logoUrl: `${websiteUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
       }),
@@ -3424,7 +3424,7 @@ export async function requestJobCardCancellation(jobCardId: string, reason: stri
           requestedByName: requester?.fullName ?? 'A team member',
           reason: trimmedReason,
           jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-          logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+          logoUrl: `${portalUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
         }),
@@ -3546,7 +3546,7 @@ export async function approveCancellationRequest(requestId: string, decisionNote
           approvedByName: approver?.fullName ?? 'The manager',
           reason: request.reason,
           jobCardUrl: `${portalUrl}/workshop/job-cards/${request.jobCardId}`,
-          logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+          logoUrl: `${portalUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
           departmentName: orgContext.departmentName,
@@ -3568,7 +3568,7 @@ export async function approveCancellationRequest(requestId: string, decisionNote
         jobNumber: request.jobCard.jobNumber,
         vehicleDescription: [request.jobCard.vehicle.make, request.jobCard.vehicle.model].filter(Boolean).join(' ') || 'Vehicle',
         dashboardUrl: `${customerLinks(websiteUrl).jobCard(request.jobCardId)}`,
-        logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+        logoUrl: `${websiteUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
       }),
@@ -3641,7 +3641,7 @@ export async function declineCancellationRequest(requestId: string, decisionNote
         declinedByName: decliner?.fullName ?? 'The manager',
         decisionNotes,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${request.jobCardId}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
       }),
@@ -3744,7 +3744,7 @@ export async function requestJobCardClose(jobCardId: string): Promise<void> {
           customerName: jobCard.customer.fullName,
           requestedByName: requester?.fullName ?? 'A team member',
           jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
-          logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+          logoUrl: `${portalUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
         }),
@@ -3866,7 +3866,7 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
         jobNumber: request.jobCard.jobNumber,
         vehicleDescription,
         dashboardUrl: `${websiteUrl}/customer-portal/dashboard`,
-        logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+        logoUrl: `${websiteUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
       }),
@@ -3894,7 +3894,7 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
           customerName: request.jobCard.customer.fullName,
           closedByName: approver?.fullName ?? 'The manager',
           jobCardUrl: `${portalUrl}/workshop/job-cards/${request.jobCardId}`,
-          logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+          logoUrl: `${portalUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
           departmentName: orgContext.departmentName,
@@ -3969,7 +3969,7 @@ export async function declineCloseRequest(requestId: string, decisionNotes?: str
         declinedByName: decliner?.fullName ?? 'The manager',
         decisionNotes,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${request.jobCardId}`,
-        logoUrl: `${portalUrl}/images/logo/email-logo.png`,
+        logoUrl: `${portalUrl}/brand/emblem.png`,
         companyName: orgContext.companyName,
         branchName: orgContext.branchName,
       }),
@@ -4292,7 +4292,7 @@ export async function sendApprovalReminder(jobCardId: string): Promise<void> {
       dueDate: dueDate.toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Lagos' }),
       reminderNumber,
       dashboardUrl: `${customerLinks(websiteUrl).jobCard(jobCardId)}`,
-      logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+      logoUrl: `${websiteUrl}/brand/emblem.png`,
       companyName: orgContext.companyName,
       branchName: orgContext.branchName,
     }),
@@ -4403,7 +4403,7 @@ export async function notifyOverdueCancelledVehicle(jobCardId: string, notes?: s
       daysSinceCancellationLabel: pluralize(daysElapsed, 'working day'),
       reminderNumber,
       dashboardUrl: `${customerLinks(websiteUrl).jobCard(jobCardId)}`,
-      logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+      logoUrl: `${websiteUrl}/brand/emblem.png`,
       companyName: orgContext.companyName,
       branchName: orgContext.branchName,
     }),
@@ -4467,7 +4467,7 @@ export async function sendReadyForCollectionReminder(jobCardId: string): Promise
       dueDate: dueDate.toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Lagos' }),
       reminderNumber,
       dashboardUrl: `${customerLinks(websiteUrl).jobCard(jobCardId)}`,
-      logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+      logoUrl: `${websiteUrl}/brand/emblem.png`,
       companyName: orgContext.companyName,
       branchName: orgContext.branchName,
     }),

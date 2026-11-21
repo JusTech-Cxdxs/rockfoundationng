@@ -162,7 +162,7 @@ export async function sendEstimateApprovalLink(jobCardId: string): Promise<Appro
           approvalUrl: url,
           expiresOn,
           dashboardUrl: customerLinks(websiteUrl).jobCard(jobCardId),
-          logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+          logoUrl: `${websiteUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
           branchName: orgContext.branchName,
         }),

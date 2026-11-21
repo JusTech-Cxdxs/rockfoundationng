@@ -25,7 +25,7 @@ export async function sendLoggedEmail(opts: { entityType: string; entityId: stri
     let sent = true;
     let error: string | null = null;
     try {
-      await sendEmail(r.email, opts.subject, renderStaffNoticeEmail({ recipientName: r.fullName, heading: opts.heading, lines: opts.lines, actionUrl: `${portal}${opts.path}`, logoUrl: `${portal}/images/logo/email-logo.png`, companyName: branch?.businessUnit?.organisation?.name ?? PLATFORM.name, branchName: branch?.name ?? '' }));
+      await sendEmail(r.email, opts.subject, renderStaffNoticeEmail({ recipientName: r.fullName, heading: opts.heading, lines: opts.lines, actionUrl: `${portal}${opts.path}`, logoUrl: `${portal}/brand/emblem.png`, companyName: branch?.businessUnit?.organisation?.name ?? PLATFORM.name, branchName: branch?.name ?? '' }));
     } catch (err) {
       sent = false;
       error = err instanceof Error ? cleanForLog(err.message).slice(0, 300) : 'Unknown error';

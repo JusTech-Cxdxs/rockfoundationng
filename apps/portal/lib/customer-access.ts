@@ -100,7 +100,7 @@ export async function sendCustomerAccessEmail(customerId: string, kind: 'welcome
       setPasswordUrl,
       setPasswordHours: CUSTOMER_SET_PASSWORD_HOURS,
       signInUrl: `${website}/customer-portal`,
-      logoUrl: `${website}/images/logo/email-logo.png`,
+      logoUrl: `${website}/brand/emblem.png`,
       companyName,
       branchName: branch?.name ?? '',
       branchContact: branch ? { address: branch.address, phones: branch.hotlines, email: branch.email } : undefined,

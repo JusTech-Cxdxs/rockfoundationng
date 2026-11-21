@@ -121,6 +121,10 @@ model Organisation {
   // switched on, and then only for individual customers — never for an
   // organisation (company or fleet) customer. depositPercent (1–100) is used
   // only while depositRequired is on.
+  // The optional roles switched on in Settings → Roles (workshop-supervisor,
+  // technician, store-keeper, accounts, security). Owner and Front Desk are
+  // always on; while a role is off, Front Desk covers its steps.
+  optionalRoles String[] @default([])
   depositRequired Boolean @default(false)
   depositPercent  Int     @default(70)
   // A demonstration organisation: the only kind that gets demo people with
@@ -215,13 +219,10 @@ model City {
   @@map("cities")
 }
 
-/// What kind of place a branch is (apps/portal/lib/branch-types.ts): plant
-/// records live only on an ASSEMBLY_PLANT branch, workshop records only on a
-/// WORKSHOP one. Additive; every existing branch is a WORKSHOP.
+/// What kind of place a branch is (apps/portal/lib/branch-types.ts): job
+/// cards live only on a WORKSHOP branch; a WAREHOUSE keeps stock only.
 enum BranchType {
   WORKSHOP
-  ASSEMBLY_PLANT
-  SALES
   HEAD_OFFICE
   WAREHOUSE
 }
@@ -233,8 +234,6 @@ model Branch {
   name           String   // e.g. "Ota Workshop"
   code           String?  // short code used in document numbering, e.g. "OTA"
   type           BranchType @default(WORKSHOP)
-  /// SAP plant code (WERKS) when the branch is a plant or stock point in SAP.
-  sapPlant       String?
   address        String?
   // The branch's own hotlines, printed separately from the organisation's
   // (e.g. head office and a workshop branch on the same Job Card).
@@ -2248,15 +2247,8 @@ model EnyoSetting {
   staffAssistant    Boolean  @default(true)
   customerAssistant Boolean  @default(true)
   publicAssistant   Boolean  @default(true)
-  mailAi            Boolean  @default(true)
-  // SHADOW (measured, never shown) | SUGGEST (shown as suggestions) | OFF
-  predictionsMode   String   @default("SHADOW")
   // Display name and greeting shown to staff and customers (branding).
   displayName       String   @default("Enyo")
-  // The automation level of each learning capability, e.g.
-  // {"JOB_DURATION":"SHADOW","PRICE_ANOMALY":"ASSIST"}. Missing = the
-  // capability's default (OFF or SHADOW); see lib/enyo/ml/capabilities.ts.
-  capabilityLevels  Json?
   // Learn only from records opened on or after this day (Lagos). Set it
   // to the go-live date so test data typed while trying the system out is
   // never learned from. Null = all history (up to three years).
@@ -2760,8 +2752,8 @@ model ImportJob {
   mapping        Json?
   // ADD_ONLY: matches are skipped. FILL_BLANKS: matches get only their empty fields filled. Nothing is ever overwritten.
   matchMode      String   @default("ADD_ONLY")
-  // Where the file came from: SAP | LEGACY (an old system or spreadsheet). Stamped on every record as externalSource.
-  sourceSystem   String   @default("SAP")
+  // Where the file came from: QUICKBOOKS | LEGACY (an old system or spreadsheet). Stamped on every record as externalSource.
+  sourceSystem   String   @default("LEGACY")
   // Rows that only MIGHT be an existing record (same phone, different name and number): SKIP them (listed for
   // follow-up) or ADD them as new. Never merged silently.
   possibleDuplicates String @default("SKIP")
@@ -2783,7 +2775,6 @@ model ImportJob {
   // Opening stock: Finance confirms the loaded quantity and value (a second sign-off after the Store's approval).
   signedOffById  String?
   signedOffAt    DateTime?
-  defaultKind    String?
   // The staged copy of the file: bytes it takes (measured), and when it was
   // released (the summary, the report's outcomes, rejected rows and what undo
   // needs are kept; the rest of the file's cells are cleared).
@@ -2896,8 +2887,8 @@ model Supplier {
 // Data Exchange: invoices from QuickBooks or the old system (billing documents
 // or customer line items) from before EJO. Read-only history: never edited, never paid or
 // refunded here, never shown to the customer. Counted in the customer's total
-// spend and last visit and in the CRM and Headquarters analytics, always
-// labelled "from SAP, before EJO". The customer (and the vehicle, matched by
+// spend and last visit and in the CRM and analytics, always
+// labelled "from before EJO". The customer (and the vehicle, matched by
 // its VIN) are linked by id without a foreign key, so the history survives a
 // customer moving through the Recycle bin. "Undo" voids rows (voidedAt) and
 // a reload un-voids them: nothing is ever deleted.
@@ -2911,22 +2902,15 @@ model HistoricalInvoice {
   // The chassis number as written on the invoice, and in capitals without spaces (to find the vehicle).
   vin            String?
   vinKey         String?
-  // SAP billing document (VBELN) or accounting document (BELNR) number.
+  // The invoice number in QuickBooks or the old system.
   invoiceNumber  String
   invoiceDate    DateTime  @db.Date
   // Gross amount in naira (net + tax when both are given); negative for a credit note.
   amount         Decimal   @db.Decimal(14, 2)
-  // SAP billing type (FKART) or document type (BLART), e.g. F2, G2, DR.
+  // The old system's document type, e.g. Invoice, Credit Memo, Sales Receipt.
   documentType   String?
-  // SAP numbers documents per company code and fiscal year: the same number can
-  // come back in another year. Fiscal year (GJAHR) from the file, else the
-  // invoice date's year; company code (BUKRS) when given. When either is given
-  // in the file, externalSource is "SAP/<company code>/<year>" — the numbering
-  // range — so the unique key below keeps such invoices apart.
-  companyCode    String?
-  fiscalYear     Int?
   description    String?
-  externalSource String    @default("SAP")
+  externalSource String    @default("LEGACY")
   importJobId    String?
   voidedAt       DateTime?
   createdAt      DateTime  @default(now())
@@ -2944,12 +2928,8 @@ model HistoricalInvoice {
   @@map("historical_invoices")
 }
 
-// v-A3 Data Exchange: the plant's existing production, QC and PDI registers
-// (Excel), one row per vehicle per check. Read-only history shown on the
-// vehicle by its VIN (the vehicle may be a customer's or still in stock).
-// Staff only: inspectors' names are never shown to customers. Undo voids.
-/// A job card or routine service from before EJO 100 (SAP PM/CS service
-/// order or an old system's job card), read-only history: shown on the
+/// A job card or routine service from before EJO (an old system's or
+/// spreadsheet's job card), read-only history: shown on the
 /// customer and the vehicle, counted as a visit, and the anchor of the
 /// vehicle's next-service clock until EJO completes a service of its own.
 /// Undo voids it (voidedAt); loading the file again restores it.
@@ -2965,23 +2945,19 @@ model HistoricalJob {
   /// JOB_CARD (repair) or SERVICE (routine service).
   kind               String    @default("JOB_CARD")
   jobNumber          String
-  notificationNumber String?
   invoiceNumber      String?
-  equipmentNumber    String?
-  orderType          String?
   openedAt           DateTime  @db.Date
   completedAt        DateTime? @db.Date
   mileage            Int?
   description        String?
   workDone           String?
   technician         String?
-  workCentre         String?
   labourAmount       Decimal?  @db.Decimal(14, 2)
   partsAmount        Decimal?  @db.Decimal(14, 2)
   totalAmount        Decimal?  @db.Decimal(14, 2)
   /// CLOSED (the default) or CANCELLED.
   status             String    @default("CLOSED")
-  externalSource     String    @default("SAP")
+  externalSource     String    @default("LEGACY")
   importJobId        String?
   /// The service tracker: staff marked the next-service prediction from this visit handled (or stopped tracking it).
   attendedAt         DateTime?

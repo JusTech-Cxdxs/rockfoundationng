@@ -46,7 +46,7 @@ export default async function PrintPartRequestSlipPage({
   if (slip.status !== 'RELEASED') notFound();
 
   const portalUrl = portalBaseUrl();
-  const logoUrl = `${portalUrl}/images/logo/logo.png`;
+  const logoUrl = `${portalUrl}/brand/logo.png`;
   const totalAmount = slip.lines.reduce((sum: number, l: (typeof slip.lines)[number]) => {
     const amount = l.estimateLineItem?.amount;
     return sum + (amount !== null && amount !== undefined ? Number(amount) : 0);
@@ -67,7 +67,7 @@ export default async function PrintPartRequestSlipPage({
         documentTitle={isOrgCopy ? 'Store Parts Request' : 'Parts Collection Receipt'}
         referenceNumber={slip.referenceNumber}
         statusLabel={STATUS_LABEL[slip.status] ?? slip.status}
-        accentColor="#D6890B"
+        accentColor="#EC3237"
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', marginTop: '20px' }}>

@@ -92,7 +92,7 @@ async function notifyTeam(ticket: { id: string; number: string; assignedToId: st
   if (!to) return;
   const m = renderSupportCustomerReplyEmail({
     companyName: org?.name || siteConfig.organisationName,
-    logoUrl: `${websiteBaseUrl()}/images/logo/email-logo.png`,
+    logoUrl: `${websiteBaseUrl()}/brand/emblem.png`,
     recipientName: assignee?.fullName ?? null,
     ticketNumber: ticket.number,
     contactName,
@@ -172,7 +172,7 @@ export async function openSupportRequest(_prev: ActionState, fd: FormData): Prom
   const work = (async () => {
     const org = await prisma.organisation.findUnique({ where: { id: me.organisationId }, select: { name: true, email: true } });
     const companyName = org?.name || siteConfig.organisationName;
-    const logoUrl = `${websiteBaseUrl()}/images/logo/email-logo.png`;
+    const logoUrl = `${websiteBaseUrl()}/brand/emblem.png`;
     if (me.email) {
       const c = renderSupportTicketConfirmEmail({ companyName, logoUrl, fullName: me.fullName, ticketNumber: ticket.number, subject, url: `${websiteBaseUrl()}/customer-portal/dashboard/support` });
       await sendEmail(me.email, c.subject, c.html);

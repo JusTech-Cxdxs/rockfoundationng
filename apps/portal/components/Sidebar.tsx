@@ -60,7 +60,7 @@ export function Sidebar({
       <div className={`flex h-16 shrink-0 items-center border-b border-[var(--ejo-border)] ${mini ? 'justify-center px-2' : 'justify-between gap-2 px-4'}`}>
         {mini ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src="/images/logo/logo.png" alt={organisationName} width={36} height={36} className="h-9 w-auto object-contain" />
+          <img src="/brand/logo.png" alt={organisationName} width={36} height={36} className="h-9 w-auto object-contain" />
         ) : (
           <div className="min-w-0"><Wordmark name={organisationName} /></div>
         )}

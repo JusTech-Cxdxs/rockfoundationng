@@ -2,7 +2,7 @@ import { portalBaseUrl } from '@/lib/portal-url';
 import type { ReactNode } from 'react';
 import { PLATFORM } from '@/lib/brand';
 
-const ACCENT = '#D6890B'; // the logo gold
+const ACCENT = '#EC3237'; // the logo gold
 
 /**
  * A pass on a POS receipt roll (58 / 80 mm): fills the roll's width, with
@@ -11,7 +11,7 @@ const ACCENT = '#D6890B'; // the logo gold
  * copy label, a boxed title, the content and an optional note.
  */
 export function PassSheet({ copyLabel, orgName, subName, title, children, note }: { copyLabel: string; orgName: string; subName?: string | null; title: string; children: ReactNode; note?: string }) {
-  const logo = `${portalBaseUrl()}/images/logo/logo.png`;
+  const logo = `${portalBaseUrl()}/brand/logo.png`;
   const words = orgName.trim().split(/\s+/);
   const top = words[0] ?? orgName;
   const bottom = words.slice(1).join(' ');

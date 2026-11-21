@@ -22,7 +22,7 @@ import { prisma, type Prisma } from '@ejo/database';
 import { featureOn } from '@/lib/modules';
 import { checkOpenJobRow, type OpenJobValues } from './check-open-jobs';
 import type { Issue } from './check';
-import type { Mapping } from './fields';
+import { IMPORT_SOURCE, type Mapping } from './fields';
 import { findCustomers } from './lookup-server';
 import { STAFF_AWAITING_INVITATION } from './check-staff';
 import { newId, writeLoadResults, type LoadRow, type Result, type RowUpdate } from './rows-server';
@@ -33,7 +33,8 @@ type Tx = Prisma.TransactionClient;
 type Db = Tx | typeof prisma;
 export type OpenJobsJob = { id: string; number: string; organisationId: string; branchId: string | null; sourceSystem: string; createdById: string; approvedById: string | null };
 
-const src = (s: string) => (s === 'LEGACY' ? 'LEGACY' : 'SAP');
+/** Where the import's rows came from, as stored on each record (externalSource). */
+const src = (s: string) => s || IMPORT_SOURCE;
 const dayDate = (d: string) => new Date(`${d}T09:00:00.000+01:00`);
 export const BEFORE_EJO = 'before EJO';
 

@@ -1,6 +1,6 @@
 /**
  * Data Exchange — checking one row of a suppliers, parts or opening-stock
- * file (v-A2). Pure, like check.ts: the same limits as the Store's own forms,
+ * file. Pure, like check.ts: the same limits as the Store's own forms,
  * gaps in old data as notes, and a row rejected only when the record would be
  * wrong (no part number, no description, no quantity or no cost).
  */
@@ -15,8 +15,9 @@ function get(cells: unknown[], mapping: Mapping, key: string): string {
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
- * A number as SAP, Excel and people write it: "1,250.00", "₦1,250", "1 250",
- * "100-" (SAP's trailing minus), "(100)". Null when it is not a number.
+ * A number as accounting systems, Excel and people write it: "1,250.00",
+ * "₦1,250", "1 250", "100-" (a trailing minus), "(100)". Null when it is not
+ * a number.
  */
 export function parseAmount(raw: string): number | null {
   let s = String(raw ?? '').trim();
@@ -70,7 +71,7 @@ export type PartValues = {
   altUnit: { name: string; factor: number } | null; externalId: string | null;
 };
 
-export function checkPartRow(cells: unknown[], mapping: Mapping, source: 'SAP' | 'LEGACY' = 'SAP'): Checked<PartValues> {
+export function checkPartRow(cells: unknown[], mapping: Mapping): Checked<PartValues> {
   const issues: Issue[] = [];
   const warn = (field: string, message: string) => issues.push({ field, message, level: 'warning' });
   const fail = (field: string, message: string) => issues.push({ field, message, level: 'error' });
@@ -88,11 +89,7 @@ export function checkPartRow(cells: unknown[], mapping: Mapping, source: 'SAP' |
   let trackingType: PartValues['trackingType'] = 'QUANTITY';
   if (/^(batch|lot|x|yes|true|1)$/.test(t) || t.startsWith('batch')) trackingType = 'BATCH';
   else if (/^(serial|serialised|serialized|sn)/.test(t)) trackingType = 'SERIALIZED';
-  else if (t && !/^(quantity|qty|no|none|0|false|-)$/.test(t)) {
-    // An SAP serial number profile (SERNP, e.g. "ZS01") means serial-tracked.
-    if (/^[a-z0-9]{3,5}$/i.test(t) && mapping.trackingType !== undefined) trackingType = 'SERIALIZED';
-    else warn('trackingType', `Tracking “${get(cells, mapping, 'trackingType')}” was not recognised; counted by quantity.`);
-  }
+  else if (t && !/^(quantity|qty|no|none|0|false|-)$/.test(t)) warn('trackingType', `Tracking “${get(cells, mapping, 'trackingType')}” was not recognised; counted by quantity.`);
   const money = (key: string, label: string) => {
     const raw = get(cells, mapping, key);
     if (!raw) return null;
@@ -120,7 +117,7 @@ export function checkPartRow(cells: unknown[], mapping: Mapping, source: 'SAP' |
   }
   const barcode = get(cells, mapping, 'barcode').slice(0, 64) || null;
   const external = get(cells, mapping, 'externalId').trim();
-  const externalId = (external || (source === 'SAP' ? partNumber : '')).slice(0, 60) || null;
+  const externalId = external.slice(0, 60) || null;
   const failed = issues.some((i) => i.level === 'error');
   return {
     status: failed ? 'REJECTED' : issues.length ? 'WARNING' : 'GOOD',
@@ -138,8 +135,8 @@ export type StockValues = {
 };
 
 /**
- * One stock line. The cost is the stock value when given (SAP SALK3), else
- * the unit cost ÷ price unit × quantity (SAP VERPR / PEINH). Whether the part
+ * One stock line. The cost is the stock value when given, else the unit
+ * cost ÷ price unit × quantity. Whether the part
  * is batch or serial tracked is checked against the catalogue on the server.
  */
 export function checkStockRow(cells: unknown[], mapping: Mapping): Checked<StockValues> {
@@ -151,7 +148,7 @@ export function checkStockRow(cells: unknown[], mapping: Mapping): Checked<Stock
   const qRaw = get(cells, mapping, 'quantity');
   const quantity = parseAmount(qRaw);
   if (quantity === null) fail('quantity', qRaw ? `Quantity “${qRaw}” is not a number.` : 'Quantity is required.');
-  else if (quantity < 0) fail('quantity', `Negative stock (${qRaw}) cannot be an opening balance; correct it in SAP or leave the line out.`);
+  else if (quantity < 0) fail('quantity', `Negative stock (${qRaw}) cannot be an opening balance; correct it in the old system or leave the line out.`);
   else if (quantity === 0) fail('quantity', 'Quantity is zero: there is nothing to bring in.');
   else if (quantity > 1e9) fail('quantity', 'The quantity is too large.');
   const vRaw = get(cells, mapping, 'totalValue');
@@ -188,7 +185,7 @@ export function checkStockRow(cells: unknown[], mapping: Mapping): Checked<Stock
   return {
     status: failed ? 'REJECTED' : issues.length ? 'WARNING' : 'GOOD',
     issues,
-    // One line per part, batch and storage location (SAP lists the same part once per storage location).
+    // One line per part, batch and storage location (a stock report can list a part once per location).
     keys: partNumber ? [`line:${partKey(partNumber)}|${partKey(batch) ?? ''}|${partKey(storageLocation) ?? ''}`, ...serials.map((x) => `serial:${x.toUpperCase()}`)] : [],
     values: failed ? null : { partNumber, quantity: quantity!, unit, unitCost: Math.round(unitCost * 1_000_000) / 1_000_000, totalValue: Math.round(totalValue * 100) / 100, batch, serials, storageLocation },
   };

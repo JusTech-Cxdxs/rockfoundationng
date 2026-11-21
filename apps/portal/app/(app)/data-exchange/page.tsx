@@ -2,11 +2,10 @@ import Link from 'next/link';
 import { allows, guardAnyPage } from '@/lib/authz/server';
 import { listImportJobs } from '@/lib/actions/data-exchange';
 import { EDITION_ENTITY_KEYS, ENTITIES, type EntityKey } from '@/lib/data-exchange/fields';
-import { featureOn } from '@/lib/modules';
 import { bytesText, importStatus } from '@/lib/data-exchange/status';
 import { StagingSettings } from '@/components/data-exchange/StagingSettings';
 import { formatDateTimeCompact } from '@/lib/utils/format-date';
-import { EmptyState, HeaderAction, Icon, PageHeader, ResponsiveTable, SectionCard, StatusChip } from '@/components/ui';
+import { EmptyState, Icon, PageHeader, ResponsiveTable, SectionCard, StatusChip } from '@/components/ui';
 import { ExportAction } from '@/components/ExportAction';
 import { DatabaseSpaceCard } from '@/components/data-exchange/DatabaseSpaceCard';
 
@@ -37,10 +36,8 @@ export default async function DataExchangePage({ searchParams }: { searchParams:
   await guardAnyPage(['dataexchange.import.run', 'dataexchange.import.approve'], '/data-exchange');
   const canExport = await allows('dataexchange.export.run');
   const canDocuments = await allows('dataexchange.export.sensitive');
-  const canApprove = await allows('dataexchange.import.approve');
   const { before } = await searchParams;
   const { jobs, canRun, staging, space } = await listImportJobs({ take: 30, before });
-  const sap = featureOn('sap');
   return (
     <div className="w-full space-y-6 p-4 sm:p-8">
       <PageHeader
@@ -48,8 +45,7 @@ export default async function DataExchangePage({ searchParams }: { searchParams:
         icon="layers"
         eyebrow="Data Exchange"
         title="Excel in, Excel out"
-        description={`Bring records in from an Excel or CSV file — ${sap ? 'from SAP, Zoho, an old system or your own spreadsheet' : 'from Zoho, an old system or your own spreadsheet'} — and take any list out to Excel. Every file is checked first, approved by the department that owns the records, and can be undone.`}
-        actions={sap && (canExport || canApprove) ? <HeaderAction href="/data-exchange/sap" icon="match" variant="secondary">Postings for SAP</HeaderAction> : null}
+        description={`Bring records in from an Excel or CSV file — from Zoho, an old system or your own spreadsheet — and take any list out to Excel. Every file is checked first, approved by the department that owns the records, and can be undone.`}
       />
 
       <SectionCard icon="plus" title="Import" description="Choose what to bring in. Load customers before their vehicles, and vehicles before job cards."
@@ -97,7 +93,7 @@ export default async function DataExchangePage({ searchParams }: { searchParams:
       <SectionCard icon="history" title="History of imports" description="Newest first. Open one to see its check, approval, load and report." flush
         actions={<span className="flex flex-wrap items-center gap-3"><ExportAction kind="imports" label="Export the list" /><Link href="/data-exchange/timeline" className="text-xs font-medium text-[var(--ejo-primary)] hover:underline">Day by day →</Link></span>}>
         {jobs.length === 0 ? (
-          <div className="p-4"><EmptyState icon="inbox" title="No imports yet" compact>{sap ? 'Download a template above, or start with your SAP export: its columns are matched automatically.' : 'Download a template above, or start with your Zoho export or spreadsheet: common column names are matched automatically.'}</EmptyState></div>
+          <div className="p-4"><EmptyState icon="inbox" title="No imports yet" compact>Download a template above, or start with your Zoho export or spreadsheet: common column names are matched automatically.</EmptyState></div>
         ) : (
           <ResponsiveTable>
             <table className="w-full text-sm">

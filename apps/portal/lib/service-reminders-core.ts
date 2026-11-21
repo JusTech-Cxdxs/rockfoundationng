@@ -102,7 +102,7 @@ export async function sendServiceReminder(need: VehicleNeedingReminder, trigger?
       reminderCount: sentThisCycle + 1,
       // The customer's own account — never a staff-portal page they can't open.
       vehicleUrl: `${websiteUrl}/customer-portal/dashboard`,
-      logoUrl: `${websiteUrl}/images/logo/email-logo.png`,
+      logoUrl: `${websiteUrl}/brand/emblem.png`,
       companyName: branchContext?.businessUnit.organisation.name ?? PLATFORM.name,
       branchName: branchContext?.name ?? '',
     }),

@@ -25,7 +25,7 @@ async function emailCustomers(b: { id: string; title: string; message: string; c
       const preferencesUrl = `${website}/customer-portal/dashboard/profile`;
       const { subject, html } = renderCustomerBroadcastEmail({
         customerName: c.fullName, title: b.title, message: b.message, categoryLabel: meta.heading,
-        portalUrl: `${website}/customer-portal`, logoUrl: `${website}/images/logo/email-logo.png`, companyName: b.organisation.name,
+        portalUrl: `${website}/customer-portal`, logoUrl: `${website}/brand/emblem.png`, companyName: b.organisation.name,
         preferencesUrl,
       });
       // Announcements are optional (notifyByEmail), so mail clients may offer an unsubscribe link to the preference page.
@@ -75,7 +75,7 @@ export async function deliverDueBroadcastEmails(now: Date = new Date()): Promise
           recipientName: u.fullName, heading: b.title, lines: b.message.split(/\n+/).map((l: string) => l.trim()).filter(Boolean),
           actionUrl: `${portal}/notifications?tab=broadcasts`, actionLabel: 'Read in EJO 100', statusLabel: meta.label,
           statusTone: b.category === 'URGENT' || b.category === 'SECURITY_ALERT' ? 'danger' : b.category === 'IMPORTANT' ? 'warning' : 'info',
-          logoUrl: `${portal}/images/logo/email-logo.png`, companyName: b.organisation.name, branchName: '',
+          logoUrl: `${portal}/brand/emblem.png`, companyName: b.organisation.name, branchName: '',
         }));
         sent += 1;
       } catch {

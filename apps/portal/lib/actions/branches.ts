@@ -2,7 +2,8 @@
 import { orMasterAdmins } from '@/lib/master-fallback';
 import { portalBaseUrl } from '@/lib/portal-url';
 
-import { AREA_BRANCH_TYPES, BRANCH_TYPE_WORDS, departmentsFor, isBranchType } from '@/lib/branch-types';
+import { AREA_BRANCH_TYPES, BRANCH_TYPE_WORDS, isBranchType } from '@/lib/branch-types';
+import { SYSTEM_DEPARTMENTS } from '@/lib/structure-rules';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@ejo/database';
 import { requireUser } from './workshop';
@@ -118,8 +119,8 @@ export async function updateBranch(branchId: string, input: UpdateBranchInput): 
     },
   });
   if (type && type !== before.type) {
-    // A branch of a new kind gets that kind's departments (missing ones only).
-    const add = departmentsFor(type);
+    // A branch that becomes a workshop gets the workshop's standard departments (missing ones only).
+    const add = type === 'WORKSHOP' ? SYSTEM_DEPARTMENTS : [];
     if (add.length) await prisma.department.createMany({ data: add.map((d) => ({ branchId, name: d.name, slug: d.slug })), skipDuplicates: true });
     await writeAuditLog({ userId: user.id, action: 'branch.type_changed', entityType: 'Branch', entityId: branchId, metadata: { branch: trimmedName, from: BRANCH_TYPE_WORDS[before.type], to: BRANCH_TYPE_WORDS[type] } });
   }
@@ -158,7 +159,7 @@ export async function updateBranch(branchId: string, input: UpdateBranchInput): 
               heading: 'The branch bank account was changed',
               lines: [`Branch: ${trimmedName}`, `From: ${from}`, `To: ${to}`, `Changed by: ${actor?.fullName ?? 'an administrator'}`, 'Customers are told to pay into this account on every estimate. If you did not expect this change, report it immediately.'],
               actionUrl: `${portal}/branches/${branchId}`,
-              logoUrl: `${portal}/images/logo/email-logo.png`,
+              logoUrl: `${portal}/brand/emblem.png`,
               companyName: PLATFORM.name,
               branchName: trimmedName,
             }),

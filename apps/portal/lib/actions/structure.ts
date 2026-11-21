@@ -6,7 +6,7 @@ import { authorize, getPrincipal } from '@/lib/authz/server';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { scopeFor } from '@/lib/authz/catalogue';
 import { SYSTEM_DEPARTMENTS, SYSTEM_DEPARTMENT_SLUGS } from '@/lib/structure-rules';
-import { BRANCH_TYPE_WORDS, departmentsFor, isBranchType, type BranchType } from '@/lib/branch-types';
+import { BRANCH_TYPE_WORDS, isBranchType, type BranchType } from '@/lib/branch-types';
 
 /**
  * The organisation's structure: Organisation → Business units → Branches →
@@ -69,7 +69,7 @@ export async function getStructure() {
           where: o.branchOnly ? { id: o.branchOnly } : undefined,
           orderBy: { name: 'asc' },
           select: {
-            id: true, name: true, code: true, isActive: true, type: true, sapPlant: true,
+            id: true, name: true, code: true, isActive: true, type: true,
             city: { select: { name: true, state: { select: { name: true } } } },
             departments: { orderBy: [{ isActive: 'desc' }, { name: 'asc' }], select: { id: true, name: true, slug: true, isActive: true } },
           },
@@ -180,7 +180,7 @@ export async function renameBusinessUnit(id: string, name: string): Promise<void
  * added, in the organisation's country), and — by default — the standard
  * departments every branch's workflows need.
  */
-export async function createBranch(input: { businessUnitId: string; name: string; code?: string; city: string; state: string; standardDepartments: boolean; type?: string; sapPlant?: string }): Promise<{ id: string }> {
+export async function createBranch(input: { businessUnitId: string; name: string; code?: string; city: string; state: string; standardDepartments: boolean; type?: string }): Promise<{ id: string }> {
   await authorize('admin.structure.manage', undefined, 'structure.branch.create');
   const o = await orgWide();
   const unit = await prisma.businessUnit.findFirst({ where: { id: input.businessUnitId, ...orgFence(o) }, select: { id: true, name: true, countries: { select: { countryId: true }, take: 1 } } });
@@ -191,9 +191,6 @@ export async function createBranch(input: { businessUnitId: string; name: string
   const code = input.code?.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 12) || null;
   // What kind of place it is (lib/branch-types.ts): a workshop unless said otherwise.
   const type: BranchType = isBranchType(input.type) ? input.type : 'WORKSHOP';
-  const sapPlant = input.sapPlant?.trim().toUpperCase() || null;
-  if (sapPlant && !/^[A-Z0-9]{4}$/.test(sapPlant)) throw new StructureError('The SAP plant code is 4 letters or digits (e.g. 1100).');
-  if (type === 'ASSEMBLY_PLANT' && !sapPlant) throw new StructureError('An assembly plant needs its SAP plant code (WERKS), e.g. 1100: every vehicle it builds is received in SAP under it.');
   if (await prisma.branch.findFirst({ where: { businessUnit: orgFence(o), name: { equals: name, mode: 'insensitive' } }, select: { id: true } })) throw new StructureError('There is already a branch with that name.');
   // The organisation's country: the business unit's, else that of an existing branch, else Nigeria.
   const countryId = unit.countries[0]?.countryId
@@ -202,17 +199,16 @@ export async function createBranch(input: { businessUnitId: string; name: string
   const branch = await prisma.$transaction(async (tx) => {
     const state = await tx.state.upsert({ where: { countryId_name: { countryId, name: stateName } }, update: {}, create: { countryId, name: stateName } });
     const city = await tx.city.upsert({ where: { stateId_name: { stateId: state.id, name: cityName } }, update: {}, create: { stateId: state.id, name: cityName } });
-    const b = await tx.branch.create({ data: { businessUnitId: unit.id, cityId: city.id, name, code, type, sapPlant }, select: { id: true } });
-    // The departments its work needs: the workshop's (job cards, store) for a
-    // workshop; the plant's (kit receiving, the line, quality, PDI, yard) for
-    // an assembly plant. Other kinds start empty.
-    const departments = type === 'WORKSHOP' ? (input.standardDepartments ? SYSTEM_DEPARTMENTS : []) : departmentsFor(type);
+    const b = await tx.branch.create({ data: { businessUnitId: unit.id, cityId: city.id, name, code, type }, select: { id: true } });
+    // The departments a workshop's job cards and store need, when ticked.
+    // Other kinds of branch start with none.
+    const departments = type === 'WORKSHOP' && input.standardDepartments ? SYSTEM_DEPARTMENTS : [];
     if (departments.length) {
       await tx.department.createMany({ data: departments.map((d) => ({ branchId: b.id, name: d.name, slug: d.slug })), skipDuplicates: true });
     }
     return b;
   });
-  await writeAuditLog({ userId: o.userId, action: 'branch.created', entityType: 'Branch', entityId: branch.id, metadata: { name, type: BRANCH_TYPE_WORDS[type], sapPlant, businessUnit: unit.name, city: cityName, state: stateName, standardDepartments: type === 'WORKSHOP' ? input.standardDepartments : type === 'ASSEMBLY_PLANT' } });
+  await writeAuditLog({ userId: o.userId, action: 'branch.created', entityType: 'Branch', entityId: branch.id, metadata: { name, type: BRANCH_TYPE_WORDS[type], businessUnit: unit.name, city: cityName, state: stateName, standardDepartments: type === 'WORKSHOP' && input.standardDepartments } });
   changed();
   return branch;
 }

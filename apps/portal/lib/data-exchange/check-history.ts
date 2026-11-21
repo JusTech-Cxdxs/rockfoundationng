@@ -15,7 +15,7 @@ function get(cells: unknown[], mapping: Mapping, key: string): string {
   return typeof i === 'number' ? cellText(cells[i]) : '';
 }
 
-// ── Invoices from SAP ─────────────────────────────────────────────────
+// ── Invoices from the old system or QuickBooks ───────────────────────
 
 export type InvoiceValues = {
   invoiceNumber: string;
@@ -27,34 +27,14 @@ export type InvoiceValues = {
   vinKey: string | null;
   documentType: string | null;
   description: string | null;
-  /** SAP company code (BUKRS) and fiscal year (GJAHR): SAP numbers documents per company code and year, so the same number can come back in another year. Fiscal year from the file, else the invoice date's year. */
-  companyCode: string | null;
-  fiscalYear: number;
-  /** The numbering range the number belongs to ("SAP", or "SAP/1000/2026" when the file gives company code or year): an invoice is the same one only within it. */
-  source: string;
 };
-
-/** The SAP numbering range of a document: plain "SAP", or with its company code and fiscal year when the file gives either. */
-export function sapRange(companyCode: string | null, fiscalYear: number | null, given: boolean): string {
-  return given ? `SAP/${companyCode ?? '-'}/${fiscalYear ?? '-'}` : 'SAP';
-}
-
-/**
- * The numbering range an invoice is stored under (externalSource): SAP's range for an SAP file; for an
- * old system's file "LEGACY", or "LEGACY/<company code>/<year>" when the file gives either — an old system
- * that starts its numbers again each year (or an SAP extract loaded as an old system's file) reuses a
- * number in another year, and those are different invoices.
- */
-export function invoiceRange(sourceSystem: string, source: string): string {
-  return sourceSystem === 'LEGACY' ? source.replace(/^SAP(?=\/|$)/, 'LEGACY') : source;
-}
 
 export function checkInvoiceRow(cells: unknown[], mapping: Mapping, today = lagosToday()): Checked<InvoiceValues> {
   const issues: Issue[] = [];
   const warn = (field: string, message: string) => issues.push({ field, message, level: 'warning' });
   const fail = (field: string, message: string) => issues.push({ field, message, level: 'error' });
 
-  // SAP pads document numbers with zeros (0090001234): kept as written, compared without them.
+  // Some systems pad document numbers with zeros (0090001234): compared without them.
   const invoiceNumber = get(cells, mapping, 'invoiceNumber').replace(/^0+(?=\d)/, '');
   if (!invoiceNumber) fail('invoiceNumber', 'Invoice number is required.');
   else if (invoiceNumber.length > 40) fail('invoiceNumber', 'The invoice number is longer than 40 characters.');
@@ -95,12 +75,6 @@ export function checkInvoiceRow(cells: unknown[], mapping: Mapping, today = lago
   const goodVin = vk && vk.length >= 6 && vk.length <= 25 ? vk : null;
 
   const documentType = get(cells, mapping, 'documentType').slice(0, 20) || null;
-  const companyCode = get(cells, mapping, 'companyCode').toUpperCase().slice(0, 10) || null;
-  const yearRaw = get(cells, mapping, 'fiscalYear');
-  let fiscalYear: number | null = yearRaw ? Number(yearRaw) : null;
-  if (yearRaw && (!Number.isInteger(fiscalYear) || fiscalYear! < 1990 || fiscalYear! > 2100)) { warn('fiscalYear', `Fiscal year “${yearRaw}” is not a year; the invoice date’s year was used.`); fiscalYear = null; }
-  const ranged = Boolean(companyCode || fiscalYear);
-  const year = fiscalYear ?? (invoiceDate ? Number(invoiceDate.slice(0, 4)) : 0);
   // What it was for, with Zoho's item quantity and price, its balance, due date and status when the file gives them.
   const qtyRaw = get(cells, mapping, 'itemQuantity');
   const priceRaw = get(cells, mapping, 'itemPrice');
@@ -120,67 +94,61 @@ export function checkInvoiceRow(cells: unknown[], mapping: Mapping, today = lago
   return {
     status: failed ? 'REJECTED' : issues.length ? 'WARNING' : 'GOOD',
     issues,
-    keys: invoiceNumber ? [`inv:${sapRange(companyCode, fiscalYear, ranged)}|${invoiceNumber.toUpperCase()}`] : [],
-    values: failed ? null : { invoiceNumber, invoiceDate: invoiceDate!, amount, customer: { externalId: custExt, phone: custPhone, ...(custName ? { name: custName } : {}) }, vin: goodVin ? vinRaw : null, vinKey: goodVin, documentType, description, companyCode, fiscalYear: year, source: sapRange(companyCode, fiscalYear, ranged) },
+    keys: invoiceNumber ? [`inv:${invoiceNumber.toUpperCase()}`] : [],
+    values: failed ? null : { invoiceNumber, invoiceDate: invoiceDate!, amount, customer: { externalId: custExt, phone: custPhone, ...(custName ? { name: custName } : {}) }, vin: goodVin ? vinRaw : null, vinKey: goodVin, documentType, description },
   };
 }
 
-// ── Job card and service history (SAP PM/CS service orders) ───────────
+// ── Job card and service history ─────────────────────────────────────
 
 export type JobKind = 'JOB_CARD' | 'SERVICE';
 export const JOB_KIND_WORDS: Record<JobKind, string> = { JOB_CARD: 'Job card', SERVICE: 'Job card · service' };
 export type JobValues = {
   jobNumber: string;
   kind: JobKind;
-  orderType: string | null;
-  notificationNumber: string | null;
   customer: { externalId: string | null; phone: string | null; email: string | null };
   vin: string | null;
   vinKey: string | null;
   plate: string | null;
   plateKey: string | null;
-  equipmentNumber: string | null;
   openedAt: string;
   completedAt: string | null;
   mileage: number | null;
   description: string | null;
   workDone: string | null;
   technician: string | null;
-  workCentre: string | null;
   labourAmount: number | null;
   partsAmount: number | null;
   totalAmount: number | null;
   invoiceNumber: string | null;
   status: 'CLOSED' | 'CANCELLED';
-  /** The Branch / WERKS cell as written (the loader checks it against the import's branch). */
+  /** The Branch cell as written (the loader checks it against the import's branch). */
   branch: string | null;
 };
 
 /**
- * Every row is a job card (that is all the workshop ever had: one SAP job
- * card, "carry out service" written on it). Inside EJO a job card whose
- * text says it was a service also counts as a service — it starts the
- * vehicle's next-service clock — so the kind is read from the words:
- * "carry out service", "40,000 km service", "periodic maintenance", or an
- * SAP service order type (SM01). Anything else is a repair.
+ * Every row is a job card. A job card whose text says it was a service also
+ * counts as a service inside EJO (it starts the vehicle's next-service
+ * clock), so the kind is read from the words: "carry out service",
+ * "40,000 km service", "periodic maintenance", "oil change". Anything else
+ * is a repair.
  */
-export function jobKind(text: string, orderType: string | null = null): JobKind {
+export function jobKind(text: string): JobKind {
   const t = ` ${text.toLowerCase()} `;
   if (/\bservic(e|ing)\b|\bmaintenance\b|\b\d{1,3}[,.]?\d{3}\s*km\b|\boil change\b/.test(t)) return 'SERVICE';
-  if (orderType && /^(sm01|zsm1|pm0[1-3]|serv)/i.test(orderType)) return 'SERVICE';
   return 'JOB_CARD';
 }
 
-/** "Closed", "TECO", "CLSD", "complete" → CLOSED; "Cancelled", "CNCL", "DLFL", "deleted" → CANCELLED; else null. */
+/** "Closed", "complete", "invoiced" → CLOSED; "Cancelled", "deleted", "void" → CANCELLED; else null. */
 export function jobStatus(raw: string): 'CLOSED' | 'CANCELLED' | null {
   const k = raw.toLowerCase().replace(/[^a-z]/g, '');
   if (!k) return 'CLOSED';
-  if (/^(closed|close|teco|clsd|complete|completed|done|finished|checkedout|collected|invoiced|billed)/.test(k) || /teco|clsd/.test(k)) return 'CLOSED';
-  if (/^(cancelled|canceled|cancel|cncl|dlfl|deleted|void|voided|reversed)/.test(k) || /cncl|dlfl/.test(k)) return 'CANCELLED';
+  if (/^(closed|close|complete|completed|done|finished|checkedout|collected|invoiced|billed|paid)/.test(k)) return 'CLOSED';
+  if (/^(cancelled|canceled|cancel|deleted|void|voided|reversed)/.test(k)) return 'CANCELLED';
   return null;
 }
 
-/** "41,200", "41200 km", "41.200" (SAP) → 41200; nonsense → null. */
+/** "41,200", "41200 km", "41.200" → 41200; nonsense → null. */
 export function parseKm(raw: string): number | null {
   const s = String(raw ?? '').trim().toLowerCase().replace(/km|kms|kilomet(re|er)s?/g, '').trim();
   if (!s) return null;
@@ -193,7 +161,7 @@ export function checkJobRow(cells: unknown[], mapping: Mapping, today = lagosTod
   const warn = (field: string, message: string) => issues.push({ field, message, level: 'warning' });
   const fail = (field: string, message: string) => issues.push({ field, message, level: 'error' });
 
-  // SAP pads order numbers with zeros (000004000123456): kept as written, compared without them.
+  // Some systems pad job numbers with zeros (000004000123456): compared without them.
   const jobNumber = get(cells, mapping, 'jobNumber').replace(/^0+(?=\d)/, '');
   if (!jobNumber) fail('jobNumber', 'Job number is required (the old job card number).');
   else if (jobNumber.length > 40) fail('jobNumber', 'The job number is longer than 40 characters.');
@@ -223,10 +191,9 @@ export function checkJobRow(cells: unknown[], mapping: Mapping, today = lagosTod
   if (!custExt && !custPhone && !custEmail && !goodVin && !plateKey) fail('customer', 'Whose job is it? Give the customer number, the customer’s phone or email, or the vehicle’s chassis number or plate.');
   if (!goodVin && !plateKey) warn('vin', 'No chassis number or plate: the job is kept on the customer only, and cannot start a vehicle’s service clock.');
 
-  const orderType = get(cells, mapping, 'orderType').slice(0, 20) || null;
   const description = get(cells, mapping, 'description').slice(0, 300) || null;
   const workDone = get(cells, mapping, 'workDone').slice(0, 1000) || null;
-  const kind = jobKind(`${description ?? ''} ${workDone ?? ''}`, orderType);
+  const kind = jobKind(`${description ?? ''} ${workDone ?? ''}`);
 
   const mileageRaw = get(cells, mapping, 'mileage');
   const mileage = mileageRaw ? parseKm(mileageRaw) : null;
@@ -249,16 +216,13 @@ export function checkJobRow(cells: unknown[], mapping: Mapping, today = lagosTod
   const statusRaw = get(cells, mapping, 'status');
   let status = jobStatus(statusRaw);
   if (!status) {
-    if (/^(open|released|inprogress|inprocess|wip|created|crtd|rel)$/i.test(statusRaw.replace(/[^a-z]/gi, ''))) fail('status', `Status “${statusRaw}”: a job still open belongs in the open job cards file, not in history.`);
+    if (/^(open|released|inprogress|inprocess|wip|created|pending)$/i.test(statusRaw.replace(/[^a-z]/gi, ''))) fail('status', `Status “${statusRaw}”: a job still open belongs in the open job cards file, not in history.`);
     else { warn('status', `Status “${statusRaw}” was read as Closed.`); }
     status = 'CLOSED';
   }
 
-  const notificationNumber = get(cells, mapping, 'notificationNumber').replace(/^0+(?=\d)/, '').slice(0, 40) || null;
   const invoiceNumber = get(cells, mapping, 'invoiceNumber').replace(/^0+(?=\d)/, '').slice(0, 40) || null;
-  const equipmentNumber = get(cells, mapping, 'equipmentNumber').replace(/^0+(?=\d)/, '').slice(0, 40) || null;
   const technician = get(cells, mapping, 'technician').slice(0, 80) || null;
-  const workCentre = get(cells, mapping, 'workCentre').slice(0, 40) || null;
   const branch = get(cells, mapping, 'branch').slice(0, 80) || null;
 
   const failed = issues.some((i) => i.level === 'error');
@@ -267,8 +231,8 @@ export function checkJobRow(cells: unknown[], mapping: Mapping, today = lagosTod
     issues,
     keys: jobNumber ? [`job:${jobNumber.toUpperCase()}`] : [],
     values: failed ? null : {
-      jobNumber, kind, orderType, notificationNumber, customer: { externalId: custExt, phone: custPhone, email: custEmail }, vin: goodVin ? vinRaw : null, vinKey: goodVin, plate: plateKey ? plateRaw : null, plateKey, equipmentNumber,
-      openedAt: openedAt!, completedAt, mileage, description, workDone, technician, workCentre, labourAmount, partsAmount, totalAmount, invoiceNumber, status, branch,
+      jobNumber, kind, customer: { externalId: custExt, phone: custPhone, email: custEmail }, vin: goodVin ? vinRaw : null, vinKey: goodVin, plate: plateKey ? plateRaw : null, plateKey,
+      openedAt: openedAt!, completedAt, mileage, description, workDone, technician, labourAmount, partsAmount, totalAmount, invoiceNumber, status, branch,
     },
   };
 }

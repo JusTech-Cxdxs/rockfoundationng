@@ -330,7 +330,7 @@ export async function letterheadFor(organisationId: string, branchId: string | n
   const site = websiteBaseUrl() || portalBaseUrl();
   return {
     companyName: org?.name ?? PLATFORM.name,
-    logoUrl: `${site}/images/logo/email-logo.png`,
+    logoUrl: `${site}/brand/emblem.png`,
     branchContact: branch ? { address: branch.address, phones: branch.hotlines, email: branch.email } : org ? { address: org.hqAddress, phones: org.hotlines, email: org.email } : undefined,
   };
 }

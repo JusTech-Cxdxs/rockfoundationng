@@ -118,7 +118,7 @@ export default async function PrintVehicleInspectionPage({
   if (!inspection || inspection.status === 'SKIPPED') notFound();
 
   const portalUrl = portalBaseUrl();
-  const logoUrl = `${portalUrl}/images/logo/logo.png`;
+  const logoUrl = `${portalUrl}/brand/logo.png`;
   const vehicleSummary = [jobCard.vehicle.year, jobCard.vehicle.make, jobCard.vehicle.model].filter(Boolean).join(' ') || '—';
   const statusLabel = inspection.status === 'COMPLETED' ? 'Completed' : 'In Progress';
 
@@ -135,7 +135,7 @@ export default async function PrintVehicleInspectionPage({
         documentTitle="Vehicle Inspection Report"
         referenceNumber={jobCard.jobNumber}
         statusLabel={statusLabel}
-        accentColor="#D6890B"
+        accentColor="#EC3237"
       />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 24px', marginTop: '20px' }}>

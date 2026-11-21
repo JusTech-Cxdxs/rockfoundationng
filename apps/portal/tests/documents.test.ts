@@ -22,7 +22,7 @@ const customer = { fullName: 'Ada Obi', address: '3 Street' };
 test('the letterhead: only its own fields, the portal’s logo', () => {
   assert.deepEqual(Object.keys(head.organisation).sort(), ['email', 'hotlines', 'hqAddress', 'legalName', 'name', 'poBox', 'rcNumber', 'website']);
   assert.deepEqual(Object.keys(head.branch).sort(), ['address', 'email', 'hotlines', 'name']);
-  assert.equal(head.logoUrl, 'https://portal.example/images/logo/logo.png');
+  assert.equal(head.logoUrl, 'https://portal.example/brand/logo.png');
 });
 
 test('a Job Card estimate: covered lines are shown but never charged; three figures; the deposit only when one applies (70% here); ₦ in the PDF', () => {

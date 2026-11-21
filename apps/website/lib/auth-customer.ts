@@ -92,7 +92,7 @@ export const customerAuth = betterAuth({
         url,
         expiresInMinutes: RESET_LINK_SECONDS / 60,
         companyName: customer.organisation?.name || siteConfig.organisationName,
-        logoUrl: `${base}/images/logo/email-logo.png`,
+        logoUrl: `${base}/brand/emblem.png`,
       });
       await sendEmail(customer.email, subject, html);
       await writeCustomerAudit({ customerId: customer.id, organisationId: customer.organisationId, verb: 'password_reset_requested' });

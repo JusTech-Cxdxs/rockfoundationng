@@ -7,7 +7,7 @@
  */
 import { prisma } from '@ejo/database';
 import { getPrincipal } from '@/lib/authz/server';
-import { ROLE_LABELS, isHqRole, primaryRoleLabel } from '@/lib/authz/catalogue';
+import { ROLE_LABELS, isOwnerRole, primaryRoleLabel } from '@/lib/authz/catalogue';
 import { getMyPending } from '@/lib/actions/pending';
 import { nothing, ok, text, when } from '../tool-helpers';
 import type { StaffTool } from '../types';
@@ -61,7 +61,7 @@ export const peopleTools: StaffTool[] = [
             name: u.fullName,
             role: primaryRoleLabel(roleSlugs, master) ?? u.roles[0]?.role.name ?? 'No role yet',
             allRoles: u.roles.map((r) => (ROLE_LABELS[r.role.slug] ? short(ROLE_LABELS[r.role.slug]!) : r.role.name)),
-            where: isHqRole(roleSlugs) ? 'Headquarters (oversees all branches)' : [u.branch?.name, u.department?.name].filter(Boolean).join(' · ') || 'Not placed in a branch',
+            where: isOwnerRole(roleSlugs) ? 'The whole business' : [u.branch?.name, u.department?.name].filter(Boolean).join(' · ') || 'Not placed in a branch',
             workEmail: u.email,
             active: u.isActive,
           };

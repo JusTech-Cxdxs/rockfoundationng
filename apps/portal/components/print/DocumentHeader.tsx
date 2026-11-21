@@ -89,7 +89,7 @@ export function DocumentHeader({
             </td>
             <td style={{ verticalAlign: 'top', textAlign: 'right', whiteSpace: 'nowrap' }}>
               {/* The logo gold is for lines; on white text it is too light to read, so titles in the brand colour print navy. */}
-              <div style={{ fontSize: '15px', fontWeight: 700, color: accentColor.toUpperCase() === '#D6890B' ? '#0A1628' : accentColor }}>{documentTitle}</div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: accentColor.toUpperCase() === '#EC3237' ? '#3E4095' : accentColor }}>{documentTitle}</div>
               {divisionName ? <div style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginTop: '1px' }}>{divisionName}</div> : null}
               <div style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px' }}>{referenceNumber}</div>
               {statusLabel ? <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>{statusLabel}</div> : null}
