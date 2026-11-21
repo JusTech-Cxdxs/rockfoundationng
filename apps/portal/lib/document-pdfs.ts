@@ -17,7 +17,7 @@ import { documentPdfFileName, type DocumentKind } from '@/lib/document-links-cor
  * (lib/pdf/document-props), so the PDF a WhatsApp link opens is the
  * document the email carries:
  *
- *   ESTIMATE  the Job Card's Manager-approved estimate (the email to the
+ *   ESTIMATE  the Job Card's Owner-approved estimate (the email to the
  *             customer attaches this same PDF);
  *   INVOICE   the invoice, its figures frozen at issue (lib/invoices);
  *   RECEIPT   one payment's receipt (as app/print/receipts shows it).
@@ -50,7 +50,7 @@ const ESTIMATE_PDF_SELECT = {
  * The Job Card's estimate PDF, as attached to the "estimate ready" email:
  * the letterhead, the three customer figures, any discount and VAT, the
  * deposit for this customer and the branch's bank details. Only once the
- * Manager has approved it.
+ * Owner has approved it.
  */
 export async function estimatePdfFor(jobCardId: string, organisationId?: string): Promise<DocumentPdf | null> {
   const jc = await prisma.jobCard.findUnique({ where: { id: jobCardId }, select: ESTIMATE_PDF_SELECT });

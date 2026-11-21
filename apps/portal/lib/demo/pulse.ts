@@ -1,5 +1,5 @@
 /**
- * The daily demo pulse — a working day at the Victoria Island Workshop,
+ * The daily demo pulse — a working day at the Ota Workshop,
  * dated today (Lagos), added at most once per Lagos day to the demo
  * organisation, so the demo looks alive whenever someone signs in (the
  * workshop demo, lib/workshop/demo, is the seven months before):
@@ -8,7 +8,7 @@
  *              accepted by their supervisor; earlier pulse job cards move on
  *              one safe step a day — the technician accepts and writes the
  *              estimate, the supervisor approves it two days later — and wait
- *              there for the demo Manager's approval; one nobody moved for a
+ *              there for the Owner's approval; one nobody moved for a
  *              week is cancelled (the customer did not come back)
  *   Services   one service Job Card (Service ticked) checked in today
  *   Support    two new requests from demo customers with the automatic
@@ -83,8 +83,8 @@ export async function runDemoPulse(organisationId: string, now: Date = new Date(
   const counts: Record<string, number> = {};
   const add = (k: string, n = 1) => { counts[k] = (counts[k] ?? 0) + n; };
   const frontdesk = by(staff('frontdesk'));
-  const manager = by(staff('manager'));
-  const care = by(staff('care'));
+  const manager = by(staff('gmd'));
+  const care = by(staff('frontdesk'));
 
   // Numbers are worked out before the transaction (reads only); the writes are all in it.
   // Today's check-ins: repairs, then the services (a Job Card with Service ticked).
@@ -128,12 +128,12 @@ export async function runDemoPulse(organisationId: string, now: Date = new Date(
         const service = p.service || rnd() < 0.25;
         const row = (commercial ? COMMERCIAL_COMPLAINTS : PASSENGER_COMPLAINTS)[Math.floor(rnd() * 10)]!;
         const complaint = service ? SERVICE_TEXTS[Math.floor(rnd() * SERVICE_TEXTS.length)]! : row[0];
-        const sup = by(staff(commercial ? 'supervisor.fleet' : 'supervisor.cars'));
+        const sup = by(staff('advisor'));
         const tech = by(staff(commercial ? 'tech.3' : i % 2 ? 'tech.2' : 'tech.1'));
         const accepted = i < 2 && p.at.getTime() + 40 * 60_000 <= now.getTime();
         const id = reg('JobCard', randomUUID());
         await tx.jobCard.create({ data: {
-          id, jobNumber: p.number, branchId: workshop.id, customerId: p.v.customerId, vehicleId: p.v.id, departmentId: dept(commercial ? 'workshop-commercial' : 'workshop-passenger'), complaint, isService: service, mileageAtCheckIn: (p.v.mileage ?? 0) + 400 + Math.floor(rnd() * 2_000),
+          id, jobNumber: p.number, branchId: workshop.id, customerId: p.v.customerId, vehicleId: p.v.id, departmentId: dept(commercial ? 'mechanical' : i % 2 ? 'electrical' : 'mechanical'), complaint, isService: service, mileageAtCheckIn: (p.v.mileage ?? 0) + 400 + Math.floor(rnd() * 2_000),
           assignedTechnicianId: tech, technicianAcceptanceStatus: 'PENDING', supervisorId: sup, createdById: frontdesk, status: 'CHECKED_IN', notes: service ? null : `Customer reports: ${row[0].toLowerCase()}.`,
           approvalStatus: accepted ? 'APPROVED' : 'PENDING', approvedById: accepted ? sup : null, approvedAt: accepted ? new Date(p.at.getTime() + 35 * 60_000) : null, createdAt: p.at,
           complaints: { create: [{ id: reg('JobCardComplaint', randomUUID()), sequenceNumber: 1, description: complaint, createdAt: p.at }] },
@@ -201,12 +201,12 @@ export async function runDemoPulse(organisationId: string, now: Date = new Date(
         const open = await tx.jobCard.count({ where: { branchId: workshop.id, status: { in: [...OPEN_JOB] } } });
         await tx.broadcast.create({ data: {
           id: reg('Broadcast', randomUUID()), broadcastNumber, organisationId, category: 'ANNOUNCEMENT', title: 'This week in the workshop', message: `${open} job cards are open in the workshop this Monday. Supervisors: clear the estimates waiting for approval before Wednesday; front desk: confirm this week’s service bookings with the customers.`,
-          audience: 'BRANCH', audienceIds: [workshop.id], startsAt: lagosAt(day.dayKey, 7, 30), endsAt: lagosAt(nextWorkingDay(nextWorkingDay(nextWorkingDay(nextWorkingDay(day.dayKey)))), 18), sendEmail: false, createdById: by(staff('manager')), createdAt: lagosAt(day.dayKey, 7, 30),
+          audience: 'BRANCH', audienceIds: [workshop.id], startsAt: lagosAt(day.dayKey, 7, 30), endsAt: lagosAt(nextWorkingDay(nextWorkingDay(nextWorkingDay(nextWorkingDay(day.dayKey)))), 18), sendEmail: false, createdById: by(staff('gmd')), createdAt: lagosAt(day.dayKey, 7, 30),
         } });
         add('broadcasts');
       }
 
-      audit(by(staff('admin')), 'demo.pulse', 'Organisation', organisationId, now, { day: day.dayKey, counts });
+      audit(by(staff('gmd')), 'demo.pulse', 'Organisation', organisationId, now, { day: day.dayKey, counts });
       if (audits.length) await tx.auditLog.createMany({ data: audits });
       await tx.demoRecord.createMany({ data: registry.map((x) => ({ organisationId, model: x.model, recordId: x.recordId })) });
     }, { timeout: 120_000, maxWait: 20_000 });

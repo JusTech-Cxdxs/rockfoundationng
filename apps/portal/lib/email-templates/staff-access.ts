@@ -17,7 +17,7 @@ export type StaffAccessEmailOptions = {
   setPasswordHours?: number;
   signInUrl: string;
   logoUrl: string;
-  /** Updated: what changed, in one line (e.g. "You were given the role Store Officer."). */
+  /** Updated: what changed, in one line (e.g. "You were given the role Store Keeper."). */
   changeNote?: string;
 };
 

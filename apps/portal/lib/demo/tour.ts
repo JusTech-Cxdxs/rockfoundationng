@@ -3,12 +3,11 @@
  * first, three clicks that show their job, and what they must NOT be able to
  * do — plus the 15-minute order for showing the directors. Pure data.
  *
- * Only D'Phoenix Autocare's screens: the Job Card (repairs and services),
+ * Rock Foundation Automobile's screens: the Job Card (service and repair),
  * estimates, invoices and receipts, the Service Tracker, customers and fleet
- * accounts, Security, Scheduling, Support and Data Exchange. Nothing of the
- * Store, Warranty, the assembly plant or SAP (all off in this edition).
+ * accounts, the parts store, the gate, Support and Data Exchange.
  *
- * docs/DPHOENIX_DEMO.md is generated from this file and ./people.ts
+ * docs/DEMO.md is generated from this file and ./people.ts
  * (`npm run demo:tour-doc`); tests/demo-tour.test.ts checks every promise
  * here against the authorization catalogue (a "must not" page is refused by
  * the catalogue, a click on a protected page is granted), and
@@ -33,28 +32,18 @@ const NO_ORGANISATION = L('change billing & tax and the organisation’s details
 const NO_REFUNDS = L('see refunds', '/workshop/refunds');
 
 export const TOUR: Record<string, TourStop> = {
-  // ── Headquarters ──
-  admin: { firstView: 'The dashboard, the set-up tiles and the day’s audit activity.', clicks: [L('Users and roles', '/users'), L('Billing & tax: VAT, the deposit, the discount limit', '/organisation'), L('The audit trail', '/audit-logs')], mustNot: [] },
-  md: { firstView: 'The daily brief: job cards open, money in, fleet invoices overdue, vehicles due for service.', clicks: [L('Business analytics', '/analytics'), L('Job Cards: every status today', '/workshop/job-cards'), L('Customers and fleet accounts', '/crm')], mustNot: [NO_USERS, NO_SETTINGS] },
-  'it.admin': { firstView: 'The IT control room: health, scheduled jobs, sign-in attempts.', clicks: [L('IT control room', '/it'), L('Users', '/users'), L('Data Exchange: the Zoho and Excel imports', '/data-exchange')], mustNot: [NO_JOBS, NO_ANALYTICS] },
-  'care.lead': { firstView: 'The Support centre: open requests, complaints, due times.', clicks: [L('Support centre', '/crm/support'), L('Support analytics', '/crm/support/analytics'), L('Customers', '/crm')], mustNot: [NO_USERS, NO_STRUCTURE] },
-  broadcaster: { firstView: 'Broadcasts: what is running, to whom, and who has read it.', clicks: [L('Broadcasts', '/notifications/broadcasts'), L('New broadcast', '/notifications/broadcasts/new'), L('Broadcast analytics', '/notifications/broadcasts/analytics')], mustNot: [NO_JOBS, NO_USERS] },
-  scheduling: { firstView: 'Today’s appointments and the rooms.', clicks: [L('Schedule', '/schedule'), L('Meeting rooms', '/schedule/rooms'), L('Calendar', '/schedule/calendar')], mustNot: [NO_JOBS, NO_USERS] },
-  calendar: { firstView: 'Their own calendar — and nothing of the workshop.', clicks: [L('My schedule', '/schedule'), L('Calendar', '/schedule/calendar'), L('My profile', '/profile')], mustNot: [NO_JOBS, NO_ANALYTICS, NO_USERS] },
+  // ── The whole business ──
+  gmd: { firstView: 'The owner dashboard: vehicles in the workshop, revenue invoiced against collected, what customers owe, stock value and low stock, approvals waiting.', clicks: [L('Approvals', '/approvals'), L('Business analytics', '/analytics'), L('Roles in use', '/roles')], mustNot: [] },
 
-  // ── Victoria Island Workshop ──
-  manager: { firstView: 'Approvals waiting: estimates (and a discount above 10%), closings, cancellations, exit passes.', clicks: [L('Approvals', '/approvals'), L('Job Cards: every status today', '/workshop/job-cards'), L('The Service Tracker: due and overdue', '/workshop/service-tracker')], mustNot: [NO_USERS, NO_SETTINGS] },
-  'supervisor.cars': { firstView: 'The cars and SUVs bay: job cards to accept, assign and check.', clicks: [L('Job Cards', '/workshop/job-cards'), L('Vehicles', '/workshop/vehicles'), L('Road tests', '/security/road-tests')], mustNot: [NO_USERS, NO_IMPORTS, NO_STRUCTURE] },
-  'supervisor.fleet': { firstView: 'The fleet bays: the companies’ pickups, buses and vans.', clicks: [L('Job Cards', '/workshop/job-cards'), L('Customers and fleet accounts', '/workshop/customers'), L('The Service Tracker', '/workshop/service-tracker')], mustNot: [NO_USERS, NO_IMPORTS, NO_STRUCTURE] },
+  // ── Ota Workshop ──
+  frontdesk: { firstView: 'Today’s work: vehicles checked in, estimates to send, vehicles ready for collection, complaints to follow up.', clicks: [L('Customers', '/workshop/customers'), L('Job Cards', '/workshop/job-cards'), L('The Service Tracker: remind by WhatsApp or email', '/workshop/service-tracker')], mustNot: [NO_USERS, NO_AUDIT, NO_ORGANISATION] },
+  advisor: { firstView: 'Job cards to assign, inspect, check and pass through the quality check.', clicks: [L('Job Cards', '/workshop/job-cards'), L('Vehicles', '/workshop/vehicles'), L('Vehicles in custody', '/workshop/custody')], mustNot: [NO_USERS, NO_IMPORTS, NO_STRUCTURE] },
   'tech.1': { firstView: 'Their own jobs only, with what to do next on each.', clicks: [L('My job cards', '/workshop/job-cards'), L('Vehicles', '/workshop/vehicles'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_AUDIT, NO_IMPORTS] },
-  'tech.2': { firstView: 'A diagnostics job in rework after the road test; an estimate to write.', clicks: [L('My job cards', '/workshop/job-cards'), L('Road tests', '/security/road-tests'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_AUDIT, NO_IMPORTS] },
-  'tech.3': { firstView: 'Fleet maintenance: a service in progress, a repair waiting for parts.', clicks: [L('My job cards', '/workshop/job-cards'), L('Exit passes', '/security/exit-passes'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_AUDIT, NO_IMPORTS] },
-  frontdesk: { firstView: 'Today’s check-ins, estimates to send, vehicles ready for collection, visitors expected.', clicks: [L('Customers', '/workshop/customers'), L('The Service Tracker: remind by email or WhatsApp', '/workshop/service-tracker'), L('My visitors', '/security/my-visitors')], mustNot: [NO_USERS, NO_AUDIT, NO_ORGANISATION] },
-  finance: { firstView: 'Money: deposits and balances, invoices and receipts, the fleet accounts on credit.', clicks: [L('Job Cards and their invoices', '/workshop/job-cards'), L('Refunds', '/workshop/refunds'), L('Business figures', '/analytics')], mustNot: [NO_USERS, NO_SETTINGS] },
-  cso: { firstView: 'The Security desk: overdue items first.', clicks: [L('Overdue', '/security/overdue'), L('Incidents', '/security/incidents'), L('On the premises', '/security/on-premises')], mustNot: [NO_USERS, NO_REFUNDS, NO_IMPORTS] },
-  gate: { firstView: 'The gate: who is expected, who is in, what is going out.', clicks: [L('The register', '/security/register'), L('Visitors', '/security/visitors'), L('Vehicles inside', '/security/vehicles-inside')], mustNot: [NO_USERS, NO_REFUNDS, NO_IMPORTS] },
-  care: { firstView: 'The workshop’s Support centre: the complaint about a scratch, a question about an estimate.', clicks: [L('Support centre', '/crm/support'), L('Customers', '/crm'), L('New request', '/crm/support/new')], mustNot: [NO_USERS, NO_IMPORTS] },
-  'dept.head': { firstView: 'Exit passes waiting for the head of department.', clicks: [L('Exit passes', '/security/exit-passes'), L('Approvals', '/approvals'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_IMPORTS] },
+  'tech.2': { firstView: 'A diagnostics job waiting for parts; an estimate to write.', clicks: [L('My job cards', '/workshop/job-cards'), L('Parts requests', '/workshop/parts-requests'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_AUDIT, NO_IMPORTS] },
+  'tech.3': { firstView: 'Spraying in the booth: the panels and colour on the job card.', clicks: [L('My job cards', '/workshop/job-cards'), L('Vehicles', '/workshop/vehicles'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_AUDIT, NO_IMPORTS] },
+  store: { firstView: 'The parts store: low stock, parts requests to issue, goods received.', clicks: [L('Parts', '/inventory/parts'), L('Parts requests', '/workshop/parts-requests'), L('Goods received', '/inventory/goods-receipts')], mustNot: [NO_USERS, NO_ANALYTICS, NO_IMPORTS] },
+  accounts: { firstView: 'Money: deposits and balances, invoices and receipts, the fleet accounts on credit.', clicks: [L('Job Cards and their invoices', '/workshop/job-cards'), L('Refunds', '/workshop/refunds'), L('Customers and fleet accounts', '/crm')], mustNot: [NO_USERS, NO_SETTINGS] },
+  gate: { firstView: 'The gate: vehicles in the compound and vehicles released to leave.', clicks: [L('The gate', '/security'), L('Vehicles inside', '/security/vehicles-inside'), L('Vehicles', '/security/vehicles')], mustNot: [NO_USERS, NO_REFUNDS, NO_IMPORTS] },
 };
 
 /** The tour stop for a demo sign-in. */
@@ -62,14 +51,15 @@ export const tourFor = (email: string): TourStop | undefined => TOUR[email.repla
 
 /** The 15-minute order for the directors: who to sign in as, what to show, in that order. */
 export const DIRECTOR_TOUR: { minute: string; as: string; show: string; href: string }[] = [
-  { minute: '0–2', as: 'md', show: 'The daily brief: job cards open today, money in this week, fleet invoices past their due date, vehicles due for service.', href: '/dashboard' },
-  { minute: '2–4', as: 'frontdesk', show: 'A fleet pickup checked in this morning: the company on 30-day credit, the vehicle’s history, the Job Card opened as a service.', href: '/workshop/customers' },
-  { minute: '4–6', as: 'tech.3', show: 'Only their jobs. Open one: the diagnosis and the estimate — labour, parts bought outside and sundries, in naira.', href: '/workshop/job-cards' },
-  { minute: '6–8', as: 'manager', show: 'Approvals in one place: an estimate with a discount above 10% (the Manager’s final word, VAT fixed), a closing, an exit pass.', href: '/approvals' },
-  { minute: '8–9', as: 'frontdesk', show: 'The estimate sent to the customer by link (or WhatsApp); the answer by link, in the portal or by phone; the deposit for a private customer.', href: '/workshop/job-cards' },
-  { minute: '9–10', as: 'finance', show: 'A finished job: the invoice with VAT, the receipt for each payment, a fleet invoice on credit and one past its due date.', href: '/workshop/job-cards' },
-  { minute: '10–12', as: 'manager', show: 'The Service Tracker: who is due, who is overdue, the reminders already sent — by email or WhatsApp.', href: '/workshop/service-tracker' },
-  { minute: '12–13', as: 'cso', show: 'Security: the visitor three hours past their time, the exit pass not back yet — what used to be a paper register.', href: '/security/overdue' },
+  { minute: '0–2', as: 'gmd', show: 'The owner dashboard: vehicles in the workshop, revenue invoiced against collected, what customers owe, stock value and low stock.', href: '/dashboard' },
+  { minute: '2–4', as: 'frontdesk', show: 'A fleet vehicle checked in this morning: the company on 30-day credit, the vehicle’s history, the Job Card opened as a service.', href: '/workshop/customers' },
+  { minute: '4–6', as: 'tech.1', show: 'Only their jobs. Open one: the diagnosis and the estimate: labour, parts from the store and sundries, in naira.', href: '/workshop/job-cards' },
+  { minute: '6–8', as: 'gmd', show: 'Approvals in one place: an estimate with a discount above 10% (the Owner’s final word, VAT fixed) and a cancellation.', href: '/approvals' },
+  { minute: '8–9', as: 'frontdesk', show: 'The estimate sent to the customer on WhatsApp with its link; the answer by link, in the portal or by phone; the deposit for a private customer.', href: '/workshop/job-cards' },
+  { minute: '9–10', as: 'store', show: 'The parts store: a part issued to the job card, low stock and the reorder list.', href: '/inventory/parts' },
+  { minute: '10–11', as: 'accounts', show: 'A finished job: the invoice with VAT, the receipt for each payment, a fleet invoice on credit and one past its due date.', href: '/workshop/job-cards' },
+  { minute: '11–12', as: 'frontdesk', show: 'The Service Tracker: who is due, who is overdue, the reminders already sent on WhatsApp or by email.', href: '/workshop/service-tracker' },
+  { minute: '12–13', as: 'gate', show: 'The gate: the released vehicle leaves against its gate pass; the vehicles still in the compound.', href: '/security' },
   { minute: '13–14', as: 'customer.individual', show: 'The customer portal: the estimate waiting for approval, last month’s invoice and receipt, the next service due.', href: '/customer-portal' },
-  { minute: '14–15', as: 'admin', show: 'Control: every action in the audit trail, nothing deleted for good (the Recycle bin), each role only where it belongs.', href: '/audit-logs' },
+  { minute: '14–15', as: 'gmd', show: 'Control: every action in the audit trail, nothing deleted for good (the Recycle bin), each role only where it belongs.', href: '/audit-logs' },
 ];

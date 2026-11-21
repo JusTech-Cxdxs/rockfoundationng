@@ -3,9 +3,8 @@
  * vehicles, parts, suppliers). Pure: parsed from the page's address, applied
  * in the database by the list's own action.
  *
- *  • Source: created in EJO / imported from a spreadsheet (Zoho or an
- *    old system) / imported from SAP (only while the SAP link is on) — by
- *    the import that created the record.
+ *  • Source: created in EJO / imported from a spreadsheet (Zoho, QuickBooks
+ *    or an old system), by the import that created the record.
  *  • Import: one import, by its number (IMP-2026-000012).
  *  • Date entered EJO: when the record was created or imported.
  *  • Original date: when it began in the other system (a customer's
@@ -13,18 +12,13 @@
  * Dates are Lagos calendar days, both ends included.
  */
 
-import { featureOn } from './modules';
-
-export type SourceKey = 'all' | 'ejo' | 'sap' | 'legacy';
-/** Every source in words (an export made while the SAP link was on still describes itself). */
+export type SourceKey = 'all' | 'ejo' | 'legacy';
+/** Every source in words: the choices on a list's filter, and how an export describes its filter. */
 export const SOURCE_WORDS: { key: SourceKey; label: string }[] = [
   { key: 'all', label: 'Any source' },
   { key: 'ejo', label: 'Created in EJO' },
-  { key: 'sap', label: 'Imported from SAP' },
   { key: 'legacy', label: 'Imported from a spreadsheet' },
 ];
-/** The choices on a list's filter: "Imported from SAP" only while this edition links with SAP (lib/modules.ts). */
-export const SOURCE_OPTIONS = SOURCE_WORDS.filter((o) => o.key !== 'sap' || featureOn('sap'));
 
 export type SourceFilter = {
   source: SourceKey;
@@ -63,7 +57,7 @@ export function normaliseImportNumber(v: string | undefined | null): string | nu
 }
 
 export function parseSourceFilter(sp: Partial<Record<(typeof SOURCE_PARAMS)[number], string | undefined>>): SourceFilter {
-  const source = SOURCE_OPTIONS.some((o) => o.key === sp.source) ? (sp.source as SourceKey) : 'all';
+  const source = SOURCE_WORDS.some((o) => o.key === sp.source) ? (sp.source as SourceKey) : 'all';
   return {
     source,
     imp: normaliseImportNumber(sp.imp),
@@ -80,13 +74,13 @@ export function isFiltered(f: SourceFilter): boolean {
 
 /**
  * The Prisma condition for a record type that has importJobId and createdAt:
- * `importIds` are the organisation's imports of the chosen source (sap /
- * legacy) or the one import asked for (imp); null when not needed.
+ * `importIds` are the organisation's imports of the chosen source (legacy)
+ * or the one import asked for (imp); null when not needed.
  */
 export function sourceWhere(f: SourceFilter, importIds: { bySource: string[] | null; byNumber: string[] | null }): Record<string, unknown> {
   const and: Record<string, unknown>[] = [];
   if (f.source === 'ejo') and.push({ importJobId: null });
-  if ((f.source === 'sap' || f.source === 'legacy') && importIds.bySource) and.push({ importJobId: { in: importIds.bySource } });
+  if (f.source === 'legacy' && importIds.bySource) and.push({ importJobId: { in: importIds.bySource } });
   if (f.imp && importIds.byNumber) and.push({ importJobId: { in: importIds.byNumber } });
   if (f.enteredFrom || f.enteredTo) and.push({ createdAt: { ...(f.enteredFrom ? { gte: f.enteredFrom } : {}), ...(f.enteredTo ? { lt: f.enteredTo } : {}) } });
   return and.length ? { AND: and } : {};
@@ -95,7 +89,7 @@ export function sourceWhere(f: SourceFilter, importIds: { bySource: string[] | n
 /** The same filter on rows already loaded (the CRM list filters in memory). */
 export function matchesSource(r: { importJobId: string | null; createdAt: Date; original?: Date | null }, f: SourceFilter, importIds: { bySource: Set<string> | null; byNumber: Set<string> | null }): boolean {
   if (f.source === 'ejo' && r.importJobId) return false;
-  if ((f.source === 'sap' || f.source === 'legacy') && (!r.importJobId || !importIds.bySource?.has(r.importJobId))) return false;
+  if (f.source === 'legacy' && (!r.importJobId || !importIds.bySource?.has(r.importJobId))) return false;
   if (f.imp && (!r.importJobId || !importIds.byNumber?.has(r.importJobId))) return false;
   if (f.enteredFrom && +r.createdAt < +f.enteredFrom) return false;
   if (f.enteredTo && +r.createdAt >= +f.enteredTo) return false;

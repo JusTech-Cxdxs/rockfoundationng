@@ -48,7 +48,7 @@ export async function getVehicleCoveredValue(vehicleId: string): Promise<number>
  * jobs (linked when imported, or found by its chassis number). Staff only.
  */
 export async function getVehicleHistoryBeforeEjo(vehicleId: string): Promise<{
-  invoices: { id: string; number: string; date: string; amount: number; documentType: string | null; description: string | null; customerName: string | null; fiscalYear: number | null }[];
+  invoices: { id: string; number: string; date: string; amount: number; documentType: string | null; description: string | null; customerName: string | null }[];
   /** Job cards and services from the old system: read-only, staff only. */
   jobs: { id: string; kind: string; number: string; openedAt: string; completedAt: string | null; mileage: number | null; description: string | null; workDone: string | null; technician: string | null; total: number | null; invoiceNumber: string | null; status: string; customerName: string | null }[];
 }> {
@@ -62,7 +62,7 @@ export async function getVehicleHistoryBeforeEjo(vehicleId: string): Promise<{
     prisma.historicalInvoice.findMany({
       where: { organisationId, voidedAt: null, OR: [{ vehicleId }, ...(vinKey ? [{ vinKey }] : [])] },
       orderBy: { invoiceDate: 'desc' }, take: 300,
-      select: { id: true, invoiceNumber: true, invoiceDate: true, amount: true, documentType: true, description: true, customerId: true, fiscalYear: true },
+      select: { id: true, invoiceNumber: true, invoiceDate: true, amount: true, documentType: true, description: true, customerId: true },
     }),
     prisma.historicalJob.findMany({
       where: { organisationId, voidedAt: null, OR: [{ vehicleId }, ...(vinKey ? [{ vinKey }] : [])] },
@@ -73,7 +73,7 @@ export async function getVehicleHistoryBeforeEjo(vehicleId: string): Promise<{
   const names = new Map((await prisma.customer.findMany({ where: { organisationId, id: { in: [...new Set([...invoices.map((i) => i.customerId), ...jobs.map((j) => j.customerId)])] } }, select: { id: true, fullName: true } })).map((c) => [c.id, c.fullName]));
   const ymd = (d: Date) => d.toISOString().slice(0, 10);
   return {
-    invoices: invoices.map((i) => ({ id: i.id, number: i.invoiceNumber, date: ymd(i.invoiceDate), amount: Number(i.amount), documentType: i.documentType, description: i.description, customerName: names.get(i.customerId) ?? null, fiscalYear: i.fiscalYear })),
+    invoices: invoices.map((i) => ({ id: i.id, number: i.invoiceNumber, date: ymd(i.invoiceDate), amount: Number(i.amount), documentType: i.documentType, description: i.description, customerName: names.get(i.customerId) ?? null })),
     jobs: jobs.map((j) => ({ id: j.id, kind: j.kind, number: j.jobNumber, openedAt: ymd(j.openedAt), completedAt: j.completedAt ? ymd(j.completedAt) : null, mileage: j.mileage, description: j.description, workDone: j.workDone, technician: j.technician, total: j.totalAmount === null ? null : Number(j.totalAmount), invoiceNumber: j.invoiceNumber, status: j.status, customerName: names.get(j.customerId) ?? null })),
   };
 }

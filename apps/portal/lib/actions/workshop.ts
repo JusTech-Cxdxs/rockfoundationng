@@ -1,4 +1,5 @@
 'use server';
+import { dutyRoleSlugs } from '@/lib/duty-roles';
 import { NO_CUSTOMER_EMAIL } from '@/lib/customer-email';
 import { parseSourceFilter, sourceWhere, type SOURCE_PARAMS } from '@/lib/source-filter';
 import { importIdsFor } from '@/lib/source-filter-server';
@@ -1083,7 +1084,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
   if (jobCard.status === status) {
     return (await prisma.jobCard.findUnique({ where: { id } }))!;
   }
-  // CLOSED and CANCELLED are only set by the Manager approval flows
+  // CLOSED and CANCELLED are only set by the Owner approval flows
   // (approveCloseRequest, approveCancellationRequest), never here.
   if (status === JobCardStatus.CLOSED) {
     throw new WorkshopActionError('A Job Card is closed by approving a close request, not directly — see Request Close.');
@@ -1097,7 +1098,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
     throw new WorkshopActionError('This Job Card is cancelled — the only status change available is checking the vehicle out.');
   }
   // A cancelled Job Card that took money can't hand the vehicle back until
-  // Finance has refunded all of it, so a refund is never forgotten.
+  // Accounts has refunded all of it, so a refund is never forgotten.
   if (jobCard.status === JobCardStatus.CANCELLED && status === JobCardStatus.CHECKED_OUT) {
     // Handing a cancelled vehicle back is the front desk's step for that
     // branch (same rule as a cancelled Vehicle Service).
@@ -1112,7 +1113,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
   // No checkout while money is owed. Cancelled Job Cards are exempt: nothing
   // is being paid for, the vehicle is only waiting to be collected. An
   // organisation on credit may leave with a balance once invoiced, within
-  // its credit limit (a Job Card a Manager has closed has had that decision).
+  // its credit limit (a Job Card the Owner has closed has had that decision).
   if (
     status === JobCardStatus.CHECKED_OUT
     && jobCard.status !== JobCardStatus.CANCELLED
@@ -1157,7 +1158,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
     throw new WorkshopActionError('A reason is required to send this Job Card back for rework.');
   }
   // Reworking a vehicle whose close is already being decided would leave
-  // a Manager approving a close for unfinished work.
+  // the Owner approving a close for unfinished work.
   if (isReworkTransition) {
     const pendingClose = await prisma.closeRequest.findFirst({ where: { jobCardId: id, status: 'PENDING' }, select: { id: true } });
     if (pendingClose) {
@@ -1285,7 +1286,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
   }
 
   // Colleagues whose step it now is. Quality check: the supervisor passes it
-  // or sends it back (with no supervisor, the branch Managers). Rework: the
+  // or sends it back (with no supervisor, the branch the Owner). Rework: the
   // technician redoes the work. Never the person who made the move.
   if (priorStatus !== status && status === JobCardStatus.QUALITY_CHECK) {
     const managers = jobCard.supervisorId ? [] : (await listEligibleManagersForBranch(jobCard.branchId).catch(() => ({ supervisors: [] as { id: string }[] }))).supervisors.map((m: { id: string }) => m.id);
@@ -1326,7 +1327,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
   }
 
   // CHECKED_OUT emails the customer and every staff party on the Job Card
-  // (creator, supervisor, technician, branch Managers), once per transition.
+  // (creator, supervisor, technician, branch the Owner), once per transition.
   // CLOSED never reaches here; its emails are sent from approveCloseRequest.
   if (priorStatus !== status && status === JobCardStatus.CHECKED_OUT) {
     try {
@@ -1871,7 +1872,7 @@ export async function getWorkshopDashboardCounts() {
 //
 // DRAFT: technician and supervisor build it; prices may be blank.
 // SUBMITTED: every line must be priced (checked on submit).
-// APPROVED: supervisor sign-off. MANAGER_APPROVED: the Manager's sign-off,
+// APPROVED: supervisor sign-off. MANAGER_APPROVED: the Owner's sign-off,
 // after which the creator sends it to the customer.
 // ---------------------------------------------------------------------------
 
@@ -2109,11 +2110,11 @@ export async function updateEstimateLineItem(lineItemId: string, input: Estimate
   if (!lineItem) {
     throw new WorkshopActionError('Estimate line item not found.');
   }
-  // Once the supervisor has approved it, the Manager decides on exactly what
+  // Once the supervisor has approved it, the Owner decides on exactly what
   // the supervisor saw; no edits in between (same rule as Vehicle Service).
   if (lineItem.estimate.status === 'MANAGER_APPROVED' || lineItem.estimate.status === 'APPROVED') {
     throw new WorkshopActionError(lineItem.estimate.status === 'APPROVED'
-      ? 'This estimate has been approved by the supervisor and is waiting for the Manager — it can no longer be edited. Ask the Manager to send it back if it needs changing.'
+      ? 'This estimate has been approved by the supervisor and is waiting for the Owner — it can no longer be edited. Ask the Owner to send it back if it needs changing.'
       : 'This estimate has already been approved by the manager and can no longer be edited.');
   }
   const editor = await requireEstimateContributor(lineItem.estimate.jobCard);
@@ -2182,11 +2183,11 @@ export async function deleteEstimateLineItem(lineItemId: string): Promise<void> 
   if (!lineItem) {
     throw new WorkshopActionError('Estimate line item not found.');
   }
-  // Once the supervisor has approved it, the Manager decides on exactly what
+  // Once the supervisor has approved it, the Owner decides on exactly what
   // the supervisor saw; no edits in between (same rule as Vehicle Service).
   if (lineItem.estimate.status === 'MANAGER_APPROVED' || lineItem.estimate.status === 'APPROVED') {
     throw new WorkshopActionError(lineItem.estimate.status === 'APPROVED'
-      ? 'This estimate has been approved by the supervisor and is waiting for the Manager — it can no longer be edited. Ask the Manager to send it back if it needs changing.'
+      ? 'This estimate has been approved by the supervisor and is waiting for the Owner — it can no longer be edited. Ask the Owner to send it back if it needs changing.'
       : 'This estimate has already been approved by the manager and can no longer be edited.');
   }
   const user = await requireUser();
@@ -2210,7 +2211,7 @@ export async function deleteEstimateLineItem(lineItemId: string): Promise<void> 
 
 const DISCOUNT_EDITABLE = ['DRAFT', 'SUBMITTED'] as const;
 const discountLockedMessage = (status: string) => status === 'APPROVED'
-  ? 'This estimate is waiting for the Manager — discounts can no longer change. Ask the Manager to send it back if it needs changing.'
+  ? 'This estimate is waiting for the Owner — discounts can no longer change. Ask the Owner to send it back if it needs changing.'
   : 'This estimate has already been approved by the manager — discounts can no longer change.';
 const nairaText = (value: number) => `₦${value.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -2256,7 +2257,7 @@ export async function setEstimateLineDiscount(lineItemId: string, amount: number
  * the reason. Whoever works on the estimate may set it while it is a draft
  * or with its supervisor; never more than the subtotal. Above the
  * organisation's limit (Billing & tax) — or any discount, with no limit set —
- * the Manager approves it in the same step as the estimate's final approval.
+ * the Owner approves it in the same step as the estimate's final approval.
  * Every change clears an earlier approval. 0 removes it. Audited.
  */
 export async function setEstimateDiscount(jobCardId: string, amount: number, reason: string): Promise<void> {
@@ -2505,7 +2506,7 @@ export async function submitEstimateForValidation(jobCardId: string): Promise<vo
   }
 }
 
-/** Managers for the branch (a Manager covers both Passenger and
+/** the Owner for the branch (the Owner covers both Passenger and
  * Commercial departments, so eligibility is by branch). Falls back to
  * Platform Administrators like the supervisor list. */
 async function listEligibleManagersForBranchUncached(branchId: string): Promise<EligibleSupervisorResult> {
@@ -2513,19 +2514,22 @@ async function listEligibleManagersForBranchUncached(branchId: string): Promise<
   return managersForBranchShared(branchId);
 }
 
-/** Branch managers rarely change, so the list is cached across requests for
+/** The Owners rarely change, so the list is cached across requests for
  * up to 60 seconds. Only ids, names and emails, which staff already see on
  * the approval screens. */
 const managersForBranchShared = unstable_cache(async (branchId: string): Promise<EligibleSupervisorResult> => {
-  const branchManagers = await prisma.user.findMany({
+  // The Owner approves; an Owner usually has no branch of their own, so the
+  // branch's business is what matters.
+  const org = await prisma.branch.findUnique({ where: { id: branchId }, select: { businessUnit: { select: { organisationId: true } } } });
+  const branchManagers = org ? await prisma.user.findMany({
     where: {
-      branchId,
+      organisationId: org.businessUnit.organisationId,
       isActive: true,
-      roles: { some: { role: { slug: 'workshop-manager' } } },
+      roles: { some: { role: { slug: 'owner' } } },
     },
     orderBy: { fullName: 'asc' },
     select: { id: true, fullName: true, email: true },
-  });
+  }) : [];
   if (branchManagers.length > 0) {
     return { supervisors: branchManagers, usingFallback: false };
   }
@@ -2543,14 +2547,14 @@ type ManagerPermission = 'workshop.close.approve' | 'workshop.estimate.final_app
 
 export async function requireEligibleManager(branchId: string, key: ManagerPermission = 'workshop.close.approve'): Promise<{ id: string }> {
   const user = await requireUser();
-  // Authorization Catalogue (Manager by default, plus Roles-page
+  // Authorization Catalogue (Owner by default, plus Roles-page
   // grants; Platform Administrator always), checked against the record's branch.
   await authorize(key, { branchId, homeBranch: true }, `manager:${key}`, 'Only the Owner can approve this.');
   return user;
 }
 
 /** The assigned supervisor (or a Platform Administrator) approves a submitted
- * estimate; it then goes to the branch's Managers. */
+ * estimate; it then goes to the branch's the Owner. */
 export async function approveEstimate(jobCardId: string): Promise<void> {
   const estimate = await prisma.estimate.findUnique({
     where: { jobCardId },
@@ -2600,7 +2604,7 @@ export async function approveEstimate(jobCardId: string): Promise<void> {
     entityId: jobCardId,
   });
 
-  // Notify the branch managers after the approval is committed (fail-soft).
+  // Notify the Owner after the approval is committed (fail-soft).
   try {
     const managers = await listEligibleManagersForBranch(estimate.jobCard.branchId);
     if (managers.supervisors.length === 0) return;
@@ -2631,14 +2635,14 @@ export async function approveEstimate(jobCardId: string): Promise<void> {
   }
 }
 
-/** The Manager's sign-off. The Job Card's creator is then told the
+/** The Owner's sign-off. The Job Card's creator is then told the
  * estimate is ready; sending it to the customer is a separate, explicit
  * step (notifyCustomerOfApprovedEstimate).
  *
  * A whole-estimate discount above the organisation's limit (or any, with no
- * limit set) is approved here too, but only when the Manager ticks to
+ * limit set) is approved here too, but only when the Owner ticks to
  * approve it (`approveDiscount`): never silently. Without the tick the
- * estimate is refused; the Manager can send it back instead. */
+ * estimate is refused; the Owner can send it back instead. */
 export async function approveEstimateAsManager(jobCardId: string, approveDiscount = false): Promise<void> {
   const estimate = await prisma.estimate.findUnique({
     where: { jobCardId },
@@ -2669,12 +2673,12 @@ export async function approveEstimateAsManager(jobCardId: string, approveDiscoun
   }
   const user = await requireEligibleManager(estimate.jobCard.branchId, 'workshop.estimate.final_approve');
   await authorize('workshop.estimate.final_approve', { branchId: estimate.jobCard.branchId }, 'approveEstimateAsManager');
-  // Segregation of duties: the Manager's approval must come from someone other
+  // Segregation of duties: the Owner's approval must come from someone other
   // than the supervisor who approved it.
   if (estimate.approvedById === user.id && !(await currentUserIsMasterAdmin())) {
-    throw new WorkshopActionError('You approved this estimate as its supervisor — another Manager gives the final approval.');
+    throw new WorkshopActionError('You approved this estimate as its supervisor — another Owner gives the final approval.');
   }
-  // The discount rule (Billing & tax): above the limit, the Manager approves it explicitly.
+  // The discount rule (Billing & tax): above the limit, the Owner approves it explicitly.
   const settings = estimate.jobCard.branch.businessUnit.organisation;
   const totals = jobCardTotals(estimate, settings);
   const discountToApprove = !estimate.discountApprovedAt && discountNeedsManager(totals, settings.discountApprovalPercent);
@@ -2684,7 +2688,7 @@ export async function approveEstimateAsManager(jobCardId: string, approveDiscoun
   const approvedAt = new Date();
 
   claimed(await prisma.estimate.updateMany({
-    // The discount must still be the one the Manager saw.
+    // The discount must still be the one the Owner saw.
     where: { id: estimate.id, status: 'APPROVED', discountAmount: estimate.discountAmount },
     data: {
       status: 'MANAGER_APPROVED', managerApprovedAt: approvedAt, managerApprovedById: user.id,
@@ -2737,21 +2741,21 @@ export async function approveEstimateAsManager(jobCardId: string, approveDiscoun
 }
 
 /**
- * The Manager sends a supervisor-approved estimate back with a reason. It
+ * The Owner sends a supervisor-approved estimate back with a reason. It
  * returns to SUBMITTED for edits and needs supervisor approval again, so the
- * Manager always decides on what the supervisor last approved.
+ * Owner always decides on what the supervisor last approved.
  */
 export async function returnEstimateForChanges(jobCardId: string, reason: string): Promise<void> {
   const why = reason.trim().slice(0, 500);
   if (why.length < 3) throw new WorkshopActionError('Say what needs to change.');
   const estimate = await prisma.estimate.findUnique({ where: { jobCardId }, select: { id: true, status: true, jobCard: { select: { branchId: true, jobNumber: true, supervisorId: true, assignedTechnicianId: true } } } });
   if (!estimate) throw new WorkshopActionError('This Job Card has no estimate yet.');
-  if (estimate.status !== 'APPROVED') throw new WorkshopActionError('Only an estimate waiting for the Manager can be sent back.');
+  if (estimate.status !== 'APPROVED') throw new WorkshopActionError('Only an estimate waiting for the Owner can be sent back.');
   const user = await requireEligibleManager(estimate.jobCard.branchId, 'workshop.estimate.final_approve');
   await authorize('workshop.estimate.final_approve', { branchId: estimate.jobCard.branchId }, 'returnEstimateForChanges');
   claimed(await prisma.estimate.updateMany({
     where: { id: estimate.id, status: 'APPROVED' },
-    // Open for editing again: the VAT follows the settings until the Manager approves it once more, and the customer answers the changed estimate afresh.
+    // Open for editing again: the VAT follows the settings until the Owner approves it once more, and the customer answers the changed estimate afresh.
     data: { status: 'SUBMITTED', approvedAt: null, approvedById: null, vatRate: null, ...CLEARED_CUSTOMER_ANSWER },
   }), 'This estimate was just approved or changed by someone else — refresh the page.');
   await prisma.estimateApprovalLink.updateMany({ where: { estimateId: estimate.id, usedAt: null, revokedAt: null }, data: { revokedAt: new Date() } });
@@ -2777,8 +2781,8 @@ export async function returnEstimateForChanges(jobCardId: string, reason: string
   });
 }
 
-/** Sends the Manager-approved estimate to the customer. Only the Job Card's
- * creator or a Platform Administrator, and only after Manager approval. Not automatic:
+/** Sends the Owner-approved estimate to the customer. Only the Job Card's
+ * creator or a Platform Administrator, and only after Owner approval. Not automatic:
  * approval means the numbers are right, not that the customer should be told yet. */
 export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promise<void> {
   const estimate = await prisma.estimate.findUnique({
@@ -2912,24 +2916,26 @@ export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promi
 
 
 // ---------------------------------------------------------------------------
-// PAYMENTS: recorded by Finance from proof of a bank transfer or cash at the
+// PAYMENTS: recorded by Accounts from proof of a bank transfer or cash at the
 // cashier (who, how much, which method). A Job Card can take several
 // payments (deposit, then balance).
 // ---------------------------------------------------------------------------
 
 export type PaymentMethod = 'BANK_TRANSFER' | 'CASH';
 
-/** Finance Officers for the branch (with the Platform Administrator fallback), who may
- * record payments. Branch-scoped like Managers. */
+/** Who records payments for the branch: Accounts while that role is on,
+ * otherwise Front Desk (with the Platform Administrator fallback). */
 export async function listEligibleFinanceOfficersForBranch(branchId: string): Promise<EligibleSupervisorResult> {
   await requireUser();
   // Never another organisation's staff list (names and emails).
   if (!(await branchInMyOrganisationOrSystem(branchId))) return { supervisors: [], usingFallback: false };
+  const org = await prisma.branch.findUnique({ where: { id: branchId }, select: { businessUnit: { select: { organisationId: true } } } });
+  const payers = org ? await dutyRoleSlugs(org.businessUnit.organisationId, 'accounts') : ['accounts'];
   const branchFinance = await prisma.user.findMany({
     where: {
       branchId,
       isActive: true,
-      roles: { some: { role: { slug: 'finance-officer' } } },
+      roles: { some: { role: { slug: { in: payers } } } },
     },
     orderBy: { fullName: 'asc' },
     select: { id: true, fullName: true, email: true },
@@ -2947,7 +2953,7 @@ export async function listEligibleFinanceOfficersForBranch(branchId: string): Pr
 
 export async function requireEligibleFinanceOfficer(branchId: string, key: 'workshop.payment.record' | 'workshop.refund.record' = 'workshop.payment.record'): Promise<{ id: string }> {
   const user = await requireUser();
-  await authorize(key, { branchId, homeBranch: true }, `finance:${key}`, 'Only a Finance Officer for this branch can do this.');
+  await authorize(key, { branchId, homeBranch: true }, `finance:${key}`, 'Only a Accounts for this branch can do this.');
   return user;
 }
 
@@ -3170,7 +3176,7 @@ export async function recordPayment(
     });
   }
 
-  // "Payment recorded" goes to Finance and the Manager only. Other parties
+  // "Payment recorded" goes to Accounts and the Owner only. Other parties
   // only hear about the milestones below.
   try {
     const orgContext = await getWorkshopOrgContext(jobCard.department?.name);
@@ -3304,7 +3310,7 @@ export async function recordPayment(
 // ---------------------------------------------------------------------------
 // CANCELLATION: the creator, the assigned supervisor or a Platform Administrator
 // raises a request with a reason (however the customer asked), and a
-// Manager approves or declines it. JobCard.status only changes on
+// Owner approves or declines it. JobCard.status only changes on
 // approval, so a decline has nothing to revert.
 // ---------------------------------------------------------------------------
 
@@ -3336,7 +3342,7 @@ async function leaveOnCredit(jobCardId: string, balance: number, userId: string,
   if (!standing.onCredit) throw new WorkshopActionError(o.refusal);
   if (o.checkLimit && !standing.withinLimit) {
     const naira = (n: number) => `₦${n.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    throw new WorkshopActionError(`This would take ${standing.companyName ?? 'the organisation'} to ${naira(standing.owedIncludingThis)} unpaid, over its credit limit of ${naira(standing.limit ?? 0)}. Record a payment first, or a Manager can close it over the limit.`);
+    throw new WorkshopActionError(`This would take ${standing.companyName ?? 'the organisation'} to ${naira(standing.owedIncludingThis)} unpaid, over its credit limit of ${naira(standing.limit ?? 0)}. Record a payment first, or the Owner can close it over the limit.`);
   }
   const issued = await ensureInvoice(jobCardId, userId);
   if (!issued) throw new WorkshopActionError('The invoice could not be issued for this Job Card, so it cannot leave on credit — check that its estimate is approved and the work is finished.');
@@ -3358,7 +3364,7 @@ export async function getCancellationRequests(jobCardId: string) {
   });
 }
 
-/** Logs the request and notifies the branch's Managers. Status is unchanged. */
+/** Logs the request and notifies the branch's the Owner. Status is unchanged. */
 export async function requestJobCardCancellation(jobCardId: string, reason: string): Promise<void> {
   const trimmedReason = reason.trim();
   if (!trimmedReason) {
@@ -3435,7 +3441,7 @@ export async function requestJobCardCancellation(jobCardId: string, reason: stri
   }
 }
 
-/** The Manager approves: the Job Card becomes CANCELLED and staff and the
+/** The Owner approves: the Job Card becomes CANCELLED and staff and the
  * customer are emailed. */
 export async function approveCancellationRequest(requestId: string, decisionNotes?: string): Promise<void> {
   const request = await prisma.cancellationRequest.findUnique({
@@ -3475,7 +3481,7 @@ export async function approveCancellationRequest(requestId: string, decisionNote
   const user = await requireEligibleManager(request.jobCard.branchId, 'workshop.close.approve');
   // Segregation of duties: whoever asked for this cannot also approve it.
   if (request.requestedById === user.id && !(await currentUserIsMasterAdmin())) {
-    throw new WorkshopActionError('You asked for this — another Manager decides it.');
+    throw new WorkshopActionError('You asked for this — another Owner decides it.');
   }
 
   // All-or-nothing, and each step only from the state it was decided on: a
@@ -3500,7 +3506,7 @@ export async function approveCancellationRequest(requestId: string, decisionNote
       data: { status: JobCardStatus.CANCELLED },
     }), 'This Job Card was just closed or checked out, so it can no longer be cancelled — refresh the page.');
     // A pending close request can no longer happen; resolve it so it doesn't
-    // stay in Managers' notifications.
+    // stay in the Owner' notifications.
     await tx.closeRequest.updateMany({
       where: { jobCardId: request.jobCardId, status: 'PENDING' },
       data: { status: 'DECLINED', decidedById: user.id, decidedAt: new Date(), decisionNotes: 'Superseded — the Job Card was cancelled.' },
@@ -3578,7 +3584,7 @@ export async function approveCancellationRequest(requestId: string, decisionNote
   }
 }
 
-/** The Manager declines. Status is untouched; only the requester is notified. */
+/** The Owner declines. Status is untouched; only the requester is notified. */
 export async function declineCancellationRequest(requestId: string, decisionNotes?: string): Promise<void> {
   const request = await prisma.cancellationRequest.findUnique({
     where: { id: requestId },
@@ -3664,8 +3670,8 @@ export async function getCloseRequests(jobCardId: string) {
   });
 }
 
-/** Logs a close request and notifies the branch's Managers. Status is
- * unchanged until a Manager approves. */
+/** Logs a close request and notifies the branch's the Owner. Status is
+ * unchanged until the Owner approves. */
 export async function requestJobCardClose(jobCardId: string): Promise<void> {
   const jobCard = await prisma.jobCard.findUnique({
     where: { id: jobCardId },
@@ -3695,9 +3701,9 @@ export async function requestJobCardClose(jobCardId: string): Promise<void> {
   }
   const user = await requireJobCardCreatorOrSupervisor(jobCard);
   // Same full-payment rule as checkout, checked now so a request that could
-  // never be approved isn't sent to a Manager. An organisation on credit:
-  // its invoice is issued now, and the Manager deciding sees whether it fits
-  // the credit limit (only a Manager can close over it).
+  // never be approved isn't sent to the Owner. An organisation on credit:
+  // its invoice is issued now, and the Owner deciding sees whether it fits
+  // the credit limit (only the Owner can close over it).
   const totalEstimate = jobCardTotals(jobCard.estimate, billingOf(jobCard)).total;
   const totalPaid = jobCard.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount), 0);
   if (!paidInFull(totalPaid, totalEstimate)) {
@@ -3755,7 +3761,7 @@ export async function requestJobCardClose(jobCardId: string): Promise<void> {
   }
 }
 
-/** The Manager approves: the Job Card becomes CLOSED (set here, since
+/** The Owner approves: the Job Card becomes CLOSED (set here, since
  * updateJobCardStatus refuses CLOSED) and staff and the customer are emailed. */
 export async function approveCloseRequest(requestId: string, decisionNotes?: string, overCreditLimit = false): Promise<void> {
   // Catalogue check first (who may attempt this); branch eligibility and
@@ -3796,10 +3802,10 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
   const user = await requireEligibleManager(request.jobCard.branchId, 'workshop.close.approve');
   // Segregation of duties: whoever asked for this cannot also approve it.
   if (request.requestedById === user.id && !(await currentUserIsMasterAdmin())) {
-    throw new WorkshopActionError('You asked for this — another Manager decides it.');
+    throw new WorkshopActionError('You asked for this — another Owner decides it.');
   }
   // Money is checked again at the decision: paid in full, or an organisation
-  // on credit (invoiced). Over its credit limit only the Manager's explicit
+  // on credit (invoiced). Over its credit limit only the Owner's explicit
   // tick closes it, and that is recorded.
   const money = await prisma.jobCard.findUnique({ where: { id: request.jobCardId }, select: { estimate: { select: ESTIMATE_TOTALS_SELECT }, ...JOB_CARD_BILLING_SELECT, payments: { select: { amount: true } } } });
   const owedTotal = money ? jobCardTotals(money.estimate, billingOf(money)).total : 0;
@@ -3906,7 +3912,7 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
   }
 }
 
-/** The Manager declines. Status is untouched; only the requester is notified. */
+/** The Owner declines. Status is untouched; only the requester is notified. */
 export async function declineCloseRequest(requestId: string, decisionNotes?: string): Promise<void> {
   const request = await prisma.closeRequest.findUnique({
     where: { id: requestId },
@@ -4015,7 +4021,7 @@ export type WorkshopCustodyEntry = {
   dueDate?: string;
   isOverdue: boolean;
   /** Set on an awaiting-approval entry with a cancellation request pending,
-   * so a Manager can approve or decline it from the dashboard. */
+   * so the Owner can approve or decline it from the dashboard. */
   pendingCancellationRequest?: { id: string; reason: string; requestedByName: string };
   /** The customer's phones and the vehicle, for the WhatsApp message beside each emailed reminder. */
   whatsApp?: { phone: string | null; altPhone: string | null; organisation: boolean; plateNumber: string | null; make: string | null; model: string | null };
@@ -4301,7 +4307,7 @@ export async function sendApprovalReminder(jobCardId: string): Promise<void> {
 
 /** Platform Administrator's manual "run today's checks": sends due approval reminders
  * and counts Job Cards past the deadline. Never cancels anything; that
- * stays a Manager-approved cancellation request, so staff can still extend
+ * stays the Owner-approved cancellation request, so staff can still extend
  * grace when a customer asks. */
 export async function runApprovalDeadlineChecks(): Promise<{ remindersSent: number; overdueCount: number }> {
   if (!(await currentUserIsMasterAdmin())) {
@@ -4341,7 +4347,7 @@ export async function runApprovalDeadlineChecks(): Promise<{ remindersSent: numb
 }
 
 /** Manually notifies the customer of a cancelled Job Card's uncollected
- * vehicle. Only an eligible Manager (or Platform Administrator). Never automatic. */
+ * vehicle. Only an eligible Owner (or Platform Administrator). Never automatic. */
 export async function notifyOverdueCancelledVehicle(jobCardId: string, notes?: string): Promise<void> {
   const jobCard = await prisma.jobCard.findUnique({
     where: { id: jobCardId },

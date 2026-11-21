@@ -1,4 +1,5 @@
 'use server';
+import { dutyRoleSlugs } from '@/lib/duty-roles';
 import { parseSourceFilter, sourceWhere, type SOURCE_PARAMS } from '@/lib/source-filter';
 import { importIdsFor } from '@/lib/source-filter-server';
 import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
@@ -77,12 +78,15 @@ export async function getStoreBranchId(): Promise<string> {
 
 export type EligibleStoreStaffResult = { staff: { id: string; fullName: string; email: string }[]; usingFallback: boolean };
 
-/** Users holding `roleSlug` at the branch, falling back to Platform Administrators
- * so the list is never empty. Same pattern as listEligibleManagersForBranch(). */
-async function listEligibleStoreStaffForBranch(branchId: string, roleSlug: string): Promise<EligibleStoreStaffResult> {
+/** Users holding one of `roleSlugs` (at the branch, or anywhere in its
+ * business for the Owner, who has no branch of their own), falling back to
+ * Platform Administrators so the list is never empty. Same pattern as
+ * listEligibleManagersForBranch(). */
+async function listEligibleStoreStaffForBranch(branchId: string, roleSlugs: string[], businessWide = false): Promise<EligibleStoreStaffResult> {
   await requireUser();
+  const org = await prisma.branch.findUnique({ where: { id: branchId }, select: { businessUnit: { select: { organisationId: true } } } });
   const staff = await prisma.user.findMany({
-    where: { branchId, isActive: true, roles: { some: { role: { slug: roleSlug } } } },
+    where: { ...(businessWide && org ? { organisationId: org.businessUnit.organisationId } : { branchId }), isActive: true, roles: { some: { role: { slug: { in: roleSlugs } } } } },
     orderBy: { fullName: 'asc' },
     select: { id: true, fullName: true, email: true },
   });
@@ -97,20 +101,24 @@ async function listEligibleStoreStaffForBranch(branchId: string, roleSlug: strin
   return { staff: masterAdmins, usingFallback: true };
 }
 
+/** The Owner, who oversees the store (business-wide). */
 export async function listEligibleStoreManagersForBranch(branchId: string): Promise<EligibleStoreStaffResult> {
   // Never another organisation's staff list (names and emails).
   if (!(await branchInMyOrganisationOrSystem(branchId))) return { staff: [], usingFallback: false };
-  return listEligibleStoreStaffForBranch(branchId, 'store-manager');
+  return listEligibleStoreStaffForBranch(branchId, ['owner'], true);
 }
 
+/** Who does the store's work at the branch: the Store Keeper while that role is on, otherwise Front Desk. */
 export async function listEligibleStoreOfficersForBranch(branchId: string): Promise<EligibleStoreStaffResult> {
   // Never another organisation's staff list (names and emails).
   if (!(await branchInMyOrganisationOrSystem(branchId))) return { staff: [], usingFallback: false };
-  return listEligibleStoreStaffForBranch(branchId, 'store-officer');
+  const org = await prisma.branch.findUnique({ where: { id: branchId }, select: { businessUnit: { select: { organisationId: true } } } });
+  return listEligibleStoreStaffForBranch(branchId, org ? await dutyRoleSlugs(org.businessUnit.organisationId, 'store-keeper') : ['store-keeper']);
 }
 
-/** Gates Store work on the given permission (Store Manager/Officer by
- * default, plus Roles-page grants; Platform Administrator always), checked against the
+/** Gates Store work on the given permission (Store Keeper by default, Front
+ * Desk while that role is off, plus Roles-page grants; the Owner and the
+ * Platform Administrator always), checked against the
  * branch that owns the record so one branch cannot change another's stock,
  * prices or receipts. */
 export async function requireStoreStaff(branchId: string, key: StorePermission = 'store.grn.record'): Promise<{ id: string }> {
@@ -1596,7 +1604,7 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
     metadata: { referenceNumber, supplierName, lineCount: resolvedLines.length },
   });
 
-  // Confirm the receipt to the person who recorded it and the Store Manager.
+  // Confirm the receipt to the person who recorded it and the Store Keeper.
   // One email per line (the form currently submits one line per receipt).
   try {
     const [recordedByUser, orgContext, storeManagers] = await Promise.all([

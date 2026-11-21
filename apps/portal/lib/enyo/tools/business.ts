@@ -10,7 +10,7 @@ import { day, lagosDayStart, lagosWeekStart, nothing, ok, r2, refused, text } fr
 import type { StaffTool } from '../types';
 
 const ymd = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'Africa/Lagos' });
-const MONEY_WHO = 'business figures (takings, revenue, profit) are for Finance, the Manager and administrators.';
+const MONEY_WHO = 'business figures (takings, revenue, profit) are for the Owner / GMD.';
 
 async function scopeLabel(key: 'analytics.business.view' | 'workshop.close.approve'): Promise<{ where: Awaited<ReturnType<typeof reachWhere>>; label: string }> {
   const where = await reachWhere(key);
@@ -80,7 +80,7 @@ export const businessTools: StaffTool[] = [
         takings: c.collections,
         refundsPaidOut: c.refunds,
         revenue: c.sales,
-        revenueBreakdown: { labour: c.labour, parts: c.parts, outsideWork: c.sublet, sundry: c.sundry, chargedToCustomers: c.customerSales, chargedToWarranty: c.warrantySales },
+        revenueBreakdown: { labour: c.labour, parts: c.parts, outsideWork: c.sublet, sundry: c.sundry, chargedToCustomers: c.customerSales, underWarranty: c.warrantySales },
         notCharged: c.givenAway,
         grossProfit: c.grossProfit,
         grossMarginPercent: c.grossMargin,
@@ -92,7 +92,7 @@ export const businessTools: StaffTool[] = [
         rightNow: { jobsInProgress: a.position.wipJobs, valueInProgress: a.position.wipValue, owedOnFinishedJobs: a.position.receivables, owedJobs: a.position.receivableJobs, overpaidToRefund: a.position.overpaidTotal },
         definitions: {
           takings: 'Payments received in the period minus refunds paid in the period, whatever job they were for.',
-          revenue: 'Value of the jobs completed in the period (customer and warranty lines; goodwill and internal lines excluded).',
+          revenue: 'Value of the jobs completed in the period (customer lines and lines under the workshop\'s own warranty; goodwill and internal lines excluded).',
           grossProfit: 'Revenue minus the recorded cost of parts issued and outside work on those jobs.',
         },
       }, [{ label: 'Business analytics', href: '/analytics' }]);
@@ -111,7 +111,7 @@ export const businessTools: StaffTool[] = [
     },
     run: async (args) => {
       const [money, manager] = await Promise.all([allows('analytics.business.view'), allows('workshop.close.approve')]);
-      if (!money && !manager) return refused('the technician ranking is for the Manager, Finance and administrators.');
+      if (!money && !manager) return refused('the technician ranking is for the Owner / GMD.');
       const { from, to, label } = rankingRange(text(args.period, 20) || 'this_month');
       const { where: reach, label: scope } = await scopeLabel(money ? 'analytics.business.view' : 'workshop.close.approve');
       const done = { completedAt: { gte: from, lt: to }, assignedTechnicianId: { not: null } };
@@ -150,7 +150,7 @@ export const businessTools: StaffTool[] = [
         teamAverageHours: teamAvg === null ? null : Math.round(teamAvg * 10) / 10,
         ranking: ranking.slice(0, 15),
         formula:
-          'Ranked by jobs completed in the period (Job Cards and Vehicle Services whose work was completed, cancelled and escalated ones excluded), ties broken by the shorter average time. Time per job = from the first start of work to completion, in hours (waiting for parts included). No planned time is recorded per job, so each technician\'s average is compared with the team average instead.' +
+          'Ranked by jobs completed in the period (Job Cards whose work was completed; cancelled ones excluded), ties broken by the shorter average time. Time per job = from the first start of work to completion, in hours (waiting for parts included). No planned time is recorded per job, so each technician\'s average is compared with the team average instead.' +
           (money ? ' Labour billed = Labour and Internal Job lines on those jobs\' estimates (goodwill and internal lines excluded).' : ''),
       }, [{ label: 'Business analytics', href: '/analytics' }]);
     },

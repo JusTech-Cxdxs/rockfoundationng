@@ -23,8 +23,8 @@ export type PricingAlertDigestGroup = {
   }[];
 };
 
-/** Open pricing alerts grouped by branch, with each branch's Store Manager
- * and Store Officer recipients (or the Platform Administrator fallback).
+/** Open pricing alerts grouped by branch, with the Owner as recipient
+ * (or the Platform Administrator fallback).
  * No requireUser(): only called from the pricing-alerts cron route, which
  * has no user session and checks the cron secret first. */
 export async function getOpenPricingAlertsForDigest(): Promise<PricingAlertDigestGroup[]> {

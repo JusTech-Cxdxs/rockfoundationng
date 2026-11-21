@@ -1,7 +1,7 @@
 /**
  * The organisation itself, for any member of staff: its name and contact
- * details, its businesses and branches, and background from the public
- * record. Only this organisation's rows; no personal contact details are
+ * details (address, phones, website, RC number), its workshop, and
+ * background from the public record. Only this organisation's rows; no personal contact details are
  * kept or returned.
  */
 import { prisma } from '@ejo/database';
@@ -16,10 +16,10 @@ export const organisationTools: StaffTool[] = [
     kind: 'read',
     status: 'Looking up the organisation…',
     description:
-      'This organisation: its name and contact details, its businesses and branches, and background from the public record. For "who is <name>?" about a colleague use staff_directory; for someone outside, try the web look-up with the name and the organisation.',
+      'This organisation (the workshop): its name and contact details, where it is, and background from the public record. For "who is <name>?" about a colleague use staff_directory; for someone outside, try the web look-up with the name and the organisation.',
     parameters: {
       type: 'object',
-      properties: { name: { type: 'string', description: 'Optional: a person\'s name or a title to look for, e.g. "Manager" or "IT".', maxLength: 80 } },
+      properties: { name: { type: 'string', description: 'Optional: a person\'s name or a title to look for, e.g. "GMD" or "Owner".', maxLength: 80 } },
       additionalProperties: false,
     },
     run: async (args, ctx) => {

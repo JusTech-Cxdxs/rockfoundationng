@@ -5,7 +5,7 @@
  * The D'Phoenix Autocare edition is the vehicle workshop: apps/portal/lib/modules.ts
  * keeps the Store (inventory), Warranty and the assembly plant in code with
  * status DISABLED (off the menu, the dashboard, search, Enyo and the customer
- * portal), and featureOn() switches SAP, external procurement, the roadmap,
+ * portal), and featureOn() switches external procurement, the roadmap,
  * news & media, Speak Up and data requests off. The seed creates no store,
  * warranty or plant roles, so the specs (and the e2e seed's people and
  * fixtures) for them only run when the matching flag is set — E2E_INVENTORY=1,
@@ -19,10 +19,6 @@ export const WARRANTY_OFF = "Warranty (policies, registrations, claims) is off i
 
 export const PLANT_ENABLED = process.env.E2E_PLANT === '1';
 export const PLANT_OFF = "The assembly plant (kits, the line, PDI) is off in the D'Phoenix edition";
-
-/** SAP postings and the SAP history import (featureOn('sap')). */
-export const SAP_ENABLED = process.env.E2E_SAP === '1';
-export const SAP_OFF = "SAP postings and history are off in the D'Phoenix edition";
 
 /** Buying a part outside the Store (featureOn('externalProcurement')). */
 export const EXTERNAL_PROCUREMENT_ENABLED = process.env.E2E_EXTERNAL_PROCUREMENT === '1';
@@ -63,7 +59,6 @@ export const OFF_URL_PREFIXES: string[] = [
   ...(EXTERNAL_PROCUREMENT_ENABLED ? [] : ['/workshop/external-procurement']),
   ...(WARRANTY_ENABLED ? [] : ['/warranty']),
   ...(PLANT_ENABLED ? [] : ['/plant']),
-  ...(SAP_ENABLED ? [] : ['/data-exchange/sap']),
   ...(NEWS_ENABLED ? [] : ['/news']),
   ...(DATA_REQUESTS_ENABLED ? [] : ['/data-requests']),
   ...(ROADMAP_ENABLED ? [] : ['/roadmap']),
@@ -72,8 +67,3 @@ export const OFF_URL_PREFIXES: string[] = [
 ];
 /** Whether an address is in this edition (not under OFF_URL_PREFIXES). */
 export const inEdition = (url: string): boolean => !OFF_URL_PREFIXES.some((p) => url === p || url.startsWith(`${p}/`) || url.startsWith(`${p}?`));
-
-/** Where an imported file is recorded as coming from: "SAP" only while the SAP link is on (lib/modules.ts); otherwise an old system or a spreadsheet. */
-export const IMPORT_SOURCE = SAP_ENABLED ? 'SAP' : 'LEGACY';
-/** How the origin of an imported record is worded on screen ("SAP" only while the SAP link is on). */
-export const IMPORT_SOURCE_WORDS = SAP_ENABLED ? 'SAP' : 'the old system';

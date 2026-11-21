@@ -22,7 +22,7 @@ export function GuideBrowser({ groups, compact = false }: { groups: { area: stri
   return (
     <div>
       <label htmlFor="guide-search" className="sr-only">Search how to do something</label>
-      <input id="guide-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="How do I… (e.g. approve an estimate, request an exit pass)"
+      <input id="guide-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="How do I… (e.g. approve an estimate, record a payment)"
         className="min-h-11 w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 text-base text-[var(--ejo-text)] focus:border-[var(--ejo-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--ejo-primary)]/25 sm:text-sm" />
       <p className="mt-1.5 text-xs text-[var(--ejo-text-muted)]" aria-live="polite">{words.length ? `${total} ${total === 1 ? 'topic matches' : 'topics match'}` : `${total} ${total === 1 ? 'topic' : 'topics'} for your role`}</p>
       {words.length && !total ? (

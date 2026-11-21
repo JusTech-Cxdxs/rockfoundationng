@@ -34,7 +34,7 @@ export const APPROVAL_DEADLINE_WORKING_DAYS = 5;
 export const APPROVAL_REMINDER_WORKING_DAYS = 3;
 
 /** Working days after a cancellation is approved before an uncollected
- * vehicle is flagged for staff review. Not automatic: a Manager or HOD
+ * vehicle is flagged for staff review. Not automatic: the Owner or HOD
  * decides whether to notify the customer. */
 export const CANCELLED_COLLECTION_GRACE_WORKING_DAYS = 7;
 

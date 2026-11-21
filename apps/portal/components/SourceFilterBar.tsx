@@ -1,4 +1,4 @@
-import { SOURCE_OPTIONS, SOURCE_PARAMS } from '@/lib/source-filter';
+import { SOURCE_PARAMS, SOURCE_WORDS } from '@/lib/source-filter';
 
 const field = 'mt-1 w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]';
 
@@ -26,7 +26,7 @@ export function SourceFilterBar({ action, values, keep = {}, original }: {
         <div>
           <label htmlFor="sf-source" className="text-xs font-medium text-[var(--ejo-text)]">Source</label>
           <select id="sf-source" name="source" defaultValue={values.source ?? 'all'} className={field}>
-            {SOURCE_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+            {SOURCE_WORDS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </div>
         <div>

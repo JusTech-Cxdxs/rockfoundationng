@@ -5,7 +5,7 @@ import { who } from './people';
 import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
- * Data Exchange A2: the Store's records from SAP — suppliers, the parts
+ * Data Exchange: the Store's records from the old system: suppliers, the parts
  * catalogue (material master) and the opening stock with its value, loaded
  * as an opening-balance goods receipt that the inventory figures count.
  * Group IT prepares, the Store Manager approves, Finance confirms the value,
@@ -48,28 +48,28 @@ async function approveAndLoad(page: Page, url: string) {
 
 let stockUrl = '';
 
-test('suppliers from the SAP vendor list: the Store Manager approves; the Suppliers page lists them', async ({ page }) => {
+test('suppliers from the old vendor list: the Store Manager approves; the Suppliers page lists them', async ({ page }) => {
   await as(page, 'it-administrator');
   const url = await upload(page, 'suppliers', `vendors-${T}.csv`, csv([
-    ['LIFNR', 'NAME1', 'NAME2', 'TELF1', 'SMTP_ADDR'],
-    [`00${D}1`, `Isuzu Parts ${T}`, 'Africa', '+234 1 270 1000', `parts.${T.toLowerCase()}@example.com`],
+    ['Supplier number (old system)', 'Name', 'Name, second line', 'Phone', 'Email'],
+    [`00${D}1`, `Ota Parts ${T}`, 'Limited', '+234 1 270 1000', `parts.${T.toLowerCase()}@example.com`],
     ['', '', '', '', ''],
     [`00${D}2`, '', '', '', ''],
   ]));
   await expect(page.getByText('Name is required.')).toBeVisible();
   await page.getByRole('button', { name: /Send for approval/ }).click();
   await approveAndLoad(page, url);
-  await open(page, `/inventory/suppliers?q=${encodeURIComponent(`Isuzu Parts ${T}`)}`);
-  await expect(page.getByText(`Isuzu Parts ${T} Africa`)).toBeVisible();
+  await open(page, `/inventory/suppliers?q=${encodeURIComponent(`Ota Parts ${T}`)}`);
+  await expect(page.getByText(`Ota Parts ${T} Limited`)).toBeVisible();
 });
 
-test('parts from the SAP material master: units translated, batch parts, an alternative unit; the list pages', async ({ page }) => {
+test('parts from the old parts list: units translated, batch parts, an alternative unit; the list pages', async ({ page }) => {
   const branchId = await storeBranchId();
   await as(page, 'it-administrator');
   const url = await upload(page, 'parts', `material-master-${T}.csv`, csv([
-    ['MATNR', 'MAKTX', 'MATKL', 'MEINS', 'XCHPF', 'VKP', 'MINBE', 'MEINH', 'UMREZ'],
+    ['Part number', 'Description', 'Category', 'Base unit', 'Tracking', 'Selling price (₦)', 'Reorder point', 'Alternative unit', 'Base units in the alternative unit'],
     [pn(1), `Brake pad set ${T}`, 'BRAKES', 'ST', '', '45000', '4', '', ''],
-    [pn(2), `Engine oil 15W-40 ${T}`, 'LUBES', 'L', 'X', '4200', '200', 'DR', '208'],
+    [pn(2), `Engine oil 15W-40 ${T}`, 'LUBES', 'L', 'Batch', '4200', '200', 'DR', '208'],
     [pn(3), `Oil filter ${T}`, 'FILTERS', 'EA', '', '6500', '10', '', ''],
     [pn(1), 'Same part twice', '', 'ST', '', '', '', '', ''],
     ['', 'No number', '', 'ST', '', '', '', '', ''],
@@ -81,7 +81,7 @@ test('parts from the SAP material master: units translated, batch parts, an alte
   await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
   await approveAndLoad(page, url);
   const oil = await db().part.findFirstOrThrow({ where: { branchId, partNumber: pn(2) }, select: { baseUnitOfMeasure: true, trackingType: true, externalSource: true, externalId: true, alternativeUnits: { select: { unitName: true, conversionFactor: true } } } });
-  expect(oil).toMatchObject({ baseUnitOfMeasure: 'Litre', trackingType: 'BATCH', externalSource: 'SAP', externalId: pn(2) });
+  expect(oil).toMatchObject({ baseUnitOfMeasure: 'Litre', trackingType: 'BATCH', externalSource: null, externalId: null });
   expect(oil.alternativeUnits.map((u) => [u.unitName, Number(u.conversionFactor)])).toEqual([['Drum', 208]]);
   // The catalogue is paged, and finds the imported parts.
   await open(page, `/inventory/parts?q=${encodeURIComponent(T)}`);
@@ -94,7 +94,7 @@ test('opening stock: totals before approval, an opening-balance receipt at the c
   const branchId = await storeBranchId();
   await as(page, 'it-administrator');
   stockUrl = await upload(page, 'stock', `opening-stock-${T}.csv`, csv([
-    ['MATNR', 'LABST', 'MEINS', 'SALK3', 'VERPR', 'CHARG', 'LGORT'],
+    ['Part number', 'Quantity on hand', 'Unit', 'Stock value (₦)', 'Unit cost (₦)', 'Batch', 'Storage location'],
     [pn(1), 12, 'ST', '540,000.00', '45000', '', '0001'],
     [pn(2), 2, 'DR', '', '873600', 'B-2026-001', '0001'],
     [pn(3), '5-', 'EA', '0', '', '', '0001'],
@@ -111,7 +111,7 @@ test('opening stock: totals before approval, an opening-balance receipt at the c
   await expect(page.getByText(/Stock value now in .*: ₦2,287,200\.00/)).toBeVisible();
   await expect(page.getByText('Matches the checked file exactly (₦2,287,200.00).')).toBeVisible();
   const receipt = await db().goodsReceipt.findFirstOrThrow({ where: { isOpeningBalance: true, lines: { some: { part: { partNumber: pn(1), branchId } } } }, select: { referenceNumber: true, supplierName: true, lines: { select: { part: { select: { partNumber: true } }, quantityInBaseUnit: true, unitCost: true, totalCost: true } } } });
-  expect(receipt.supplierName).toMatch(/^Opening balance — SAP \(IMP-/);
+  expect(receipt.supplierName).toMatch(/^Opening balance: old system \(IMP-/);
   const oil = receipt.lines.find((l) => l.part.partNumber === pn(2))!;
   expect([Number(oil.quantityInBaseUnit), Number(oil.unitCost), Number(oil.totalCost)]).toEqual([416, 4200, 1747200]);
   const stock = await db().partStock.findFirstOrThrow({ where: { part: { branchId, partNumber: pn(2) } }, select: { quantityOnHand: true } });

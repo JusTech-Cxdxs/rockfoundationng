@@ -2,21 +2,18 @@ import { test, expect, type Page } from '@playwright/test';
 import { as, uniq, open } from './helpers';
 import { db } from './db';
 import { who } from './people';
-import { SAP_ENABLED, SAP_OFF } from './edition';
 
 /**
- * Data Exchange A3: SAP history feeding EJO's own pages. A customer's SAP
- * creation date becomes "customer since"; SAP invoices from before EJO load
- * as read-only history that counts in the customer's spend and visits (and
- * the analytics), Finance confirms the totals, and undo voids them (nothing
- * deleted; a reload restores them).
+ * Data Exchange: history from the old system feeding EJO's own pages. A
+ * customer's "customer since" date comes from the file; invoices from before
+ * EJO load as read-only history that counts in the customer's spend and
+ * visits (and the analytics), Finance confirms the totals, and undo voids
+ * them (nothing deleted; a reload restores them).
  */
-// SAP's history before EJO: this edition words it as an old system's.
-test.skip(!SAP_ENABLED, SAP_OFF);
 test.describe.configure({ mode: 'serial' });
 
 const T = uniq().replace(/[^A-Z0-9]/g, '').slice(-6);
-const kunnr = `00077${T.replace(/\D/g, '7').padEnd(5, '7').slice(0, 5)}`;
+const custNo = `77${T.replace(/\D/g, '7').padEnd(5, '7').slice(0, 5)}`;
 const vin = `JAANLR85EL${T.replace(/[IOQ]/g, 'X').padEnd(7, 'X').slice(0, 7)}`;
 const csv = (rows: (string | number)[][]) => rows.map((r) => r.map((c) => (/[,"]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(',')).join('\r\n');
 
@@ -48,43 +45,43 @@ async function approveAndLoad(page: Page, url: string) {
 let customerId = '';
 let invoicesUrl = '';
 
-test('a customer from SAP: ERDAT becomes “customer since”, years before the import', async ({ page }) => {
+test('a customer from the old system: “customer since” comes from the file, years before the import', async ({ page }) => {
   await as(page, 'it-administrator');
-  const url = await upload(page, 'customers', `kna1-${T}.csv`, csv([
-    ['KUNNR', 'NAME1', 'TELF1', 'STRAS', 'ORT01', 'ERDAT'],
-    [kunnr, `Lekki Haulage ${T}`, `0809 ${T.replace(/\D/g, '5').padEnd(3, '5').slice(0, 3)} 4401`, '12 Admiralty Way', 'Lagos', '20140602'],
+  const url = await upload(page, 'customers', `customers-${T}.csv`, csv([
+    ['Customer number', 'Name', 'Phone', 'Address', 'City', 'Customer since'],
+    [custNo, `Lekki Haulage ${T}`, `0809 ${T.replace(/\D/g, '5').padEnd(3, '5').slice(0, 3)} 4401`, '12 Idiroko Road', 'Ota', '02/06/2014'],
   ]));
   await page.getByRole('button', { name: /Send for approval/ }).click();
   await approveAndLoad(page, url);
-  const c = await db().customer.findFirstOrThrow({ where: { externalId: kunnr.replace(/^0+/, '') }, select: { id: true, customerSince: true } });
+  const c = await db().customer.findFirstOrThrow({ where: { externalId: custNo }, select: { id: true, customerSince: true } });
   customerId = c.id;
   expect(c.customerSince?.toISOString().slice(0, 10)).toBe('2014-06-02');
-  // A vehicle of theirs, registered at the front desk (its VIN links the SAP invoices).
-  await db().customerVehicle.create({ data: { customerId, chassisNumber: vin, make: 'Isuzu', model: 'NQR', year: 2024 } });
+  // A vehicle of theirs, registered at the front desk (its VIN links the old invoices).
+  await db().customerVehicle.create({ data: { customerId, chassisNumber: vin, make: 'Toyota', model: 'Hilux', year: 2024 } });
   await open(page, `/crm/customers/${customerId}`);
-  await expect(page.getByText(/Customer since 02\/06\/2014 \(from SAP, customer \d+\)/)).toBeVisible();
+  await expect(page.getByText(/Customer since 02\/06\/2014 \(from the old system, customer \d+\)/)).toBeVisible();
 });
 
-test('SAP invoices: totals before approval, read-only history in the customer’s spend, Finance confirms', async ({ page }) => {
+test('invoices from the old system: totals before approval, read-only history in the customer’s spend, Finance confirms', async ({ page }) => {
   const branchId = await managerBranch();
   await as(page, 'it-administrator');
-  invoicesUrl = await upload(page, 'invoices', `vbrk-${T}.csv`, csv([
-    ['VBELN', 'FKDAT', 'KUNAG', 'NETWR', 'MWSBK', 'WAERK', 'VHVIN', 'FKART', 'ARKTX'],
-    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}01`, '14.03.2023', kunnr, '400000.00', '30000.00', 'NGN', vin, 'F2', 'Service 40,000 km'],
-    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}02`, '05.09.2024', kunnr, '250000.00', '', 'NGN', vin, 'F2', 'Brake pads and discs'],
-    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}03`, '06.09.2024', kunnr, '20000-', '', 'NGN', '', 'G2', 'Credit: discount'],
-    ['', '06.09.2024', kunnr, '1000', '', 'NGN', '', 'F2', 'no number'],
-    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}04`, '06.09.2024', '0009999999', '1000', '', 'NGN', '', 'F2', 'unknown customer'],
-    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}05`, '06.09.2024', kunnr, '1000', '', 'USD', '', 'F2', 'dollars'],
+  invoicesUrl = await upload(page, 'invoices', `invoices-${T}.csv`, csv([
+    ['Invoice number', 'Invoice date', 'Customer number', 'Amount (₦)', 'Tax (₦)', 'Currency', 'Chassis number (VIN)', 'Document type', 'Description'],
+    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}01`, '14/03/2023', custNo, '400000.00', '30000.00', 'NGN', vin, 'Invoice', 'Service 40,000 km'],
+    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}02`, '05/09/2024', custNo, '250000.00', '', 'NGN', vin, 'Invoice', 'Brake pads and discs'],
+    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}03`, '06/09/2024', custNo, '-20000', '', 'NGN', '', 'Credit note', 'Credit: discount'],
+    ['', '06/09/2024', custNo, '1000', '', 'NGN', '', 'Invoice', 'no number'],
+    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}04`, '06/09/2024', '9999999', '1000', '', 'NGN', '', 'Invoice', 'unknown customer'],
+    [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}05`, '06/09/2024', custNo, '1000', '', 'USD', '', 'Invoice', 'dollars'],
   ]), { branchId });
-  await expect(page.getByText('Invoice number is required (SAP VBELN or BELNR).')).toBeVisible();
+  await expect(page.getByText('Invoice number is required.')).toBeVisible();
   await expect(page.getByText(/The customer was not found/)).toBeVisible();
   await expect(page.getByText(/Only naira invoices are loaded/)).toBeVisible();
   // 430,000 + 250,000 − 20,000 = 660,000 on three invoices, March 2023 to September 2024.
   await expect(page.getByText(/3 invoices · ₦660,000\.00 · dated 14 Mar 2023 to 6 Sept? 2024/)).toBeVisible();
   await page.getByRole('button', { name: /Send for approval/ }).click();
   await approveAndLoad(page, invoicesUrl);
-  await expect(page.getByText(/Invoice history now in EJO 100 from this import: ₦660,000\.00 on 3 invoices/)).toBeVisible();
+  await expect(page.getByText(/Invoice history now in EJO from this import: ₦660,000\.00 on 3 invoices/)).toBeVisible();
   const linked = await db().historicalInvoice.count({ where: { customerId, vehicleId: { not: null }, voidedAt: null } });
   expect(linked).toBe(2);
   // Finance confirms the totals (the manager approved, so cannot).
@@ -93,35 +90,35 @@ test('SAP invoices: totals before approval, read-only history in the customer’
   await open(page, invoicesUrl);
   await page.getByRole('button', { name: 'Confirm the totals (Finance)' }).click();
   await expect(page.getByText(/Totals confirmed by .* \(Finance\)/)).toBeVisible();
-  // The customer: lifetime spend and visits include SAP, marked; the invoices are listed read-only.
+  // The customer: lifetime spend and visits include the old system's invoices, marked; they are listed read-only.
   await as(page, 'workshop-manager');
   await open(page, `/crm/customers/${customerId}`);
-  await expect(page.getByText('Incl. ₦660,000 from SAP, before EJO')).toBeVisible();
+  await expect(page.getByText('Incl. ₦660,000 from the old system, before EJO')).toBeVisible();
   await open(page, `/crm/customers/${customerId}?tab=jobs`);
-  await expect(page.getByRole('heading', { name: 'From SAP, before EJO (3)' })).toBeVisible();
-  await expect(page.getByText('From SAP, before EJO').nth(1)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'From the old system, before EJO (3)' })).toBeVisible();
+  await expect(page.getByText('From the old system, before EJO').nth(1)).toBeVisible();
 });
 
-test('SAP job cards: every row is a job card; “carry out service” starts the vehicle’s next-service clock; a visit is counted once with its invoice; search, vehicle, tracker and export', async ({ page }) => {
+test('old job cards: every row is a job card; “carry out service” starts the vehicle’s next-service clock; a visit is counted once with its invoice; search, vehicle, tracker and export', async ({ page }) => {
   const branchId = await managerBranch();
   const n = T.replace(/\D/g, '4').padEnd(3, '4').slice(0, 3);
   const invoiceNo = (k: string) => `009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}${k}`;
   // The vehicle has its own service interval (the organisation sets none in the test data), so a service anchors its clock.
   await db().customerVehicle.updateMany({ where: { chassisNumber: vin }, data: { serviceIntervalKm: 5000, serviceIntervalDays: 180, mileage: 63000 } });
   await as(page, 'it-administrator');
-  const url = await upload(page, 'jobs', `iw39-${T}.csv`, csv([
-    ['AUFNR', 'AUART', 'KUNUM', 'VHVIN', 'ERDAT', 'IDAT2', 'RECDV', 'KTEXT', 'PERNR', 'NETWR', 'VBELN', 'STAT', 'WERKS'],
-    [`48${n}1`, 'SM01', kunnr, vin, '12.03.2023', '14.03.2023', '40120', 'Carry out service 40,000 km', 'E. Okoro', '430000', invoiceNo('01'), 'TECO', '1000'],
-    [`48${n}2`, 'SM02', kunnr, vin, '04.09.2024', '05.09.2024', '61870', 'Brakes squeal when stopping', 'B. Musa', '250000', invoiceNo('02'), 'TECO', '1000'],
-    [`48${n}3`, 'SM02', '', vin, '20.09.2024', '18.09.2024', '', 'Completed before it was opened', '', '', '', 'TECO', '1000'],
-    ['', 'SM02', kunnr, vin, '21.09.2024', '21.09.2024', '', 'No job number', '', '', '', 'TECO', '1000'],
-    [`48${n}4`, 'SM02', '0009999999', '', '22.09.2024', '22.09.2024', '', 'Unknown customer, no vehicle', '', '', '', 'TECO', '1000'],
-    [`48${n}5`, 'SM02', kunnr, vin, '23.09.2024', '', '', 'Still open in SAP', '', '', '', 'REL', '1000'],
+  const url = await upload(page, 'jobs', `job-history-${T}.csv`, csv([
+    ['Job number', 'Customer number', 'Chassis number (VIN)', 'Opened on', 'Completed on', 'Mileage (km)', 'Complaint / work requested', 'Technician', 'Total (₦)', 'Invoice number', 'Status'],
+    [`48${n}1`, custNo, vin, '12/03/2023', '14/03/2023', '40120', 'Carry out service 40,000 km', 'E. Okoro', '430000', invoiceNo('01'), 'Closed'],
+    [`48${n}2`, custNo, vin, '04/09/2024', '05/09/2024', '61870', 'Brakes squeal when stopping', 'B. Musa', '250000', invoiceNo('02'), 'Closed'],
+    [`48${n}3`, '', vin, '20/09/2024', '18/09/2024', '', 'Completed before it was opened', '', '', '', 'Closed'],
+    ['', custNo, vin, '21/09/2024', '21/09/2024', '', 'No job number', '', '', '', 'Closed'],
+    [`48${n}4`, '9999999', '', '22/09/2024', '22/09/2024', '', 'Unknown customer, no vehicle', '', '', '', 'Closed'],
+    [`48${n}5`, custNo, vin, '23/09/2024', '', '', 'Still open in the old system', '', '', '', 'Open'],
   ]), { branchId });
   await expect(page.getByText('Completed on 2024-09-18 is before it was opened on 2024-09-20.')).toBeVisible();
-  await expect(page.getByText('Job number is required (the SAP order number, AUFNR, or the old job card number).')).toBeVisible();
+  await expect(page.getByText('Job number is required (the old job card number).')).toBeVisible();
   await expect(page.getByText(/The customer was not found\. Import the customers file first \(and the vehicles file/)).toBeVisible();
-  await expect(page.getByText('Status “REL”: a job still open belongs in the open job cards file, not in history.')).toBeVisible();
+  await expect(page.getByText('Status “Open”: a job still open belongs in the open job cards file, not in history.')).toBeVisible();
   await expect(page.getByText(/2 past jobs · ₦680,000\.00 charged · opened 12 Mar 2023 to 4 Sept? 2024/)).toBeVisible();
   await page.getByRole('button', { name: /Send for approval/ }).click();
   await approveAndLoad(page, url);
@@ -129,7 +126,7 @@ test('SAP job cards: every row is a job card; “carry out service” starts the
   expect(jobs.map((j) => j.kind)).toEqual(['SERVICE', 'JOB_CARD']);
   expect(jobs.every((j) => j.vehicleId)).toBe(true);
   expect(jobs[0]!.mileage).toBe(40120);
-  // The customer: two job cards listed (one marked service); the visits count stays 3 — the job cards were invoiced on two of the three SAP invoices.
+  // The customer: two job cards listed (one marked service); the visits count stays 3: the job cards were billed on two of the three old invoices.
   await as(page, 'workshop-manager');
   await open(page, `/crm/customers/${customerId}?tab=jobs`);
   await expect(page.getByRole('heading', { name: 'Job cards before EJO (2)' })).toBeVisible();
@@ -143,16 +140,16 @@ test('SAP job cards: every row is a job card; “carry out service” starts the
   await open(page, `/workshop/vehicles/${vehicle.id}/edit`);
   await expect(page.getByTestId('before-ejo-jobs')).toContainText('Carry out service 40,000 km');
   await expect(page.getByTestId('before-ejo-jobs')).toContainText('E. Okoro');
-  // The service tracker: the SAP service is the vehicle's last service and its clock is running (overdue by now).
+  // The service tracker: the old service is the vehicle's last service and its clock is running (overdue by now).
   await open(page, '/workshop/service-tracker');
-  const row = page.locator('tr', { hasText: `48${n}1 (SAP, before EJO)` });
+  const row = page.locator('tr', { hasText: `48${n}1 (old system)` });
   await expect(row).toBeVisible();
   await expect(row).toContainText(/Overdue|Due soon|Lapsed/);
   // Search by the 6-digit number.
   await open(page, '/dashboard');
   const box = page.getByRole('combobox', { name: 'Search everything' });
   await box.fill(`48${n}1`);
-  await expect(box.locator('xpath=ancestor::div[2]').getByText(`SAP job card 48${n}1 · service`)).toBeVisible();
+  await expect(box.locator('xpath=ancestor::div[2]').getByText(`Old system job card 48${n}1 · service`)).toBeVisible();
 });
 
 test('undo voids the invoice history (spend goes back down); reopening and loading restores it', async ({ page }) => {
@@ -164,7 +161,7 @@ test('undo voids the invoice history (spend goes back down); reopening and loadi
   expect(await db().historicalInvoice.count({ where: { customerId, voidedAt: null } })).toBe(0);
   expect(await db().historicalInvoice.count({ where: { customerId } })).toBe(3);
   await open(page, `/crm/customers/${customerId}`);
-  await expect(page.getByText(/from SAP, before EJO/)).toHaveCount(0);
+  await expect(page.getByText(/from the old system, before EJO/)).toHaveCount(0);
   // Reopen, check and load again: the same three rows come back (never a second copy).
   await as(page, 'it-administrator');
   await open(page, invoicesUrl);

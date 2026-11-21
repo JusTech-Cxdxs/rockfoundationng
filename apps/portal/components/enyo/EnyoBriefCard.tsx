@@ -15,7 +15,7 @@ const get = (k: string) => { try { return window.localStorage.getItem(k); } catc
 const set = (k: string, v: string) => { try { window.localStorage.setItem(k, v); } catch { /* private mode */ } };
 
 const ICON: Record<string, IconName> = {
-  decisions: 'check-circle', steps: 'list', support: 'inbox', reminders: 'clock', appointments: 'calendar', jobs: 'wrench', waiting: 'arrow-right', mail: 'mail', activity: 'bell', broadcasts: 'megaphone',
+  decisions: 'check-circle', steps: 'list', support: 'inbox', reminders: 'clock', jobs: 'wrench', waiting: 'arrow-right', activity: 'bell', broadcasts: 'megaphone',
 };
 
 /**
@@ -97,7 +97,7 @@ export function EnyoBriefCard({ userKey }: { userKey: string }) {
           <span className="min-w-0">
             <span id="enyo-brief" className="block text-sm font-semibold text-[var(--ejo-text)]">Your brief from Enyo</span>
             <span className="block truncate text-xs text-[var(--ejo-text-muted)]">
-              {busy ? 'Looking through your work…' : brief ? brief.headline : 'What is waiting for you — decisions, support, reminders, appointments, mail.'}
+              {busy ? 'Looking through your work…' : brief ? brief.headline : 'What is waiting for you: decisions, support requests, reminders and your jobs.'}
             </span>
           </span>
           {brief && overdue ? <span className="ml-auto shrink-0 rounded-full bg-[var(--ejo-error)]/12 px-2.5 py-1 text-xs font-semibold text-[var(--ejo-error)]">{overdue} overdue</span> : null}
@@ -136,7 +136,7 @@ export function EnyoBriefCard({ userKey }: { userKey: string }) {
 
       <div id="enyo-brief-body" hidden={!open} className="relative border-t border-[var(--ejo-border)] px-4 py-4 sm:px-5" aria-live="polite" aria-busy={busy || writing}>
         {error ? <p className="text-sm text-[var(--ejo-error)]">{error}</p> : null}
-        {!brief && !busy && !error ? <p className="text-sm text-[var(--ejo-text-muted)]">Press <strong>Brief me</strong>: Enyo puts together what is waiting for you, with a link to each — approvals, support requests, reminders, appointments, jobs and your mail.</p> : null}
+        {!brief && !busy && !error ? <p className="text-sm text-[var(--ejo-text-muted)]">Press <strong>Brief me</strong>: Enyo puts together what is waiting for you, with a link to each: approvals, support requests, reminders and your jobs.</p> : null}
         {busy && !brief ? <BriefSkeleton /> : null}
         {brief ? (
           <div className="space-y-4">

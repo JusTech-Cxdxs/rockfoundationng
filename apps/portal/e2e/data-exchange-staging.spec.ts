@@ -15,7 +15,7 @@ test.describe.configure({ mode: 'serial' });
 const T = uniq().replace(/[^A-Z0-9]/g, '').slice(-6);
 const STAMP = String(Date.now()).slice(-7);
 const csv = [
-  ['KUNNR', 'NAME1', 'TELF1', 'STRAS', 'ORT01'],
+  ['Customer number', 'Name', 'Phone', 'Address', 'City'],
   [`8${STAMP}1`, `Staged One ${T}`, `0812 ${STAMP.slice(0, 3)} ${STAMP.slice(3, 7)}`, '1 Marina', 'Lagos'],
   [`8${STAMP}2`, `Staged Two ${T}`, `0813 ${STAMP.slice(0, 3)} ${STAMP.slice(3, 7)}`, '2 Marina', 'Lagos'],
   [`8${STAMP}3`, '', '', '', ''],

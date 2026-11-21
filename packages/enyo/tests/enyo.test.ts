@@ -262,8 +262,8 @@ test('prompts: no money figures unless a tool gave them; inside details for staf
   for (const channel of ['STAFF', 'CUSTOMER', 'PUBLIC'] as const) {
     const p = buildSystemPrompt({ assistantName: 'Enyo', organisationName: 'X', channel, now: 'n' });
     assert.match(p, /Never state a price, cost, fee or amount of money unless a tool returned it/);
-    if (channel === 'STAFF') assert.match(p, /machine-learning models/);
-    else assert.doesNotMatch(p, /machine-learning|parts demand|unusual prices/);
+    if (channel === 'STAFF') assert.match(p, /Anthropic's Claude, connected by JusTech to the organisation's own records/);
+    else assert.doesNotMatch(p, /Anthropic|connected by JusTech/);
   }
 });
 

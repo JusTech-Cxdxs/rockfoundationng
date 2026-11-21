@@ -81,11 +81,11 @@ export async function staffContext(page?: string): Promise<{ ctx: StaffCtx; orga
   };
 }
 
-/** "Technician: Does the work on …; Calendar User: …" */
+/** "Technician — Sees and works only on the jobs assigned to them…; Front Desk / Customer Care — …" */
 export function roleDescription(roleSlugs: string[], isSuperAdmin: boolean): string {
   const parts = roleSlugs.filter((s) => ROLE_LABELS[s]).map((s) => `${ROLE_LABELS[s]}${ROLE_DESCRIPTIONS[s] ? ` — ${ROLE_DESCRIPTIONS[s]}` : ''}`);
   if (isSuperAdmin) parts.unshift('Platform administrator (JusTech) — can see every organisation');
-  return parts.join('; ') || 'No role yet — can request their own exit passes';
+  return parts.join('; ') || 'No role yet: can see their own dashboard, notifications and reminders';
 }
 
 export async function staffSystemPrompt(o: { ctx: StaffCtx; settings: EnyoSettings; organisationId: string | null; memory: string[]; examples?: { question: string; answer: string }[]; workProfile?: string | null }): Promise<string> {
@@ -93,13 +93,14 @@ export async function staffSystemPrompt(o: { ctx: StaffCtx; settings: EnyoSettin
   const organisationName = org?.name || process.env.NEXT_PUBLIC_ORGANISATION_NAME || 'the organisation';
   const firstName = o.ctx.name.split(/\s+/)[0] || o.ctx.name;
   const extra = [
-    'Money is in Nigerian naira (₦). Dates and times are Lagos time.',
+    'Money is in Nigerian naira (₦), with thousands separators. Dates are DD/MM/YYYY, Lagos time. Distances are in km.',
+    'You answer only from this workshop\'s own records (job cards, customers and fleet companies, vehicles, parts, invoices and payments, support requests and reminders) through the tools. When a customer message is wanted, draft it for the person to send on WhatsApp or email themselves; never say you sent it.',
     'Every tool runs as this person: if a tool refuses, they lack that right — never suggest a way around it.',
-    // Only the records and areas of this edition (lib/modules.ts, lib/enyo/edition.ts).
+    // Only the records and areas of the modules switched on (lib/modules.ts, lib/enyo/edition.ts).
     referenceHint(),
     ...(offAreasHint() ? [offAreasHint()] : []),
     'Brief me / what is waiting: use daily_brief and my_pending — first what waits for THEM (decisions, steps), then what they sent that waits on others (say who has it, "Name (Role)"). Link every record number to the page the tool gave, e.g. [JC-2026-000007](/workshop/job-cards/…).',
-    '"Who is <name>" about a colleague: staff_directory (role, branch or headquarters); organisation_info for the published leadership.',
+    '"Who is <name>" about a colleague: staff_directory (role and department); organisation_info for the business details.',
     'How to do anything in the portal: guide_search, with the steps and the link.',
     ...(o.workProfile ? [`About this person's work (use it to tailor answers, suggestions and examples to their job; do not recite it): ${o.workProfile}`] : []),
     ...(o.ctx.page ? [`The person has this page open: ${o.ctx.page}. "This job", "this one" or "here" usually means the record on that page (its id is the last part of the path; the tools accept it).`] : []),

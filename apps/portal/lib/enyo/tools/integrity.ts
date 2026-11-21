@@ -15,7 +15,7 @@ export const integrityTools: StaffTool[] = [
     name: 'integrity_alerts',
     kind: 'read',
     status: 'Checking the integrity watch…',
-    description: 'The integrity watch for a reviewer: open alerts about unusual or risky activity (same person asking and approving, refunds above what was paid, split purchases, repeat warranty claims, vehicles leaving with work open, out-of-hours money, password guessing, activity spikes, Speak up concerns) — counts, by check, and the newest. A flag is a reason to look, never proof: never call anyone dishonest. Use for "anything suspicious?", "fraud alerts", "integrity".',
+    description: 'The integrity watch for a reviewer: open alerts about unusual or risky activity (same person asking and approving, refunds above what was paid, discounts out of the ordinary, vehicles leaving with work open or unpaid, out-of-hours money, password guessing, activity spikes) — counts, by check, and the newest. A flag is a reason to look, never proof: never call anyone dishonest. Use for "anything suspicious?", "fraud alerts", "integrity".',
     parameters: { type: 'object', properties: { severity: { type: 'string', enum: ['HIGH', 'MEDIUM', 'LOW'] } }, additionalProperties: false },
     run: async (args) => {
       if (!(await allows('integrity.review'))) return NOT_PERMITTED;

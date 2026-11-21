@@ -28,7 +28,7 @@ export default async function PermissionsPage() {
         icon="key"
         title="Permissions"
         description={<>Who can do what, and on which records. Each department sees only what its work needs: Front Desk opens jobs, supervisors and
-        technicians do the work, the Manager approves and closes, Finance handles money{moduleIsOn('inventory') ? ', the Store handles stock' : ''} and Security runs the gate. The server
+        technicians do the work, the Owner approves and closes, Finance handles money{moduleIsOn('inventory') ? ', the Store handles stock' : ''} and Security runs the gate. The server
         checks every rule on every page, action, list and search. Someone with several roles gets what those roles allow together. Headquarters can add a
         permission to a role on the Roles page.</>}
       />

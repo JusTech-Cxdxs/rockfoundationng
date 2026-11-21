@@ -78,9 +78,9 @@ export async function getActivityFeed(opts: { unreadOnly?: boolean; take?: numbe
   for (const r of mine) if (r.entityId) byType.set(r.entityType, [...(byType.get(r.entityType) ?? []), r.entityId]);
   const add = (t: string, ids: { id: string }[]) => { if (ids.length) byType.set(t, [...new Set([...(byType.get(t) ?? []), ...ids.map((x) => x.id)])]); };
   add('JobCard', jcs); add('PartRequestSlip', prss); add('SupportTicket', tickets); add('SupportTicket', requested);
-  // Finance hears about every payment, refund and customer notification —
+  // Accounts hears about every payment, refund and customer notification,
   // so they know when money is expected or moves.
-  const financeWatch = m.roleSlugs.includes('finance-officer') ? [{ action: { contains: 'payment' } }, { action: { contains: 'refund' } }, { action: { contains: 'customer_notified' } }] : [];
+  const financeWatch = m.roleSlugs.includes('accounts') ? [{ action: { contains: 'payment' } }, { action: { contains: 'refund' } }, { action: { contains: 'customer_notified' } }] : [];
   const involved = [...byType.entries()].map(([entityType, ids]) => ({ entityType, entityId: { in: ids } }));
   const where = {
     // Only this organisation's events (the platform team sees every organisation).
@@ -103,7 +103,7 @@ export async function getActivityFeed(opts: { unreadOnly?: boolean; take?: numbe
   // Exact pages (an estimate line → its Job Card, a payment → its service…).
   const resolved = await resolveRecords(rows.filter((r: { entityId: string | null; entityType: string }) => r.entityId && !r.entityType.startsWith('api:')).map((r: { entityType: string; entityId: string | null }) => ({ type: r.entityType, id: r.entityId! })));
   // The platform team is shown to organisations as "Platform support".
-  // Each actor with the role they acted in: "Justice Enefola (Manager)" — two managers in one branch are never confused.
+  // Each actor with the role they acted in: "Justice Enefola (Owner)" — two managers in one branch are never confused.
   const name = new Map(actors.map((a: { id: string; fullName: string; roles: { role: { isSuperAdmin: boolean; slug: string } }[] }) => {
     const sa = a.roles.some((r) => r.role.isSuperAdmin);
     return [a.id, !m.isMaster && sa ? 'Platform support' : nameWithRole(a.fullName, a.roles.map((r) => r.role.slug), { isSuperAdmin: sa })];

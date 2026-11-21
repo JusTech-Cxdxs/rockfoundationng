@@ -162,7 +162,6 @@ test('a Zoho People staff list: first and last name make the full name; Email ID
   assert.equal(r.values?.email, 'adaeze.obi@example.com');
 });
 
-test('with SAP off, a file comes from “Zoho, an old system or a spreadsheet”', () => {
-  assert.equal(sourceWords('LEGACY', false), 'Zoho, an old system or a spreadsheet');
-  assert.equal(sourceWords('SAP', true), 'SAP');
+test('a file comes from “Zoho, an old system or a spreadsheet”', () => {
+  assert.equal(sourceWords('LEGACY'), 'Zoho, an old system or a spreadsheet');
 });

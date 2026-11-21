@@ -30,22 +30,22 @@ export const naira = (n: number) => `₦${r2(n).toLocaleString('en-NG', { minimu
 export function nextStep(s: JobState): string {
   const thing = 'Job Card';
   const done = ['CHECKED_OUT'];
-  if (s.status === 'CANCELLED') return s.paid > 0.004 ? `Cancelled. ${naira(s.paid)} has been paid, so Finance records a refund before the vehicle is handed back.` : 'Cancelled. The front desk hands the vehicle back.';
+  if (s.status === 'CANCELLED') return s.paid > 0.004 ? `Cancelled. ${naira(s.paid)} has been paid, so the refund is recorded before the vehicle is handed back.` : 'Cancelled. Front Desk hands the vehicle back.';
   if (done.includes(s.status)) return 'Finished: the vehicle has left.';
   if (s.approvalStatus === 'PENDING') return `Waiting for the supervisor to approve the ${thing}.`;
-  if (s.approvalStatus === 'REJECTED') return `The supervisor rejected the ${thing}; the front desk corrects it or opens a new one.`;
-  if (s.status === 'CLOSED') return 'Closed by the Manager: the front desk checks the vehicle out to the person collecting it.';
+  if (s.approvalStatus === 'REJECTED') return `The supervisor rejected the ${thing}; Front Desk corrects it or opens a new one.`;
+  if (s.status === 'CLOSED') return 'Closed by the Owner: Front Desk checks the vehicle out to the person collecting it.';
   if (s.status === 'READY_FOR_COLLECTION') {
     const owed = r2(s.total - s.paid);
-    return owed > 0.004 ? `Ready for collection. ${naira(owed)} is still to be paid, then the close can be requested.` : 'Ready for collection and paid: the front desk or supervisor requests the close, and the Manager approves it.';
+    return owed > 0.004 ? `Ready for collection. ${naira(owed)} is still to be paid, then the close can be requested.` : 'Ready for collection and paid: Front Desk or the supervisor requests the close, and the Owner approves it.';
   }
   if (s.status === 'COMPLETED') return 'Work completed: the supervisor marks it ready for collection.';
   if (!s.hasTechnician) return 'The supervisor assigns a technician.';
   if (s.technicianAccepted === 'PENDING') return 'Waiting for the technician to accept the job.';
   if (!s.estimateStatus || s.estimateStatus === 'DRAFT') return 'The technician and supervisor prepare the estimate and submit it.';
   if (s.estimateStatus === 'SUBMITTED') return 'Waiting for the supervisor to approve the estimate.';
-  if (s.estimateStatus === 'APPROVED') return 'Waiting for the Manager\'s final approval of the estimate.';
-  if (s.estimateStatus === 'MANAGER_APPROVED' && !s.customerNotified) return 'The front desk sends the approved estimate to the customer ("Notify customer").';
+  if (s.estimateStatus === 'APPROVED') return 'Waiting for the Owner\'s final approval of the estimate.';
+  if (s.estimateStatus === 'MANAGER_APPROVED' && !s.customerNotified) return 'Front Desk sends the approved estimate to the customer ("Notify customer" or "Send on WhatsApp").';
   const deposit = r2(s.total * s.depositFraction);
   if (s.status === 'AWAITING_CUSTOMER_APPROVAL') {
     const depositWords = `${naira(deposit)} (${Math.round(s.depositFraction * 100)}% of ${naira(s.total)}); ${naira(s.paid)} paid so far`;
@@ -56,8 +56,8 @@ export function nextStep(s: JobState): string {
         : 'Waiting for the customer to approve the estimate: by the link in their email, in the customer portal, or by phone. No deposit applies.';
     }
   }
-  // The Store can be switched off (lib/modules.ts).
-  if (s.status === 'AWAITING_PARTS') return moduleIsOn('inventory') ? 'Waiting for parts (Store release).' : 'Waiting for parts.';
+  // The Parts store can be switched off (lib/modules.ts).
+  if (s.status === 'AWAITING_PARTS') return moduleIsOn('inventory') ? 'Waiting for parts (the store issues them).' : 'Waiting for parts.';
   if (s.status === 'QUALITY_CHECK') return 'In quality check: the supervisor confirms the work.';
   return 'Work in progress with the technician.';
 }

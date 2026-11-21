@@ -10,7 +10,7 @@ import { moduleIsOn } from '@/lib/modules';
 /**
  * "Waiting on others": everything this person asked for that is still with
  * someone else — a Job Card waiting for its supervisor, an estimate for the
- * supervisor or the Manager, a parts request for the Manager or the Store, a
+ * supervisor or the Owner, a parts request for the Owner or the Store, a
  * close or cancel request, a help request. Each names who it is waiting on
  * (name and role) and since when. The person's own records only; nothing
  * about anyone else's.
@@ -34,7 +34,7 @@ export async function getMyPending(): Promise<PendingItem[]> {
     p.organisationId ? prisma.supportTicket.findMany({ where: { organisationId: p.organisationId, requesterUserId: mine, status: { in: ['OPEN', 'WAITING_ON_CUSTOMER', 'ON_HOLD'] } }, take: 20, select: { id: true, number: true, subject: true, status: true, createdAt: true, assignedToId: true } }).catch(() => []) : [],
   ]);
 
-  // Who is "the Manager" or "Finance" in each branch, by name and role (once per branch).
+  // Who is "the Owner" or "Finance" in each branch, by name and role (once per branch).
   const managers = new Map<string, string>();
   const names = (list: { id?: string; fullName: string }[], role: string, fallback: string) => {
     const xs = list.filter((x) => x.id !== mine).slice(0, 2).map((x) => `${x.fullName} (${role})`);
@@ -43,10 +43,10 @@ export async function getMyPending(): Promise<PendingItem[]> {
   const managerOf = async (branchId: string) => {
     if (!managers.has(branchId)) {
       const m = await listEligibleManagersForBranch(branchId).catch(() => ({ supervisors: [] as { id: string; fullName: string }[], usingFallback: true }));
-      // No Manager in the branch yet (the fallback list is not Managers): say "the Manager", not someone else's name.
+      // No Owner in the branch yet (the fallback list is not the Owner): say "the Owner", not someone else's name.
       const real = m.usingFallback ? [] : (m.supervisors as { id: string; fullName: string }[]).filter((x) => x.id !== mine);
-      // No (other) Manager in the branch: it goes above, as the approvals do.
-      managers.set(branchId, real.length ? names(real, 'Manager', 'the Manager') : await aboveMe());
+      // No (other) Owner in the branch: it goes above, as the approvals do.
+      managers.set(branchId, real.length ? names(real, 'Owner', 'the Owner') : await aboveMe());
     }
     return managers.get(branchId)!;
   };
@@ -54,12 +54,11 @@ export async function getMyPending(): Promise<PendingItem[]> {
   let above: string | null = null;
   const aboveMe = async () => {
     if (above === null) {
-      const execs = p.organisationId ? await prisma.user.findMany({ where: { organisationId: p.organisationId, isActive: true, id: { not: mine }, roles: { some: { role: { slug: 'executive' } } } }, take: 2, select: { fullName: true } }) : [];
-      // Executives, else administrators.
-      const admins = execs.length || !p.organisationId ? [] : await prisma.user.findMany({ where: { organisationId: p.organisationId, isActive: true, id: { not: mine }, roles: { some: { role: { slug: 'administrator' } } } }, take: 2, select: { fullName: true } });
-      // Nobody above yet: the Platform Administrator stands in (lib/master-fallback.ts) — named, so the person knows who has it.
-      const masters = execs.length || admins.length ? [] : (await masterAdminsFor(p.organisationId)).filter((x) => x.id !== mine).slice(0, 2);
-      above = execs.length ? execs.map((e) => `${e.fullName} (Executive)`).join(' or ') : admins.length ? admins.map((e) => `${e.fullName} (Administrator)`).join(' or ') : masters.length ? masters.map((e) => `${e.fullName} (Master administrator)`).join(' or ') : 'the Executive';
+      // The Owner decides what is above everyone else.
+      const owners = p.organisationId ? await prisma.user.findMany({ where: { organisationId: p.organisationId, isActive: true, id: { not: mine }, roles: { some: { role: { slug: 'owner' } } } }, take: 2, select: { fullName: true } }) : [];
+      // No Owner yet: the Platform Administrator stands in (lib/master-fallback.ts), named, so the person knows who has it.
+      const masters = owners.length ? [] : (await masterAdminsFor(p.organisationId)).filter((x) => x.id !== mine).slice(0, 2);
+      above = owners.length ? owners.map((e) => `${e.fullName} (Owner)`).join(' or ') : masters.length ? masters.map((e) => `${e.fullName} (Platform Administrator)`).join(' or ') : 'the Owner';
     }
     return above;
   };
@@ -73,8 +72,8 @@ export async function getMyPending(): Promise<PendingItem[]> {
     : { id: `est-${e.jobCard.id}`, area: 'Workshop', number: e.jobCard.jobNumber, title: 'Estimate waiting for final approval', waitingOn: await managerOf(e.jobCard.branchId), since: e.approvedAt ?? e.updatedAt, url: `/workshop/job-cards/${e.jobCard.id}` });
   for (const s of prs) out.push({
     id: `prs-${s.id}`, area: 'Store', number: s.referenceNumber,
-    title: s.status === 'PENDING_HOD_APPROVAL' ? 'Parts request waiting for the Manager' : s.status === 'PENDING_STORE_APPROVAL' ? 'Parts request waiting for the Store' : 'Parts approved — waiting to be released',
-    waitingOn: s.status === 'PENDING_HOD_APPROVAL' ? await managerOf(s.branchId) : 'the Store (Store Manager or Store Officer)',
+    title: s.status === 'PENDING_HOD_APPROVAL' ? 'Parts request waiting for the Owner' : s.status === 'PENDING_STORE_APPROVAL' ? 'Parts request waiting for the Store' : 'Parts approved — waiting to be released',
+    waitingOn: s.status === 'PENDING_HOD_APPROVAL' ? await managerOf(s.branchId) : 'the Store (Store Keeper or Store Keeper)',
     since: s.storeApprovedAt ?? s.hodApprovedAt ?? s.createdAt, url: `/workshop/parts-requests/${s.id}`,
   });
   for (const c of closes) out.push({ id: `close-${c.jobCard.id}`, area: 'Workshop', number: c.jobCard.jobNumber, title: 'Close request waiting for approval', waitingOn: await managerOf(c.jobCard.branchId), since: c.requestedAt, url: `/workshop/job-cards/${c.jobCard.id}` });

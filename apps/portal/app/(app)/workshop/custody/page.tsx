@@ -56,7 +56,7 @@ function AnalysisLine({ entry }: { entry: CustodyEntry }) {
   );
 }
 
-/** A pending cancellation request, as on the Job Card page. Managers can
+/** A pending cancellation request, as on the Job Card page. the Owner can
  * approve or decline here; others only see that a decision is pending. */
 function PendingCancellationBlock({ entry, isEligibleManager }: { entry: CustodyEntry; isEligibleManager: boolean }) {
   if (!entry.pendingCancellationRequest) return null;
@@ -71,7 +71,7 @@ function PendingCancellationBlock({ entry, isEligibleManager }: { entry: Custody
       <div className="mt-3 space-y-1.5">
         {badge}
         <p className="text-xs text-[var(--ejo-text-muted)]">
-          Cancellation requested by {request.requestedByName} — awaiting a Manager&apos;s decision.
+          Cancellation requested by {request.requestedByName} — awaiting the Owner&apos;s decision.
         </p>
       </div>
     );
@@ -479,7 +479,7 @@ export default async function WorkshopCustodyPage({
                   </form>
                 ) : (
                   <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
-                    Only a Manager or HOD can notify the customer.
+                    Only the Owner or HOD can notify the customer.
                   </p>
                 )}
                 {isEligibleManager ? (

@@ -51,7 +51,7 @@ export function billingOf(jc: { branch: { businessUnit: { organisation: BillingS
 /**
  * What the customer owes on a Job Card: its estimate through the one shared
  * calculation (@ejo/utils/billing), with the VAT rate fixed on it at the
- * Manager's approval, else the organisation's current setting. No estimate
+ * Owner's approval, else the organisation's current setting. No estimate
  * yet: nothing.
  */
 export function jobCardTotals(estimate: EstimateForTotals, settings: VatSetting | null | undefined): BillingTotals {

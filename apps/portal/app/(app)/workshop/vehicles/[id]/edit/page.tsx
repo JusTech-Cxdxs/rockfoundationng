@@ -610,7 +610,7 @@ export default async function VehiclePage({
                     {analytics.outstanding > 0 ? `Outstanding: ${naira(analytics.outstanding)}` : 'Nothing outstanding.'}
                   </p>
                   <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
-                    Approved = estimates with the Manager&apos;s final approval. Paid = payments recorded.
+                    Approved = estimates with the Owner&apos;s final approval. Paid = payments recorded.
                   </p>
                 </>
               );
@@ -735,7 +735,7 @@ function BeforeEjo({ data }: { data: Awaited<ReturnType<typeof getVehicleHistory
           <ul className="mt-2 divide-y divide-[var(--ejo-border)] text-sm">
             {data.invoices.map((i) => (
               <li key={i.id} className="flex items-start justify-between gap-3 py-2">
-                <span className="min-w-0"><span className="text-[var(--ejo-text)]">{i.number}{i.fiscalYear ? ` · ${i.fiscalYear}` : ''}</span><span className="block text-xs text-[var(--ejo-text-muted)]">{dayText(i.date)}{i.customerName ? ` · ${i.customerName}` : ''}{i.description ? ` · ${i.description}` : ''}</span></span>
+                <span className="min-w-0"><span className="text-[var(--ejo-text)]">{i.number}</span><span className="block text-xs text-[var(--ejo-text-muted)]">{dayText(i.date)}{i.customerName ? ` · ${i.customerName}` : ''}{i.description ? ` · ${i.description}` : ''}</span></span>
                 <span className="shrink-0 tabular-nums text-[var(--ejo-text)]">{nairaText(i.amount)}</span>
               </li>
             ))}

@@ -1,11 +1,11 @@
 /**
  * The Store: selling price and stock for any staff with the Store open
- * (store.view), and purchase cost and margin only for people who already
- * see costs on the Store pages (STORE_COST_PERMISSIONS). Parts are read
+ * (store.view), and purchase cost and margin only for people who see costs
+ * (STORE_COST_PERMISSIONS: the Owner by default). Parts are read
  * through listParts / getPricingAlertSummary, fenced to the person's Store.
  *
- * Both tools belong to the Store (inventory) module: while it is switched off
- * in this edition (lib/modules.ts) they are never offered (lib/enyo/edition.ts).
+ * Both tools belong to the Parts store (inventory) module: while it is switched off
+ * (lib/modules.ts) they are never offered (lib/enyo/edition.ts).
  */
 import { allows } from '@/lib/authz/server';
 import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
@@ -31,7 +31,7 @@ async function seesCosts(branchId: string): Promise<boolean> {
   return false;
 }
 
-const STORE_WHO = 'the Store is open to the workshop, the Store, Finance, Warranty and management.';
+const STORE_WHO = 'the Parts store is open to the workshop, the Store Keeper, Accounts and the Owner.';
 
 export const storeTools: StaffTool[] = [
   {

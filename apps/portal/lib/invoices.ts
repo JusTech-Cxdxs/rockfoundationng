@@ -42,7 +42,7 @@ const net = (rows: { amount: unknown }[]) => rows.reduce((s, r) => s + Number(r.
  * when the Job Card moves to COMPLETED and by "Issue invoice" (older Job
  * Cards). Idempotent: a second call, or two at the same instant, hand back
  * the same invoice (`created: false`). Null when there is nothing to invoice
- * yet (no Manager-approved estimate, or the work is not finished).
+ * yet (no Owner-approved estimate, or the work is not finished).
  */
 export async function ensureInvoice(jobCardId: string, issuedById: string): Promise<{ invoice: { id: string; invoiceNumber: string }; created: boolean } | null> {
   const existing = await prisma.invoice.findUnique({ where: { jobCardId }, select: { id: true, invoiceNumber: true } });

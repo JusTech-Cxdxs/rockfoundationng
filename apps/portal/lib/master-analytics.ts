@@ -261,7 +261,7 @@ export function computeMasterAnalytics(input: { jobs: Job[]; purchases: Purchase
   const href = (j: Job) => (j.kind === 'JC' ? `/workshop/job-cards/${j.id}` : `/workshop/vehicle-service/${j.id}`);
   const chase = finishedOwing.sort((a, b) => b.m.owed - a.m.owed);
   if (chase.length) actions.push({ priority: 1, title: `${money(position.receivables)} owed on ${plural(chase.length, 'finished job')}`, detail: 'Collect the balance from each customer.', href: chase.length === 1 ? href(chase[0]!.j) : '/workshop/custody', items: chase.slice(0, 12).map((x) => item(x.j, money(x.m.owed))) });
-  if (overpaid.length) actions.push({ priority: 1, title: `${money(position.overpaidTotal)} to refund on ${plural(overpaid.length, 'job')}`, detail: 'Customers paid more than they owe — Finance can refund from the job.', href: href(overpaid[0]!.j), items: overpaid.slice(0, 12).map((x) => item(x.j, money(-x.m.owed))) });
+  if (overpaid.length) actions.push({ priority: 1, title: `${money(position.overpaidTotal)} to refund on ${plural(overpaid.length, 'job')}`, detail: 'Customers paid more than they owe — Accounts can refund from the job.', href: href(overpaid[0]!.j), items: overpaid.slice(0, 12).map((x) => item(x.j, money(-x.m.owed))) });
   const loss = doneNow.map((j) => ({ j, m: jobMoney(j) })).filter((x) => x.m.sales > 0 && x.m.grossProfit < 0);
   if (loss.length) actions.push({ priority: 1, title: `${plural(loss.length, 'job')} sold below cost this period`, detail: 'Check the pricing on each.', href: href(loss[0]!.j), items: loss.slice(0, 12).map((x) => item(x.j, money(x.m.grossProfit))) });
   const thin = doneNow.map((j) => ({ j, m: jobMoney(j) })).filter((x) => x.m.sales > 0 && x.m.grossProfit >= 0 && x.m.grossProfit / x.m.sales < 0.1);

@@ -57,7 +57,7 @@ export async function getWorkflowActionItems(): Promise<WorkflowAction[]> {
   const at = (d: Date | null | undefined) => (d ? new Date(d) : new Date());
 
   for (const e of estSubmitted) if (e.jobCard.supervisorId === user.id || isMaster) out.push({ id: `est-sub-${e.jobCard.id}`, title: `Approve the estimate — ${e.jobCard.jobNumber}`, detail: 'Submitted for your validation as Supervisor.', url: jcUrl(e.jobCard.id, 'estimate'), createdAt: at(e.updatedAt) });
-  for (const e of estApproved) if (can(e.jobCard.branchId, 'manager')) out.push({ id: `est-mgr-${e.jobCard.id}`, title: `Final approval of the estimate — ${e.jobCard.jobNumber}`, detail: 'Validated by the Supervisor — needs a Manager.', url: jcUrl(e.jobCard.id, 'estimate'), createdAt: at(e.updatedAt) });
+  for (const e of estApproved) if (can(e.jobCard.branchId, 'manager')) out.push({ id: `est-mgr-${e.jobCard.id}`, title: `Final approval of the estimate — ${e.jobCard.jobNumber}`, detail: 'Validated by the Supervisor — needs the Owner.', url: jcUrl(e.jobCard.id, 'estimate'), createdAt: at(e.updatedAt) });
   for (const e of estToNotify) if (mine(e.jobCard.createdById)) out.push({ id: `est-ntf-${e.jobCard.id}`, title: `Notify the customer — ${e.jobCard.jobNumber}`, detail: 'The estimate is fully approved — send it to the customer.', url: jcUrl(e.jobCard.id, 'estimate'), createdAt: at(e.managerApprovedAt) });
   for (const e of estMatching) if (can(e.jobCard.branchId, 'store')) out.push({ id: `est-match-${e.jobCard.id}`, title: `Match the store parts — ${e.jobCard.jobNumber}`, detail: 'Store matching was requested and some parts are not matched yet.', url: `/inventory/estimate-matching/${e.jobCard.id}`, createdAt: at(e.matchingRequestedAt) });
   for (const p of prs) {
@@ -67,6 +67,6 @@ export async function getWorkflowActionItems(): Promise<WorkflowAction[]> {
     if (p.status === 'APPROVED' && can(p.branchId, 'store')) out.push({ id: `prs-rel-${p.id}`, title: `Release the parts — ${p.referenceNumber}`, detail: 'Approved and reserved — hand the parts over.', url, createdAt: at(p.updatedAt) });
   }
   for (const j of jcCompleted) if (j.supervisorId === user.id || isMaster) out.push({ id: `jc-ready-${j.id}`, title: `Mark ready for collection — ${j.jobNumber}`, detail: 'The work is completed.', url: jcUrl(j.id, 'status'), createdAt: at(j.updatedAt) });
-  for (const j of jcClosed) if (mine(j.createdById)) out.push({ id: `jc-out-${j.id}`, title: `Check the vehicle out — ${j.jobNumber}`, detail: 'Closed by the Manager — release the vehicle to the customer.', url: jcUrl(j.id, 'status'), createdAt: at(j.updatedAt) });
+  for (const j of jcClosed) if (mine(j.createdById)) out.push({ id: `jc-out-${j.id}`, title: `Check the vehicle out — ${j.jobNumber}`, detail: 'Closed by the Owner — release the vehicle to the customer.', url: jcUrl(j.id, 'status'), createdAt: at(j.updatedAt) });
   return out;
 }

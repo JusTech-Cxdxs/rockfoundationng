@@ -2,7 +2,7 @@
  * Every staff tool Enyo may use. All of them are offered to the model for
  * every person: each tool refuses on its own (NOT_PERMITTED-style) when the
  * person lacks the right, so a technician asking for profit gets a kind
- * refusal while Finance gets the figure. A tool never widens access — it runs
+ * refusal while the Owner gets the figure. A tool never widens access — it runs
  * the module's own authorised code as the signed-in person.
  *
  * Each area keeps its tools in its own `tools/<area>.ts` file; every file in
@@ -52,7 +52,7 @@ export function staffTools(): StaffTool[] {
     ...peopleTools,
     ...(webLookupEnabled() ? [webLookupTool<StaffCtx>()] : []),
   ];
-  // Only the modules switched on in this edition, in this edition's words.
+  // Only the modules switched on, with the wording that fits.
   return all.filter((t) => toolOn(t.name)).map((t) => ({ ...t, description: editionDescription(t.name, t.description) }));
 }
 

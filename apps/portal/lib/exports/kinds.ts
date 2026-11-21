@@ -184,7 +184,7 @@ const parts: ExportKind = {
     { header: 'Reorder point', type: 'number', width: 10, get: (r) => n(r.reorderPoint) },
     { header: 'Safety stock', type: 'number', width: 10, get: (r) => n(r.safetyStock) },
     { header: 'On hand', type: 'number', width: 9, get: (r) => n(r.stock?.quantityOnHand) ?? 0 },
-    { header: 'Number in SAP or the old system', type: 'code', width: 16, get: (r) => r.externalId },
+    { header: 'Number in the old system', type: 'code', width: 16, get: (r) => r.externalId },
     { header: 'Entered EJO', type: 'date', width: 12, get: (r) => r.createdAt },
     { header: 'Source', type: 'text', width: 12, get: (r) => (r.importJobId ? 'Imported' : 'Created in EJO') },
     { header: 'Import', type: 'code', width: 16, get: (r) => r.imp },
@@ -240,7 +240,7 @@ const stock: ExportKind<StockRow> = {
 const suppliers: ExportKind = {
   key: 'suppliers', label: 'Suppliers', view: ['store.view'], sensitive: false, page: '/inventory/suppliers',
   columns: [
-    { header: 'Supplier number (SAP or old system)', type: 'code', width: 14, get: (r) => r.externalId },
+    { header: 'Supplier number (old system)', type: 'code', width: 14, get: (r) => r.externalId },
     { header: 'Name', type: 'text', width: 30, get: (r) => r.name },
     { header: 'Contact person', type: 'text', width: 18, get: (r) => r.contactName },
     { header: 'Phone', type: 'code', width: 16, get: (r) => r.phone },
@@ -267,7 +267,7 @@ const goodsReceipts: ExportKind = {
     { header: 'Goods receipt', type: 'code', width: 16, get: (r) => r.goodsReceipt.referenceNumber },
     { header: 'Received', type: 'datetime', width: 16, get: (r) => r.goodsReceipt.receivedAt },
     { header: 'Supplier', type: 'text', width: 24, get: (r) => r.goodsReceipt.supplierName },
-    { header: 'Supplier number (SAP)', type: 'code', width: 14, get: (r) => r.goodsReceipt.supplier?.externalId },
+    { header: 'Supplier number (old system)', type: 'code', width: 14, get: (r) => r.goodsReceipt.supplier?.externalId },
     { header: 'Opening balance', type: 'bool', width: 9, get: (r) => r.goodsReceipt.isOpeningBalance },
     { header: 'Part number', type: 'code', width: 16, get: (r) => r.part.partNumber },
     { header: 'Description', type: 'text', width: 28, get: (r) => r.part.name },
@@ -326,8 +326,6 @@ const historyInvoices: ExportKind = {
   key: 'history-invoices', label: 'Invoice history (before EJO)', view: ['crm.view'], sensitive: true, page: '/crm',
   columns: [
     { header: 'Invoice number', type: 'code', width: 14, get: (r) => r.invoiceNumber },
-    { header: 'Fiscal year', type: 'int', width: 8, get: (r) => r.fiscalYear },
-    { header: 'Company code', type: 'code', width: 8, get: (r) => r.companyCode },
     { header: 'Document type', type: 'code', width: 8, get: (r) => r.documentType },
     { header: 'Invoice date', type: 'day', width: 12, get: (r) => r.invoiceDate },
     { header: 'Customer name', type: 'text', width: 24, get: (r) => r.customerName },
@@ -343,7 +341,7 @@ const historyInvoices: ExportKind = {
     const reach = await reachWhere('crm.view', { lens: false });
     const branchId = typeof reach.branchId === 'string' ? reach.branchId : null;
     const year = /^\d{4}$/.test(String(p.year)) ? Number(p.year) : null;
-    const where: Prisma.HistoricalInvoiceWhereInput = { organisationId: ctx.organisationId ?? '__none__', voidedAt: null, ...(branchId ? { branchId } : {}), ...(year ? { fiscalYear: year } : {}), ...(p.customerId ? { customerId: p.customerId } : {}) };
+    const where: Prisma.HistoricalInvoiceWhereInput = { organisationId: ctx.organisationId ?? '__none__', voidedAt: null, ...(branchId ? { branchId } : {}), ...(year ? { invoiceDate: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) } } : {}), ...(p.customerId ? { customerId: p.customerId } : {}) };
     for await (const { rows: b, next } of blocks((c) => prisma.historicalInvoice.findMany({ where, orderBy: [{ invoiceDate: 'desc' }, { id: 'desc' }], ...page(c) }), from)) {
       const [names, imp] = await Promise.all([
         prisma.customer.findMany({ where: { id: { in: [...new Set(b.map((r) => r.customerId))] } }, select: { id: true, fullName: true, externalId: true } }).then((x) => new Map(x.map((c) => [c.id, c]))),

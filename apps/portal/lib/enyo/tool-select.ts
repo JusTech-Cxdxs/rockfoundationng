@@ -10,7 +10,7 @@
  * broader everyday set.
  *
  * Only tools of modules switched on are ever picked (lib/enyo/edition.ts):
- * with the Store off, "stock" picks nothing from that area.
+ * with the Parts store off, "stock" picks nothing from that area.
  */
 import { moduleIsOn } from '../modules';
 import { toolOn } from './edition';
@@ -31,7 +31,7 @@ const GROUPS: Group[] = [
   { test: /support|ticket|SUP-|complain|customer care|help request|hand.?over/i, tools: ['support_overview', 'support_request', 'support_numbers'] },
   { test: /audit|integrity|who (changed|did|approved|deleted|edited)|trail|alert|suspicious|fraud/i, tools: ['integrity_alerts', 'audit_trail'] },
   { test: /error|ref(erence)?\b|\bbug|crash|fail|broken|not working|\bIT\b|sign.?in|log.?in|password/i, tools: ['explain_error'] },
-  { test: /who('?s| is| are)|staff|employee|colleague|manager|supervisor|technician|\bhod\b|head of|director|executive|role|team|people|department|works? (in|at)/i, tools: ['staff_directory', 'organisation_info'] },
+  { test: /who('?s| is| are)|staff|employee|colleague|owner|\bgmd\b|front desk|supervisor|service advisor|technician|store ?keeper|accounts|security|role|team|people|department|works? (in|at)/i, tools: ['staff_directory', 'organisation_info'] },
   { test: /\bmy (recent|last) (activity|actions)|what did i (do|change)/i, tools: ['my_recent_activity'] },
 ];
 

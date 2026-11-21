@@ -20,7 +20,7 @@ test('set up: a loaded customers import — one to invite, one with no email, on
   const admin = await db().user.findUniqueOrThrow({ where: { email: who('administrator').email }, select: { id: true, organisationId: true } });
   const org = admin.organisationId!;
   ids.job = (await db().importJob.create({ data: { number: `IMP-E2E-INV-${STAMP}`, organisationId: org, entity: 'customers', fileName: `customers-${STAMP}.csv`, fileSha256: `e2e-${STAMP}`.padEnd(64, '0'), headers: ['Name', 'Email', 'Phone'], mapping: { fullName: 0, email: 1, phone: 2 }, status: 'COMPLETED', completedAt: new Date(), createdById: admin.id, goodRows: 3, createdRows: 3 }, select: { id: true } })).id;
-  const make = (n: number, email: string | null) => db().customer.create({ data: { organisationId: org, fullName: `Imported ${STAMP} ${n}`, email, phone: `0803${STAMP.slice(-6)}${n}`, importJobId: ids.job, externalSource: 'SAP', externalId: `9${STAMP}${n}` }, select: { id: true } });
+  const make = (n: number, email: string | null) => db().customer.create({ data: { organisationId: org, fullName: `Imported ${STAMP} ${n}`, email, phone: `0803${STAMP.slice(-6)}${n}`, importJobId: ids.job, externalSource: 'LEGACY', externalId: `9${STAMP}${n}` }, select: { id: true } });
   ids.invite = (await make(1, mail(1))).id;
   ids.noEmail = (await make(2, null)).id;
   ids.hasAccess = (await make(3, mail(3))).id;

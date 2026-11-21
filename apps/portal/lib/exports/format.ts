@@ -4,7 +4,7 @@
  *  • Dates are real dates (Excel date cells; CSV "YYYY-MM-DD", or with the
  *    time "YYYY-MM-DD HH:MM"), in Lagos time — a moment never shifts a day.
  *  • Money is a number, with the currency in its own column.
- *  • Record numbers are text (SAP's leading zeros are kept).
+ *  • Record numbers are text (leading zeros are kept).
  *  • Yes / No, never true / false.
  *  • Text that starts with = + - @ (or a tab / carriage return) cannot run as
  *    a formula: in CSV it gets a leading apostrophe; Excel cells are always

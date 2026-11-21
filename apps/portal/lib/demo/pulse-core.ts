@@ -35,15 +35,15 @@ export function nextWorkingDay(dayKey: string): string {
   return lagosDayKey(new Date(t));
 }
 
-export type PulseDay = { dayKey: string; weekday: number; jobCards: number; servicesToday: number; servicesBooked: number; visitors: number; tickets: number; meeting: boolean; broadcast: boolean };
+export type PulseDay = { dayKey: string; weekday: number; jobCards: number; servicesToday: number; tickets: number; broadcast: boolean };
 
 /** What one Lagos day adds: a busy weekday, a half-day Saturday, a quiet Sunday (a website message only). */
 export function pulseDay(now: Date): PulseDay {
   const dayKey = lagosDayKey(now);
   const weekday = weekdayOf(dayKey);
-  if (weekday === 0) return { dayKey, weekday, jobCards: 0, servicesToday: 0, servicesBooked: 0, visitors: 0, tickets: 1, meeting: false, broadcast: false };
-  if (weekday === 6) return { dayKey, weekday, jobCards: 1, servicesToday: 0, servicesBooked: 1, visitors: 1, tickets: 1, meeting: false, broadcast: false };
-  return { dayKey, weekday, jobCards: 3, servicesToday: 1, servicesBooked: 1, visitors: 2, tickets: 2, meeting: true, broadcast: weekday === 1 };
+  if (weekday === 0) return { dayKey, weekday, jobCards: 0, servicesToday: 0, tickets: 1, broadcast: false };
+  if (weekday === 6) return { dayKey, weekday, jobCards: 1, servicesToday: 0, tickets: 1, broadcast: false };
+  return { dayKey, weekday, jobCards: 3, servicesToday: 1, tickets: 2, broadcast: weekday === 1 };
 }
 
 /**
@@ -70,13 +70,6 @@ export function dayRandom(dayKey: string, salt: string): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-
-export const PULSE_VISITORS = [
-  { name: 'Fleet Manager (a fleet customer)', purpose: 'Bringing a vehicle for service', company: 'Fleet customer', hh: 10, mm: 0, minutes: 60, vehicle: 'TRUCK' },
-  { name: 'Insurance assessor', purpose: 'Insurance assessor inspection', company: 'Insurance assessor (demo)', hh: 14, mm: 0, minutes: 60, vehicle: 'CAR' },
-  { name: 'Parts vendor', purpose: 'Parts delivery from a vendor', company: 'Parts vendor (demo)', hh: 11, mm: 30, minutes: 45, vehicle: 'CAR' },
-  { name: 'Ms Ekanem', purpose: 'Estimate discussion with the supervisor', company: '', hh: 9, mm: 30, minutes: 30, vehicle: 'ON_FOOT' },
-] as const;
 
 export const PULSE_TICKETS = [
   { subject: 'When will my vehicle be ready?', summary: 'The vehicle came in this morning. When can I collect it?', priority: 'NORMAL' },

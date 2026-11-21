@@ -359,7 +359,7 @@ export async function sendManualServiceReminder(vehicleId: string): Promise<void
 }
 
 /**
- * "Send all due reminders": a Manager or the Owner sends the reminders that
+ * "Send all due reminders": the Owner or the Owner sends the reminders that
  * are due now (same stages, 7-working-day spacing and skips).
  */
 export async function runServiceRemindersNow(): Promise<{ evaluated: number; sent: number; failed: number }> {
@@ -367,7 +367,7 @@ export async function runServiceRemindersNow(): Promise<{ evaluated: number; sen
   if (!(await currentUserIsMasterAdmin())) {
     const managers = await listEligibleManagersForBranch(await getWorkshopBranchId());
     if (!managers.supervisors.some((m: { id: string }) => m.id === user.id)) {
-      throw new ServiceTrackingError('Only a Manager can run reminders on demand.');
+      throw new ServiceTrackingError('Only the Owner can run reminders on demand.');
     }
   }
   const needing = await getVehiclesNeedingServiceReminder();

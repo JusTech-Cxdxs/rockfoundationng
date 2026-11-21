@@ -2,8 +2,6 @@ import { test, expect, type Page } from '@playwright/test';
 import { as, uniq, open } from './helpers';
 import { db } from './db';
 import { WORKSHOP_BRANCH, who } from './people';
-import { SAP_ENABLED } from './edition';
-import { IMPORT_SOURCE, IMPORT_SOURCE_WORDS } from './edition';
 
 /**
  * P5 — the job cards still open on the cut-over day become live EJO job
@@ -19,7 +17,7 @@ test.describe.configure({ mode: 'serial' });
 const T = uniq().replace(/[^A-Z0-9]/g, '').slice(-6);
 // Digits that differ every run (the clock), so a second run never meets the customer, plates or job numbers of the last one.
 const D = String(Date.now()).slice(-8);
-const kunnr = (n: number) => `00${D}${n}`;
+const custNo = (n: number) => `00${D}${n}`;
 const vin = (n: number) => `JAANLR85EL${T.replace(/[IOQ]/g, 'X').padEnd(6, 'X').slice(0, 6)}${n}`;
 const plate = (n: number) => `OPJ ${D.slice(-5)} A${String.fromCharCode(65 + n)}`;
 const jobNo = (n: number) => `4${D.slice(-4)}${n}`;
@@ -50,24 +48,24 @@ test('the file: refusals, the totals, approval and load — live job cards at th
   const branchId = await managerBranch();
   const org = await db().branch.findUniqueOrThrow({ where: { id: branchId }, select: { businessUnit: { select: { organisationId: true } } } });
   const admin = await db().user.findUniqueOrThrow({ where: { email: 'admin@e2e.test' }, select: { id: true } });
-  const customer = await db().customer.create({ data: { organisationId: org.businessUnit.organisationId, fullName: `Opening Jobs ${T}`, phone: `0807 ${D.slice(-7, -4)} ${D.slice(-4)}`, externalSource: 'SAP', externalId: kunnr(0).replace(/^0+/, ''), createdById: admin.id } });
+  const customer = await db().customer.create({ data: { organisationId: org.businessUnit.organisationId, fullName: `Opening Jobs ${T}`, phone: `0807 ${D.slice(-7, -4)} ${D.slice(-4)}`, externalSource: 'LEGACY', externalId: custNo(0).replace(/^0+/, ''), createdById: admin.id } });
   customerId = customer.id;
   for (const n of [1, 2, 3]) {
-    const v = await db().customerVehicle.create({ data: { customerId, chassisNumber: vin(n), plateNumber: plate(n), make: 'Isuzu', model: 'NQR', year: 2024, vehicleType: 'COMMERCIAL', mileage: 20000 + n * 1000, createdById: admin.id } });
+    const v = await db().customerVehicle.create({ data: { customerId, chassisNumber: vin(n), plateNumber: plate(n), make: 'Toyota', model: 'Hiace', year: 2024, vehicleType: 'COMMERCIAL', mileage: 20000 + n * 1000, createdById: admin.id } });
     vehicleIds.push(v.id);
   }
   const tech = await db().user.findUniqueOrThrow({ where: { email: who('technician').email }, select: { id: true, employeeId: true, fullName: true } });
   const part = await db().part.findFirst({ where: { branchId }, select: { partNumber: true, name: true, id: true } });
   await as(page, 'it-administrator');
-  importUrl = await upload(page, `iw38-${T}.csv`, csv([
-    ['AUFNR', 'KUNUM', 'VHVIN', 'LICENSE_NUM', 'ERDAT', 'STAT', 'RECDV', 'KTEXT', 'LTXA1', 'Technician', 'Labour', 'Parts', 'Estimate approved', 'Parts issued', 'Paid', 'Payment method', 'Receipt', 'Branch'],
-    [jobNo(1), kunnr(0), vin(1), '', '30.10.2026', 'CRTD', '21000', 'Carry out service', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
-    [jobNo(2), '', '', plate(2), '28.10.2026', 'REL', '22000', 'Brakes squeal; steering pulls left', 'Front pads worn to the metal', tech.employeeId ?? tech.fullName, '45000', '112200', 'Yes', `${part?.partNumber ?? 'Brake pad set'} x1 @45000; Tie rod end x2 @33600`, '60000', 'Bank transfer', 'RCPT-1041', WORKSHOP_BRANCH],
-    [jobNo(3), kunnr(0), vin(3), '', '25.10.2026', 'TECO', '23000', 'A/C not cooling', 'System recharged', '', '25000', '38000', 'Yes', '', '63000', 'Cash', 'RCPT-1030', WORKSHOP_BRANCH],
-    [jobNo(4), kunnr(0), vin(1), '', '31.10.2026', 'CRTD', '', 'Same vehicle again', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
-    [jobNo(5), kunnr(0), vin(2), '', '20.10.2026', 'CLSD', '', 'Closed already', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
-    [jobNo(6), kunnr(0), '', '', '20.10.2026', 'REL', '', 'No vehicle', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
-    [jobNo(7), '0009999999', 'JAANLR85EL7999999', '', '20.10.2026', 'REL', '', 'Unknown vehicle', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
+  importUrl = await upload(page, `open-jobs-${T}.csv`, csv([
+    ['Job number', 'Customer number', 'Chassis number (VIN)', 'Plate number', 'Opened on', 'Stage', 'Mileage at check-in (km)', 'Complaint / work requested', 'Findings so far', 'Technician', 'Labour', 'Parts', 'Estimate approved', 'Parts issued', 'Paid', 'Payment method', 'Receipt', 'Branch'],
+    [jobNo(1), custNo(0), vin(1), '', '30/10/2026', 'Checked in', '21000', 'Carry out service', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
+    [jobNo(2), '', '', plate(2), '28/10/2026', 'In progress', '22000', 'Brakes squeal; steering pulls left', 'Front pads worn to the metal', tech.employeeId ?? tech.fullName, '45000', '112200', 'Yes', `${part?.partNumber ?? 'Brake pad set'} x1 @45000; Tie rod end x2 @33600`, '60000', 'Bank transfer', 'RCPT-1041', WORKSHOP_BRANCH],
+    [jobNo(3), custNo(0), vin(3), '', '25/10/2026', 'Completed', '23000', 'A/C not cooling', 'System recharged', '', '25000', '38000', 'Yes', '', '63000', 'Cash', 'RCPT-1030', WORKSHOP_BRANCH],
+    [jobNo(4), custNo(0), vin(1), '', '31/10/2026', 'Checked in', '', 'Same vehicle again', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
+    [jobNo(5), custNo(0), vin(2), '', '20/10/2026', 'Closed', '', 'Closed already', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
+    [jobNo(6), custNo(0), '', '', '20/10/2026', 'In progress', '', 'No vehicle', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
+    [jobNo(7), '9999999', 'JAANLR85EL7999999', '', '20/10/2026', 'In progress', '', 'Unknown vehicle', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
   ]), branchId);
   await expect(page.getByText(/Stage “CLSD”: a closed, checked-out or cancelled job card belongs in the job card history file/)).toBeVisible();
   await expect(page.getByText(/Which vehicle is it\?/)).toBeVisible();
@@ -84,7 +82,7 @@ test('the file: refusals, the totals, approval and load — live job cards at th
   const jobs = await db().jobCard.findMany({ where: { customerId }, orderBy: { externalId: 'asc' }, include: { complaints: true, estimate: { include: { lineItems: true } }, payments: true, assignedTechnician: { select: { id: true } } } });
   expect(jobs.map((j) => j.externalId)).toEqual([jobNo(1), jobNo(2), jobNo(3)]);
   expect(jobs.map((j) => j.status)).toEqual(['CHECKED_IN', 'IN_PROGRESS', 'COMPLETED']);
-  expect(jobs.every((j) => j.jobNumber.startsWith('JC-') && j.externalSource === IMPORT_SOURCE && j.importJobId)).toBe(true);
+  expect(jobs.every((j) => j.jobNumber.startsWith('JC-') && j.externalSource === 'LEGACY' && j.importJobId)).toBe(true);
   expect(jobs[0]!.createdAt.toISOString().slice(0, 10)).toBe('2026-10-30');
   expect(jobs[0]!.approvalStatus).toBe('PENDING');
   expect(jobs[0]!.estimate).toBeNull();
@@ -105,18 +103,18 @@ test('the file: refusals, the totals, approval and load — live job cards at th
   expect(await db().auditLog.count({ where: { action: { contains: 'notif' }, metadata: { path: ['jobNumber'], string_contains: 'JC-' }, entityId: { in: jobs.map((j) => j.id) } } })).toBe(0);
 });
 
-test('the job card page carries its origin; search finds it by the SAP number; Finance confirms the opening payments', async ({ page }) => {
+test('the job card page carries its origin; search finds it by the old number; Finance confirms the opening payments', async ({ page }) => {
   const second = await db().jobCard.findFirstOrThrow({ where: { customerId, externalId: jobNo(2) } });
   await as(page, 'workshop-manager');
   await open(page, `/workshop/job-cards/${second.id}`);
-  await expect(page.getByTestId('job-card-origin')).toContainText(`Brought in from ${IMPORT_SOURCE_WORDS} as job card ${jobNo(2)}.`);
+  await expect(page.getByTestId('job-card-origin')).toContainText(`Brought in from the old system as job card ${jobNo(2)}.`);
   await expect(page.getByTestId('job-card-origin')).toContainText('The estimate was approved before EJO');
   await expect(page.getByTestId('job-card-origin')).toContainText('Paid before EJO');
   await expect(page.getByRole('heading', { name: second.jobNumber })).toBeVisible();
   await open(page, '/dashboard');
   const box = page.getByRole('combobox', { name: 'Search everything' });
   await box.fill(jobNo(2));
-  await expect(box.locator('xpath=ancestor::div[2]').getByText(`${SAP_ENABLED ? 'SAP' : 'Old system'} job card ${jobNo(2)} → ${second.jobNumber}`)).toBeVisible();
+  await expect(box.locator('xpath=ancestor::div[2]').getByText(`Old system job card ${jobNo(2)} → ${second.jobNumber}`)).toBeVisible();
   // Finance confirms the totals (the manager approved, so cannot).
   await open(page, importUrl);
   await expect(page.getByText('Waiting for Finance to confirm the totals.')).toBeVisible();

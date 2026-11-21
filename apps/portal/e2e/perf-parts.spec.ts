@@ -6,16 +6,16 @@ import { who } from './people';
 import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
- * The measured speed run (docs/DATA_MIGRATION.md): a full SAP material master
+ * The measured speed run (docs/DATA_MIGRATION.md): a full parts catalogue
  * through the real screens — upload, check, approval, load — timed per step.
- * Not part of CI: run with PERF_FILE=/path/SAP_parts_800000.csv (and
+ * Not part of CI: run with PERF_FILE=/path/parts_800000.csv (and
  * PERF_OUT for the timings) against a throwaway database.
  */
 test.skip(!INVENTORY_ENABLED, INVENTORY_OFF);
 test.skip(!process.env.PERF_FILE, 'Speed run only: set PERF_FILE');
 test.setTimeout(4 * 60 * 60 * 1000);
 
-test('a full SAP material master: upload, check, approve, load', async ({ page }) => {
+test('a full parts catalogue: upload, check, approve, load', async ({ page }) => {
   const branchId = (await db().user.findUniqueOrThrow({ where: { email: who('store-manager').email }, select: { branchId: true } })).branchId!;
   const t: Record<string, number> = {};
   const mark = (k: string, from: number) => { t[k] = Math.round((Date.now() - from) / 100) / 10; };

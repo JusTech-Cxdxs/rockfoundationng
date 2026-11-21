@@ -209,7 +209,7 @@ const inputClass = 'w-full rounded-[var(--ejo-radius-md)] border border-[var(--e
 
 /**
  * Billing & tax: whether VAT is charged (and at what rate), the Tax ID (TIN)
- * printed on invoices, and when a discount on an estimate needs the Manager.
+ * printed on invoices, and when a discount on an estimate needs the Owner.
  * Saved on its own, so changing a rate never touches the printed identity.
  */
 function BillingAndTax({ organisation, isEditing }: { organisation: { id: string; vatEnabled: boolean; vatRate: unknown; vatNumber: string | null; discountApprovalPercent: number | null; depositRequired: boolean; depositPercent: number }; isEditing: boolean }) {
@@ -239,9 +239,9 @@ function BillingAndTax({ organisation, isEditing }: { organisation: { id: string
             </div>
           </div>
           <div>
-            <label htmlFor="discountApprovalPercent" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Discounts above this % need the Manager</label>
-            <input id="discountApprovalPercent" name="discountApprovalPercent" type="number" min="0" max="100" step="1" defaultValue={organisation.discountApprovalPercent ?? ''} placeholder="Blank: every discount needs the Manager" className={inputClass} />
-            <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">A percentage of the customer&apos;s subtotal. Leave it blank and the Manager approves every discount on an estimate.</p>
+            <label htmlFor="discountApprovalPercent" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Discounts above this % need the Owner</label>
+            <input id="discountApprovalPercent" name="discountApprovalPercent" type="number" min="0" max="100" step="1" defaultValue={organisation.discountApprovalPercent ?? ''} placeholder="Blank: every discount needs the Owner" className={inputClass} />
+            <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">A percentage of the customer&apos;s subtotal. Leave it blank and the Owner approves every discount on an estimate.</p>
           </div>
           <div className="space-y-2 border-t border-[var(--ejo-border)] pt-4">
             <label className="flex items-center gap-2 text-sm text-[var(--ejo-text)]">
@@ -273,8 +273,8 @@ function BillingAndTax({ organisation, isEditing }: { organisation: { id: string
               <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.vatNumber ?? '—'}</dd>
             </div>
             <div className="col-span-2">
-              <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Discounts above this % need the Manager</dt>
-              <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.discountApprovalPercent != null ? `${organisation.discountApprovalPercent}% of the customer's subtotal` : 'Every discount needs the Manager'}</dd>
+              <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Discounts above this % need the Owner</dt>
+              <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.discountApprovalPercent != null ? `${organisation.discountApprovalPercent}% of the customer's subtotal` : 'Every discount needs the Owner'}</dd>
             </div>
             <div className="col-span-2">
               <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Require a deposit before work starts (individual customers only)</dt>

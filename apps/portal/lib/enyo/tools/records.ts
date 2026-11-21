@@ -73,7 +73,7 @@ export const recordTools: StaffTool[] = [
       additionalProperties: false,
     },
     run: async (args) => {
-      if (!(await allows('workshop.job_card.view'))) return refused('Job Cards are for the workshop, the Store, Finance and management.');
+      if (!(await allows('workshop.job_card.view'))) return refused('Job Cards are for the workshop, the store, Accounts and the Owner.');
       const r = await resolve(text(args.reference, 60), 'Job Cards', '/workshop/job-cards/');
       if (!r) return nothing('No Job Card with that reference that this person can open.');
       if ('candidates' in r) return ok({ matches: r.candidates, note: 'Several Job Cards match. Ask which one.' });
@@ -140,7 +140,7 @@ export const recordTools: StaffTool[] = [
       additionalProperties: false,
     },
     run: async (args) => {
-      if (!(await allows('crm.view'))) return refused('customer profiles are for the front desk, the Manager and administrators (Customers).');
+      if (!(await allows('crm.view'))) return refused('customer profiles are for Front Desk / Customer Care, Accounts and the Owner (Customers).');
       const q = text(args.customer, 100);
       const found = CUID.test(q) ? [{ id: q, fullName: '', email: '', phone: null }] : await searchCrmCustomers(q);
       if (!found.length) return nothing('No customer of this organisation matches that.');

@@ -76,7 +76,7 @@ export type UpdateBillingSettingsInput = {
   /** Percent, e.g. 7.5. */
   vatRate: number;
   vatNumber?: string;
-  /** Whole percent; null = every discount needs the Manager. */
+  /** Whole percent; null = every discount needs the Owner. */
   discountApprovalPercent: number | null;
   /** A deposit before work starts, for individual customers only (never organisations). Off by default. */
   depositRequired?: boolean;
@@ -85,7 +85,7 @@ export type UpdateBillingSettingsInput = {
 };
 
 /** Billing & tax: VAT on or off, its rate, the TIN printed on invoices,
- * when a discount needs the Manager, and the deposit before work starts
+ * when a discount needs the Owner, and the deposit before work starts
  * (individual customers only). Same people as the organisation's
  * details, for their own organisation only; every change is audited. */
 export async function updateBillingSettings(organisationId: string, input: UpdateBillingSettingsInput): Promise<void> {

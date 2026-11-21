@@ -21,7 +21,7 @@ export const STEP_INFO: Record<Step, { workflow: string; label: string; href: st
   prs_store: { workflow: 'Parts requests', label: 'Store approval', href: '/workshop/parts-requests' },
   job_card_approval: { workflow: 'Job Cards', label: 'Supervisor approval', href: '/approvals' },
   job_cancellation: { workflow: 'Job Cards', label: 'Cancellation decision', href: '/approvals' },
-  estimate_manager: { workflow: 'Estimates', label: 'Manager approval', href: '/approvals' },
+  estimate_manager: { workflow: 'Estimates', label: 'Owner approval', href: '/approvals' },
 };
 
 export type DecisionRow = {

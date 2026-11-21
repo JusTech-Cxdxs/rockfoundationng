@@ -10,11 +10,11 @@ import type { JobCardStatus } from '@ejo/database';
  *    AWAITING_CUSTOMER_APPROVAL, and the deposit payment moves it on to
  *    IN_PROGRESS.
  * 2. CLOSED and CANCELLED are never offered: both go through a request that
- *    a Manager approves (CloseRequest / CancellationRequest), enforced in
+ *    the Owner approves (CloseRequest / CancellationRequest), enforced in
  *    updateJobCardStatus.
  * 3. CHECKED_OUT requires CLOSED first. A cancelled Job Card skips CLOSED;
  *    that hand-back is handled outside this file.
- * 4. QUALITY_CHECK → COMPLETED needs the supervisor or a Manager, never the
+ * 4. QUALITY_CHECK → COMPLETED needs the supervisor or the Owner, never the
  *    assigned technician alone (separation of duties). The technician can
  *    still move work into QUALITY_CHECK.
  * 5. Rework (back to IN_PROGRESS) needs a reason and is audited as its own
@@ -28,7 +28,7 @@ export type JobCardRoleContext = {
   isSupervisor: boolean;
   /** This Job Card's assigned technician. */
   isAssignedTechnician: boolean;
-  /** Holds the branch-wide Manager role. */
+  /** Holds the branch-wide Owner role. */
   isEligibleManager: boolean;
 };
 
@@ -70,7 +70,7 @@ export function getSelectableJobCardStatuses(
 
   // The people doing or overseeing the work move it through day-to-day steps.
   const canProgress = ctx.isSupervisor || ctx.isAssignedTechnician;
-  // Sign-off authority: the supervisor (own Job Card) or a branch Manager,
+  // Sign-off authority: the supervisor (own Job Card) or a branch Owner,
   // never the technician alone.
   const canSignOff = ctx.isSupervisor || ctx.isEligibleManager;
 
@@ -90,7 +90,7 @@ export function getSelectableJobCardStatuses(
       // holds sign-off authority, since rework revokes their sign-off.
       return canSignOff ? (['READY_FOR_COLLECTION', 'IN_PROGRESS'] as JobCardStatus[]) : [];
     case 'READY_FOR_COLLECTION':
-      // Onward only via the close request (Manager-approved); the one
+      // Onward only via the close request (Owner-approved); the one
       // direct move is rework before the customer takes the vehicle.
       return canSignOff ? (['IN_PROGRESS'] as JobCardStatus[]) : [];
     case 'CLOSED':

@@ -255,9 +255,9 @@ async function oldNumberHits(q: string, ctx: { mineOrg: Where; sameOrg: Where; c
     ctx.canSuppliers ? prisma.supplier.findMany({ where: { ...(ctx.sameOrg as Prisma.SupplierWhereInput), externalId: ext }, take, select: { id: true, name: true, externalId: true } }).catch(() => []) : [],
     ctx.storeReach ? prisma.part.findMany({ where: { AND: [ctx.storeReach as Prisma.PartWhereInput, { externalId: ext }] }, take, select: { id: true, branchId: true, name: true, partNumber: true, externalId: true, branch: { select: { name: true } } } }).catch(() => []) : [],
     ctx.canCrm ? prisma.historicalInvoice.findMany({
-      where: { ...(ctx.sameOrg as Prisma.HistoricalInvoiceWhereInput), voidedAt: null, invoiceNumber: ext, ...(n.year ? { fiscalYear: n.year } : {}) },
-      orderBy: [{ fiscalYear: 'desc' }, { invoiceDate: 'desc' }], take: 10,
-      select: { id: true, invoiceNumber: true, fiscalYear: true, invoiceDate: true, amount: true, customerId: true },
+      where: { ...(ctx.sameOrg as Prisma.HistoricalInvoiceWhereInput), voidedAt: null, invoiceNumber: ext, ...(n.year ? { invoiceDate: { gte: new Date(Date.UTC(n.year, 0, 1)), lt: new Date(Date.UTC(n.year + 1, 0, 1)) } } : {}) },
+      orderBy: [{ invoiceDate: 'desc' }], take: 10,
+      select: { id: true, invoiceNumber: true, invoiceDate: true, amount: true, customerId: true },
     }).catch(() => []) : [],
     // Job cards from the old system, by their number.
     ctx.canWorkshop || ctx.canCrm ? prisma.historicalJob.findMany({
@@ -284,7 +284,7 @@ async function oldNumberHits(q: string, ctx: { mineOrg: Where; sameOrg: Where; c
     ...suppliers.map((x) => ({ label: `${label} supplier ${x.externalId}`, sub: x.name, href: `/inventory/suppliers?q=${encodeURIComponent(x.externalId ?? x.name)}` })),
     ...parts.filter((p) => ctx.opens(['store.view'], p.branchId)).map((p) => ({ label: `${label} item ${p.externalId}`, sub: dot(p.partNumber, p.name, p.branch?.name), href: `/inventory/parts/${p.id}` })),
     ...invoices.map((i) => ({
-      label: `${label} invoice ${i.invoiceNumber} · ${i.fiscalYear ?? i.invoiceDate.getUTCFullYear()}`,
+      label: `${label} invoice ${i.invoiceNumber} · ${i.invoiceDate.getUTCFullYear()}`,
       sub: dot(names.get(i.customerId), day(i.invoiceDate), naira(i.amount)),
       href: `/crm/customers/${i.customerId}?tab=jobs`,
     })),

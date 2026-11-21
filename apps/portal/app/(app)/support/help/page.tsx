@@ -11,7 +11,7 @@ import { formatRelative } from '@/lib/utils/format-date';
 export const metadata = { title: 'Get help' };
 export const dynamic = 'force-dynamic';
 
-const TEAM: Record<string, string> = { portal: 'Our administrators', fault: 'EJO platform team', complaint: 'Customer care', hr: 'HR & people' };
+const TEAM: Record<string, string> = { portal: 'Our administrators', fault: 'EJO platform team', complaint: 'Customer care' };
 const TONE: Record<string, Tone> = { OPEN: 'info', WAITING_ON_CUSTOMER: 'warning', ON_HOLD: 'neutral', RESOLVED: 'success', CLOSED: 'neutral' };
 
 /**
@@ -29,7 +29,7 @@ export default async function GetHelpPage({ searchParams }: { searchParams: Prom
   const page = typeof sp.page === 'string' && /^\/[\w\-/[\]?=&.%]{0,200}$/.test(sp.page) ? sp.page : null;
   return (
     <div className="w-full max-w-5xl p-4 sm:p-8">
-      <PageHeader icon="help" title="Help centre" description="Find the steps for your role, ask Enyo, or ask a person — your administrators, Customer care, HR or the EJO platform team — and follow every request here."
+      <PageHeader icon="help" title="Help centre" description="Find the steps for your role, ask Enyo, or ask a person — your administrators, Customer care or the EJO platform team — and follow every request here."
         actions={<><Link href="/support/features" className="inline-flex min-h-9 items-center rounded-full border border-[var(--ejo-border)] px-3 text-xs font-medium text-[var(--ejo-text)] hover:border-[var(--ejo-primary)]/50">What I can do here</Link><AskEnyoButton question="" label="Ask Enyo" /></>} />
       <SectionCard icon="search" title="Find the answer yourself" description="The how-to guide for your role. Type what you want to do." className="mb-6">
         <GuideBrowser groups={groups} compact />

@@ -83,7 +83,7 @@ export default async function PrintReceiptPage({ params }: { params: Promise<{ i
         </tbody>
       </table>
 
-      <SignatureBlock issuerLabel="Received By (Finance)" issuerName={payment.recordedBy.fullName} collectorLabel="Paid By" collectorName={customerName} />
+      <SignatureBlock issuerLabel="Received By (Accounts)" issuerName={payment.recordedBy.fullName} collectorLabel="Paid By" collectorName={customerName} />
       <div style={{ marginTop: '20px', textAlign: 'center' }}>
         <div style={{ fontSize: '12px', fontWeight: 700, color: '#3E4095' }}>Thank you for choosing {organisation.name}.</div>
         <div style={{ borderTop: '2px solid #EC3237', width: '120px', margin: '6px auto 0' }} />

@@ -5,9 +5,8 @@
  */
 import { moduleIsOn } from '../modules';
 
-// The Store and Warranty are switched off in some editions (lib/modules.ts): no question about them is offered then.
+// The Parts store can be switched off (lib/modules.ts): no question about stock is offered then.
 const STORE_ON = moduleIsOn('inventory');
-const WARRANTY_ON = moduleIsOn('warranty');
 const PARTS_Q = (what: string) => (STORE_ON ? `Are the parts on this ${what} in stock?` : `What parts did similar jobs need?`);
 
 /** The hour (0–23) in Lagos for a moment. */
@@ -50,33 +49,31 @@ export function greetingText(opts: { name: string; hour: number; approvals: numb
  * the list. Every one is something Enyo's tools can actually answer.
  */
 const PAGE_PROMPTS: [RegExp, string[]][] = [
-  [/^\/workshop\/job-cards\/[^/]+$/, ['Summarise this Job Card and what happens next', PARTS_Q('job'), 'When is this vehicle likely to be ready?']],
-  [/^\/workshop\/vehicle-service\/[^/]+$/, ['Summarise this service and what happens next', PARTS_Q('service'), 'When is this vehicle likely to be ready?']],
+  [/^\/workshop\/job-cards\/[^/]+$/, ['Summarise this Job Card and what happens next', PARTS_Q('job'), 'Draft a WhatsApp update for this customer']],
+  [/^\/workshop\/vehicles\/[^/]+$/, ['Summarise this vehicle\'s history', 'When is this vehicle next due for a service?']],
   [/^\/workshop/, ['Which jobs are waiting on approval or parts?', 'How do I open a Job Card?']],
   ...(STORE_ON ? [
-    [/^\/inventory\/reorder/, ['Which parts should we reorder first, and why?', 'Explain how the reorder quantity is worked out']],
-    [/^\/inventory/, ['Which parts are out of stock or below their reorder point?', 'Is a brake pad set in stock at my branch?']],
+    [/^\/inventory/, ['Which parts are out of stock or below their reorder level?', 'Is a brake pad set in stock?']],
   ] as [RegExp, string[]][] : []),
   [/^\/(analytics|dashboard)/, ['How is this month going compared with last month?', 'Brief me on my day']],
-  [/^\/mail/, ['Anything important in my email?', 'Which emails still need a reply from me?']],
-  [/^\/reminders/, ['What is due for me this week?', 'Remind me tomorrow at 9 am to follow up on approvals']],
+  [/^\/reminders/, ['What is due for me this week?', 'Remind me tomorrow at 9 am to call back a customer']],
   [/^\/approvals/, ['Which approvals have waited longest?', 'How do I approve or return a request?']],
+  [/^\/crm\/customers\/[^/]+$/, ['Summarise this customer: vehicles, jobs and what they owe', 'Draft a payment reminder for this customer']],
   [/^\/(crm|support)/, ['How do I log a customer complaint?', 'Which customers are due a service soon?']],
-  ...(WARRANTY_ON ? [[/^\/warranty/, ['Which warranty claims need attention?', 'How do I raise a warranty claim?']] as [RegExp, string[]]] : []),
-  [/^\/security/, ['Which visitors are expected today?', 'How do I check a visitor in?']],
-  [/^\/(users|roles|permissions|settings|organisation|branches|structure)/, ['How do I add a user and give them a role?', 'What can each role see and do?']],
-  [/^\/enyo/, ['How do Enyo\'s models learn, and who decides what is used?', 'What does Shadow mode mean?']],
+  [/^\/security/, ['Which vehicles are cleared to leave?', 'How do I let a vehicle out through the gate?']],
+  [/^\/(users|roles|permissions|settings|organisation|structure)/, ['How do I add a member of staff and give them a role?', 'What can each role see and do?']],
+  [/^\/enyo/, ['How does Enyo learn, and who approves what it reuses?']],
 ];
 
 /** By role, for the dashboard and pages without their own questions. */
 function rolePrompts(roleName: string): string[] {
   const r = roleName.toLowerCase();
   const out: string[] = [];
-  if (STORE_ON && /store|inventory|parts|procure/.test(r)) out.push('Which parts are out of stock or below their reorder point?', 'What should we reorder this week?');
-  if (/workshop|front ?desk|reception|supervisor|technician|service|department head|branch/.test(r)) out.push('Which jobs are waiting on approval or parts?', 'How do I open a Job Card?');
-  if (/finance|account|cashier/.test(r)) out.push("Today's takings", 'How is this month going compared with last month?');
-  if (/manager|admin|director|owner/.test(r)) out.push('How is this month going compared with last month?', 'What do customers come in for most?');
-  if (/security|gate/.test(r)) out.push('Which visitors are expected today?');
+  if (STORE_ON && /store|inventory|parts/.test(r)) out.push('Which parts are out of stock or below their reorder level?', 'What should we reorder this week?');
+  if (/front ?desk|customer care|supervisor|service advisor|technician/.test(r)) out.push('Which jobs are waiting on approval or parts?', 'How do I open a Job Card?');
+  if (/accounts/.test(r)) out.push("Today's takings", 'Which customers owe us money?');
+  if (/owner|gmd|admin/.test(r)) out.push('How is this month going compared with last month?', 'What do customers come in for most?');
+  if (/security|gate/.test(r)) out.push('Which vehicles are cleared to leave?');
   return out;
 }
 

@@ -2,10 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 import { as, uniq, open } from './helpers';
 import { db } from './db';
 import { writeXlsx } from '../lib/data-exchange/xlsx-writer';
-import { IMPORT_SOURCE } from './edition';
 
 /**
- * Data Exchange (v-A1): existing customers and vehicles brought in from SAP
+ * Data Exchange: existing customers and vehicles brought in from the old system
  * and spreadsheets — read in the browser, staged, checked (nothing live
  * changes), approved by a second person, loaded in batches, reported,
  * and undone. The person who prepares an import cannot approve it, the
@@ -15,28 +14,28 @@ test.describe.configure({ mode: 'serial' });
 
 const tag = uniq().toLowerCase();
 const T = tag.replace(/[^a-z0-9]/g, '').slice(-6).toUpperCase();
-// SAP-style customer numbers, unique to this run (from the clock), never reused by a later run.
+// Old-system customer numbers, unique to this run (from the clock), never reused by a later run.
 const STAMP = String(Date.now()).slice(-8);
-const kunnr = (n: number) => `9${STAMP}${n}`;
+const custNo = (n: number) => `9${STAMP}${n}`;
 // Phones unique to this run too (a phone already on file makes a row a possible duplicate, held back by design).
 const phone = (n: number) => `080${n} ${STAMP.slice(1, 4)} ${STAMP.slice(4, 8)}`;
 const ADA = `Ada Importa ${T}`;
 const MUSA = `Musa Noemail ${T}`;
 
-/** A customers file as SAP writes it: SAP field names, leading zeros, a rejected row and a duplicate. */
+/** A customers file as an old system writes it: leading zeros, a rejected row and a duplicate. */
 function customersCsv(): string {
   const rows = [
-    ['KUNNR', 'NAME1', 'NAME2', 'TELF1', 'SMTP_ADDR', 'STRAS', 'ORT01'],
-    [`000${kunnr(1)}`, ADA, '', phone(1), `ada.${tag}@e2e.test`, 'Plot 3, Adeola Odeku Street', 'Victoria Island'],
-    [kunnr(2), MUSA, '', phone(2), '', 'Oshodi Road', 'Lagos'],
-    [kunnr(3), '', '', phone(3), '', '', ''],
-    [kunnr(1), `${ADA} again`, '', '', '', '', ''],
-    [kunnr(4), `Fleet Co ${T}`, 'Logistics Ltd', phone(4), `fleet.${tag}@e2e.test`, 'Apapa Wharf', 'Lagos'],
+    ['Customer number', 'Name', 'Name, second line', 'Phone', 'Email', 'Address', 'City'],
+    [`000${custNo(1)}`, ADA, '', phone(1), `ada.${tag}@e2e.test`, 'Plot 3, Idiroko Road', 'Ota'],
+    [custNo(2), MUSA, '', phone(2), '', 'Oshodi Road', 'Lagos'],
+    [custNo(3), '', '', phone(3), '', '', ''],
+    [custNo(1), `${ADA} again`, '', '', '', '', ''],
+    [custNo(4), `Fleet Co ${T}`, 'Logistics Ltd', phone(4), `fleet.${tag}@e2e.test`, 'Apapa Wharf', 'Lagos'],
   ];
   return rows.map((r) => r.map((c) => (/[,"]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(',')).join('\r\n');
 }
 
-/** A vehicles workbook (.xlsx) linked to the customers by their SAP numbers. */
+/** A vehicles workbook (.xlsx) linked to the customers by their old-system numbers. */
 function vehiclesXlsx(): Buffer {
   const vin = (n: number) => `JAANLR85EL${T.replace(/[IOQ]/g, 'X').padEnd(6, 'X').slice(0, 6)}${n}`.slice(0, 17).padEnd(17, '0');
   return Buffer.from(writeXlsx([{
@@ -44,9 +43,9 @@ function vehiclesXlsx(): Buffer {
     header: true,
     rows: [
       ['Customer number', 'VIN', 'Plate', 'Make', 'Model', 'Year', 'Mileage'],
-      [kunnr(1), vin(1), `IMP ${T.slice(0, 3)} 1A`, 'Isuzu', 'NQR 71', 2024, 45200],
-      [kunnr(2), vin(2), '', 'Toyota', 'Camry', 2025, 1200],
-      ['99999999', vin(3), '', 'Isuzu', 'NPR', 2023, ''],
+      [custNo(1), vin(1), `IMP ${T.slice(0, 3)} 1A`, 'Toyota', 'Hiace 2.5', 2024, 45200],
+      [custNo(2), vin(2), '', 'Toyota', 'Camry', 2025, 1200],
+      ['99999999', vin(3), '', 'Toyota', 'Coaster', 2023, ''],
     ],
   }]));
 }
@@ -74,10 +73,10 @@ async function loadAndReport(page: Page) {
 let customersUrl = '';
 let vehiclesUrl = '';
 
-test('customers from an SAP export: columns match themselves, the check rejects what is wrong, nothing live changes yet', async ({ page }) => {
+test('customers from an old system’s export: columns match themselves, the check rejects what is wrong, nothing live changes yet', async ({ page }) => {
   await as(page, 'it-administrator');
-  customersUrl = await startImport(page, 'customers', { name: `sap-customers-${T}.csv`, mimeType: 'text/csv', buffer: Buffer.from(customersCsv()) });
-  // SAP field names were matched on upload.
+  customersUrl = await startImport(page, 'customers', { name: `old-customers-${T}.csv`, mimeType: 'text/csv', buffer: Buffer.from(customersCsv()) });
+  // The column names were matched on upload.
   await expect(page.locator('#map-externalId')).toHaveValue('0');
   await expect(page.locator('#map-fullName')).toHaveValue('1');
   await expect(page.locator('#map-name2')).toHaveValue('2');
@@ -118,19 +117,19 @@ test('the front desk cannot open Data Exchange; the manager approves, it loads, 
   await loadAndReport(page);
   await expect(page.getByText('5 rows in the file = 3 added + 0 filled in + 0 not added + 2 rejected.')).toBeVisible();
   const ada = await db().customer.findFirst({ where: { fullName: ADA }, select: { email: true, externalSource: true, externalId: true, address: true, importJobId: true } });
-  expect(ada).toMatchObject({ email: `ada.${tag}@e2e.test`, externalSource: IMPORT_SOURCE, externalId: kunnr(1), address: 'Plot 3, Adeola Odeku Street, Victoria Island' });
+  expect(ada).toMatchObject({ email: `ada.${tag}@e2e.test`, externalSource: 'LEGACY', externalId: custNo(1), address: 'Plot 3, Idiroko Road, Ota' });
   expect(ada?.importJobId).toBeTruthy();
   // A customer with no email is a full record — and never given a made-up address.
   const musa = await db().customer.findFirst({ where: { fullName: MUSA }, select: { email: true, phone: true } });
   expect(musa).toEqual({ email: null, phone: phone(2) });
   // The organisation keeps its company details.
-  const fleet = await db().customer.findFirst({ where: { externalId: kunnr(4) }, select: { fullName: true, customerType: true } });
+  const fleet = await db().customer.findFirst({ where: { externalId: custNo(4) }, select: { fullName: true, customerType: true } });
   expect(fleet?.fullName).toBe(`Fleet Co ${T} Logistics Ltd`);
 });
 
 test('the same file again adds nothing twice', async ({ page }) => {
   await as(page, 'it-administrator');
-  await startImport(page, 'customers', { name: `sap-customers-${T}-again.csv`, mimeType: 'text/csv', buffer: Buffer.from(customersCsv()) });
+  await startImport(page, 'customers', { name: `old-customers-${T}-again.csv`, mimeType: 'text/csv', buffer: Buffer.from(customersCsv()) });
   await expect(page.getByText(/The same file was imported before as IMP-/)).toBeVisible();
   await checkFile(page);
   // Every loadable row is recognised as an existing customer.
@@ -151,9 +150,9 @@ test('vehicles from an Excel workbook link to their customers; an unknown custom
   await open(page, vehiclesUrl);
   await page.getByRole('button', { name: 'Approve' }).click();
   await loadAndReport(page);
-  const nqr = await db().customerVehicle.findFirst({ where: { customer: { externalId: kunnr(1) } }, select: { model: true, year: true, mileage: true, vehicleType: true } });
-  expect(nqr).toEqual({ model: 'NQR 71', year: 2024, mileage: 45200, vehicleType: 'COMMERCIAL' });
-  const s07 = await db().customerVehicle.findFirst({ where: { customer: { externalId: kunnr(2) } }, select: { vehicleType: true } });
+  const nqr = await db().customerVehicle.findFirst({ where: { customer: { externalId: custNo(1) } }, select: { model: true, year: true, mileage: true, vehicleType: true } });
+  expect(nqr).toEqual({ model: 'Hiace 2.5', year: 2024, mileage: 45200, vehicleType: 'COMMERCIAL' });
+  const s07 = await db().customerVehicle.findFirst({ where: { customer: { externalId: custNo(2) } }, select: { vehicleType: true } });
   expect(s07?.vehicleType).toBe('PASSENGER');
 });
 
@@ -164,16 +163,16 @@ test('undo moves exactly what each import added to the Recycle bin (vehicles fir
   await open(page, vehiclesUrl);
   await page.getByRole('button', { name: 'Undo this import' }).click();
   await expect(page.getByRole('heading', { name: 'Undone' })).toBeVisible({ timeout: 60_000 });
-  expect(await db().customerVehicle.count({ where: { customer: { externalId: { in: [kunnr(1), kunnr(2)] } } } })).toBe(0);
+  expect(await db().customerVehicle.count({ where: { customer: { externalId: { in: [custNo(1), custNo(2)] } } } })).toBe(0);
   await open(page, customersUrl);
   await page.getByRole('button', { name: 'Undo this import' }).click();
   await expect(page.getByRole('heading', { name: 'Undone' })).toBeVisible({ timeout: 60_000 });
-  expect(await db().customer.count({ where: { externalId: { in: [kunnr(1), kunnr(2), kunnr(4)] } } })).toBe(0);
+  expect(await db().customer.count({ where: { externalId: { in: [custNo(1), custNo(2), custNo(4)] } } })).toBe(0);
   // Nothing is lost: each record is its own Recycle bin item, with the import named as the reason.
   const number = (await page.getByRole('heading', { level: 1 }).first().textContent())!.split(' ')[0]!;
   const items = await db().recycleBinItem.findMany({ where: { reason: `Undo of import ${number}`, restoredAt: null }, select: { reference: true } });
   expect(items.map((i) => i.reference).sort()).toEqual([ADA, `Fleet Co ${T} Logistics Ltd`, MUSA].sort());
-  // …and the administrator restores one from the bin, with its SAP number back.
+  // …and the administrator restores one from the bin, with its old number back.
   await as(page, 'administrator');
   await open(page, '/recycle-bin');
   const row = page.getByTestId('bin-row').filter({ hasText: MUSA }).first();
@@ -181,7 +180,7 @@ test('undo moves exactly what each import added to the Recycle bin (vehicles fir
   // (the confirmation is accepted by the dialog handler set at the start of this test)
   await row.getByRole('button', { name: 'Restore' }).click();
   await page.waitForURL(/\/recycle-bin\?restored=/);
-  expect(await db().customer.findFirst({ where: { fullName: MUSA }, select: { externalId: true, email: true } })).toEqual({ externalId: kunnr(2), email: null });
+  expect(await db().customer.findFirst({ where: { fullName: MUSA }, select: { externalId: true, email: true } })).toEqual({ externalId: custNo(2), email: null });
 });
 
 test('templates download as Excel (with instructions) and CSV', async ({ page }) => {

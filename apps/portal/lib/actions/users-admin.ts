@@ -160,8 +160,8 @@ export async function removeRole(userId: string, roleId: string): Promise<void> 
 export type StaffPlacement = { branches: { id: string; name: string }[]; departments: { id: string; name: string; branchId: string }[]; branchLocked: string | null };
 
 /** Where a new person can be placed by this administrator: their
- * organisation's branches (a Branch Administrator: only their own). */
-/** The roles an administrator may give a new person (no platform roles; a Branch Administrator: no administrator roles). */
+ * organisation's branches (a Owner: only their own). */
+/** The roles an administrator may give a new person (no platform roles; a Owner: no administrator roles). */
 export async function rolesForNewStaff(): Promise<AssignableRole[]> {
   await authorize('admin.users.manage', undefined, 'users.roles_for_new');
   const { organisationId, branchOnly } = await actorOrg();
@@ -198,7 +198,7 @@ export async function createStaffMember(input: NewStaffInput): Promise<{ id: str
   const email = input.email.trim().toLowerCase();
   if (fullName.length < 2) throw new Error('Enter the person\'s full name.');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Enter a valid email address.');
-  // The branch must be in this organisation (a Branch Administrator: their own).
+  // The branch must be in this organisation (a Owner: their own).
   const branch = await prisma.branch.findUnique({ where: { id: input.branchId }, select: { id: true, businessUnit: { select: { organisationId: true } } } });
   const branchOrg = branch?.businessUnit.organisationId ?? null;
   if (!branch || (!p.isSuperAdmin && branchOrg !== organisationId)) throw new Error('Choose a branch of your organisation.');
@@ -247,7 +247,7 @@ export async function createStaffMember(input: NewStaffInput): Promise<{ id: str
   return { id: created.id, employeeId: created.employeeId ?? '', emailSent };
 }
 
-/** Target of a staff action: in this administrator's organisation (and branch, for a Branch Administrator). */
+/** Target of a staff action: in this administrator's organisation (and branch, for a Owner). */
 async function manageableStaff(userId: string) {
   const { p, organisationId, branchOnly } = await actorOrg();
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, fullName: true, email: true, isActive: true, employeeId: true, organisationId: true, branchId: true, roles: { select: { role: { select: { isSuperAdmin: true } } } } } });

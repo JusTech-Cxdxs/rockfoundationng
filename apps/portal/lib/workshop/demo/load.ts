@@ -1,6 +1,6 @@
 /**
- * Writes the workshop demo (./plan.ts) into the demo organisation's
- * Victoria Island Workshop, replacing the demo records already there and
+ * Writes the workshop demo (./plan.ts) into the demo organisation's Ota
+ * Workshop, replacing the demo records already there and
  * nothing else.
  *
  * Every record the load makes is listed in demo_records (model + id), so a
@@ -11,7 +11,7 @@
  * doubles a job card's history.
  *
  * Only ever into an organisation marked as a demo (organisations.isDemo):
- * the real D'Phoenix Autocare organisation is refused. Needs the demo
+ * the real Rock Foundation Automobile organisation is refused. Needs the demo
  * people (lib/demo/people-load.ts) in place: the records are theirs. Used by
  * `npm run demo:reset`, the first production build after DEMO_STAFF_PASSWORD
  * is set (scripts/demo-ensure.ts) and the platform team's console; the
@@ -101,10 +101,10 @@ export async function highestInUse(start: string): Promise<number> {
   return highestSequence(start, refs);
 }
 
-/** The demo organisation's workshop: the Victoria Island Workshop (lib/demo/organisation.ts), or its first workshop branch. */
+/** The demo organisation's workshop: the Ota Workshop (lib/demo/organisation.ts), or its first workshop branch. */
 export async function demoWorkshopBranch(organisationId: string) {
   const branches = await prisma.branch.findMany({ where: { businessUnit: { organisationId } }, orderBy: { createdAt: 'asc' }, select: { id: true, name: true, code: true, type: true, departments: { select: { id: true, slug: true } } } });
-  return branches.find((b) => b.code === 'DPD') ?? branches.find((b) => b.type === 'WORKSHOP') ?? null;
+  return branches.find((b) => b.code === 'OTD') ?? branches.find((b) => b.type === 'WORKSHOP') ?? null;
 }
 
 /**
@@ -138,11 +138,10 @@ export async function loadWorkshopDemo(organisationId: string, anchor: Date = ne
   const reg = (model: Model, recordId: string) => { registry.push({ model, recordId }); made[model] = (made[model] ?? 0) + 1; return recordId; };
   const numbers = new Numbers(highestInUse);
   const inChunks = async <T,>(rows: T[], write: (slice: T[]) => Promise<unknown>) => { for (let i = 0; i < rows.length; i += CHUNK) await write(rows.slice(i, i + CHUNK)); };
-  const frontdesk = role('receptionist');
-  const manager = role('workshop-manager');
-  const finance = role('finance-officer');
-  const gate = role('security-officer');
-  const admin = role('administrator');
+  const frontdesk = role('front-desk');
+  const owner = role('owner');
+  const accounts = role('accounts');
+  const gate = role('security');
   const base = { organisationId };
   const auditRows: Prisma.AuditLogCreateManyInput[] = [];
   const audit = (userId: string | null, action: string, entityType: string, entityId: string, at: Date, metadata?: Record<string, unknown>) => auditRows.push({ id: reg('AuditLog', id()), organisationId, userId, action, entityType, entityId, metadata: metadata ? json(metadata) : undefined, createdAt: at });
@@ -195,9 +194,9 @@ export async function loadWorkshopDemo(organisationId: string, anchor: Date = ne
       const eid = reg('Estimate', id());
       const a = est.approval;
       await prisma.estimate.create({ data: {
-        id: eid, jobCardId: jid, status: est.status, submittedAt: est.submittedAt, approvedAt: est.approvedAt, approvedById: est.approvedAt ? sup : null, managerApprovedAt: est.managerApprovedAt, managerApprovedById: est.managerApprovedAt ? manager : null,
+        id: eid, jobCardId: jid, status: est.status, submittedAt: est.submittedAt, approvedAt: est.approvedAt, approvedById: est.approvedAt ? sup : null, managerApprovedAt: est.managerApprovedAt, managerApprovedById: est.managerApprovedAt ? owner : null,
         customerNotifiedAt: est.customerNotifiedAt, customerNotifiedById: est.customerNotifiedAt ? frontdesk : null, createdById: tech, createdAt: est.createdAt,
-        discountAmount: est.discountAmount > 0 ? money(est.discountAmount) : null, discountReason: est.discountAmount > 0 ? est.discountReason : null, discountApprovedById: est.discountApprovedAt ? manager : null, discountApprovedAt: est.discountApprovedAt,
+        discountAmount: est.discountAmount > 0 ? money(est.discountAmount) : null, discountReason: est.discountAmount > 0 ? est.discountReason : null, discountApprovedById: est.discountApprovedAt ? owner : null, discountApprovedAt: est.discountApprovedAt,
         vatRate: est.vatRate === null ? null : new Prisma.Decimal(est.vatRate),
         customerApprovedAt: a?.at ?? null, customerApprovedVia: a?.via ?? null, customerApprovedByStaffId: a?.byStaffKey ? by(a.byStaffKey) : null, customerApprovalNote: a?.note ?? null,
         customerDeclinedAt: est.declined?.at ?? null, customerDeclineNote: est.declined?.note ?? null,
@@ -221,9 +220,9 @@ export async function loadWorkshopDemo(organisationId: string, anchor: Date = ne
       }
     }
     if (jc.payments.length) await prisma.payment.createMany({ data: jc.payments.map((p) => ({ id: reg('Payment', id()), jobCardId: jid, amount: money(p.amount), method: p.method, notes: p.note, recordedById: by(p.byKey), recordedAt: p.at, createdAt: p.at, idempotencyKey: `demo:${organisationId}:${p.key}`, receiptNumber: receiptNumbers.get(p.key)! })) });
-    if (jc.cancellation) await prisma.cancellationRequest.create({ data: { id: reg('CancellationRequest', id()), jobCardId: jid, reason: jc.cancellation.reason, requestedById: frontdesk, requestedAt: jc.cancellation.requestedAt, status: jc.cancellation.status, decidedById: jc.cancellation.decidedAt ? manager : null, decidedAt: jc.cancellation.decidedAt, decisionNotes: jc.cancellation.decidedAt ? 'Approved; the deposit is refunded where one was paid.' : null, createdAt: jc.cancellation.requestedAt } });
-    if (jc.refund) await prisma.refund.create({ data: { id: reg('Refund', id()), referenceNumber: await numbers.take('RF', jc.refund.at), jobCardId: jid, amount: money(jc.refund.amount), method: jc.refund.method, paidToName: jc.refund.paidToName, reason: jc.refund.reason, recordedById: finance, recordedAt: jc.refund.at, createdAt: jc.refund.at, idempotencyKey: `demo:${organisationId}:${jc.key}:refund` } });
-    if (jc.close) await prisma.closeRequest.create({ data: { id: reg('CloseRequest', id()), jobCardId: jid, requestedById: frontdesk, requestedAt: jc.close.requestedAt, status: jc.close.status, decidedById: jc.close.decidedAt ? manager : null, decidedAt: jc.close.decidedAt, createdAt: jc.close.requestedAt } });
+    if (jc.cancellation) await prisma.cancellationRequest.create({ data: { id: reg('CancellationRequest', id()), jobCardId: jid, reason: jc.cancellation.reason, requestedById: frontdesk, requestedAt: jc.cancellation.requestedAt, status: jc.cancellation.status, decidedById: jc.cancellation.decidedAt ? owner : null, decidedAt: jc.cancellation.decidedAt, decisionNotes: jc.cancellation.decidedAt ? 'Approved; the deposit is refunded where one was paid.' : null, createdAt: jc.cancellation.requestedAt } });
+    if (jc.refund) await prisma.refund.create({ data: { id: reg('Refund', id()), referenceNumber: await numbers.take('RF', jc.refund.at), jobCardId: jid, amount: money(jc.refund.amount), method: jc.refund.method, paidToName: jc.refund.paidToName, reason: jc.refund.reason, recordedById: accounts, recordedAt: jc.refund.at, createdAt: jc.refund.at, idempotencyKey: `demo:${organisationId}:${jc.key}:refund` } });
+    if (jc.close) await prisma.closeRequest.create({ data: { id: reg('CloseRequest', id()), jobCardId: jid, requestedById: frontdesk, requestedAt: jc.close.requestedAt, status: jc.close.status, decidedById: jc.close.decidedAt ? owner : null, decidedAt: jc.close.decidedAt, createdAt: jc.close.requestedAt } });
     if (jc.gateExit) gateExits.push({ at: jc.gateExit.at, vehicleKey: jc.vehicleKey, driverName: jc.gateExit.driverName, jobCardId: jid });
     for (const a of jc.audit) {
       if (a.action === 'invoice.issued') continue; // written above, with its number
@@ -253,7 +252,7 @@ export async function loadWorkshopDemo(organisationId: string, anchor: Date = ne
   for (const ex of [...plan.exports].sort((x, y) => x.createdAt.getTime() - y.createdAt.getTime())) await prisma.exportJob.create({ data: { id: reg('ExportJob', id()), ...base, number: await numbers.take('EXP', ex.createdAt), kind: ex.kind, format: ex.format, params: json({ branchId: branch.id }), summary: ex.summary, rowCount: ex.rows, bytes: ex.rows * 180, createdById: by(ex.createdByKey), createdAt: ex.createdAt, expiresAt: new Date(ex.createdAt.getTime() + 86_400_000) } });
 
   // ── The trail and the registry ─────────────────────────────────────────
-  auditRows.push({ id: reg('AuditLog', id()), organisationId, userId: admin, action: 'demo.workshop_loaded', entityType: 'Branch', entityId: branch.id, metadata: json({ removed, figures: plan.figures }), createdAt: anchor });
+  auditRows.push({ id: reg('AuditLog', id()), organisationId, userId: owner, action: 'demo.workshop_loaded', entityType: 'Branch', entityId: branch.id, metadata: json({ removed, figures: plan.figures }), createdAt: anchor });
   await inChunks(auditRows.sort((a, b) => (a.createdAt as Date).getTime() - (b.createdAt as Date).getTime()), (rows) => prisma.auditLog.createMany({ data: rows }));
   await inChunks(registry, (rows) => prisma.demoRecord.createMany({ data: rows.map((x) => ({ organisationId, model: x.model, recordId: x.recordId })) }));
   // Today is in the story already: the daily pulse (lib/demo/pulse.ts) adds nothing more today.

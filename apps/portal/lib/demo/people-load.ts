@@ -84,12 +84,12 @@ async function ensureRoles(prisma: PrismaClient, organisationId: string): Promis
   return new Map((await prisma.role.findMany({ where: { organisationId, slug: { in: slugs } }, select: { id: true, slug: true } })).map((r) => [r.slug, r.id]));
 }
 
-/** The demo organisation's Victoria Island workshop (lib/demo/organisation.ts), or its first workshop branch. */
-async function demoBranches(prisma: PrismaClient, organisationId: string): Promise<Record<Exclude<DemoBranch, 'HQ'>, { id: string; name: string }>> {
+/** The demo organisation's Ota workshop (lib/demo/organisation.ts), or its first workshop branch. */
+async function demoBranches(prisma: PrismaClient, organisationId: string): Promise<Record<Exclude<DemoBranch, 'BIZ'>, { id: string; name: string }>> {
   const branches = await prisma.branch.findMany({ where: { businessUnit: { organisationId } }, orderBy: { createdAt: 'asc' }, select: { id: true, name: true, code: true, type: true } });
-  const vi = branches.find((b) => b.code === 'DPD') ?? branches.find((b) => b.type === 'WORKSHOP');
-  if (!vi) throw new Error('Demo people: the demo organisation has no workshop branch yet — run npm run demo:people (it makes the demo organisation) first.');
-  return { VI: { id: vi.id, name: vi.name } };
+  const ota = branches.find((b) => b.code === 'OTD') ?? branches.find((b) => b.type === 'WORKSHOP');
+  if (!ota) throw new Error('Demo people: the demo organisation has no workshop branch yet. Run npm run demo:people (it makes the demo organisation) first.');
+  return { OTA: { id: ota.id, name: ota.name } };
 }
 
 /**
@@ -121,7 +121,7 @@ export async function markDemoOrganisation(prisma: PrismaClient, organisationId:
 }
 
 async function placeStaff(prisma: PrismaClient, organisationId: string, s: DemoStaff, branches: Awaited<ReturnType<typeof demoBranches>>, roles: Map<string, string>, hash: string, reset: boolean, r: DemoPeopleResult): Promise<string> {
-  const branchId = s.branch === 'HQ' ? null : branches[s.branch].id;
+  const branchId = s.branch === 'BIZ' ? null : branches[s.branch].id;
   const dept = s.dept && branchId ? await prisma.department.findUnique({ where: { branchId_slug: { branchId, slug: s.dept } }, select: { id: true } }) : null;
   if (s.dept && !dept) r.notes.push(`${s.email}: the department ${s.dept} does not exist on ${s.branch}; placed without one.`);
   const select = { id: true, email: true, organisationId: true, fullName: true, branchId: true, departmentId: true, isActive: true, employeeId: true } as const;

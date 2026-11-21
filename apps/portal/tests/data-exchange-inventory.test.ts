@@ -18,7 +18,7 @@ test('amounts as SAP, Excel and people write them', () => {
   assert.equal(parseAmount(''), null);
 });
 
-test('SAP unit codes become the Store’s words', () => {
+test('common unit codes become the Store’s words', () => {
   assert.equal(unitWord('ST'), 'Piece');
   assert.equal(unitWord('ea'), 'Each');
   assert.equal(unitWord('L'), 'Litre');
@@ -27,24 +27,24 @@ test('SAP unit codes become the Store’s words', () => {
   assert.equal(unitWord(''), '');
 });
 
-test('an SAP material master maps itself; unit and tracking come through', () => {
-  const m = autoMap('parts', ['MATNR', 'MAKTX', 'MATKL', 'MEINS', 'XCHPF', 'EAN11', 'MINBE', 'EISBE', 'MEINH', 'UMREZ']);
-  assert.deepEqual([m.partNumber, m.name, m.category, m.baseUnit, m.trackingType, m.barcode, m.reorderPoint, m.safetyStock, m.altUnit, m.altFactor], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  const r = checkPartRow(['8-98123456-0', 'Brake pad set, front (NQR)', 'BRAKES', 'ST', 'X', '', '4', '2', 'CAR', '10'], m, 'SAP');
+test('a parts list maps itself; unit and tracking come through', () => {
+  const m = autoMap('parts', ['Part number', 'Description', 'Category', 'Base unit', 'Tracking', 'Barcode', 'Reorder point', 'Safety stock', 'Alternative unit', 'Base units in the alternative unit', 'Number in the old system']);
+  assert.deepEqual([m.partNumber, m.name, m.category, m.baseUnit, m.trackingType, m.barcode, m.reorderPoint, m.safetyStock, m.altUnit, m.altFactor, m.externalId], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  const r = checkPartRow(['04465-02220', 'Brake pad set, front (Toyota Corolla)', 'BRAKES', 'ST', 'Batch', '', '4', '2', 'CAR', '10', 'BP-COR-F'], m);
   assert.equal(r.status, 'GOOD', JSON.stringify(r.issues));
-  assert.deepEqual(r.values, { partNumber: '8-98123456-0', name: 'Brake pad set, front (NQR)', category: 'BRAKES', baseUnit: 'Piece', trackingType: 'BATCH', barcode: null, sellingPrice: null, reorderPoint: 4, safetyStock: 2, altUnit: { name: 'Carton', factor: 10 }, externalId: '8-98123456-0' });
-  assert.deepEqual(r.keys, ['ext:8-98123456-0', 'part:8-98123456-0']);
+  assert.deepEqual(r.values, { partNumber: '04465-02220', name: 'Brake pad set, front (Toyota Corolla)', category: 'BRAKES', baseUnit: 'Piece', trackingType: 'BATCH', barcode: null, sellingPrice: null, reorderPoint: 4, safetyStock: 2, altUnit: { name: 'Carton', factor: 10 }, externalId: 'BP-COR-F' });
+  assert.deepEqual(r.keys, ['ext:BP-COR-F', 'part:04465-02220']);
 });
 
 test('parts: no part number or description rejects; gaps are notes', () => {
   const m = autoMap('parts', ['Part number', 'Description', 'Unit', 'Price']);
   assert.equal(checkPartRow(['', 'Filter', 'EA', ''], m).status, 'REJECTED');
   assert.equal(checkPartRow(['F-1', '', 'EA', ''], m).status, 'REJECTED');
-  const gap = checkPartRow(['F-1', 'Oil filter', '', 'lots'], m, 'LEGACY');
+  const gap = checkPartRow(['F-1', 'Oil filter', '', 'lots'], m);
   assert.equal(gap.status, 'WARNING');
   assert.equal(gap.values?.baseUnit, 'Piece');
   assert.equal(gap.values?.sellingPrice, null);
-  assert.equal(gap.values?.externalId, null, 'from an old spreadsheet, the part number is not an SAP number');
+  assert.equal(gap.values?.externalId, null, 'no old-system number unless the file gives one');
   assert.equal(partKey(' ab  12 '), 'AB 12');
 });
 

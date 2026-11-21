@@ -1,6 +1,6 @@
 /**
- * Leadership and IT tools: a full briefing on the business for the Owner and
- * managers, and plain-words explanations of the error log for IT. Both run
+ * Owner tools: a full briefing on the business for the Owner / GMD, and
+ * plain-words explanations of the error log. Both run
  * the pages' own authorised code as the signed-in person (the dashboard's
  * overview, Business analytics, Team performance, the Error log) and return
  * figures computed here — the model only quotes.
@@ -14,8 +14,8 @@ import { KIND_LABEL, KIND_TODO, isErrorKind, normaliseRef } from '@/lib/error-ev
 import { nothing, ok, r2, refused, text, when } from '../tool-helpers';
 import type { StaffTool } from '../types';
 
-const LEADERS = 'the branch briefing is for directors, administrators and managers with Business analytics.';
-const IT = 'the error log is for IT and administrators (audit trail access).';
+const LEADERS = 'the business briefing is for the Owner / GMD (Business analytics).';
+const IT = 'the error log is for the Owner and administrators (audit trail access).';
 
 export const leadershipTools: StaffTool[] = [
   {
@@ -23,7 +23,7 @@ export const leadershipTools: StaffTool[] = [
     kind: 'read',
     status: 'Preparing the briefing…',
     description:
-      'A complete briefing for the Owner and managers on the business this month: the money (sales, gross profit and margin, takings, what the sales are made of: labour, parts, outside work, sundry, what is owed), the workshop now (Job Cards in, ready, waiting for parts or the customer, turnaround), decisions waiting by queue and the oldest, customer support, the team (who needs attention, who is strong), and what to look at first. Use it for "brief me", "how are we doing", "give me the overview". For stock details also use stock_alerts. Needs Business analytics.',
+      'A complete briefing for the Owner / GMD on the business this month: the money (revenue, gross profit and margin, takings, what the revenue is made of: labour, parts, outside work, sundry, what is owed), the workshop now (Job Cards in, ready, waiting for parts or the customer, turnaround), decisions waiting by queue and the oldest, customer support, the team (who needs attention, who is strong), and what to look at first. Use it for "brief me", "how are we doing", "give me the overview". For stock details also use stock_alerts. Needs Business analytics.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     run: async () => {
       if (!(await allows('analytics.business.view'))) return refused(LEADERS);

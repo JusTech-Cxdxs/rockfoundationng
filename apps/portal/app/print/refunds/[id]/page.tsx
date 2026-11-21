@@ -87,7 +87,7 @@ export default async function PrintRefundPage({ params, searchParams }: { params
         </p>
       ) : null}
 
-      <SignatureBlock issuerLabel="Refunded By (Finance)" issuerName={refund.recordedBy.fullName} collectorLabel="Received By" collectorName={refund.paidToName} />
+      <SignatureBlock issuerLabel="Refunded By (Accounts)" issuerName={refund.recordedBy.fullName} collectorLabel="Received By" collectorName={refund.paidToName} />
       <DocumentFooter organisation={organisation} />
     </div>
   );

@@ -2,10 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 import { as, uniq, open, signIn, signOut, latestMail, linkIn, countMail } from './helpers';
 import { db } from './db';
 import { who } from './people';
-import { IMPORT_SOURCE } from './edition';
 
 /**
- * P7 — the organisation's people from SAP HR: each becomes an EJO account in
+ * The organisation's people from the old HR list: each becomes an EJO account in
  * its branch and department with its roles, switched OFF and emailed nothing,
  * until an Organisation Administrator sends the invitations; then each person
  * gets the welcome with a one-time set-password link, signs in, and sees
@@ -39,7 +38,7 @@ test('the staff file: refusals and the totals; the Organisation Administrator ap
   const dept = await db().department.findFirstOrThrow({ where: { branchId: branch.id, slug: 'workshop-commercial' }, select: { id: true, name: true } });
   await as(page, 'it-administrator');
   importUrl = await upload(page, csv([
-    ['PERNR', 'ENAME', 'Work email', 'Employee ID', 'Branch', 'Department', 'Roles'],
+    ['Personnel number', 'Full name', 'Work email', 'Employee ID', 'Branch', 'Department', 'Roles'],
     [`0001${D}1`, `Ada Import ${T}`, mail(1), `P7-${D}-1`, branch.name, dept.name, 'Technician'],
     [`0001${D}2`, `Bayo Import ${T}`, mail(2), '', branch.name, '', 'Front Desk; Customer Care'],
     [`0001${D}3`, `Chika Import ${T}`, mail(3), '', branch.name, '', ''],
@@ -74,7 +73,7 @@ test('the staff file: refusals and the totals; the Organisation Administrator ap
 
   const people = await db().user.findMany({ where: { email: { in: [mail(1), mail(2), mail(3)] } }, orderBy: { email: 'asc' }, include: { roles: { include: { role: { select: { slug: true } } } }, accounts: { select: { providerId: true, password: true } } } });
   expect(people.map((u) => u.email)).toEqual([mail(1), mail(2), mail(3)]);
-  expect(people.every((u) => !u.isActive && !u.invitedAt && u.importJobId && u.branchId === branch.id && u.externalSource === IMPORT_SOURCE)).toBe(true);
+  expect(people.every((u) => !u.isActive && !u.invitedAt && u.importJobId && u.branchId === branch.id && u.externalSource === 'LEGACY')).toBe(true);
   expect(people[0]!.employeeId).toBe(`P7-${D}-1`);
   expect(people[0]!.departmentId).toBe(dept.id);
   expect(people[1]!.employeeId).toMatch(/^[A-Z0-9]+-[A-Z0-9]+-\d{4}$/); // issued by EJO for the branch
@@ -129,7 +128,7 @@ test('only an administrator of the whole organisation sends the invitations; eac
 test('undo: everyone invited stays (reported); a second import of one not yet invited goes to the Recycle bin and restores switched off', async ({ page }) => {
   const manager = await db().user.findUniqueOrThrow({ where: { email: who('workshop-manager').email }, select: { branch: { select: { name: true } } } });
   await as(page, 'it-administrator');
-  const second = await upload(page, csv([['ENAME', 'Work email', 'Branch', 'Roles'], [`Dayo Import ${T}`, mail(10), manager.branch!.name, 'Technician']]));
+  const second = await upload(page, csv([['Full name', 'Work email', 'Branch', 'Roles'], [`Dayo Import ${T}`, mail(10), manager.branch!.name, 'Technician']]));
   await page.getByRole('button', { name: /Send for approval/ }).click();
   await as(page, 'administrator');
   await open(page, second);

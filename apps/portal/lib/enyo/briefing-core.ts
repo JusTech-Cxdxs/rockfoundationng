@@ -4,7 +4,7 @@
  * hand when the model cannot help. No database, no network.
  */
 export type Section = {
-  key: 'day' | 'pending' | 'business' | 'stock' | 'support' | 'website' | 'integrity' | 'leads';
+  key: 'day' | 'pending' | 'business' | 'stock' | 'support' | 'integrity' | 'leads';
   title: string;
   data: unknown;
   /** A one-line reason when the section could not be read (never a refusal). */
@@ -19,9 +19,9 @@ export type BriefingPack = {
   generatedAt: string;
 };
 
-const ASK = /^\s*brief(ing)?\b|\b(brief|briefing) (me|us|on)\b|\ba (daily |morning |quick |full )?briefing\b|\bcatch me up\b|\bupdate me\b|\bbring me up to (date|speed)\b|\bwhat('s| is| has been) (happening|going on)(\s+(today|here|now|everywhere|(in|at|across) (the|our|my) (business|branch|workshop|company|group|plant|showroom)))?\s*[?!.]*\s*$|\beverything (that is |that's )?(happening|going on)\b|\bhow (are|is) (we|the business|business|things|everything) (doing|going)\b|\bare we (on|in|making) (a )?profit\b|\b(business|general) analytics\b|\boverview of (the business|everything|the day|today)\b|\bstate of (the business|things|play)\b|\bdaily (brief|summary|update)\b|\bmorning (brief|summary|update)\b|\b(what|anything|which|work|things?|tasks?|jobs?)\b[^?]{0,40}\bneeds? (my |our )?(attention|action|approval|me|doing)\b|\bwhat('s| is| are)? (waiting|pending|outstanding|left|on my (plate|desk|list))\b|\bmy (to.?do|tasks|work|day|pending|approvals|queue)( list| today| for today)?\s*[?!.]*\s*$|\b(show|give|tell)( me)? (the |our |my )?(analytics|figures|numbers|kpis?|dashboard|performance|summary)\b|\b(business|sales|revenue|profit|branch|workshop) (performance|summary|overview|update|report)\b|\bhow much (did|have) we (make|made|take|taken|sell|sold)\b|\bwhat do i (need|have) to do\b/i;
+const ASK = /^\s*brief(ing)?\b|\b(brief|briefing) (me|us|on)\b|\ba (daily |morning |quick |full )?briefing\b|\bcatch me up\b|\bupdate me\b|\bbring me up to (date|speed)\b|\bwhat('s| is| has been) (happening|going on)(\s+(today|here|now|everywhere|(in|at|across) (the|our|my) (business|branch|workshop|company)))?\s*[?!.]*\s*$|\beverything (that is |that's )?(happening|going on)\b|\bhow (are|is) (we|the business|business|things|everything) (doing|going)\b|\bare we (on|in|making) (a )?profit\b|\b(business|general) analytics\b|\boverview of (the business|everything|the day|today)\b|\bstate of (the business|things|play)\b|\bdaily (brief|summary|update)\b|\bmorning (brief|summary|update)\b|\b(what|anything|which|work|things?|tasks?|jobs?)\b[^?]{0,40}\bneeds? (my |our )?(attention|action|approval|me|doing)\b|\bwhat('s| is| are)? (waiting|pending|outstanding|left|on my (plate|desk|list))\b|\bmy (to.?do|tasks|work|day|pending|approvals|queue)( list| today| for today)?\s*[?!.]*\s*$|\b(show|give|tell)( me)? (the |our |my )?(analytics|figures|numbers|kpis?|dashboard|performance|summary)\b|\b(business|sales|revenue|profit|branch|workshop) (performance|summary|overview|update|report)\b|\bhow much (did|have) we (make|made|take|taken|sell|sold)\b|\bwhat do i (need|have) to do\b/i;
 /** A question about one record, one thing or one request is not a briefing, even if it says "update" or "brief". */
-const SPECIFIC = /\b(JC|SV|EPR|PRS|GRN|RF|WR|WC|VIS|EP|VX|RT|INC|DLV|CTR|APT|BC|SUP)-\d|\bjob ?card\b|\bbay \d|\bmy [a-z ]{0,20}request\b|\bhow do i\b|\bhow to\b|\bremind me\b|\bdraft\b|\bwrite (a|an|the)\b|\bemail\b|\bmail\b|\bkeep it brief\b|\bin brief\b|\bbrief (description|explanation|summary of)\b|\bbriefed\b|\bwhat('s| is) (happening|going on) with\b/i;
+const SPECIFIC = /\b(JC|PRS|GRN|RF|INV|RCT|VX|BC|SUP)-\d|\bjob ?card\b|\bbay \d|\bmy [a-z ]{0,20}request\b|\bhow do i\b|\bhow to\b|\bremind me\b|\bdraft\b|\bwrite (a|an|the)\b|\bemail\b|\bmail\b|\bkeep it brief\b|\bin brief\b|\bbrief (description|explanation|summary of)\b|\bbriefed\b|\bwhat('s| is) (happening|going on) with\b/i;
 
 /** "Brief me", "what is happening", "are we on profit", "business analytics" — the whole picture, not one record. */
 export function isBriefingRequest(message: string): boolean {
@@ -48,7 +48,7 @@ function compact(v: unknown, depth = 0): unknown {
   return v;
 }
 
-const BUDGET: Record<Section['key'], number> = { day: 1800, pending: 1200, business: 3200, stock: 700, support: 900, website: 600, integrity: 600, leads: 500 };
+const BUDGET: Record<Section['key'], number> = { day: 1800, pending: 1200, business: 3200, stock: 700, support: 900, integrity: 600, leads: 500 };
 
 /** The pack as text for the model, within a small budget per section (a free tier allows little per minute). */
 export function packToText(pack: BriefingPack): string {
@@ -142,23 +142,6 @@ function business(data: unknown): string[] {
   return lines;
 }
 
-function website(data: unknown): string[] {
-  const d = obj(data);
-  const w = obj(d.website);
-  if (!Object.keys(w).length) return [str(d.website, 160) ?? 'Not counted yet.'];
-  const tot = obj(w.totals);
-  const lines: string[] = [`Visitors ${num(tot.visitors) ?? '—'}, page views ${num(tot.views ?? tot.pageViews) ?? '—'}${typeof tot.chatted === 'number' ? `, ${num(tot.chatted)} chatted with Enyo` : ''}${tot.averageTimeOnPage ? `, average time on page ${str(tot.averageTimeOnPage, 20)}` : ''}${w.since ? ` (since ${str(w.since, 24)})` : ''}.`];
-  const top = arr(w.topPages).slice(0, 4);
-  if (top.length) lines.push(`Most read: ${top.map((p) => { const x = obj(p); return `${str(x.page, 40)} (${num(x.views) ?? 0})`; }).join(', ')}.`);
-  const it = obj(d.itTrends);
-  const days = arr(it.perDay);
-  if (days.length) {
-    const sum = (k: string) => days.reduce<number>((n, x) => n + (typeof obj(x)[k] === 'number' ? (obj(x)[k] as number) : 0), 0);
-    lines.push(`IT, same days: ${num(sum('signIns'))} sign-ins, ${num(sum('failedSignIns'))} failed, ${num(sum('errors'))} errors, ${num(sum('enyoChats'))} Enyo chats.`);
-  }
-  return lines;
-}
-
 function stock(data: unknown): string[] {
   const d = obj(data);
   const lines: string[] = [];
@@ -209,7 +192,7 @@ export function renderBriefing(pack: BriefingPack, personName: string): string {
   for (const s of pack.sections) {
     out.push(`\n### ${s.title}`);
     if (s.data === null) { out.push(s.note ?? 'Not available just now.'); continue; }
-    const lines = s.key === 'day' ? day(s.data) : s.key === 'pending' ? pending(s.data) : s.key === 'business' ? business(s.data) : s.key === 'website' ? website(s.data) : s.key === 'stock' ? stock(s.data) : generic(s.data);
+    const lines = s.key === 'day' ? day(s.data) : s.key === 'pending' ? pending(s.data) : s.key === 'business' ? business(s.data) : s.key === 'stock' ? stock(s.data) : generic(s.data);
     out.push(lines.length ? lines.join('\n') : 'Nothing to report.');
   }
   if (pack.sources.length) out.push(`\nPages: ${pack.sources.slice(0, 6).map((s) => (s.href ? `[${s.label}](${s.href})` : s.label)).join(' · ')}`);
@@ -222,8 +205,8 @@ export function briefingSystemPrompt(o: { assistantName: string; organisationNam
   return [
     `You are ${o.assistantName}, the assistant inside ${o.organisationName}'s enterprise platform. It is ${o.now}. You are briefing ${o.personName} (${o.roleDescription}).`,
     'Write the briefing from the figures given below and nothing else. Every number comes from those figures; never invent, estimate or round beyond the nearest thousand naira. Sections missing from the figures are not for this person\'s role: do not mention them or apologise for them.',
-    'Shape: one-line verdict first (how the day and the month stand). Then, only where there are figures: what waits on them (link each record number as given, e.g. [JC-2026-000412](/workshop/job-cards/…)), what they sent that waits on others (say with whom), the business (sales, takings, gross profit and whether that is a profit, change on last month, biggest customers), the workshop now, decisions waiting, the team, customers and support, stock, the website and store. End with the two or three things to do first.',
-    'Money is in naira (₦). Use short headings and bullet points; a table only for branches side by side. Links exactly as given (paths starting with /). Be direct and warm, never padded. No preamble such as "Here is your briefing".',
+    'Shape: one-line verdict first (how the day and the month stand). Then, only where there are figures: what waits on them (link each record number as given, e.g. [JC-2026-000412](/workshop/job-cards/…)), what they sent that waits on others (say with whom), the business (revenue, takings, gross profit and whether that is a profit, change on last month, biggest customers, what customers owe), the workshop now, decisions waiting, the team, customer care, stock, and enquiries from the customer portal. End with the two or three things to do first.',
+    'Money is in naira (₦). Use short headings and bullet points; a table only when comparing several rows of figures. Links exactly as given (paths starting with /). Be direct and warm, never padded. No preamble such as "Here is your briefing".',
     ...(o.branch ? [`The person asked about the ${o.branch} branch: lead with that branch.`] : []),
   ].join('\n');
 }
@@ -242,7 +225,7 @@ export function staffGreeting(o: { firstName: string; assistantName: string; lea
   const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', hour: 'numeric', hour12: false }).format(o.now ?? new Date()));
   const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   const tries = o.leader
-    ? ['"Brief me" — your day, the business this month, the workshop now and what to do first', '"Are we on profit this month?"', '"What needs my attention?"', '"Brief me on <branch>"']
+    ? ['"Brief me" — your day, the business this month, the workshop now and what to do first', '"Are we on profit this month?"', '"What needs my attention?"', '"Which fleet customers owe us money?"']
     : ['"Brief me" — what waits for you today and what you are waiting on', '"What needs my attention?"', '"How do I …?" for any step in your work', 'A job card or vehicle number, for its status'];
   return `Good ${part}, ${o.firstName}! I'm ${o.assistantName}. Ask me anything about your work here, for example:\n${tries.map((t) => `- ${t}`).join('\n')}`;
 }
@@ -250,7 +233,7 @@ export function staffGreeting(o: { firstName: string; assistantName: string; lea
 /** When every model is busy and nothing could be said: where to look, never "try again in a minute" alone. */
 export function staffBusyText(o: { leader: boolean }): string {
   const pages = o.leader
-    ? '[Headquarters](/headquarters) · [Business analytics](/analytics) · [Approvals](/approvals) · [Dashboard](/dashboard)'
+    ? '[Business analytics](/analytics) · [Approvals](/approvals) · [Dashboard](/dashboard)'
     : '[Dashboard](/dashboard) · [Approvals](/approvals) · [My work](/dashboard#my-work)';
   return `My thinking engine is busy for a moment, so I could not work that one out just now. Say **"brief me"** for everything that needs you — that always works — or look here: ${pages}. Ask me again in a minute for the rest.`;
 }

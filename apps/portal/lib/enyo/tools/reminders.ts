@@ -24,7 +24,7 @@ const PAGE_RECORD: [RegExp, ReminderRecordType][] = [
   ...(STORE_ON ? [[/^\/workshop\/parts-requests\/([A-Za-z0-9_-]{8,64})/, 'PartRequestSlip'] as [RegExp, ReminderRecordType]] : []),
 ];
 
-/** The records a reference number may point a reminder at in this edition. */
+/** The records a reference number may point a reminder at. */
 const REFERENCE_MODELS: string[] = ['JobCard', ...(STORE_ON ? ['PartRequestSlip'] : [])];
 
 /** "JC-2026-000012" → the record, when the person can open it (the search applies their reach). */

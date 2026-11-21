@@ -2,7 +2,7 @@ import { getPrincipal, myOrganisationId } from '@/lib/authz/server';
 import { conversationInsights } from '@/lib/enyo/conversations';
 import { SectionCard, BarRow, CHART } from '@/components/ui';
 
-const CHANNEL: Record<string, string> = { STAFF: 'Staff (portal)', CUSTOMER: 'Customers (customer portal)', PUBLIC: 'Website visitors' };
+const CHANNEL: Record<string, string> = { STAFF: 'Staff (portal)', CUSTOMER: 'Customers (customer portal)', PUBLIC: 'Website support page' };
 
 /**
  * What Enyo learns from its conversations (last 30 days): use by channel and
@@ -21,7 +21,7 @@ export async function ConversationInsightsCard() {
   const maxTool = Math.max(1, ...s.tools.map((t) => t.count));
   return (
     <div id="conversations" className="scroll-mt-24">
-      <SectionCard icon="activity" title="What Enyo learns from its conversations" description="The last 30 days across staff, customer and website chats. Learned answers wait for your approval below; the training export holds only approved and helpful answers, with names and contact details removed."
+      <SectionCard icon="activity" title="What Enyo learns from its conversations" description="The last 30 days across staff, customer and website chats. Learned answers wait for your approval below, with names and contact details removed."
         actions={<a href="/enyo/learning/conversations" className="inline-flex min-h-10 items-center rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 text-xs font-medium text-[var(--ejo-text)] hover:border-[var(--ejo-primary)]">Download training set (JSONL)</a>}>
         <div className="grid gap-6 lg:grid-cols-2">
           <div>

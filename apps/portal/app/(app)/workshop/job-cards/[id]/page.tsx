@@ -41,7 +41,7 @@ import { IdempotencyKey } from '@/components/IdempotencyKey';
 import { PageTitle, StatusChip } from '@/components/ui';
 import { CustomerLink } from '@/components/CustomerLink';
 import { RefineTextButton } from '@/components/enyo/RefineTextButton';
-import { moduleIsOn, oldSystemName } from '@/lib/modules';
+import { moduleIsOn } from '@/lib/modules';
 import { getVehicleInspection } from '@/lib/actions/vehicle-inspection';
 import { serviceJobCardCycle } from '@/lib/vehicle-service-cycle';
 import { ServiceJobCardBadge } from '@/components/ServiceJobCardBadge';
@@ -75,7 +75,7 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
   'job_card.moved_to_recycle_bin': 'Moved to the Recycle bin',
   'job_card.restored_from_recycle_bin': 'Restored from the Recycle bin',
   'road_test.requested': 'Road test requested',
-  'road_test.approved': 'Road test approved by the Manager',
+  'road_test.approved': 'Road test approved by the Owner',
   'road_test.declined': 'Road test declined',
   'road_test.cancelled': 'Road test cancelled',
   'road_test.gate_out': 'Out on road test',
@@ -104,12 +104,12 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
   'estimate.customer_approved': 'The customer approved the estimate',
   'estimate.customer_declined': 'The customer declined the estimate',
   'estimate.approval_link_sent': 'Approval link sent to the customer',
-  'credit.closed_over_limit': 'Closed on credit over the credit limit (Manager)',
+  'credit.closed_over_limit': 'Closed on credit over the credit limit (Owner)',
   'estimate.discount_set': 'Discount given on the estimate',
   'estimate.discount_removed': 'Discount on the estimate removed',
   'estimate.line_discount_set': 'Discount given on a line',
   'estimate.line_discount_removed': 'Discount on a line removed',
-  'estimate.discount_approved': 'Discount approved by the Manager',
+  'estimate.discount_approved': 'Discount approved by the Owner',
   'invoice.issued': 'Invoice issued',
   'invoice.emailed': 'Invoice emailed to the customer',
   'whatsapp.prepared': 'Message prepared for WhatsApp (sent from staff phone)',
@@ -131,7 +131,7 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
   'part_request_slip.released': 'Parts request released',
   'part_request_slip.rejected': 'Parts request rejected',
   'external_procurement.requested': 'External procurement requested',
-  'external_procurement.sent_to_manager': 'External procurement sent to Manager',
+  'external_procurement.sent_to_manager': 'External procurement sent to Owner',
   'external_procurement.approved': 'External procurement approved',
   'external_procurement.disbursed': 'External procurement disbursed',
   'external_procurement.rejected': 'External procurement rejected',
@@ -329,7 +329,7 @@ const STAGE_HINT: Record<string, string> = {
   QUALITY_CHECK: 'Work done — being checked (inspection and road test) before sign-off.',
   COMPLETED: 'Signed off — preparing the vehicle for the customer.',
   READY_FOR_COLLECTION: 'The customer has been told to collect.',
-  CLOSED: 'Closed by a Manager — waiting for the vehicle to be collected.',
+  CLOSED: 'Closed by the Owner — waiting for the vehicle to be collected.',
   CHECKED_OUT: 'Vehicle collected — this Job Card is complete.',
   CANCELLED: 'Cancelled — the vehicle just needs handing back.',
 };
@@ -347,9 +347,9 @@ const NEXT_STEP_LABEL: Record<string, string> = {
 const WAITING_ON: Record<string, string> = {
   IN_PROGRESS: "this Job Card's supervisor or technician",
   AWAITING_PARTS: "this Job Card's supervisor or technician",
-  QUALITY_CHECK: "this Job Card's supervisor or a Manager",
-  COMPLETED: "this Job Card's supervisor or a Manager",
-  CLOSED: "this Job Card's supervisor, technician or a Manager",
+  QUALITY_CHECK: "this Job Card's supervisor or the Owner",
+  COMPLETED: "this Job Card's supervisor or the Owner",
+  CLOSED: "this Job Card's supervisor, technician or the Owner",
 };
 
 export default async function JobCardDetailPage({
@@ -471,7 +471,7 @@ export default async function JobCardDetailPage({
   const isPaidInFull = paidInFull(paymentsTotal, estimateTotal);
   const outstanding = Math.max(0, Math.round((estimateTotal - paymentsTotal) * 100) / 100);
   // An organisation on credit leaves with a balance once invoiced, within its
-  // credit limit; a Job Card a Manager has closed has had that decision.
+  // credit limit; a Job Card the Owner has closed has had that decision.
   const credit = !isPaidInFull && !isCancelled && jobCard.customer.customerType === 'ORGANIZATION' ? await creditStanding(id, outstanding) : null;
   const mayLeaveOnCredit = Boolean(credit?.onCredit && (jobCard.status === 'CLOSED' || credit.withinLimit));
   // "Send on WhatsApp" next to the emails: the message is written here, the colleague sends it from their own phone.
@@ -576,10 +576,10 @@ export default async function JobCardDetailPage({
 
       {jobCard.externalId ? (
         <div className="mt-4 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-info)]/40 bg-[var(--ejo-info)]/10 px-4 py-3 text-sm text-[var(--ejo-text)]" role="note" data-testid="job-card-origin">
-          <span className="font-semibold">Brought in from {oldSystemName(jobCard.externalSource)} as job card {jobCard.externalId}.</span>{' '}
+          <span className="font-semibold">Brought in from the old system as job card {jobCard.externalId}.</span>{' '}
           Opened there on {formatDateOnly(jobCard.createdAt)}{origin ? <>, brought into EJO by import {origin.mayOpen ? <LoadingLink href={`/data-exchange/imports/${jobCard.importJobId}`} className="font-medium text-[var(--ejo-primary)] hover:underline">{origin.number}</LoadingLink> : origin.number}{origin.loadedAt ? ` on ${formatDateOnly(origin.loadedAt)}` : ''}</> : null}.
           {jobCard.approvalStatus === 'APPROVED' && jobCard.approvalNotes?.includes('before EJO') ? ' The estimate was approved before EJO; EJO’s approval was not asked again.' : ''}
-          {payments.some((p) => p.notes?.startsWith('Paid before EJO')) ? ' Payments marked “Paid before EJO” were taken in the old system and confirmed by Finance.' : ''}
+          {payments.some((p) => p.notes?.startsWith('Paid before EJO')) ? ' Payments marked “Paid before EJO” were taken in the old system and confirmed by Accounts.' : ''}
         </div>
       ) : null}
       <div className="ejo-hero relative mt-3 mb-6 flex flex-wrap items-center gap-3 overflow-hidden rounded-[var(--ejo-radius-xl)] border border-[var(--ejo-border)] p-4 sm:p-5">
@@ -854,7 +854,7 @@ export default async function JobCardDetailPage({
                           : 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]'
                     }`}
                   >
-                    {estimate.status === 'APPROVED' && isEligibleManager && estimate.approvedById !== viewerId && estimate.createdById !== viewerId ? 'Waiting for you (Manager)' : ESTIMATE_STATUS_LABEL[estimate.status]}
+                    {estimate.status === 'APPROVED' && isEligibleManager && estimate.approvedById !== viewerId && estimate.createdById !== viewerId ? 'Waiting for you (Owner)' : ESTIMATE_STATUS_LABEL[estimate.status]}
                   </span>
                   {estimate.status === 'MANAGER_APPROVED' ? (
                     <PrintMenu
@@ -1008,14 +1008,14 @@ export default async function JobCardDetailPage({
                     <div className="flex justify-between text-sm text-[var(--ejo-success)]">
                       <span>
                         Discount ({discountPercent(liveTotals)}%){estimate.discountReason ? ` — ${estimate.discountReason}` : ''}
-                        {estimate.discountApprovedAt ? ' · approved by the Manager' : discountForManager ? ' · needs the Manager' : ''}
+                        {estimate.discountApprovedAt ? ' · approved by the Owner' : discountForManager ? ' · needs the Owner' : ''}
                       </span>
                       <span>−{formatNaira(liveTotals.discountAmount)}</span>
                     </div>
                   ) : null}
                   {liveTotals.vatRate > 0 ? (
                     <div className="flex justify-between text-sm text-[var(--ejo-text-muted)]">
-                      <span>{vatIsFixed(estimate) ? `VAT at ${liveTotals.vatRate}% (fixed when the Manager approved)` : `VAT (${liveTotals.vatRate}%)`}</span>
+                      <span>{vatIsFixed(estimate) ? `VAT at ${liveTotals.vatRate}% (fixed when the Owner approved)` : `VAT (${liveTotals.vatRate}%)`}</span>
                       <span>{formatNaira(liveTotals.vatAmount)}</span>
                     </div>
                   ) : null}
@@ -1032,8 +1032,8 @@ export default async function JobCardDetailPage({
                     <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
                       Only on what the customer pays, never more than the amount discounted.{' '}
                       {billingSettings?.discountApprovalPercent != null
-                        ? `A discount on the whole estimate above ${billingSettings.discountApprovalPercent}% of the subtotal needs the Manager's approval.`
-                        : 'A discount on the whole estimate needs the Manager\'s approval.'}
+                        ? `A discount on the whole estimate above ${billingSettings.discountApprovalPercent}% of the subtotal needs the Owner's approval.`
+                        : 'A discount on the whole estimate needs the Owner\'s approval.'}
                     </p>
                     <form action={setEstimateDiscountFormAction} className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[8rem_1fr_auto]">
                       <FormPendingOverlay />
@@ -1179,7 +1179,7 @@ export default async function JobCardDetailPage({
                   </div>
                 ) : null}
                 <SubmitButton
-                  label="Approve as Manager"
+                  label="Approve as Owner"
                   pendingLabel="Approving…"
                   className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-success)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
                 />
@@ -1481,7 +1481,7 @@ export default async function JobCardDetailPage({
                               : 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]'
                         }`}
                       >
-                        {r.status === 'APPROVED' ? 'Approved' : r.status === 'DECLINED' ? 'Declined' : 'Awaiting Manager Decision'}
+                        {r.status === 'APPROVED' ? 'Approved' : r.status === 'DECLINED' ? 'Declined' : 'Awaiting Owner Decision'}
                       </span>
                       <span className="text-xs text-[var(--ejo-text-muted)]">{formatDateTime(r.requestedAt)}</span>
                     </div>
@@ -1619,15 +1619,15 @@ export default async function JobCardDetailPage({
             {jobCard.status === 'READY_FOR_COLLECTION' && !pendingCloseRequest ? (
               <p className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs text-[var(--ejo-text)]">
                 {isPaidInFull
-                  ? 'Next: request the close below — a Manager approves it, then the vehicle can be checked out.'
+                  ? 'Next: request the close below — the Owner approves it, then the vehicle can be checked out.'
                   : credit?.onCredit
-                    ? `On credit: ${formatNaira(outstanding)} goes on the invoice${credit.paymentTermsDays ? ` (due in ${credit.paymentTermsDays} days)` : ''}. Request the close below.${credit.withinLimit ? '' : ' It takes the organisation over its credit limit, so only a Manager can close it.'}`
+                    ? `On credit: ${formatNaira(outstanding)} goes on the invoice${credit.paymentTermsDays ? ` (due in ${credit.paymentTermsDays} days)` : ''}. Request the close below.${credit.withinLimit ? '' : ' It takes the organisation over its credit limit, so only the Owner can close it.'}`
                     : `Next: collect the balance (${formatNaira(outstanding)}), then request the close.`}
               </p>
             ) : null}
             {jobCard.status === 'READY_FOR_COLLECTION' && pendingCloseRequest ? (
               <p className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-info)]/40 bg-[var(--ejo-info)]/10 px-3 py-2 text-xs text-[var(--ejo-text)]">
-                Close requested — waiting on a Manager&apos;s approval.
+                Close requested — waiting on the Owner&apos;s approval.
               </p>
             ) : null}
 
@@ -1657,7 +1657,7 @@ export default async function JobCardDetailPage({
                   ) : !isCancelled && !isPaidInFull && !mayLeaveOnCredit ? (
                     <p className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-warning)]/40 bg-[var(--ejo-warning)]/10 px-3 py-2 text-xs text-[var(--ejo-text)]">
                       {credit?.onCredit
-                        ? `${formatNaira(outstanding)} outstanding takes the organisation to ${formatNaira(credit.owedIncludingThis)} unpaid, over its credit limit of ${formatNaira(credit.limit ?? 0)}. Record a payment first, or a Manager can close it over the limit.`
+                        ? `${formatNaira(outstanding)} outstanding takes the organisation to ${formatNaira(credit.owedIncludingThis)} unpaid, over its credit limit of ${formatNaira(credit.limit ?? 0)}. Record a payment first, or the Owner can close it over the limit.`
                         : `Payment must be completed in full before check-out — ${formatNaira(outstanding)} outstanding.`}
                     </p>
                   ) : (
@@ -1859,7 +1859,7 @@ export default async function JobCardDetailPage({
             <div className="h-fit rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-error)]/30 bg-[var(--ejo-error)]/5 p-5">
               <h2 className="text-sm font-semibold text-[var(--ejo-error)]">Request cancellation</h2>
               <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
-                Use this when the customer asks to cancel. A Manager must approve it.
+                Use this when the customer asks to cancel. The Owner must approve it.
               </p>
               <form action={requestJobCardCancellationFormAction} className="mt-3 space-y-2">
                 <FormPendingOverlay />
@@ -1935,7 +1935,7 @@ export default async function JobCardDetailPage({
             <div className="h-fit rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-primary)]/30 bg-[var(--ejo-primary)]/5 p-5">
               <h2 className="text-sm font-semibold text-[var(--ejo-primary)]">Request close</h2>
               <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
-                A Manager must approve before this Job Card is closed.
+                The Owner must approve before this Job Card is closed.
               </p>
               <form action={requestJobCardCloseFormAction} className="mt-3">
                 <FormPendingOverlay />

@@ -1,8 +1,7 @@
 /**
- * The workshop demo: seven months of D'Phoenix Autocare's Victoria Island
- * Workshop — the fleets it maintains on credit (SEEPCO, RCL Africa, Nairda
- * Limited, Desicon Engineering, Dori Construction, Inspiration FM) and its
- * private customers, their vehicles, and one Job Card for every visit:
+ * The workshop demo (Sample data): seven months of Rock Foundation
+ * Automobile's Ota Workshop, with the invented fleets it maintains on credit
+ * and its private customers, their vehicles, and one Job Card for every visit:
  * repairs and services (Service ticked), in every status, with estimates
  * (labour, parts bought outside, sundries) in naira with VAT and some
  * discounts, the customer's answer (by link, in the portal, by phone or by
@@ -10,11 +9,8 @@
  * finished work, fleet invoices on credit (paid, not yet due, and past due),
  * a refund after a cancellation and rework; the Service Tracker (vehicles
  * due and overdue, the reminders sent); gate exits, broadcasts, support
- * tickets; and the Zoho and spreadsheet imports of the
- * cut-over, with exports made since.
- *
- * Nothing of the Store, Warranty or the assembly plant: those modules are
- * off in this edition (lib/modules.ts).
+ * tickets; and the QuickBooks and spreadsheet imports of the cut-over,
+ * with exports made since.
  *
  * Pure: a seeded plan from an anchor ("now"), the same every run for the
  * same anchor, cut so that nothing is dated after it. The loader
@@ -89,31 +85,28 @@ const wm = (d: Date, minutes: number) => addWorkingMinutes(d, minutes);
 
 // ── The people (keys are the demo sign-ins) ─────────────────────────────
 const P = {
-  frontdesk: demoPerson('receptionist', 'VI'), manager: demoPerson('workshop-manager', 'VI'), finance: demoPerson('finance-officer', 'VI'),
-  supCars: DEMO_STAFF.find((s) => s.email.startsWith('supervisor.cars@'))!, supFleet: DEMO_STAFF.find((s) => s.email.startsWith('supervisor.fleet@'))!,
+  frontdesk: demoPerson('front-desk', 'OTA'), owner: demoPerson('owner', 'BIZ'), accounts: demoPerson('accounts', 'OTA'),
+  advisor: demoPerson('workshop-supervisor', 'OTA'), gate: demoPerson('security', 'OTA'),
   tech1: DEMO_STAFF.find((s) => s.email.startsWith('tech.1@'))!, tech2: DEMO_STAFF.find((s) => s.email.startsWith('tech.2@'))!, tech3: DEMO_STAFF.find((s) => s.email.startsWith('tech.3@'))!,
-  cso: demoPerson('chief-security-officer', 'VI'), gate: demoPerson('security-officer', 'VI'), care: demoPerson('customer-care', 'VI'), careLead: demoPerson('customer-care-lead', 'HQ'),
-  deptHead: demoPerson('department-head', 'VI'), itAdmin: demoPerson('it-administrator', 'HQ'), admin: demoPerson('administrator', 'HQ'), md: demoPerson('executive', 'HQ'),
-  scheduling: demoPerson('scheduling-admin', 'HQ'), calendar: demoPerson('calendar-user', 'HQ'), broadcaster: demoPerson('broadcaster', 'HQ'),
 };
 const who = (s: DemoStaff) => s.email;
 
 // ── What the organisation charges (lib/demo/organisation.ts) ────────────
-/** VAT on every estimate the Manager approves. */
+/** VAT on every estimate the Owner approves. */
 export const DEMO_VAT_RATE = 7.5;
 /** Individuals pay this share before work starts; organisation customers never do (@ejo/utils/billing depositFractionFor). */
 export const DEMO_DEPOSIT_FRACTION = 0.5;
-/** A whole-estimate discount above this share of the subtotal needs the Manager. */
+/** A whole-estimate discount above this share of the subtotal needs the Owner. */
 export const DEMO_DISCOUNT_APPROVAL_PERCENT = 10;
 /** Every 5,000 km or 180 days, whichever comes first. */
 export const DEMO_SERVICE_INTERVAL = { km: 5000, days: 180 } as const;
 
 // ── What the plan holds ─────────────────────────────────────────────────
-export type Dept = 'workshop-passenger' | 'workshop-commercial';
+export type Dept = 'mechanical' | 'electrical';
 export type DemoContact = { name: string; role: string; phone: string; email: string };
 export type DemoCustomer = {
   key: string; name: string; type: 'INDIVIDUAL' | 'ORGANIZATION'; company: string | null; phone: string; address: string; email: string | null; since: Date; contacts: DemoContact[]; tags: string[]; createdAt: Date;
-  /** Credit terms (organisation customers), approved by Finance. */
+  /** Credit terms (organisation customers), approved by the Owner. */
   credit: { days: number; limit: number; approvedAt: Date; byKey: string } | null;
 };
 export type DemoVehicle = { key: string; customerKey: string; modelKey: string; make: string; model: string; type: 'PASSENGER' | 'COMMERCIAL'; year: number; plate: string; vin: string; engineNumber: string; engineType: string; colour: string; mileage: number; createdAt: Date };
@@ -121,9 +114,9 @@ export type EstimateLine = { key: string; type: LineSpec['type']; description: s
 export type CustomerAnswer = { via: 'LINK' | 'PORTAL' | 'PHONE' | 'DEPOSIT'; at: Date; byStaffKey: string | null; note: string | null };
 export type DemoEstimate = {
   status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'MANAGER_APPROVED'; lines: EstimateLine[]; createdAt: Date; submittedAt: Date | null; approvedAt: Date | null; managerApprovedAt: Date | null; customerNotifiedAt: Date | null;
-  /** The whole-estimate discount and its reason; discountApprovedAt when it needed the Manager. */
+  /** The whole-estimate discount and its reason; discountApprovedAt when it needed the Owner. */
   discountAmount: number; discountReason: string | null; discountApprovedAt: Date | null;
-  /** Fixed at the Manager's approval; null before. */
+  /** Fixed at the Owner's approval; null before. */
   vatRate: number | null;
   approval: CustomerAnswer | null; declined: { at: Date; note: string } | null;
   /** The secure link sent to the customer (only its hash is stored). */
@@ -224,7 +217,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     const cust: DemoCustomer = {
       key: c.key, name: c.name, type: organisation ? 'ORGANIZATION' : 'INDIVIDUAL', company: c.company ?? null, phone: c.phone, address: c.address, email, since: plus(createdAt, -int(r, 200, 2400) * DAY),
       contacts: c.contacts ?? [], tags: c.tags ?? [], createdAt,
-      credit: c.credit ? { days: c.credit.days, limit: c.credit.limit, approvedAt: wm(createdAt, int(r, 60, 600)), byKey: who(P.finance) } : null,
+      credit: c.credit ? { days: c.credit.days, limit: c.credit.limit, approvedAt: wm(createdAt, int(r, 60, 600)), byKey: who(P.owner) } : null,
     };
     customers.push(cust);
     for (const [modelKey, n] of c.fleet) for (let i = 0; i < n; i += 1) addVehicle(cust, modelByKey.get(modelKey)!, organisation);
@@ -244,8 +237,8 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     const left = jc.checkedOutAt ?? (jc.status === 'CANCELLED' ? jc.cancellation?.decidedAt ?? now : jc.status === 'CLOSED' ? plus(now, DAY) : plus(now, 30 * DAY));
     stays.set(v.key, [...(stays.get(v.key) ?? []), { from: jc.openedAt, to: left }]);
   };
-  const peopleFor = (dept: Dept) => (dept === 'workshop-passenger' ? { tech: chance(r, 0.5) ? P.tech1 : P.tech2, sup: P.supCars } : { tech: P.tech3, sup: P.supFleet });
-  const deptOf = (v: DemoVehicle): Dept => (v.type === 'PASSENGER' ? 'workshop-passenger' : 'workshop-commercial');
+  const peopleFor = (dept: Dept) => (dept === 'mechanical' ? { tech: P.tech1, sup: P.advisor } : { tech: P.tech2, sup: P.advisor });
+  const deptOf = (v: DemoVehicle): Dept => (v.type === 'PASSENGER' && chance(r, 0.4) ? 'electrical' : 'mechanical');
   const collectorName = (c: DemoCustomer) => (c.type === 'ORGANIZATION' ? `${c.name} driver` : c.name);
   let lineSeq = 0;
 
@@ -255,13 +248,13 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
       return { key: `el${(lineSeq += 1)}`, type: l.type, description: l.description, quantity: qty, unitPrice: l.price, amount: qty * l.price, discount: 0, uom: l.uom ?? null };
     });
     const est: DemoEstimate = { status: 'DRAFT', lines, createdAt, submittedAt: null, approvedAt: null, managerApprovedAt: null, customerNotifiedAt: null, discountAmount: 0, discountReason: null, discountApprovedAt: null, vatRate: null, approval: null, declined: null, link: null, totals: billingTotals({ lines: [] }) };
-    // Discounts: fleets often have 10% off labour; a few estimates carry a whole-estimate discount (above 10%, the Manager approves it).
+    // Discounts: fleets often have 10% off labour; a few estimates carry a whole-estimate discount (above 10%, the Owner approves it).
     if (customer.type === 'ORGANIZATION' && chance(r, 0.45)) for (const l of lines) if (l.type === 'LABOUR') l.discount = round100(l.amount * 0.1);
     if (chance(r, 0.18)) {
       const sub = estimateTotals(est).subtotal;
       const big = chance(r, 0.35);
       est.discountAmount = round100(sub * (big ? between(r, 0.12, 0.15) : between(r, 0.03, 0.08)));
-      est.discountReason = big ? pick(r, ['Goodwill: the job took longer than promised', 'Agreed with the Manager for a long-standing customer']) : pick(r, ['Loyal customer', 'Second vehicle this month', 'Paid by transfer in advance']);
+      est.discountReason = big ? pick(r, ['Goodwill: the job took longer than promised', 'Agreed with the GMD for a long-standing customer']) : pick(r, ['Loyal customer', 'Second vehicle this month', 'Paid by transfer in advance']);
     }
     est.totals = estimateTotals(est);
     return est;
@@ -323,14 +316,14 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     const deposit = () => depositFor(est.totals.total, org);
     const payDeposit = (when: Date, note: string) => {
       const amount = Math.min(est.totals.total, Math.ceil(deposit() / 1000) * 1000);
-      jc.payments.push({ key: `${jc.key}-p${jc.payments.length + 1}`, amount, method: chance(r, 0.75) ? 'BANK_TRANSFER' : 'CASH', at: when, note, byKey: who(P.finance) });
-      log('payment.recorded', when, P.finance, { amount });
+      jc.payments.push({ key: `${jc.key}-p${jc.payments.length + 1}`, amount, method: chance(r, 0.75) ? 'BANK_TRANSFER' : 'CASH', at: when, note, byKey: who(P.accounts) });
+      log('payment.recorded', when, P.accounts, { amount });
     };
     const managerApprove = (when: Date) => {
       est.status = 'MANAGER_APPROVED'; est.managerApprovedAt = when; est.vatRate = DEMO_VAT_RATE;
       if (needsManagerForDiscount(est)) est.discountApprovedAt = when;
       est.totals = estimateTotals(est);
-      log('estimate.manager_approved', when, P.manager, { total: est.totals.total, vatRate: DEMO_VAT_RATE });
+      log('estimate.manager_approved', when, P.owner, { total: est.totals.total, vatRate: DEMO_VAT_RATE });
     };
     const sendLink = (when: Date) => { est.link = { createdAt: when, expiresAt: plus(when, 7 * DAY), usedAt: null, revokedAt: null }; log('estimate.approval_link_sent', when, P.frontdesk, { channel: chance(r, 0.6) ? 'whatsapp' : 'email' }); };
     // Cancellation before the work: the customer changes their mind (an individual's deposit is refunded).
@@ -344,7 +337,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
           sendLink(steps[3]!);
           est.approval = { via: 'DEPOSIT', at: steps[4]!, byStaffKey: null, note: null }; est.link!.revokedAt = steps[4]!;
           payDeposit(steps[4]!, 'Deposit (50%) at the counter');
-          jc.status = 'IN_PROGRESS'; jc.workStartedAt = steps[4]!; log('job_card.status_updated', steps[4]!, P.finance, { status: 'IN_PROGRESS' });
+          jc.status = 'IN_PROGRESS'; jc.workStartedAt = steps[4]!; log('job_card.status_updated', steps[4]!, P.accounts, { status: 'IN_PROGRESS' });
           last = steps[4]!;
         }
       }
@@ -355,15 +348,15 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
       jc.cancellation = { reason: pick(r, ['Customer will repair elsewhere (price)', 'Vehicle sold; owner no longer wants the repair', 'Insurance company took the vehicle to its own workshop', 'Customer travelled; will return next month']), requestedAt: reqAt, decidedAt: decidedAt <= now ? decidedAt : null, status: decidedAt <= now ? 'APPROVED' : 'PENDING' };
       log('cancellation.requested', reqAt, P.frontdesk);
       if (decidedAt <= now) {
-        jc.status = 'CANCELLED'; log('cancellation.approved', decidedAt, P.manager);
-        if (paid) { const refAt = wm(decidedAt, int(r, 120, 900)); if (refAt <= now) { jc.refund = { amount: jc.payments.reduce((s, p) => s + p.amount, 0), method: 'BANK_TRANSFER', at: refAt, paidToName: customer.name, reason: 'Job Card cancelled before work started; deposit returned.' }; log('refund.recorded', refAt, P.finance, { amount: jc.refund.amount }); } }
+        jc.status = 'CANCELLED'; log('cancellation.approved', decidedAt, P.owner);
+        if (paid) { const refAt = wm(decidedAt, int(r, 120, 900)); if (refAt <= now) { jc.refund = { amount: jc.payments.reduce((s, p) => s + p.amount, 0), method: 'BANK_TRANSFER', at: refAt, paidToName: customer.name, reason: 'Job Card cancelled before work started; deposit returned.' }; log('refund.recorded', refAt, P.accounts, { amount: jc.refund.amount }); } }
         const outAt = wm(decidedAt, int(r, 60, 600));
         const collected = o.collected ?? chance(r, 0.6);
         if (outAt <= now && collected) { jc.status = 'CHECKED_OUT'; jc.checkedOutAt = outAt; jc.collectedByName = collectorName(customer); jc.gateExit = { at: plus(outAt, 12 * 60_000), driverName: jc.collectedByName }; log('job_card.status_updated', outAt, P.frontdesk, { status: 'CHECKED_OUT' }); }
       }
       return jc;
     }
-    // 2. Estimate: submitted → supervisor → Manager (VAT fixed, any large discount approved) → the customer is sent it.
+    // 2. Estimate: submitted → supervisor → Owner (VAT fixed, any large discount approved) → the customer is sent it.
     t = wm(t, q(10, 40)); if (t > now) return jc;
     est.status = 'SUBMITTED'; est.submittedAt = t; log('estimate.submitted', t, tech);
     t = wm(t, q(20, 120)); if (t > now) return jc;
@@ -383,7 +376,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     if (o.target === 'AWAITING_CUSTOMER_APPROVAL') return jc;
     // 3. The customer's answer — by link, in the portal, by phone, or by paying the deposit at the counter. A slow customer takes days.
     t = wm(t, o.slow === 'customer' ? int(r, 2_500, 4_000) : o.quick ? int(r, 30, 120) : int(r, 60, 700)); if (t > now) return jc;
-    est.approval = { via, at: t, byStaffKey: via === 'PHONE' ? who(P.frontdesk) : null, note: via === 'PHONE' ? pick(r, ['Spoke with the customer; go ahead.', 'Fleet Manager approved by phone.', 'Approved on a call; asked for the old parts back.']) : null };
+    est.approval = { via, at: t, byStaffKey: via === 'PHONE' ? who(P.frontdesk) : null, note: via === 'PHONE' ? pick(r, ['Spoke with the customer; go ahead.', 'Fleet Owner approved by phone.', 'Approved on a call; asked for the old parts back.']) : null };
     if (est.link) { if (via === 'LINK') est.link.usedAt = t; else est.link.revokedAt = t; }
     log('estimate.customer_approved', t, via === 'PHONE' || via === 'DEPOSIT' ? P.frontdesk : null, { via });
     // Work starts once the customer has approved and any deposit is paid (none for an organisation).
@@ -393,7 +386,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
       payDeposit(payAt, 'Deposit (50%) before work starts');
       t = payAt;
     }
-    jc.status = 'IN_PROGRESS'; jc.workStartedAt = t; log('job_card.status_updated', t, deposit() > 0 ? P.finance : P.frontdesk, { status: 'IN_PROGRESS' });
+    jc.status = 'IN_PROGRESS'; jc.workStartedAt = t; log('job_card.status_updated', t, deposit() > 0 ? P.accounts : P.frontdesk, { status: 'IN_PROGRESS' });
     if (o.target === 'IN_PROGRESS') return jc;
     // 4. Parts bought outside (Ladipo, the dealers): a slow supplier holds the card at AWAITING_PARTS.
     const partsAt = wm(t, q(10, 60));
@@ -426,13 +419,13 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     if (o.target === 'READY_FOR_COLLECTION') return jc;
     t = wm(t, int(r, 60, 900)); if (t > now) return jc;
     const balance = kobo(est.totals.total - paidBy(t));
-    if (!onCredit && balance > 0) { jc.payments.push({ key: `${jc.key}-p${jc.payments.length + 1}`, amount: balance, method: chance(r, 0.65) ? 'BANK_TRANSFER' : 'CASH', at: t, note: 'Balance on collection', byKey: who(P.finance) }); log('payment.recorded', t, P.finance, { amount: balance }); }
+    if (!onCredit && balance > 0) { jc.payments.push({ key: `${jc.key}-p${jc.payments.length + 1}`, amount: balance, method: chance(r, 0.65) ? 'BANK_TRANSFER' : 'CASH', at: t, note: 'Balance on collection', byKey: who(P.accounts) }); log('payment.recorded', t, P.accounts, { amount: balance }); }
     const closeReq = wm(t, int(r, 5, 40));
     const closeDec = wm(closeReq, int(r, 10, 120));
     if (closeReq > now) return jc;
     jc.close = { requestedAt: closeReq, decidedAt: closeDec <= now ? closeDec : null, status: closeDec <= now ? 'APPROVED' : 'PENDING' }; log('close.requested', closeReq, P.frontdesk);
     if (closeDec > now) return jc;
-    jc.status = 'CLOSED'; jc.closedAt = closeDec; log('job_card.status_updated', closeDec, P.manager, { status: 'CLOSED', ...(onCredit && balance > 0 ? { onCredit: { balance } } : {}) });
+    jc.status = 'CLOSED'; jc.closedAt = closeDec; log('job_card.status_updated', closeDec, P.owner, { status: 'CLOSED', ...(onCredit && balance > 0 ? { onCredit: { balance } } : {}) });
     if (o.target === 'CLOSED') return jc;
     t = wm(closeDec, int(r, 10, 200)); if (t > now) return jc;
     jc.status = 'CHECKED_OUT'; jc.checkedOutAt = t; jc.collectedByName = collectorName(customer); jc.gateExit = { at: plus(t, int(r, 5, 20) * 60_000), driverName: jc.collectedByName }; log('job_card.status_updated', t, P.frontdesk, { status: 'CHECKED_OUT' });
@@ -441,7 +434,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
       // Older invoices have all been paid by now; a recent one may still be open.
       const pays = o.creditPaid ?? (jc.invoice.issuedAt < plus(now, -75 * DAY) || chance(r, 0.85));
       const payAt = wm(plus(jc.invoice.issuedAt, int(r, 8, customer.credit!.days + 12) * DAY), int(r, 30, 400));
-      if (pays && payAt <= now) { jc.payments.push({ key: `${jc.key}-p${jc.payments.length + 1}`, amount: balance, method: 'BANK_TRANSFER', at: payAt, note: 'Invoice paid by bank transfer (credit account)', byKey: who(P.finance) }); log('payment.recorded', payAt, P.finance, { amount: balance }); }
+      if (pays && payAt <= now) { jc.payments.push({ key: `${jc.key}-p${jc.payments.length + 1}`, amount: balance, method: 'BANK_TRANSFER', at: payAt, note: 'Invoice paid by bank transfer (credit account)', byKey: who(P.accounts) }); log('payment.recorded', payAt, P.accounts, { amount: balance }); }
     }
     return jc;
   };
@@ -531,22 +524,22 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
   }
 
   // ── Broadcasts and support ─────────────────────────────────────────────
-  const broadcasts = BROADCASTS.map((b, i) => { const createdAt = plus(now, -b.daysAgo * DAY); return { key: `bc${i + 1}`, category: b.category, title: b.title, message: b.message, audience: b.audience, startsAt: createdAt, endsAt: plus(createdAt, b.days * DAY), createdAt, byKey: who(b.audience === 'BRANCH' ? P.manager : b.category === 'SECURITY_ALERT' ? P.cso : P.broadcaster) }; });
-  const announcement = { message: 'Fleet customers: book December preventive maintenance with the front desk before the 15th.', expiresAt: plus(now, 14 * DAY), createdAt: plus(now, -2 * DAY), byKey: who(P.manager) };
+  const broadcasts = BROADCASTS.map((b, i) => { const createdAt = plus(now, -b.daysAgo * DAY); return { key: `bc${i + 1}`, category: b.category, title: b.title, message: b.message, audience: b.audience, startsAt: createdAt, endsAt: plus(createdAt, b.days * DAY), createdAt, byKey: who(b.audience === 'BRANCH' ? P.owner : b.category === 'SECURITY_ALERT' ? P.gate : P.owner) }; });
+  const announcement = { message: 'Fleet customers: book December preventive maintenance with the front desk before the 15th.', expiresAt: plus(now, 14 * DAY), createdAt: plus(now, -2 * DAY), byKey: who(P.owner) };
   const tickets: DemoTicket[] = TICKETS.map((t, i) => {
     const createdAt = plus(now, -t.daysAgo * DAY);
     const customer = t.customerKey ? customerByKey.get(t.customerKey) ?? null : null;
     const staff = t.channel === 'STAFF';
-    const requester = staff ? pick(r, [P.frontdesk, P.tech1, P.finance]) : null;
-    const replies = t.replies.map((rp) => ({ at: plus(createdAt, rp.hoursLater * HOUR), kind: rp.from === 'customer' ? 'CUSTOMER' as const : rp.from === 'ai' ? 'AI' as const : rp.from === 'note' ? 'NOTE' as const : 'AGENT' as const, body: rp.text, authorKey: rp.from === 'agent' || rp.from === 'note' ? who(staff ? P.itAdmin : P.care) : null })).filter((x) => x.at <= now);
+    const requester = staff ? pick(r, [P.frontdesk, P.tech1, P.accounts]) : null;
+    const replies = t.replies.map((rp) => ({ at: plus(createdAt, rp.hoursLater * HOUR), kind: rp.from === 'customer' ? 'CUSTOMER' as const : rp.from === 'ai' ? 'AI' as const : rp.from === 'note' ? 'NOTE' as const : 'AGENT' as const, body: rp.text, authorKey: rp.from === 'agent' || rp.from === 'note' ? who(staff ? P.owner : P.frontdesk) : null })).filter((x) => x.at <= now);
     const firstResponse = replies.find((x) => x.kind !== 'CUSTOMER')?.at ?? null;
     const done = t.status === 'RESOLVED' || t.status === 'CLOSED';
     const last = replies.length ? replies[replies.length - 1]!.at : createdAt;
     const closedAt = t.status === 'CLOSED' ? plus(last, 2 * DAY) : null;
-    return { key: `sup${i + 1}`, channel: t.channel, subject: t.subject, summary: t.summary, priority: t.priority, status: t.status, createdAt, customerKey: customer?.key ?? null, contactName: customer?.name ?? (staff ? requester!.name : pick(r, ['Mr Okoro', 'Mrs Adeniyi', 'Mr Lawal', 'Ms Umar'])), contactPhone: customer?.phone ?? null, contactEmail: customer?.email ?? null, assignedToKey: staff ? who(P.itAdmin) : t.status === 'OPEN' && i === 0 ? null : who(P.care), requesterKey: requester ? who(requester) : null, tags: [...(t.complaint ? ['complaint'] : []), ...(staff ? ['staff_help'] : [])], firstResponseAt: firstResponse, resolvedAt: done ? last : null, closedAt: closedAt && closedAt <= now ? closedAt : done ? last : null, dueFirstResponseAt: plus(createdAt, (t.priority === 'URGENT' ? 1 : t.priority === 'HIGH' ? 4 : 24) * HOUR), dueResolutionAt: plus(createdAt, (t.priority === 'URGENT' ? 8 : t.priority === 'HIGH' ? 48 : 120) * HOUR), csat: done && chance(r, 0.6) ? int(r, 4, 5) : null, replies };
+    return { key: `sup${i + 1}`, channel: t.channel, subject: t.subject, summary: t.summary, priority: t.priority, status: t.status, createdAt, customerKey: customer?.key ?? null, contactName: customer?.name ?? (staff ? requester!.name : pick(r, ['Mr Okoro', 'Mrs Adeniyi', 'Mr Lawal', 'Ms Umar'])), contactPhone: customer?.phone ?? null, contactEmail: customer?.email ?? null, assignedToKey: staff ? who(P.owner) : t.status === 'OPEN' && i === 0 ? null : who(P.frontdesk), requesterKey: requester ? who(requester) : null, tags: [...(t.complaint ? ['complaint'] : []), ...(staff ? ['staff_help'] : [])], firstResponseAt: firstResponse, resolvedAt: done ? last : null, closedAt: closedAt && closedAt <= now ? closedAt : done ? last : null, dueFirstResponseAt: plus(createdAt, (t.priority === 'URGENT' ? 1 : t.priority === 'HIGH' ? 4 : 24) * HOUR), dueResolutionAt: plus(createdAt, (t.priority === 'URGENT' ? 8 : t.priority === 'HIGH' ? 48 : 120) * HOUR), csat: done && chance(r, 0.6) ? int(r, 4, 5) : null, replies };
   });
-  const imports: DemoImport[] = IMPORTS.map((im, i) => ({ key: `imp${i + 1}`, entity: im.entity, fileName: im.fileName, rows: im.rows, created: im.created, warnings: im.warnings, rejected: im.rejected, createdAt: plus(now, -im.daysAgo * DAY), createdByKey: who(P.itAdmin), approvedByKey: who(P.admin), signedOffByKey: im.totals ? who(P.finance) : null, totals: im.totals ? { check: { ...im.totals }, loaded: { ...im.totals } } : null }));
-  const exportsOut: DemoExport[] = EXPORTS.map((ex, i) => ({ key: `exp${i + 1}`, kind: ex.kind, format: ex.format, summary: ex.summary, rows: ex.rows, createdAt: plus(now, -ex.daysAgo * DAY), createdByKey: who(i === 1 ? P.finance : P.manager) }));
+  const imports: DemoImport[] = IMPORTS.map((im, i) => ({ key: `imp${i + 1}`, entity: im.entity, fileName: im.fileName, rows: im.rows, created: im.created, warnings: im.warnings, rejected: im.rejected, createdAt: plus(now, -im.daysAgo * DAY), createdByKey: who(P.owner), approvedByKey: who(P.owner), signedOffByKey: im.totals ? who(P.accounts) : null, totals: im.totals ? { check: { ...im.totals }, loaded: { ...im.totals } } : null }));
+  const exportsOut: DemoExport[] = EXPORTS.map((ex, i) => ({ key: `exp${i + 1}`, kind: ex.kind, format: ex.format, summary: ex.summary, rows: ex.rows, createdAt: plus(now, -ex.daysAgo * DAY), createdByKey: who(i === 1 ? P.accounts : P.owner) }));
 
   // ── The figures the pages show ─────────────────────────────────────────
   const byStatus = (xs: { status: string }[]) => xs.reduce<Record<string, number>>((m, x) => { m[x.status] = (m[x.status] ?? 0) + 1; return m; }, {});

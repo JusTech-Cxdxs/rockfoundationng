@@ -1,6 +1,6 @@
 /**
- * People tools: the staff directory ("who is Bhushan?", "who is the Manager at
- * Victoria Island?") from the organisation's own records — name, role, branch,
+ * People tools: the staff directory ("who is Ada?", "who are the
+ * technicians?") from the organisation's own records — name, role,
  * department and work email; nothing personal — and "what am I waiting on",
  * the person's own requests still with someone else. Both are fenced to the
  * signed-in person's organisation.
@@ -20,12 +20,12 @@ export const peopleTools: StaffTool[] = [
     kind: 'read',
     status: 'Looking in the staff directory…',
     description:
-      'The organisation\'s own staff directory: who someone is (role, branch or headquarters, department, work email, active or not), or who holds a role somewhere ("who is the Manager at Victoria Island", "who are the supervisors", "who is in IT"). Search by part of a name, a role, a branch or a department. Use it FIRST for any "who is <name>" about a colleague; organisation_info has the published leadership list and biographies.',
+      'The organisation\'s own staff directory: who someone is (role, department, work email, active or not), or who holds a role ("who are the technicians", "who is on the front desk", "who is the store keeper"). Search by part of a name, a role or a department. Use it FIRST for any "who is <name>" about a colleague.',
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'A name, or part of one (e.g. "Salgar"). Empty to search by role/branch only.', maxLength: 80 },
-        role: { type: 'string', description: 'Optional: a role, e.g. "Manager", "Supervisor", "Executive", "IT", "Store".', maxLength: 60 },
+        query: { type: 'string', description: 'A name, or part of one (e.g. "Okafor"). Empty to search by role or department only.', maxLength: 80 },
+        role: { type: 'string', description: 'Optional: a role, e.g. "Owner", "Front Desk", "Supervisor", "Technician", "Store Keeper", "Accounts", "Security".', maxLength: 60 },
         branch: { type: 'string', description: 'Optional: a branch or department name.', maxLength: 80 },
       },
       additionalProperties: false,
@@ -75,7 +75,7 @@ export const peopleTools: StaffTool[] = [
     kind: 'read',
     status: 'Checking what you are waiting on…',
     description:
-      'What this person asked for that is still WAITING ON SOMEONE ELSE: Job Cards and Vehicle Services waiting for the supervisor, estimates waiting for the supervisor or the Manager, parts requests with the Manager or the Store, outside purchases with Finance or the Manager, exit passes, warranty claims, close and cancel requests, road tests, help requests — each with who has it (name and role), since when, and a link. Use it with daily_brief for "brief me", and for "what am I waiting on", "has my PRS been approved", "where is my exit pass".',
+      'What this person asked for that is still WAITING ON SOMEONE ELSE: Job Cards waiting for the supervisor, estimates waiting for the supervisor or the Owner, parts requests with the supervisor or the store, close and cancel requests, help requests — each with who has it (name and role), since when, and a link. Use it with daily_brief for "brief me", and for "what am I waiting on", "has my PRS been approved".',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     run: async () => {
       const items = await getMyPending();

@@ -29,7 +29,7 @@ export default async function RefundsRegisterPage({ searchParams }: { searchPara
         icon="refund"
         back={{ href: "/workshop", label: "Back to Workshop" }}
         title="Refunds"
-        description={<>Refunds paid to customers after a cancelled Job Card or an overpayment. A Manager authorises each refund;
+        description={<>Refunds paid to customers after a cancelled Job Card or an overpayment. The Owner authorises each refund;
         Accounts pays and records it, with an RF receipt.</>}
       />
 
@@ -74,7 +74,7 @@ export default async function RefundsRegisterPage({ searchParams }: { searchPara
                 <th className="px-3 py-2">Customer</th>
                 <th className="px-3 py-2 text-right">Amount</th>
                 <th className="px-3 py-2">Paid by / Received by</th>
-                <th className="px-3 py-2">Refunded by (Finance)</th>
+                <th className="px-3 py-2">Refunded by (Accounts)</th>
                 <th className="px-3 py-2 text-right">Print</th>
               </tr>
             </thead>
@@ -102,7 +102,7 @@ export default async function RefundsRegisterPage({ searchParams }: { searchPara
                       {r.method === 'CASH' ? 'Cash' : 'Bank Transfer'} → {r.paidToName}
                       {r.notes ? <div>Ref: {r.notes}</div> : null}
                     </td>
-                    <td data-label="Refunded by (Finance)" className="px-3 py-2 text-xs text-[var(--ejo-text-muted)]">
+                    <td data-label="Refunded by (Accounts)" className="px-3 py-2 text-xs text-[var(--ejo-text-muted)]">
                       {r.recordedBy.fullName}
                       <div>{formatDateTime(r.recordedAt)}</div>
                     </td>

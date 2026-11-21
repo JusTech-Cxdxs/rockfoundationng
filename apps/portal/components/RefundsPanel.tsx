@@ -93,7 +93,7 @@ export function RefundsPanel({
       ) : null}
       {remaining > 0 && !canRefundNow ? (
         <p className="mt-3 text-xs text-[var(--ejo-text-muted)]">
-          A refund can be recorded once {isJobCard ? 'a Manager approves the cancellation' : 'this service is cancelled by a Manager'}.
+          A refund can be recorded once {isJobCard ? 'the Owner approves the cancellation' : 'this service is cancelled by the Owner'}.
         </p>
       ) : null}
 

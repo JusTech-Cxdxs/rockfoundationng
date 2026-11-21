@@ -27,7 +27,7 @@ import { requireUser, currentUserIsMasterAdmin } from './workshop';
  *
  * Who: the front desk (workshop.customer.notify — the people who tell
  * customers about their estimate), this Job Card's own supervisor or
- * opener, and the branch's Managers (final approval of estimates).
+ * opener, and the branch's the Owner (final approval of estimates).
  */
 
 class CustomerApprovalError extends Error {}
@@ -48,7 +48,7 @@ async function waitingJobCard(jobCardId: string) {
 }
 type WaitingJobCard = NonNullable<Awaited<ReturnType<typeof waitingJobCard>>>;
 
-/** The front desk, this Job Card's supervisor or opener, or a Manager of its branch. */
+/** The front desk, this Job Card's supervisor or opener, or the Owner of its branch. */
 async function requireAnswerTaker(jc: WaitingJobCard, where: string): Promise<{ id: string }> {
   await authorizeOnJobCard('workshop.job_card.view', jc.id, where);
   const user = await requireUser();
@@ -56,7 +56,7 @@ async function requireAnswerTaker(jc: WaitingJobCard, where: string): Promise<{ 
   if (await allows('workshop.customer.notify', { branchId: jc.branchId })) return user;
   if (await allows('workshop.estimate.final_approve', { branchId: jc.branchId })) return user;
   if (await currentUserIsMasterAdmin()) return user;
-  return refuse('workshop.customer.notify', where, "Only the front desk, this Job Card's supervisor or a Manager can do this.");
+  return refuse('workshop.customer.notify', where, "Only the front desk, this Job Card's supervisor or the Owner can do this.");
 }
 
 /** The estimate is with the customer and they have not approved it yet. */

@@ -39,7 +39,7 @@ test('the check: found by the EJO record, every change previewed, the same value
   const b = await db().customer.findUniqueOrThrow({ where: { id: ids.b } });
   await upload(page, csv([
     ['Customer number', 'Name', 'Phone', 'Second phone', 'Email', 'Address', 'Customer since', 'EJO record', 'Link'],
-    // a: a new address and a SAP number; the phone written the international way (no change); no second phone (left as it is).
+    // a: a new address and an old-system number; the phone written the international way (no change); no second phone (left as it is).
     ['', a.fullName, `'+234 ${a.phone!.slice(1)}`, '', a.email!, '12 New Road, Ikeja', '14.03.2019', ids.a, ''],
     // b: a new name and phone.
     ['', `Round Trip ${STAMP} Two Ltd`, '0809 000 1111', '', b.email!, b.address!, '', ids.b, ''],

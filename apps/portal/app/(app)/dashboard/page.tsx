@@ -67,7 +67,7 @@ function greeting(): string {
 
 /**
  * Counts, trends and the "needs your attention" summary. The revenue trend
- * and announcement composer are for Platform Administrator and Managers only.
+ * and announcement composer are for Platform Administrator and the Owner only.
  */
 export default async function DashboardPage() {
   // What this person works with — the dashboard shows only their areas.
@@ -82,11 +82,11 @@ export default async function DashboardPage() {
   const approver = approverFlags.some(Boolean);
   // What the approvals card names: only the kinds of decision this edition has.
   const decisionKinds = ['Estimates', 'closes', moduleIsOn('inventory') && 'parts'].filter(Boolean).join(', ');
-  // Managers and others may look at support for their branch; logging calls is the support team's work.
+  // The Owner may look at support; logging calls is Front Desk's (customer care's) work.
   const principal = await getPrincipal();
   // A demo organisation gets today's working day the first time anyone looks (after the page is sent; never in its way).
   after(() => ensureDemoPulse(principal.organisationId));
-  const doesSupport = principal.isSuperAdmin || ['customer-care', 'customer-care-lead'].some((s) => principal.roleSlugs.includes(s));
+  const doesSupport = principal.isSuperAdmin || principal.roleSlugs.includes('front-desk');
   // Tiles and shortcuts only into areas the branch in view has.
   const view = await getBranchView().catch(() => ({}));
   const inView = (href: string) => hrefInView(principal, href, view);

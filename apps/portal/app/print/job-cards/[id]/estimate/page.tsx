@@ -17,7 +17,7 @@ const TYPE_LABEL: Record<string, string> = {
   SUNDRY: 'Sundry',
 };
 
-/** Printable Job Card estimate. Customer copy with ?variant=client. Available after Manager approval. */
+/** Printable Job Card estimate. Customer copy with ?variant=client. Available after Owner approval. */
 export default async function PrintJobCardEstimatePage({
   params,
   searchParams,

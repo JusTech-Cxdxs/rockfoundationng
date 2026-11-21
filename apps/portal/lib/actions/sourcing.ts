@@ -105,7 +105,7 @@ async function notifyTechnicianAndSupervisorOfPartRequestStatus(
 /**
  * Separation of duties, with one exception: the Platform Administrator may sign
  * a second step (as the Workshop already allows) — so a new installation,
- * where nobody holds the Store, Finance or Manager roles yet, is never stuck.
+ * where nobody holds the Store, Finance or Owner roles yet, is never stuck.
  * Every such second signature is written to the audit log, and the integrity
  * watch still flags the same person asking and approving.
  */

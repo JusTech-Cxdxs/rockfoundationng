@@ -53,7 +53,7 @@ async function branchNamed(message: string, organisationId: string): Promise<str
   });
 }
 
-/** Website enquiries for leaders: what the customer site brought in this week. */
+/** Customer portal enquiries for the Owner: what customers raised online this week. */
 async function websiteLeads(ctx: StaffCtx): Promise<unknown> {
   // Organisation-wide figures: leaders with the whole organisation in view.
   const me = await getPrincipal();
@@ -68,7 +68,7 @@ async function websiteLeads(ctx: StaffCtx): Promise<unknown> {
   }
   return {
     period: 'Last 7 days',
-    enquiriesFromTheWebsite: tickets.length,
+    enquiriesFromThePortal: tickets.length,
     byTopic: by,
     stillOpen: tickets.filter((t) => t.status !== 'RESOLVED' && t.status !== 'CLOSED').length,
   };
@@ -85,7 +85,6 @@ export async function gatherBriefing(ctx: StaffCtx, message: string, emit: (e: E
     { key: 'business', title: branch ? `${branch} this month` : 'The business this month', tool: 'branch_briefing', args: branch ? { branch } : {} },
     { key: 'stock', title: 'Stock', tool: 'stock_alerts', args: {} },
     { key: 'support', title: 'Customer support', tool: 'support_overview', args: {} },
-    { key: 'website', title: 'Website visitors', tool: 'website_traffic', args: { days: 7 } },
     { key: 'integrity', title: 'Integrity watch', tool: 'integrity_alerts', args: {} },
   ];
   const results = await Promise.all(plan.map(async (p) => ({ ...p, result: await runTool(tools.get(p.tool), p.args, ctx) })));
@@ -105,7 +104,7 @@ export async function gatherBriefing(ctx: StaffCtx, message: string, emit: (e: E
     for (const s of r.result.sources ?? []) if (!sources.some((x) => x.href === s.href)) sources.push(s);
   }
   const leads = await withTimeout(websiteLeads(ctx), TOOL_TIMEOUT_MS).catch(() => null);
-  if (leads) sections.push({ key: 'leads', title: 'Website and store', data: leads });
+  if (leads) sections.push({ key: 'leads', title: 'Customer portal enquiries', data: leads });
   return { sections, toolRuns, sources, branch: branch ?? null, generatedAt: lagosNow() };
 }
 

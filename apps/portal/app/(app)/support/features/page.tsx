@@ -11,13 +11,13 @@ export const dynamic = 'force-dynamic';
 
 const TAG_TONE: Record<string, string> = {
   Enyo: 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]', Everyday: 'bg-[var(--ejo-info)]/10 text-[var(--ejo-info)]', Workshop: 'bg-[var(--ejo-warning)]/12 text-[var(--ejo-warning-text,var(--ejo-warning))]',
-  Leadership: 'bg-[var(--ejo-success)]/12 text-[var(--ejo-success)]', Support: 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]', IT: 'bg-[var(--ejo-text-muted)]/12 text-[var(--ejo-text)]',
+  Owner: 'bg-[var(--ejo-success)]/12 text-[var(--ejo-success)]', Support: 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]', Administration: 'bg-[var(--ejo-text-muted)]/12 text-[var(--ejo-text)]',
 };
 
 /**
  * What I can do here — the features people miss, and every how-to for their
  * own role, searchable. Built from the person's permissions, so each person
- * sees their own list (an executive sees analytics, a technician the workshop).
+ * sees their own list (the Owner sees analytics, a technician the workshop).
  */
 export default async function FeaturesPage() {
   const p = await getPrincipal();

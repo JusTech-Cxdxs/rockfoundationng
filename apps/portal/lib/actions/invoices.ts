@@ -12,13 +12,13 @@ class InvoiceActionError extends Error {}
 /**
  * Who may issue or resend an invoice at the Job Card's branch: Finance
  * (workshop.payment.record — they bill and take the money) or the branch
- * Manager (workshop.close.approve — they sign off finished jobs). Anyone who
+ * Owner (workshop.close.approve — they sign off finished jobs). Anyone who
  * can see the Job Card can view and print it.
  */
 async function requireBiller(branchId: string, where: string): Promise<{ id: string }> {
   const user = await requireUser();
   if (await allows('workshop.payment.record', { branchId, homeBranch: true })) return user;
-  await authorize('workshop.close.approve', { branchId, homeBranch: true }, where, 'Only Finance or a Manager for this branch can issue invoices.');
+  await authorize('workshop.close.approve', { branchId, homeBranch: true }, where, 'Only Finance or the Owner for this branch can issue invoices.');
   return user;
 }
 
@@ -38,7 +38,7 @@ export async function issueInvoice(jobCardId: string): Promise<{ id: string; inv
   await seeJobCard(jobCardId, 'issueInvoice');
   const user = await requireBiller(jc.branchId, 'issueInvoice');
   if (!(INVOICEABLE_STATUSES as readonly string[]).includes(jc.status)) throw new InvoiceActionError('An invoice is issued once the work is completed.');
-  if (jc.estimate?.status !== 'MANAGER_APPROVED') throw new InvoiceActionError('This Job Card has no Manager-approved estimate to invoice.');
+  if (jc.estimate?.status !== 'MANAGER_APPROVED') throw new InvoiceActionError('This Job Card has no Owner-approved estimate to invoice.');
   const issued = await ensureInvoice(jobCardId, user.id);
   if (!issued) throw new InvoiceActionError('This Job Card could not be invoiced — refresh the page and try again.');
   if (issued.created) await sendInvoiceEmail(issued.invoice.id);

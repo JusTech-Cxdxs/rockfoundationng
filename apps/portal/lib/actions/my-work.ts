@@ -54,10 +54,10 @@ async function supportItems(userId: string): Promise<MyWorkItem[]> {
   if (!(await allows('support.tickets.manage'))) return [];
   const fence = (await fenceStaffHelp(ticketReachWhere(await reachWhere('support.tickets.manage', { lens: false }), await myOrganisationId())));
   // New, unowned requests are the support department's work: the teams this
-  // person works in, and customer care (or the platform team). A manager who
-  // may LOOK at the Support centre is not asked to answer it.
+  // person works in, and Front Desk, which is customer care (or the platform
+  // team). The Owner, who may LOOK at the Support centre, is not asked to answer it.
   const p = await getPrincipal();
-  const care = p.isSuperAdmin || p.roleSlugs.some((s) => s === 'customer-care' || s === 'customer-care-lead');
+  const care = p.isSuperAdmin || p.roleSlugs.includes('front-desk');
   const myQueues = (await prisma.supportQueueMember.findMany({ where: { userId }, select: { queueId: true } }).catch(() => [])).map((q) => q.queueId);
   const unowned = care ? [{ assignedToId: null }] : myQueues.length ? [{ assignedToId: null, queueId: { in: myQueues } }] : [];
   const rows = await prisma.supportTicket.findMany({

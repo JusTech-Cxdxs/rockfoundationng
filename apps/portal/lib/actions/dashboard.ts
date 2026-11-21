@@ -24,7 +24,7 @@ export type DashboardNotification = {
 };
 
 /**
- * Pending items that need this viewer's attention: a Manager sees approvals
+ * Pending items that need this viewer's attention: the Owner sees approvals
  * and requests waiting on them, a technician their pending assignments,
  * Platform Administrator everything pending in the branch.
  */
@@ -53,7 +53,7 @@ async function getDashboardNotificationsInner(): Promise<DashboardNotification[]
   const fullUser = await prisma.user.findUnique({ where: { id: user.id }, select: { branchId: true } });
   const branchId = fullUser?.branchId ?? null;
 
-  // Management items: Platform Administrator, or an eligible Manager at their own
+  // Management items: Platform Administrator, or an eligible Owner at their own
   // branch. Never shown to other staff.
   let isEligibleManagerAnywhere = isMasterAdmin;
   if (!isMasterAdmin && branchId) {
@@ -181,7 +181,7 @@ export async function createAnnouncement(message: string, expiresAt: Date | null
   if (!isMasterAdmin) {
     const managers = fullUser.branchId ? await listEligibleManagersForBranch(fullUser.branchId).catch(() => ({ supervisors: [] as { id: string }[], usingFallback: true })) : { supervisors: [] as { id: string }[], usingFallback: true };
     if (!managers.supervisors.some((m) => m.id === user.id)) {
-      throw new Error('Only a Manager can post an announcement.');
+      throw new Error('Only the Owner can post an announcement.');
     }
   }
   const trimmed = message.trim();
@@ -196,7 +196,7 @@ export async function createAnnouncement(message: string, expiresAt: Date | null
 
 export async function deactivateAnnouncement(announcementId: string): Promise<void> {
   const user = await requireUser();
-  // Same people who may post one: a Manager of their branch (or Platform Administrator),
+  // Same people who may post one: the Owner of their branch (or Platform Administrator),
   // and only within their own organisation — or whoever posted it.
   const [a, me, isMasterAdmin] = await Promise.all([
     prisma.announcement.findUnique({ where: { id: announcementId }, select: { organisationId: true, createdById: true } }),
@@ -206,7 +206,7 @@ export async function deactivateAnnouncement(announcementId: string): Promise<vo
   if (!a || (!isMasterAdmin && a.organisationId !== me?.organisationId)) throw new Error('Announcement not found.');
   if (!isMasterAdmin && a.createdById !== user.id) {
     const managers = me?.branchId ? await listEligibleManagersForBranch(me.branchId).catch(() => ({ supervisors: [] as { id: string }[] })) : { supervisors: [] as { id: string }[] };
-    if (!managers.supervisors.some((m) => m.id === user.id)) throw new Error('Only a Manager can take an announcement down.');
+    if (!managers.supervisors.some((m) => m.id === user.id)) throw new Error('Only the Owner can take an announcement down.');
   }
   await prisma.announcement.update({ where: { id: announcementId }, data: { isActive: false } });
   await writeAuditLog({ userId: user.id, action: 'announcement.deactivated', entityType: 'Announcement', entityId: announcementId, metadata: {} });

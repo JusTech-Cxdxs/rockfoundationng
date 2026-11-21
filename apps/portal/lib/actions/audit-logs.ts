@@ -76,7 +76,7 @@ export async function getAuditLogPage(f: { kind?: string; q?: string; userId?: s
   const users = ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true, roles: { select: { role: { select: { isSuperAdmin: true, slug: true } } } } } }) : [];
   const viewerPlatform = await prisma.userRole.findFirst({ where: { userId: (await requireUser()).id, role: { isSuperAdmin: true } }, select: { id: true } });
   // The platform team is shown to organisations as "Platform support".
-  // Each person with the role they hold: "Justice Enefola (Manager)".
+  // Each person with the role they hold: "Justice Enefola (Owner)".
   const name = new Map(users.map((u: { id: string; fullName: string; roles: { role: { isSuperAdmin: boolean; slug: string } }[] }) => {
     const sa = u.roles.some((r) => r.role.isSuperAdmin);
     return [u.id, !viewerPlatform && sa ? 'Platform support' : nameWithRole(u.fullName, u.roles.map((r) => r.role.slug), { isSuperAdmin: sa })];

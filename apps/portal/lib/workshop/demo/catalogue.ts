@@ -1,16 +1,16 @@
 /**
- * The D'Phoenix Autocare demo's catalogue: the organisation customers (the
- * fleets the workshop maintains on credit), the individual customers, the
- * vehicles they drive in Lagos (2006 to date), the work the workshop does
- * and what it charges, and the texts the plan (./plan.ts) draws on. Pure data.
+ * The Rock Foundation Automobile demo's catalogue (Sample data): the
+ * organisation customers (invented fleets the workshop maintains on credit),
+ * the individual customers, the vehicles they drive in Ogun and Lagos (2006
+ * to date), the work the workshop does and what it charges, and the texts
+ * the plan (./plan.ts) draws on. Pure data.
  *
- * Nothing here is a real person or number: individuals and fleet contacts
- * have invented names, phones are on the 0800 000 range, plates are
- * Lagos-style but invented, VINs carry the demo's own serial block, and
- * every email is on a reserved domain (example.com, or the demo's own
- * .example domain for the portal sign-ins, lib/demo/people.ts). Prices are
- * in naira, as a Victoria Island workshop charges them; parts are bought
- * outside and priced on the estimate (the Store is off in this edition).
+ * Nothing here is a real person, company or number: individuals, companies
+ * and fleet contacts are invented, phones are on the 0800 000 range, plates
+ * are Nigerian-style but invented, VINs carry the demo's own serial block,
+ * and every email is on example.com (or the demo's own example domain for
+ * the portal sign-ins, lib/demo/people.ts). Prices are in naira, as an Ota
+ * workshop charges them.
  */
 
 export const DEMO_SOURCE = 'EJO-DEMO';
@@ -33,34 +33,19 @@ export type CatalogueCustomer = {
  */
 export const COMPANIES: CatalogueCustomer[] = [
   {
-    key: 'customer.fleet', name: 'SEEPCO', company: 'SEEPCO', phone: '0800 000 0102', address: 'Plot 12, Adeola Odeku Street, Victoria Island, Lagos',
-    contacts: [{ name: 'Ifedayo Arowolo', role: 'Fleet Manager', phone: '0800 000 0112', email: 'fleet.manager@seepco.example.com' }, { name: 'Chinaza Obiorah', role: 'Accounts Payable', phone: '0800 000 0122', email: 'accounts@seepco.example.com' }],
-    tags: ['fleet', 'portal'], credit: { days: 30, limit: 15_000_000 }, fleet: [['hilux', 2], ['landcruiser', 2], ['hiace', 1]],
+    key: 'customer.fleet', name: 'Bolaji Haulage Services', company: 'Bolaji Haulage Services Ltd', phone: '0800 000 0102', address: '3 Example Industrial Layout, Agbara, Ogun State',
+    contacts: [{ name: 'Ifedayo Arowolo', role: 'Fleet Owner', phone: '0800 000 0112', email: 'fleet@bolajihaulage.example.com' }, { name: 'Chinaza Obiorah', role: 'Accounts Payable', phone: '0800 000 0122', email: 'accounts@bolajihaulage.example.com' }],
+    tags: ['fleet', 'portal'], credit: { days: 30, limit: 15_000_000 }, fleet: [['hilux', 2], ['landcruiser', 1], ['hiace', 2]],
   },
   {
-    key: 'rcl', name: 'RCL Africa', company: 'RCL Africa', phone: '0800 000 0301', address: '14 Idowu Taylor Street, Victoria Island, Lagos', email: 'fleet@rclafrica.example.com',
-    contacts: [{ name: 'Babatunde Olaniyan', role: 'Fleet Manager', phone: '0800 000 0311', email: 'b.olaniyan@rclafrica.example.com' }],
-    tags: ['fleet'], credit: { days: 30, limit: 8_000_000 }, fleet: [['ranger', 2], ['hiace', 1], ['corolla', 2]],
+    key: 'greenfield', name: 'Greenfield Agro Logistics', company: 'Greenfield Agro Logistics Ltd', phone: '0800 000 0301', address: '14 Example Road, Sango Ota, Ogun State', email: 'fleet@greenfieldagro.example.com',
+    contacts: [{ name: 'Olawale Akinyemi', role: 'Fleet Owner', phone: '0800 000 0311', email: 'transport@greenfieldagro.example.com' }],
+    tags: ['fleet'], credit: { days: 30, limit: 9_000_000 }, fleet: [['hilux', 2], ['l200', 1], ['ranger', 1]],
   },
   {
-    key: 'nairda', name: 'Nairda Limited', company: 'Nairda Limited', phone: '0800 000 0302', address: '3 Akin Adesola Street, Victoria Island, Lagos', email: 'admin@nairda.example.com',
-    contacts: [{ name: 'Morenike Fadipe', role: 'Fleet Manager', phone: '0800 000 0312', email: 'transport@nairda.example.com' }],
-    tags: ['fleet'], credit: { days: 15, limit: 4_000_000 }, fleet: [['camry', 1], ['corolla', 1], ['hilux', 1]],
-  },
-  {
-    key: 'desicon', name: 'Desicon Engineering', company: 'Desicon Engineering', phone: '0800 000 0303', address: '22 Kofo Abayomi Street, Victoria Island, Lagos', email: 'fleet@desicon.example.com',
-    contacts: [{ name: 'Olawale Akinyemi', role: 'Fleet Manager', phone: '0800 000 0313', email: 'o.akinyemi@desicon.example.com' }],
-    tags: ['fleet'], credit: { days: 30, limit: 9_000_000 }, fleet: [['hilux', 2], ['l200', 1], ['patrol', 1]],
-  },
-  {
-    key: 'dori', name: 'Dori Construction', company: 'Dori Construction', phone: '0800 000 0304', address: 'Plot 5, Admiralty Way, Lekki Phase 1, Lagos', email: 'logistics@doriconstruction.example.com',
-    contacts: [{ name: 'Usman Garba-Kolo', role: 'Fleet Manager', phone: '0800 000 0314', email: 'fleet@doriconstruction.example.com' }, { name: 'Ebiere Tonye', role: 'Site Logistics Officer', phone: '0800 000 0324', email: 'site.logistics@doriconstruction.example.com' }],
-    tags: ['fleet'], credit: { days: 45, limit: 12_000_000 }, fleet: [['hilux', 1], ['l200', 1], ['h100', 1], ['sprinter', 1], ['landcruiser', 1]],
-  },
-  {
-    key: 'inspiration', name: 'Inspiration FM', company: 'Inspiration FM', phone: '0800 000 0305', address: '9 Ozumba Mbadiwe Avenue, Victoria Island, Lagos', email: 'admin@inspirationfm.example.com',
-    contacts: [{ name: 'Adaeze Nwachukwu-Ebo', role: 'Fleet Manager', phone: '0800 000 0315', email: 'transport@inspirationfm.example.com' }],
-    tags: ['fleet'], credit: { days: 30, limit: 5_000_000 }, fleet: [['hiace', 1], ['corolla', 1], ['ranger', 1]],
+    key: 'sunrise', name: 'Sunrise Staff Bus Company', company: 'Sunrise Staff Bus Company Ltd', phone: '0800 000 0302', address: '22 Example Avenue, Idiroko Road, Ota, Ogun State', email: 'logistics@sunrisestaffbus.example.com',
+    contacts: [{ name: 'Usman Garba-Kolo', role: 'Fleet Owner', phone: '0800 000 0312', email: 'fleet@sunrisestaffbus.example.com' }],
+    tags: ['fleet'], credit: { days: 45, limit: 12_000_000 }, fleet: [['hiace', 2], ['h100', 1], ['sprinter', 1], ['corolla', 1]],
   },
 ];
 
@@ -69,23 +54,23 @@ export const COMPANIES: CatalogueCustomer[] = [
  * sign-in; the others are reached by phone.
  */
 export const INDIVIDUALS: CatalogueCustomer[] = [
-  { key: 'customer.individual', name: 'Tolani Bamgbose', phone: '0800 000 0101', address: '7 Ajose Adeogun Street, Victoria Island, Lagos', tags: ['portal'], fleet: [['camry', 1]] },
-  { key: 'i01', name: 'Kelechi Amadi-Okeke', phone: '0800 000 0201', address: '18 Bishop Aboyade Cole Street, Victoria Island, Lagos', fleet: [['rx350', 1]] },
-  { key: 'i02', name: 'Funmilola Adetokunbo', phone: '0800 000 0202', address: '4 Ligali Ayorinde Street, Victoria Island, Lagos', fleet: [['highlander', 1], ['corolla', 1]] },
-  { key: 'i03', name: 'Emeka Nwoye-Ibe', phone: '0800 000 0203', address: '27 Admiralty Road, Lekki Phase 1, Lagos', fleet: [['c300', 1]] },
-  { key: 'i04', name: 'Halima Sadiq-Bature', phone: '0800 000 0204', address: '9 Glover Road, Ikoyi, Lagos', fleet: [['venza', 1]] },
-  { key: 'i05', name: 'Oluwaseun Afolabi-Dada', phone: '0800 000 0205', address: '15 Saka Tinubu Street, Victoria Island, Lagos', fleet: [['accord', 1]] },
-  { key: 'i06', name: 'Ngozika Eluwa', phone: '0800 000 0206', address: '3 Musa Yar’Adua Street, Victoria Island, Lagos', fleet: [['sienna', 1]] },
-  { key: 'i07', name: 'Tamunotonye Briggs', phone: '0800 000 0207', address: '21 Fola Osibo Road, Lekki Phase 1, Lagos', fleet: [['es350', 1]] },
-  { key: 'i08', name: 'Abdulmalik Danfulani', phone: '0800 000 0208', address: '6 Bourdillon Road, Ikoyi, Lagos', fleet: [['landcruiser', 1]] },
-  { key: 'i09', name: 'Yewande Ogunsola', phone: '0800 000 0209', address: '11 Oniru Estate Road, Victoria Island, Lagos', fleet: [['rav4', 1]] },
-  { key: 'i10', name: 'Chukwuebuka Anozie', phone: '0800 000 0210', address: '30 Ahmadu Bello Way, Victoria Island, Lagos', fleet: [['elantra', 1]] },
-  { key: 'i11', name: 'Mosunmola Adeyemo-Coker', phone: '0800 000 0211', address: '2 Alexander Avenue, Ikoyi, Lagos', fleet: [['sorento', 1]] },
-  { key: 'i12', name: 'Ikechukwu Odinaka', phone: '0800 000 0212', address: '45 Agungi Road, Lekki, Lagos', fleet: [['explorer', 1]] },
+  { key: 'customer.individual', name: 'Adaeze Okonkwo', phone: '0800 000 0101', address: '3 Example Street, Sango Ota, Ogun State', tags: ['portal'], fleet: [['corolla', 1]] },
+  { key: 'i01', name: 'Kelechi Amadi-Okeke', phone: '0800 000 0201', address: '7 Example Street, Ota, Ogun State', fleet: [['rx350', 1]] },
+  { key: 'i02', name: 'Funmilola Adetokunbo', phone: '0800 000 0202', address: '11 Example Street, Agbara, Ogun State', fleet: [['highlander', 1], ['corolla', 1]] },
+  { key: 'i03', name: 'Emeka Nwoye-Ibe', phone: '0800 000 0203', address: '15 Example Street, Abeokuta, Ogun State', fleet: [['c300', 1]] },
+  { key: 'i04', name: 'Halima Sadiq-Bature', phone: '0800 000 0204', address: '19 Example Street, Ifo, Ogun State', fleet: [['venza', 1]] },
+  { key: 'i05', name: 'Oluwaseun Afolabi-Dada', phone: '0800 000 0205', address: '23 Example Street, Ikeja, Lagos', fleet: [['accord', 1]] },
+  { key: 'i06', name: 'Ngozika Eluwa', phone: '0800 000 0206', address: '27 Example Street, Alagbado, Lagos', fleet: [['sienna', 1]] },
+  { key: 'i07', name: 'Tamunotonye Briggs', phone: '0800 000 0207', address: '31 Example Street, Ijoko, Ogun State', fleet: [['es350', 1]] },
+  { key: 'i08', name: 'Abdulmalik Danfulani', phone: '0800 000 0208', address: '35 Example Street, Akute, Ogun State', fleet: [['landcruiser', 1]] },
+  { key: 'i09', name: 'Yewande Ogunsola', phone: '0800 000 0209', address: '39 Example Street, Iyana Ipaja, Lagos', fleet: [['rav4', 1]] },
+  { key: 'i10', name: 'Chukwuebuka Anozie', phone: '0800 000 0210', address: '43 Example Street, Owode, Ogun State', fleet: [['elantra', 1]] },
+  { key: 'i11', name: 'Mosunmola Adeyemo-Coker', phone: '0800 000 0211', address: '47 Example Street, Atan, Ogun State', fleet: [['sorento', 1]] },
+  { key: 'i12', name: 'Ikechukwu Odinaka', phone: '0800 000 0212', address: '51 Example Street, Itele, Ogun State', fleet: [['explorer', 1]] },
 ];
 
 // ── Vehicles ────────────────────────────────────────────────────────────
-/** Lagos fleets and private cars, 2006 to date. `code` makes the VIN; `fleet` routes the job to the fleet bay. */
+/** Fleet and private cars in Ogun and Lagos, 2006 to date. `code` makes the VIN; `fleet` routes the job to the fleet bay. */
 export type CatalogueModel = { key: string; make: string; model: string; type: 'PASSENGER' | 'COMMERCIAL'; engine: string; years: [number, number]; wmi: string; code: string; diesel: boolean };
 export const MODELS: CatalogueModel[] = [
   { key: 'hilux', make: 'Toyota', model: 'Hilux', type: 'COMMERCIAL', engine: '2GD-FTV', years: [2012, 2024], wmi: 'AHT', code: 'HLUX', diesel: true },
@@ -112,8 +97,8 @@ export const MODELS: CatalogueModel[] = [
 ];
 export const COLOURS = ['White', 'White', 'Silver', 'Black', 'Grey', 'Dark Blue', 'Champagne'];
 
-/** Lagos-style plates, invented: three letters, three digits, two letters (EKY is Eti-Osa, where Victoria Island is). */
-export const PLATE_PREFIXES = ['EKY', 'EKY', 'LND', 'KJA', 'LSR', 'APP', 'FST', 'SMK', 'KTU', 'MUS', 'AAA', 'EPE', 'LSD', 'AKD', 'GGE'];
+/** Nigerian-style plates, invented: three letters, three digits, two letters (Ogun and Lagos codes). */
+export const PLATE_PREFIXES = ['OTA', 'OTA', 'SGA', 'AAB', 'IFO', 'IJB', 'AGB', 'KJA', 'LND', 'AKD', 'FST', 'MUS', 'LSD', 'EPE', 'GGE'];
 
 // ── Workshop texts ──────────────────────────────────────────────────────
 /** [what the customer reports, what the technician finds, the kind of job]. */
@@ -132,7 +117,7 @@ export const PASSENGER_COMPLAINTS = [
 export const COMMERCIAL_COMPLAINTS = [
   ['Brakes pulling to one side with a load', 'Front pads worn; right caliper slide pins seized', 'brakes'],
   ['Clutch slipping on the bridge with a full load', 'Clutch plate worn below limit; pressure plate fingers scored', 'clutch'],
-  ['Overheating in Lekki traffic', 'Radiator core blocked; thermostat sticking; fan clutch weak', 'cooling'],
+  ['Overheating in Sango traffic', 'Radiator core blocked; thermostat sticking; fan clutch weak', 'cooling'],
   ['Black smoke and poor pulling power', 'Injectors dribbling; air filter blocked', 'injectors'],
   ['Rear sagging and knocking over potholes', 'Rear leaf spring cracked; shackle bushes worn', 'spring'],
   ['Engine light on; limp mode on the highway', 'Scan shows EGR valve stuck (P0401); boost hose cracked', 'diagnostics'],
@@ -176,18 +161,18 @@ export const JOB_LINES: Record<string, LineSpec[]> = {
   spring: [L('Remove rear spring pack; replace cracked leaf and shackle bushes', 55_000), P('Rear leaf spring (main leaf)', 98_000), P('Shackle bush kit', 18_000)],
   propshaft: [L('Remove propeller shaft; replace centre bearing; balance check', 40_000), P('Propeller shaft centre bearing', 62_000)],
   detailing: [L('Full valet: interior shampoo, engine wash, polish and wax', 45_000), S('Detailing chemicals and microfibre', 8_000)],
-  roadside: [L('Roadside call-out, Victoria Island and Lekki (24/7)', 35_000), X('Tow to the workshop', 45_000), L('Battery load test, replace battery, clean terminals', 5_000), P('Battery 12V 75Ah (sealed)', 115_000)],
+  roadside: [L('Roadside call-out, Ota and environs', 35_000), X('Tow to the workshop', 45_000), L('Battery load test, replace battery, clean terminals', 5_000), P('Battery 12V 75Ah (sealed)', 115_000)],
 };
 
 /** The estimate lines for a service on this model. */
 export const serviceKindFor = (m: Pick<CatalogueModel, 'diesel' | 'key'>): 'service' | 'service-diesel' | 'service-van' => (['hiace', 'h100', 'sprinter'].includes(m.key) ? 'service-van' : m.diesel ? 'service-diesel' : 'service');
 
-// ── Security, scheduling, support texts ─────────────────────────────────
+// ── Notices and support texts ───────────────────────────────────────────
 export const BROADCASTS: { category: 'NEWS' | 'ANNOUNCEMENT' | 'IMPORTANT' | 'URGENT' | 'SECURITY_ALERT' | 'MAINTENANCE' | 'GREETING'; title: string; message: string; daysAgo: number; days: number; audience: 'ALL' | 'BRANCH' | 'CUSTOMERS_ALL' }[] = [
   { category: 'MAINTENANCE', title: 'Generator service on Saturday', message: 'The standby generator will be serviced on Saturday from 08:00 to 12:00. Expect short power interruptions in the workshop and the wash bay.', daysAgo: 3, days: 6, audience: 'BRANCH' },
-  { category: 'ANNOUNCEMENT', title: 'Fleet invoices: month-end review', message: 'Finance reviews every fleet invoice past its due date on the last Friday of the month. Supervisors: make sure every finished job card has its invoice.', daysAgo: 10, days: 30, audience: 'BRANCH' },
-  { category: 'SECURITY_ALERT', title: 'Visitor passes must be returned', message: 'Every visitor pass is returned at the gate on the way out. Security will hold any vehicle whose driver has no pass to return.', daysAgo: 20, days: 60, audience: 'ALL' },
-  { category: 'NEWS', title: 'Roadside assistance now 24/7', message: 'Our roadside team now answers calls day and night across Victoria Island, Ikoyi and Lekki. The front desk has the call-out roster.', daysAgo: 14, days: 30, audience: 'ALL' },
+  { category: 'ANNOUNCEMENT', title: 'Fleet invoices: month-end review', message: 'Accounts reviews every fleet invoice past its due date on the last Friday of the month. Supervisors: make sure every finished job card has its invoice.', daysAgo: 10, days: 30, audience: 'BRANCH' },
+  { category: 'SECURITY_ALERT', title: 'Gate passes for every vehicle leaving', message: 'No customer vehicle leaves the compound without its gate pass. Security checks the pass and the plate at the gate.', daysAgo: 20, days: 60, audience: 'ALL' },
+  { category: 'NEWS', title: 'Spray booth open on Saturdays', message: 'The spray booth now takes bookings on Saturday mornings. The front desk has the booking list.', daysAgo: 14, days: 30, audience: 'ALL' },
   { category: 'GREETING', title: 'Happy new month', message: 'Thank you for a strong month in the workshop. The management wishes every colleague a good month ahead.', daysAgo: 1, days: 7, audience: 'ALL' },
   { category: 'IMPORTANT', title: 'December fleet maintenance slots', message: 'Fleet customers: book your December preventive maintenance with the front desk before the 15th. Weekday slots open from 07:30.', daysAgo: 5, days: 25, audience: 'CUSTOMERS_ALL' },
 ];
@@ -197,29 +182,29 @@ export const TICKETS: { channel: 'CUSTOMER_PORTAL' | 'WEBSITE' | 'EMAIL' | 'STAF
   { channel: 'WEBSITE', subject: 'Do you maintain Sprinter vans?', summary: 'We run four Sprinter vans. Do you take them on, and on what terms?', priority: 'LOW', status: 'RESOLVED', daysAgo: 12, replies: [{ from: 'agent', text: 'Yes: our fleet bay maintains Sprinters. Fleet customers can apply for 30-day credit terms; the front desk will send the application.', hoursLater: 2 }] },
   { channel: 'CUSTOMER_PORTAL', subject: 'Statement of account for October', summary: 'Please send our statement and the invoices still open for October.', priority: 'NORMAL', status: 'RESOLVED', daysAgo: 20, customerKey: 'customer.fleet', replies: [{ from: 'agent', text: 'Sent to accounts payable. Each invoice is also under the job card in your portal.', hoursLater: 1.5 }] },
   { channel: 'STAFF', subject: 'Front desk printer not printing invoices', summary: 'The front desk printer shows a paper jam light but there is no paper stuck.', priority: 'NORMAL', status: 'CLOSED', daysAgo: 15, replies: [{ from: 'agent', text: 'Rollers cleaned and the sensor reset; printing again.', hoursLater: 2 }] },
-  { channel: 'EMAIL', subject: 'Invoice past due: payment schedule', summary: 'We will pay the two September invoices in two parts; please confirm.', priority: 'HIGH', status: 'WAITING_ON_CUSTOMER', daysAgo: 4, customerKey: 'dori', replies: [{ from: 'agent', text: 'Finance can accept two parts. Please confirm the dates so we can note them on the account.', hoursLater: 5 }] },
-  { channel: 'WEBSITE', subject: 'Opening hours on public holidays', summary: 'Are you open on the public holiday next week?', priority: 'LOW', status: 'CLOSED', daysAgo: 30, replies: [{ from: 'ai', text: 'The workshop is closed on public holidays; roadside assistance still answers calls day and night.', hoursLater: 0.1 }] },
+  { channel: 'EMAIL', subject: 'Invoice past due: payment schedule', summary: 'We will pay the two September invoices in two parts; please confirm.', priority: 'HIGH', status: 'WAITING_ON_CUSTOMER', daysAgo: 4, customerKey: 'sunrise', replies: [{ from: 'agent', text: 'Accounts can accept two parts. Please confirm the dates so we can note them on the account.', hoursLater: 5 }] },
+  { channel: 'WEBSITE', subject: 'Opening hours on public holidays', summary: 'Are you open on the public holiday next week?', priority: 'LOW', status: 'CLOSED', daysAgo: 30, replies: [{ from: 'ai', text: 'The workshop is closed on public holidays; call the front desk to book the next working day.', hoursLater: 0.1 }] },
   { channel: 'CUSTOMER_PORTAL', subject: 'Change the contact phone on my account', summary: 'My number has changed; please update it to the one on this message.', priority: 'LOW', status: 'RESOLVED', daysAgo: 25, customerKey: 'i02', replies: [{ from: 'agent', text: 'Updated. You will receive the next service reminder on the new number.', hoursLater: 1 }] },
-  { channel: 'STAFF', subject: 'Cannot add a discount on the estimate', summary: 'The discount box is greyed out on a fleet estimate.', priority: 'HIGH', status: 'RESOLVED', daysAgo: 6, replies: [{ from: 'note', text: 'The estimate had already been approved by the Manager; it was sent back for changes first.', hoursLater: 1 }, { from: 'agent', text: 'Send the estimate back for changes, then add the discount; above 10% it goes to the Manager.', hoursLater: 1.2 }] },
-  { channel: 'EMAIL', subject: 'Fleet service plan for December', summary: 'Please propose a service plan for our pickups and the Land Cruisers in December.', priority: 'NORMAL', status: 'ON_HOLD', daysAgo: 8, customerKey: 'desicon', replies: [{ from: 'agent', text: 'We will send a proposed plan once the December bay schedule is confirmed next week.', hoursLater: 4 }] },
+  { channel: 'STAFF', subject: 'Cannot add a discount on the estimate', summary: 'The discount box is greyed out on a fleet estimate.', priority: 'HIGH', status: 'RESOLVED', daysAgo: 6, replies: [{ from: 'note', text: 'The estimate had already been approved by the Owner; it was sent back for changes first.', hoursLater: 1 }, { from: 'agent', text: 'Send the estimate back for changes, then add the discount; above 10% it goes to the Owner.', hoursLater: 1.2 }] },
+  { channel: 'EMAIL', subject: 'Fleet service plan for December', summary: 'Please propose a service plan for our pickups and the Land Cruisers in December.', priority: 'NORMAL', status: 'ON_HOLD', daysAgo: 8, customerKey: 'greenfield', replies: [{ from: 'agent', text: 'We will send a proposed plan once the December bay schedule is confirmed next week.', hoursLater: 4 }] },
   { channel: 'WEBSITE', subject: 'Price of a Camry service', summary: 'How much is a routine service for a 2016 Camry?', priority: 'LOW', status: 'RESOLVED', daysAgo: 40, replies: [{ from: 'ai', text: 'A routine service for the Camry is from ₦98,000, with fully synthetic oil, filters and labour.', hoursLater: 0.1 }] },
   { channel: 'CUSTOMER_PORTAL', subject: 'Estimate seems high', summary: 'The estimate for the gearbox is more than I expected. Can it be reviewed?', priority: 'NORMAL', status: 'CLOSED', daysAgo: 45, customerKey: 'i05', replies: [{ from: 'agent', text: 'The supervisor has reviewed it: the transmission fluid is the maker’s grade; we can take 5% off the labour, which brings the estimate down.', hoursLater: 20 }, { from: 'customer', text: 'Thank you, please go ahead.', hoursLater: 26 }] },
   { channel: 'STAFF', subject: 'Wash bay pressure washer tripping', summary: 'The pressure washer trips the breaker every few minutes.', priority: 'URGENT', status: 'OPEN', daysAgo: 0.2, replies: [] },
-  { channel: 'WEBSITE', subject: 'Complaint: waited an hour at reception', summary: 'I waited an hour on Tuesday before anyone attended to me.', priority: 'HIGH', status: 'OPEN', daysAgo: 3, complaint: true, replies: [{ from: 'ai', text: 'We are sorry for the wait. The Customer Care Lead has been informed and will call you today.', hoursLater: 0.2 }] },
+  { channel: 'WEBSITE', subject: 'Complaint: waited an hour at reception', summary: 'I waited an hour on Tuesday before anyone attended to me.', priority: 'HIGH', status: 'OPEN', daysAgo: 3, complaint: true, replies: [{ from: 'ai', text: 'We are sorry for the wait. Customer care has been informed and will call you today.', hoursLater: 0.2 }] },
   { channel: 'CUSTOMER_PORTAL', subject: 'Service reminder received — book me in', summary: 'The reminder says my RAV4 is due for its service. Please book next Tuesday.', priority: 'NORMAL', status: 'RESOLVED', daysAgo: 9, customerKey: 'i09', replies: [{ from: 'agent', text: 'Booked for Tuesday at 08:00.', hoursLater: 1 }] },
   { channel: 'WEBSITE', subject: 'Do you buy used vehicles?', summary: 'I have a 2014 Hilux to sell.', priority: 'LOW', status: 'CLOSED', daysAgo: 60, replies: [{ from: 'agent', text: 'We do not buy vehicles, but we can inspect one for you before you sell or buy.', hoursLater: 24 }] },
 ];
-/** The records brought in before the demo's first day: Zoho Books, Zoho CRM and the workshop's own spreadsheets. */
+/** The records brought in before the demo's first day: QuickBooks lists and the workshop's own spreadsheets. */
 export const IMPORTS: { entity: string; fileName: string; rows: number; created: number; warnings: number; rejected: number; daysAgo: number; totals?: { lines: number; quantity?: number; value: number } }[] = [
-  { entity: 'customers', fileName: 'Zoho Books contacts export.csv', rows: 214, created: 209, warnings: 7, rejected: 5, daysAgo: 214 },
+  { entity: 'customers', fileName: 'QuickBooks customer list.csv', rows: 214, created: 209, warnings: 7, rejected: 5, daysAgo: 214 },
   { entity: 'vehicles', fileName: 'Vehicles register (our spreadsheet).xlsx', rows: 286, created: 281, warnings: 9, rejected: 5, daysAgo: 213 },
-  { entity: 'invoices', fileName: 'Zoho Books invoices 2024-2026.xlsx', rows: 1_640, created: 1_622, warnings: 21, rejected: 18, daysAgo: 212, totals: { lines: 1_622, value: 187_420_500 } },
+  { entity: 'invoices', fileName: 'QuickBooks invoices 2024-2026.xlsx', rows: 1_640, created: 1_622, warnings: 21, rejected: 18, daysAgo: 212, totals: { lines: 1_622, value: 187_420_500 } },
   { entity: 'jobs', fileName: 'Past job cards 2024-2026.xlsx', rows: 1_180, created: 1_162, warnings: 30, rejected: 18, daysAgo: 211 },
   { entity: 'staff', fileName: 'Staff list.xlsx', rows: 18, created: 18, warnings: 0, rejected: 0, daysAgo: 215 },
 ];
 export const EXPORTS: { kind: string; format: 'xlsx' | 'csv'; summary: string; rows: number; daysAgo: number }[] = [
-  { kind: 'job-cards', format: 'xlsx', summary: 'Job Cards · Victoria Island Workshop · last 30 days', rows: 48, daysAgo: 1 },
+  { kind: 'job-cards', format: 'xlsx', summary: 'Job Cards · Ota Workshop · last 30 days', rows: 48, daysAgo: 1 },
   { kind: 'invoices', format: 'xlsx', summary: 'Invoices · fleet accounts · this quarter', rows: 36, daysAgo: 2 },
-  { kind: 'customers', format: 'csv', summary: 'Customers · organisation accounts', rows: 6, daysAgo: 6 },
+  { kind: 'customers', format: 'csv', summary: 'Customers · organisation accounts', rows: 3, daysAgo: 6 },
   { kind: 'vehicles', format: 'xlsx', summary: 'Vehicles · every customer', rows: 32, daysAgo: 12 },
 ];
