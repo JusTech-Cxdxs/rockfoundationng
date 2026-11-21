@@ -3,7 +3,7 @@
  * wait on them — how many, how fast (median hours from the moment it reached
  * them), the share done within the standard, and the money involved.
  */
-import { median } from './hq-core';
+import { median } from './report-period';
 
 /** The service standard for each kind of step, in working-clock hours. */
 export const STANDARDS = {
@@ -13,9 +13,6 @@ export const STANDARDS = {
   partsHod: { label: 'Parts request, manager approval', hours: 8 },
   partsStore: { label: 'Parts request, Store approval', hours: 8 },
   partsRelease: { label: 'Parts released after approval', hours: 8 },
-  eprReview: { label: 'Outside purchase, Finance review', hours: 24 },
-  eprApprove: { label: 'Outside purchase, manager approval', hours: 24 },
-  eprPay: { label: 'Outside purchase, paid out after approval', hours: 24 },
 } as const;
 export type StepKind = keyof typeof STANDARDS;
 

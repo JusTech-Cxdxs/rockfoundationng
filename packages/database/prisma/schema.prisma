@@ -801,6 +801,7 @@ model JobCard {
   supervisor         User?               @relation("JobCardSupervisor", fields: [supervisorId], references: [id])
   approvedBy         User?               @relation("JobCardApprovedBy", fields: [approvedById], references: [id])
   createdBy          User                @relation("JobCardCreatedBy", fields: [createdById], references: [id])
+  inspection         VehicleInspection?
   complaints         JobCardComplaint[]
   estimate           Estimate?
   payments           Payment[]
@@ -1225,10 +1226,11 @@ model ServiceReminderLog {
   @@map("service_reminder_logs")
 }
 
-// One inspection per Vehicle Service: what was found. The service's
-// status and notes record what was decided and done.
+// One multi-point inspection per Job Card: what the technician found at
+// check-in, item by item, before the estimate is written.
 model VehicleInspection {
   id               String                  @id @default(cuid())
+  jobCardId        String                  @unique
   inspectedById    String
   status           VehicleInspectionStatus @default(NOT_STARTED)
   startedAt        DateTime?
@@ -1240,6 +1242,7 @@ model VehicleInspection {
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
 
+  jobCard        JobCard        @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
   inspectedBy    User           @relation("VehicleInspectionInspector", fields: [inspectedById], references: [id])
   items          VehicleInspectionItem[]
 
@@ -2035,15 +2038,6 @@ model PartType {
 // providers and terms are data (WarrantyProvider / WarrantyPolicy), never
 // code — so Foton, Isuzu or a different industry is configuration.
 // ─────────────────────────────────────────────────────────────────────────
-
-// What the customer received for a warranty problem.
-enum CustomerResolution {
-  REPAIRED_NO_CHARGE
-  REPLACED_NO_CHARGE
-  GOODWILL_REFUND
-  CUSTOMER_PAID
-  NOT_COVERED
-}
 
 // Who pays for a Job Card estimate line.
 enum EstimateBillTo {

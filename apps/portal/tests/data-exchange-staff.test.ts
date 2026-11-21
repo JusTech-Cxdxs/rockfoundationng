@@ -63,8 +63,8 @@ test('wired in: switched off, unusable password, nobody emailed at load; invitat
   assert.match(dx, /if \(entity === 'staff'\) await requireOrganisationWideUsers\('undoImportBatch'\)/);
   assert.equal(ENTITIES.staff.needs, 'admin.users.manage');
   assert.equal(ENTITIES.staff.branch, undefined, 'organisation-wide: a branch per row');
-  // The open job cards and services find colleagues not yet invited (staff are loaded first).
-  for (const f of ['lib/data-exchange/open-jobs-server.ts', 'lib/data-exchange/open-services-server.ts']) assert.match(read(f), /OR: \[\{ isActive: true \}, STAFF_AWAITING_INVITATION\]/, f);
+  // The open job cards find colleagues not yet invited (staff are loaded first).
+  assert.match(read('lib/data-exchange/open-jobs-server.ts'), /OR: \[\{ isActive: true \}, STAFF_AWAITING_INVITATION\]/);
   // The bin: only by an undone import, the person and their roles — never a password, a session or a link.
   assert.deepEqual(SNAPSHOT_ORDER.User, ['user', 'userRole']);
   assert.equal(staffAccountEligibility().eligible, false);
@@ -73,9 +73,6 @@ test('wired in: switched off, unusable password, nobody emailed at load; invitat
   assert.doesNotMatch(bin.slice(bin.indexOf('async function snapshotRows'), bin.indexOf('const LOCK')), /account\.find|session\.find|verification\.find/);
   assert.match(bin, /if \(snapshot\.entity === 'User'\) await tx\.account\.create\(\{ data: \{ userId: item\.entityId, accountId: item\.entityId, providerId: 'credential', password: await hashPassword/);
   assert.match(bin, /root\.isActive = false;/, 'a restored account comes back switched off');
-  for (const f of ['scripts/predeploy/0021-staff-imports.sql', 'scripts/v-p7-staff-imports.sql']) {
-    const sql = read(`../../${f}`);
-    assert.match(sql, /ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "invitedAt" TIMESTAMP\(3\)/);
-    assert.doesNotMatch(sql, /^\s*(DROP|DELETE|TRUNCATE|UPDATE) /im, 'additive only');
-  }
+  // When each person was invited is kept on their account.
+  assert.match(read('../../packages/database/prisma/schema.prisma').match(/^model User \{[\s\S]*?\n\}/m)![0], /^\s+invitedAt\s+DateTime\?/m);
 });

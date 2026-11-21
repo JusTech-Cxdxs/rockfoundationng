@@ -2,14 +2,14 @@
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
 
-export type MileageChartPoint = { label: string; mileage: number; dateLabel: string; source: 'VEHICLE_SERVICE' | 'JOB_CARD' };
+export type MileageChartPoint = { label: string; mileage: number; dateLabel: string };
 
 /**
  * Odometer readings recorded at visits (not interpolated). The next service
  * due point, if known, is drawn as a hollow marker to show it is a projection.
  */
 export function VehicleMileageTrendChart({ data, predictedMileage, predictedLabel }: { data: MileageChartPoint[]; predictedMileage?: number | null; predictedLabel?: string }) {
-  const chartData = predictedMileage != null ? [...data, { label: predictedLabel ?? 'Predicted', mileage: predictedMileage, dateLabel: 'Estimated', source: 'VEHICLE_SERVICE' as const }] : data;
+  const chartData = predictedMileage != null ? [...data, { label: predictedLabel ?? 'Predicted', mileage: predictedMileage, dateLabel: 'Estimated' }] : data;
 
   return (
     <ResponsiveContainer width="100%" height={240}>

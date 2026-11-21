@@ -1,4 +1,4 @@
-import { updatePrimaryServiceIntervalFormAction } from '@/lib/actions/vehicle-service-form-handlers';
+import { updatePrimaryServiceIntervalFormAction } from '@/lib/actions/service-tracking-form-handlers';
 import { LoadingLink } from '@/components/LoadingLink';
 import { FormPendingOverlay } from '@/components/FormPendingOverlay';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -6,7 +6,7 @@ import { pluralize } from '@/lib/utils/pluralize';
 
 /**
  * The organisation's Primary Service interval (the default next-service
- * interval when a vehicle has none of its own), as on the Vehicle Service
+ * interval when a vehicle has none of its own), as on the Service Tracker
  * page: the same action, which checks the person may change it. Shown only
  * to those who may (the page decides). `path` is the page it sits on.
  */

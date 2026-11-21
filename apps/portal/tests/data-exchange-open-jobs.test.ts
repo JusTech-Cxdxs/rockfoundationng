@@ -90,9 +90,6 @@ test('wired in: the import loads live job cards with the old number kept, the es
   assert.match(read('lib/data-exchange/fields.ts'), /openJobs: \{[\s\S]*financeSignOff: true/);
   const page = read('app/(app)/workshop/job-cards/[id]/page.tsx');
   assert.match(page, /data-testid="job-card-origin"/);
-  for (const f of ['scripts/predeploy/0016-open-job-cards.sql', 'scripts/v-p5-open-job-cards.sql']) {
-    const sql = read(`../../${f}`);
-    assert.match(sql, /ADD COLUMN IF NOT EXISTS "externalId"/);
-    assert.doesNotMatch(sql, /^\s*(DROP|DELETE|TRUNCATE) /im);
-  }
+  // The old number is kept on the job card itself.
+  assert.match(read('../../packages/database/prisma/schema.prisma').match(/^model JobCard \{[\s\S]*?\n\}/m)![0], /^\s+externalId\s+String\?/m);
 });

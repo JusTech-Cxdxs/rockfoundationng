@@ -1,20 +1,15 @@
 /**
- * Leadership and IT tools: a full branch (or whole organisation) briefing for
- * directors, and plain-words explanations of the error log for IT. Both run
- * the pages' own authorised code as the signed-in person (Headquarters,
- * Business analytics, Team performance, the Error log), follow the branch bar
- * like those pages, and return figures computed here — the model only quotes.
+ * Leadership and IT tools: a full briefing on the business for the Owner and
+ * managers, and plain-words explanations of the error log for IT. Both run
+ * the pages' own authorised code as the signed-in person (the dashboard's
+ * overview, Business analytics, Team performance, the Error log) and return
+ * figures computed here — the model only quotes.
  */
 import { prisma } from '@ejo/database';
 import { allows, authorize, orgWhere } from '@/lib/authz/server';
-import { getHeadquarters } from '@/lib/actions/headquarters';
 import { getLeadershipPulse } from '@/lib/actions/leadership';
 import { getMasterAnalytics } from '@/lib/actions/master-analytics';
 import { getTeamPerformance } from '@/lib/actions/team';
-import { getItTrends, getWebsiteTraffic } from '@/lib/actions/it-trends';
-import { secondsText } from '@/lib/it-trends-core';
-import { getPrincipal } from '@/lib/authz/server';
-import { scopeFor } from '@/lib/authz/catalogue';
 import { KIND_LABEL, KIND_TODO, isErrorKind, normaliseRef } from '@/lib/error-events-core';
 import { nothing, ok, r2, refused, text, when } from '../tool-helpers';
 import type { StaffTool } from '../types';
@@ -28,29 +23,19 @@ export const leadershipTools: StaffTool[] = [
     kind: 'read',
     status: 'Preparing the briefing…',
     description:
-      'A complete briefing for leadership on the whole organisation or one branch: every branch side by side this month (jobs opened and finished, money collected, vehicles in the workshop and ready, decisions waiting and the oldest, customer requests, turnaround, health and why), the money (sales, gross profit and margin, takings, what the sales are made of: labour, parts, outside work, sundry), the workshop now (Job Cards and Vehicle Services in, ready, waiting for parts or the customer), decisions waiting by queue, the team (who needs attention, who is strong), and what to look at first. Use it for "brief me", "how is <branch> doing", "give me the overview". For stock and warranty details also use stock_alerts and warranty_watch. Needs Business analytics.',
-    parameters: {
-      type: 'object',
-      properties: { branch: { type: 'string', description: 'Optional: a branch name to focus on (the person must see it). Empty for everything they see.', maxLength: 80 } },
-      additionalProperties: false,
-    },
-    run: async (args) => {
+      'A complete briefing for the Owner and managers on the business this month: the money (sales, gross profit and margin, takings, what the sales are made of: labour, parts, outside work, sundry, what is owed), the workshop now (Job Cards in, ready, waiting for parts or the customer, turnaround), decisions waiting by queue and the oldest, customer support, the team (who needs attention, who is strong), and what to look at first. Use it for "brief me", "how are we doing", "give me the overview". For stock details also use stock_alerts. Needs Business analytics.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    run: async () => {
       if (!(await allows('analytics.business.view'))) return refused(LEADERS);
-      const want = text(args.branch, 80).toLowerCase();
-      const [hq, pulse, a, team] = await Promise.all([
-        getHeadquarters('this_month'),
+      const [pulse, a, team] = await Promise.all([
         getLeadershipPulse().catch(() => null),
         getMasterAnalytics('this_month').catch(() => null),
         getTeamPerformance('this_month').catch(() => null),
       ]);
-      const rows = want ? hq.branches.filter((b) => b.name.toLowerCase().includes(want)) : hq.branches;
-      if (want && !rows.length) return nothing(`No branch called "${text(args.branch, 80)}" among the branches this person sees (${hq.branches.map((b) => b.name).join(', ') || 'none'}).`);
-      const single = rows.length === 1 && hq.branches.length > 1;
+      if (!pulse && !a) return nothing('The figures could not be read just now. Try again in a moment.');
       return ok({
-        scope: single ? `${rows[0]!.name} (one branch; money and team figures below are for ${hq.lensBranch ?? (hq.branches.length > 1 ? 'all branches seen' : rows[0]!.name)})` : hq.lensBranch ? `${hq.lensBranch} (chosen in the branch bar)` : hq.scope === 'branch' ? 'Own branch' : `Whole organisation, ${hq.branches.length} branches`,
-        period: hq.period.label,
-        asOf: when(hq.asOf),
-        branches: rows.map((b) => ({ name: b.name, health: b.health.label, why: b.health.reasons, staff: b.staff, jobsOpened: b.opened, jobsFinished: b.finished, collectedNaira: b.collected, inWorkshopNow: b.inWorkshop, readyToCollect: b.ready, decisionsWaiting: b.waiting, oldestDecisionHours: b.oldestWaitingHours, supportOpen: b.supportOpen, supportLate: b.supportLate, medianTurnaroundHours: b.turnaroundHours })),
+        scope: pulse?.scope === 'branch' ? 'Own branch' : 'Whole business',
+        asOf: when(pulse?.asOf ?? new Date()),
         money: a ? {
           sales: a.current.sales, salesChangePercent: a.changes.sales, grossProfit: a.current.grossProfit, grossMarginPercent: a.current.grossMargin,
           takings: a.current.collections, jobsFinished: a.current.jobsCompleted, averageJob: a.current.averageJob,
@@ -59,13 +44,12 @@ export const leadershipTools: StaffTool[] = [
           biggestCustomers: a.diagnostic.topCustomers.slice(0, 3).map((c) => ({ name: c.name, value: r2(c.value) })),
           whatToDo: a.actions.slice(0, 4).map((x) => x.title),
         } : null,
-        workshopNow: pulse ? { jobCardsIn: pulse.workshop.jobCardsIn, vehicleServicesIn: pulse.workshop.servicesIn, readyToCollect: pulse.workshop.ready, waitingForParts: pulse.workshop.awaitingParts, waitingForCustomer: pulse.workshop.awaitingCustomer, medianTurnaroundHours30d: pulse.workshop.turnaroundHours } : null,
+        workshopNow: pulse ? { jobCardsIn: pulse.workshop.jobCardsIn, readyToCollect: pulse.workshop.ready, waitingForParts: pulse.workshop.awaitingParts, waitingForCustomer: pulse.workshop.awaitingCustomer, medianTurnaroundHours30d: pulse.workshop.turnaroundHours } : null,
         decisionsWaiting: pulse ? pulse.waiting.filter((w) => w.count > 0).map((w) => ({ what: w.label, count: w.count, oldestHours: w.oldestHours })) : [],
+        support: pulse?.support ?? null,
         team: team ? { peopleWhoHandledWork: team.totals.people, withinStandardPercent: team.totals.withinPct, needsAttention: team.people.filter((p) => p.rating === 'attention').slice(0, 5).map((p) => ({ name: p.name, roles: p.roles, withinStandardPercent: p.withinPct, rework: p.rework })), strong: team.people.filter((p) => p.rating === 'strong').slice(0, 5).map((p) => p.name) } : null,
-        customers: { newThisMonth: hq.totals.customersNew, supportOpen: hq.totals.supportOpen, supportLate: hq.totals.supportLate },
-        notices: hq.broadcasts?.slice(0, 3).map((b) => `${b.title} (${b.state})`) ?? [],
         readAloudTip: 'When asked to brief aloud: start with the one-line verdict, then money, workshop, decisions waiting, team, customers; end with the two or three things to do first. Round money to the nearest thousand naira when speaking.',
-      }, [{ label: 'Headquarters', href: '/headquarters' }, { label: 'Team performance', href: '/headquarters/team' }, { label: 'Business analytics', href: '/analytics' }]);
+      }, [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Business analytics', href: '/analytics' }]);
     },
   },
   {
@@ -104,36 +88,6 @@ export const leadershipTools: StaffTool[] = [
         technical: { name: e.name, message: e.message.slice(0, 600), firstStackLines: e.stack ? e.stack.split('\n').slice(0, 5).map((l) => l.trim()) : [] },
         tip: 'Explain it to an IT person: what happened in one sentence, the likely cause (from the message and kind), whether data could be affected (changes run in transactions — nothing is half-saved), and the next check. Never invent details not in the record.',
       }, [{ label: `Error ${e.ref}`, href: `/audit-logs/errors?ref=${encodeURIComponent(e.ref)}` }]);
-    },
-  },
-  {
-    name: 'website_traffic',
-    kind: 'read',
-    status: 'Reading the website figures…',
-    description:
-      'The public website\'s own visitor report and IT trends: visitors and page views per day, how many chatted with Enyo versus only browsed, average time on a page, the share who left after one page, top pages (with time on page), devices and referring sites; for IT also errors, sign-ins, failed sign-ins, Enyo conversations, emails and scheduled job runs per day with the trend. Anonymous counts only. For IT and leadership.',
-    parameters: {
-      type: 'object',
-      properties: { days: { type: 'number', minimum: 1, maximum: 90, description: 'How many days back (1–90). Default 14.' } },
-      additionalProperties: false,
-    },
-    run: async (args) => {
-      const me = await getPrincipal();
-      const it = me.isSuperAdmin || scopeFor(me, 'audit.view') === 'ALL';
-      if (!it && scopeFor(me, 'analytics.business.view') !== 'ALL') return refused('the website report is for IT and leadership (organisation-wide).');
-      const n = typeof args.days === 'number' && Number.isFinite(args.days) ? Math.min(90, Math.max(1, Math.round(args.days))) : 14;
-      const [w, t] = await Promise.all([getWebsiteTraffic(n), it ? getItTrends(Math.min(30, Math.max(7, n))).catch(() => null) : Promise.resolve(null)]);
-      return ok({
-        website: w ? {
-          since: w.since,
-          totals: { ...w.totals, averageTimeOnPage: secondsText(w.totals.avgSeconds) },
-          perDay: w.days.map((d) => ({ day: d.label, visitors: d.visitors, views: d.views, chattedWithEnyo: d.chatted })),
-          topPages: w.topPages.map((p) => ({ page: p.path, views: p.views, visitors: p.visitors, timeOnPage: secondsText(p.avgSeconds) })),
-          devices: w.devices, cameFrom: w.referrers,
-        } : 'Not counted yet: the database needs v40 (deploy the API first).',
-        itTrends: t ? { perDay: t.days.map((d) => ({ day: d.label, errors: d.errors, signIns: d.signIns, failedSignIns: d.failedSignIns, enyoChats: d.chats, ...(t.emailsShown ? { emailsSent: d.emailsSent, emailsFailed: d.emailsFailed, jobRuns: d.jobRuns } : {}) })), trend: t.trend } : undefined,
-        tip: 'Lead with visitors and the trend, then chatted vs browsed only, time on page and the top pages. Do not invent causes; suggest what to look at.',
-      }, [{ label: 'IT control room', href: '/it' }]);
     },
   },
 ];

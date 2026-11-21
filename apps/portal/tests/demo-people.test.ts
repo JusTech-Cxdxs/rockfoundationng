@@ -134,10 +134,8 @@ test('the production build makes the demo people only when DEMO_STAFF_PASSWORD i
   const reset = read('apps/portal/scripts/demo-reset.ts');
   assert.match(reset, /loadDemoPeople\(prisma, org\.id/);
   assert.match(reset, /DEMO_RESET_CONFIRM/);
-  // The schema column and its re-runnable SQL.
+  // The schema column that marks the demo organisation.
   assert.match(read('packages/database/prisma/schema.prisma'), /isDemo\s+Boolean\s+@default\(false\)/);
-  assert.match(read('scripts/predeploy/0017-demo-organisation.sql'), /ADD COLUMN IF NOT EXISTS "isDemo" BOOLEAN NOT NULL DEFAULT false/);
-  assert.match(read('scripts/v-d1-demo-people.sql'), /ADD COLUMN IF NOT EXISTS "isDemo"/);
 });
 
 test('docs/DPHOENIX_DEMO.md lists every demo sign-in (staff and customers) with its employee number, how to switch the demo on, and never a password', () => {

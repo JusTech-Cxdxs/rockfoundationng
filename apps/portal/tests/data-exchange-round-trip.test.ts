@@ -99,9 +99,6 @@ test('wired in: the mode only for these lists with the EJO record matched; appli
   assert.match(s, /organisationId: job\.organisationId \}/, 'fenced to the organisation');
   assert.match(s, /branchId: job\.branchId \}/, 'a part fenced to the branch');
   for (const e of ROUND_TRIP_ENTITIES) assert.doesNotMatch(templateCsv(e), /EJO record/, `${e}: the template never carries the EJO record`);
-  for (const f of ['scripts/predeploy/0023-round-trip-changes.sql', 'scripts/v-p10-round-trip.sql']) {
-    const sql = read(`../../${f}`);
-    assert.match(sql, /ALTER TABLE "import_rows" ADD COLUMN IF NOT EXISTS "changes" JSONB/);
-    assert.doesNotMatch(sql, /^\s*(DROP|DELETE|TRUNCATE|UPDATE) /im, 'additive only');
-  }
+  // Each row keeps the changes it made, so an undo puts back field by field.
+  assert.match(read('../../packages/database/prisma/schema.prisma').match(/^model ImportRow \{[\s\S]*?\n\}/m)![0], /^\s+changes\s+Json\?/m);
 });
