@@ -1,4 +1,5 @@
 import { guardPage } from '@/lib/authz/server';
+import { prisma } from '@ejo/database';
 import { getOrganisation } from '@/lib/actions/organisation';
 import { updateBillingSettingsFormAction, updateOrganisationFormAction } from '@/lib/actions/organisation-form-handlers';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -199,6 +200,7 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
       )}
 
       {organisation ? <BillingAndTax organisation={organisation} isEditing={isEditingBilling} /> : null}
+      {organisation ? <WhereCustomersPay organisationId={organisation.id} /> : null}
     </div>
   );
 }
@@ -288,6 +290,46 @@ function BillingAndTax({ organisation, isEditing }: { organisation: { id: string
           </LoadingLink>
         </div>
       )}
+    </section>
+  );
+}
+
+/**
+ * Where customers pay: the bank account each branch prints on estimates,
+ * invoices and payment requests. Kept on the branch (each branch can bank
+ * separately); shown here so it is found where billing is set.
+ */
+async function WhereCustomersPay({ organisationId }: { organisationId: string }) {
+  const branches = await prisma.branch.findMany({
+    where: { businessUnit: { organisationId }, isActive: true },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, bankName: true, bankAccountName: true, bankAccountNumber: true },
+  });
+  if (!branches.length) return null;
+  return (
+    <section className="mt-8 max-w-xl" aria-labelledby="where-customers-pay">
+      <h2 id="where-customers-pay" className="text-base font-semibold text-[var(--ejo-text)]">Where customers pay</h2>
+      <p className="mb-3 mt-1 text-sm text-[var(--ejo-text-muted)]">
+        The bank account printed on estimates, invoices and payment requests, set for each branch.
+      </p>
+      <ul className="divide-y divide-[var(--ejo-border)] rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
+        {branches.map((b) => {
+          const set = Boolean(b.bankName && b.bankAccountName && b.bankAccountNumber);
+          return (
+            <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4" data-testid="branch-bank">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-[var(--ejo-text)]">{b.name}</p>
+                <p className="mt-0.5 text-sm text-[var(--ejo-text-muted)]">
+                  {set ? `${b.bankName} · ${b.bankAccountName} · ${b.bankAccountNumber}` : 'Not set yet: customers will not see where to pay.'}
+                </p>
+              </div>
+              <LoadingLink href={`/branches/${b.id}?edit=true`} className="text-sm font-medium text-[var(--ejo-primary)] hover:underline">
+                {set ? 'Edit' : 'Add bank details'}
+              </LoadingLink>
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

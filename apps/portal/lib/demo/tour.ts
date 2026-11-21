@@ -24,7 +24,6 @@ const L = (label: string, href: string): TourLink => ({ label, href });
 const NO_USERS = L('manage users', '/users');
 const NO_SETTINGS = L('change settings', '/settings');
 const NO_AUDIT = L('read the audit trail', '/audit-logs');
-const NO_JOBS = L('open the job cards', '/workshop/job-cards');
 const NO_ANALYTICS = L('open business analytics', '/analytics');
 const NO_STRUCTURE = L('change the organisation’s structure', '/structure');
 const NO_IMPORTS = L('bring records in (Data Exchange)', '/data-exchange');

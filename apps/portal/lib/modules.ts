@@ -30,35 +30,3 @@ export const platformModules: PlatformModuleDescriptor[] = [
 export function moduleIsOn(key: string): boolean {
   return platformModules.find((m) => m.key === key)?.status !== 'DISABLED';
 }
-
-/**
- * Parts of the platform that are not menu modules, switched per edition.
- * D'Phoenix Autocare: no SAP link (Zoho and spreadsheets come in through Data
- * Exchange), no outside-purchase approvals (parts bought outside are priced on
- * the estimate), no roadmap, news, speak-up or data-request pages.
- */
-export const EDITION_FEATURES = {
-  sap: false,
-  externalProcurement: false,
-  roadmap: false,
-  news: false,
-  speakUp: false,
-  dataRequests: false,
-  // A separate Vehicle Service flow for new work: services are opened as a
-  // Job Card with Service ticked; old Vehicle Services stay readable.
-  separateVehicleService: false,
-} as const;
-export type EditionFeature = keyof typeof EDITION_FEATURES;
-
-export function featureOn(feature: EditionFeature): boolean {
-  return EDITION_FEATURES[feature];
-}
-
-/**
- * The system a record was brought in from, in words: "SAP" for a record from
- * SAP while this edition links with SAP, otherwise "the old system" (Zoho, a
- * spreadsheet or whatever was used before EJO).
- */
-export function oldSystemName(externalSource?: string | null, sap: boolean = featureOn('sap')): string {
-  return sap && !String(externalSource ?? 'SAP').toUpperCase().startsWith('LEGACY') ? 'SAP' : 'the old system';
-}

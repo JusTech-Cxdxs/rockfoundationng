@@ -200,7 +200,7 @@ export default async function DashboardPage() {
           <div className="ejo-stagger flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
             {quick.map((q) => (
               <LoadingLink key={q.href} href={q.href} className="ejo-lift ejo-press group inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--ejo-border)] bg-[var(--ejo-surface)] py-1.5 pl-1.5 pr-3.5 text-sm font-medium text-[var(--ejo-text)] hover:border-[var(--ejo-primary)]/50 hover:text-[var(--ejo-primary)]">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)] transition-colors group-hover:bg-[var(--ejo-primary)] group-hover:text-white"><Icon name={q.icon} size={15} /></span>
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)] transition-colors group-hover:bg-[var(--ejo-primary)] group-hover:text-[var(--ejo-on-primary)]"><Icon name={q.icon} size={15} /></span>
                 {q.label}
               </LoadingLink>
             ))}

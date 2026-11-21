@@ -29,8 +29,7 @@ export function customerLinks(site: string) {
   };
 }
 
-/** The page for a Job Card ("JobCard") or a service visit ("VehicleService"). */
-export function customerRecordUrl(site: string, entityType: 'JobCard' | 'VehicleService', recordId: string): string {
-  const l = customerLinks(site);
-  return entityType === 'JobCard' ? l.jobCard(recordId) : l.service(recordId);
+/** The customer's page for a record (a Job Card: service and repair alike). */
+export function customerRecordUrl(site: string, _entityType: 'JobCard', recordId: string): string {
+  return customerLinks(site).jobCard(recordId);
 }

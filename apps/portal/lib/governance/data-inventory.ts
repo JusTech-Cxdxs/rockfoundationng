@@ -60,7 +60,7 @@ export type DataEntry = {
 const FIN_RETENTION = 'At least 6 years after the financial year (Nigerian accounting-record retention)';
 const PERSONAL_RETENTION = 'While the relationship is active; then as the retention policy allows (NDPA 2023 — no longer than necessary)';
 const OPS_RETENTION = 'At least 6 years (operational history and disputes)';
-const SEC_RETENTION = '2 years (site-security record), longer if an incident is open';
+const SEC_RETENTION = '2 years (site-security record)';
 
 export const DATA_INVENTORY: Record<string, DataEntry> = {
   // ── Platform & reference ───────────────────────────────────────────
@@ -146,8 +146,8 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   PartRequestSlipLine: { tenancy: 'VIA_PARENT', owner: 'slipId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
 
   // ── Security & gate ────────────────────────────────────────────────
-  VehicleGateExit: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY'], lifecycle: 'IMMUTABLE', retention: OPS_RETENTION, ai: 'AUTHORISED_USER' },
-  SecurityEmailLog: { tenancy: 'VIA_PARENT', owner: 'entityId', classification: ['AUDIT', 'PERSONAL'], lifecycle: 'IMMUTABLE', retention: '2 years', ai: 'NEVER' },
+  VehicleGateExit: { tenancy: 'BRANCH', owner: 'branchId', classification: ['SECURITY'], lifecycle: 'IMMUTABLE', retention: SEC_RETENTION, ai: 'AUTHORISED_USER' },
+  SecurityEmailLog: { tenancy: 'VIA_PARENT', owner: 'entityId', classification: ['AUDIT', 'PERSONAL'], lifecycle: 'IMMUTABLE', retention: SEC_RETENTION, ai: 'NEVER' },
 
   // ── Scheduling & communication ─────────────────────────────────────
   Broadcast: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: '2 years', ai: 'AUTHORISED_USER' },

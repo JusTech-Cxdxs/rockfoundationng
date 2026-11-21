@@ -15,6 +15,7 @@ export const AREAS: { url: string; needs: PermissionKey[] }[] = [
   { url: '/settings', needs: ['admin.settings.manage'] },
   { url: '/organisation', needs: ['admin.organisation.manage'] },
   { url: '/structure', needs: ['admin.structure.manage'] },
+  { url: '/branches', needs: ['admin.structure.manage'] },
   { url: '/audit-logs', needs: ['audit.view'] },
   { url: '/recycle-bin', needs: ['admin.recycle_bin.manage'] },
   { url: '/data-exchange', needs: ['dataexchange.import.run', 'dataexchange.import.approve'] },

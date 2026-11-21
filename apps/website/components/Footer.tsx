@@ -31,7 +31,7 @@ export function Footer() {
           {SOCIALS.length > 0 ? (
             <div className="mt-5 flex gap-3">
               {SOCIALS.map(({ label, icon: Icon, href }) => (
-                <a key={label} href={href} target="_blank" rel="noopener noreferrer" aria-label={label} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-[var(--ejo-primary)]">
+                <a key={label} href={href} target="_blank" rel="noopener noreferrer" aria-label={label} className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 hover:bg-[var(--ejo-primary)] hover:text-[var(--ejo-on-primary)]">
                   <Icon />
                 </a>
               ))}

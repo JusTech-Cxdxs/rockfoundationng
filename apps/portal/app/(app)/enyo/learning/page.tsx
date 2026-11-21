@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { allows, getPrincipal, guardPage, myOrganisationId } from '@/lib/authz/server';
 import { getEnyoSettings } from '@/lib/enyo/settings';
 import { PageHeader, SectionCard, Icon } from '@/components/ui';
@@ -35,9 +36,9 @@ export default async function EnyoLearningPage({ searchParams }: { searchParams:
         back={{ href: '/settings/enyo', label: 'Settings' }}
         actions={
           canSupport ? (
-            <a href="/crm/support/enyo" className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] px-3 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)] sm:min-h-9">
+            <Link href="/crm/support/enyo" className="inline-flex min-h-11 items-center gap-1.5 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] px-3 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)] sm:min-h-9">
               <Icon name="inbox" size={15} />Enyo&rsquo;s support replies
-            </a>
+            </Link>
           ) : null
         }
       />

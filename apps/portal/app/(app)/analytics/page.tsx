@@ -75,7 +75,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
 
       <Group icon="activity">Performance · descriptive</Group>
       <div className="ejo-stagger mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-        <Kpi icon="money" money label="Sales" value={c.sales} change={a.changes.sales} />
+        <Kpi icon="money" money label="Revenue" value={c.sales} change={a.changes.sales} />
         <Kpi icon="trend-up" money label="Gross profit" value={c.grossProfit} change={a.changes.grossProfit} hint={costNote ?? undefined} />
         <Kpi icon="percent" label="Gross margin" value={pct(c.grossMargin)} hint={costNote ?? (c.grossMargin !== null && a.previous.grossMargin !== null ? `was ${a.previous.grossMargin}%` : undefined)} />
         <Kpi icon="check-circle" label="Jobs completed" value={c.jobsCompleted} change={a.changes.jobsCompleted} hint={pluralize(c.jobCardsCompleted, 'Job Card')} />
@@ -84,7 +84,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
       </div>
       <div className="mb-8 grid gap-4 lg:grid-cols-3">
         <div className={card}>
-          <T icon="pie">Sales by type</T>
+          <T icon="pie">Revenue by type</T>
           <div className="space-y-2">{a.diagnostic.mix.map((m) => (
             <BarRow key={m.name} label={m.name} value={m.value} max={maxMix} note={naira(m.value)} labelWidth="4.5rem" />
           ))}</div>
@@ -164,7 +164,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
       <div className="mb-8 grid gap-4 lg:grid-cols-2">
         <div className={card}>
           <T as="h2" icon="bars" className="mb-1">Last 12 weeks</T>
-          <p className="mb-3 flex flex-wrap gap-3 text-[11px] text-[var(--ejo-text-muted)]"><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[var(--ejo-primary)]/30" />Sales</span><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[var(--ejo-primary)]" />Gross profit{costNote ? ` (${costNote.toLowerCase()})` : ''}</span></p>
+          <p className="mb-3 flex flex-wrap gap-3 text-[11px] text-[var(--ejo-text-muted)]"><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[var(--ejo-primary)]/30" />Revenue</span><span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-[var(--ejo-primary)]" />Gross profit{costNote ? ` (${costNote.toLowerCase()})` : ''}</span></p>
           <div className="flex h-44 items-end gap-1.5">
             {a.weeks.map((w) => (
               <div key={w.label} className="flex flex-1 flex-col items-center gap-1" title={`${w.label}: sales ${naira(w.sales)}, gross profit ${naira(w.grossProfit)}, ${pluralize(w.jobs, 'job')}`}>
