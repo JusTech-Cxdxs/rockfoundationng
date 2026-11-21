@@ -1,11 +1,4 @@
-import { actorLabel } from '@/lib/assist/rules';
-import { canRequestRoadTestOn } from '@/lib/actions/security';
 import { jobCardVisible, guardAnyPage, can, allows } from '@/lib/authz/server';
-import { organisationOfBranch, priceWarnings, shownDuration } from '@/lib/enyo/ml/models';
-import { getEnyoSettings } from '@/lib/enyo/settings';
-import { ReadyEstimate, UnusualPrice } from '@/components/enyo/EnyoInsights';
-import { RoadTestsPanel } from '@/components/RoadTestsPanel';
-import { listRoadTestsFor } from '@/lib/actions/security';
 import { securityActionDetail } from '@/lib/security-labels';
 import { LoadingLink } from '@/components/LoadingLink';
 import { depositDueOn, vatIsFixed, discountNeedsManager, discountPercent, isCustomerLine, jobCardTotals, paidInFull } from '@/lib/estimate-billing';
@@ -18,8 +11,6 @@ import { emailInvoiceFormAction, issueInvoiceFormAction } from '@/lib/actions/in
 import { getJobCardBilling } from '@/lib/actions/estimate-billing';
 import { JobCardBillingPanel } from '@/components/JobCardBillingPanel';
 import { humanizeAction } from '@/lib/humanize-action';
-import { listWarrantiesFor, getPartWarrantyBadges } from '@/lib/actions/warranty';
-import { WarrantyList } from '@/components/WarrantyList';
 import { JobCardStatusForm } from '@/components/JobCardStatusForm';
 import { AuditTrail } from '@/components/AuditTrail';
 import { getSelectableJobCardStatuses, isReworkTransition } from '@/lib/job-card-status-rules';
@@ -32,7 +23,6 @@ import { getJobCard, getJobCardAuditTrail, getJobCardEstimate, getJobCardPayment
 import { getJobCardSourcingNeeds } from '@/lib/actions/sourcing';
 import { listPartCategories, listPartTypes } from '@/lib/actions/store';
 import { EstimateLineItemForm } from '@/components/EstimateLineItemForm';
-import { LikelyLinesCard } from '@/components/enyo/LikelyLinesCard';
 import { Suspense } from 'react';
 import { EstimateLinesTable, EstimateLineEditLink, EstimateLineRemoveButton, EstimateLineEditor, type EstimateLineView } from '@/components/EstimateLinesTable';
 import { requestStoreMatchingFormAction } from '@/lib/actions/store-form-handlers';
@@ -51,8 +41,8 @@ import { IdempotencyKey } from '@/components/IdempotencyKey';
 import { PageTitle, StatusChip } from '@/components/ui';
 import { CustomerLink } from '@/components/CustomerLink';
 import { RefineTextButton } from '@/components/enyo/RefineTextButton';
-import { SapTrail } from '@/components/data-exchange/SapTrail';
-import { featureOn, moduleIsOn, oldSystemName } from '@/lib/modules';
+import { moduleIsOn, oldSystemName } from '@/lib/modules';
+import { getVehicleInspection } from '@/lib/actions/vehicle-inspection';
 import { serviceJobCardCycle } from '@/lib/vehicle-service-cycle';
 import { ServiceJobCardBadge } from '@/components/ServiceJobCardBadge';
 import { WhatsAppLink } from '@/components/WhatsAppLink';
@@ -62,12 +52,8 @@ import { workshopContactFor } from '@/lib/workshop-core';
 import { websiteBaseUrl } from '@/lib/portal-url';
 import { customerLinks } from '@/lib/customer-links-core';
 
-// Switched per edition (the D'Phoenix Autocare edition has no Store, Warranty
-// or outside-purchase approvals): their parts of this page are hidden, the
-// code is kept, and switching a module back on brings them back.
+// The Store is switched in Settings: with it off, parts requests are hidden.
 const STORE_ON = moduleIsOn('inventory');
-const WARRANTY_ON = moduleIsOn('warranty');
-const EPR_ON = featureOn('externalProcurement');
 
 
 const STATUS_LABEL: Record<string, string> = {
@@ -98,7 +84,6 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
   'job_card.line_bill_to_set': 'Who pays changed',
   'warranty.issued': 'Warranties issued',
   'job_card.created': 'Job Card created',
-  'job_card.created_from_vehicle_service': 'Created from Vehicle Service',
   'job_card.approved': 'Job Card approved',
   'job_card.rejected': 'Job Card rejected',
   'job_card.supervisor_reassigned': 'Supervisor reassigned',
@@ -156,18 +141,10 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
 };
 
 const PART_REQUEST_STATUS_LABEL: Record<string, string> = {
-  PENDING_HOD_APPROVAL: 'Awaiting HOD approval',
+  PENDING_HOD_APPROVAL: 'Awaiting supervisor approval',
   PENDING_STORE_APPROVAL: 'Awaiting Store approval',
   APPROVED: 'Approved — awaiting release',
   RELEASED: 'Released',
-  REJECTED: 'Rejected',
-};
-
-const EXTERNAL_PROCUREMENT_STATUS_LABEL: Record<string, string> = {
-  PENDING_FINANCE_REVIEW: 'Awaiting Finance review',
-  PENDING_MANAGER_APPROVAL: 'Awaiting Manager approval',
-  APPROVED: 'Approved — awaiting disbursement',
-  DISBURSED: 'Disbursed',
   REJECTED: 'Rejected',
 };
 
@@ -176,14 +153,6 @@ const PART_REQUEST_STATUS_BADGE_CLASS: Record<string, string> = {
   PENDING_STORE_APPROVAL: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]',
   APPROVED: 'bg-[var(--ejo-info)]/15 text-[var(--ejo-info)]',
   RELEASED: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]',
-  REJECTED: 'bg-[var(--ejo-error)]/15 text-[var(--ejo-error)]',
-};
-
-const EXTERNAL_PROCUREMENT_STATUS_BADGE_CLASS: Record<string, string> = {
-  PENDING_FINANCE_REVIEW: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]',
-  PENDING_MANAGER_APPROVAL: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]',
-  APPROVED: 'bg-[var(--ejo-info)]/15 text-[var(--ejo-info)]',
-  DISBURSED: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]',
   REJECTED: 'bg-[var(--ejo-error)]/15 text-[var(--ejo-error)]',
 };
 
@@ -208,8 +177,6 @@ function formatAuditDetail(entry: { action: string; metadata: unknown }): string
     case 'invoice.issued':
     case 'invoice.emailed':
       return typeof meta.invoiceNumber === 'string' ? meta.invoiceNumber : null;
-    case 'job_card.created_from_vehicle_service':
-      return typeof meta.serviceNumber === 'string' ? `From Vehicle Service ${meta.serviceNumber}` : null;
     case 'estimate.line_item_added':
     case 'estimate.line_item_updated': {
       const parts: string[] = [];
@@ -398,7 +365,7 @@ export default async function JobCardDetailPage({
   // Round 1: everything that needs only the id, in parallel (each database
   // round trip crosses regions). An id the viewer can't see is a 404.
   if (!(await jobCardVisible(id, 'page'))) notFound();
-  const [jobCard, technicians, isMasterAdmin, viewerId, auditTrail, eligibleSupervisors, estimate, payments, cancellationRequests, closeRequests, sourcingFound, refunds, warranties, roadTests, billing, binOffer] = await Promise.all([
+  const [jobCard, technicians, isMasterAdmin, viewerId, auditTrail, eligibleSupervisors, estimate, payments, cancellationRequests, closeRequests, sourcingFound, refunds, billing, binOffer, inspection] = await Promise.all([
     getJobCard(id),
     listTechnicianCandidates(),
     currentUserIsMasterAdmin(),
@@ -411,21 +378,17 @@ export default async function JobCardDetailPage({
     getCloseRequests(id),
     getJobCardSourcingNeeds(id),
     listRefunds({ jobCardId: id }),
-    WARRANTY_ON ? listWarrantiesFor({ jobCardId: id }) : Promise.resolve([]),
-    listRoadTestsFor({ jobCardId: id }),
     getJobCardBilling(id),
     getRecycleBinOffer('JobCard', id),
+    getVehicleInspection(id),
   ]);
   const invoice = await getJobCardInvoice(id).catch(() => null);
   if (!jobCard) notFound();
-  // Parts requests (PRS) need the Store; external procurement (EPR) needs its
-  // approvals. Either switched off: nothing to raise, list or link to.
+  // Parts requests (PRS) need the Store: switched off, nothing to raise, list or link to.
   const sourcingNeeds = {
     ...sourcingFound,
     needsStoreParts: STORE_ON && sourcingFound.needsStoreParts,
-    needsExternalProcurement: EPR_ON && sourcingFound.needsExternalProcurement,
     existingPartRequestSlips: STORE_ON ? sourcingFound.existingPartRequestSlips : [],
-    existingExternalProcurementRequests: EPR_ON ? sourcingFound.existingExternalProcurementRequests : [],
   };
   const origin = jobCard.importJobId ? await getImportOrigin(jobCard.importJobId).catch(() => null) : null;
   // A Job Card opened as a service, once checked out: the next-service point it set.
@@ -433,22 +396,12 @@ export default async function JobCardDetailPage({
   // Customer names link to their Customers (CRM) page for those who may open it.
   const canSeeCustomers = await allows('crm.view');
   // Round 2: what needs the branch or the estimate.
-  const [eligibleManagers, eligibleFinance, partCategories, partTypes, partWarrantyBadges, mayInvoice] = await Promise.all([
+  const [eligibleManagers, eligibleFinance, partCategories, partTypes, mayInvoice] = await Promise.all([
     listEligibleManagersForBranch(jobCard.branchId),
     listEligibleFinanceOfficersForBranch(jobCard.branchId),
     STORE_ON ? listPartCategories(jobCard.branchId) : Promise.resolve([]),
     STORE_ON ? listPartTypes(jobCard.branchId) : Promise.resolve([]),
-    // No part-warranty badges when Warranty is off.
-    WARRANTY_ON ? getPartWarrantyBadges((estimate?.lineItems ?? []).map((li: { matchedPartId: string | null }) => li.matchedPartId ?? '')) : Promise.resolve({} as Record<string, string>),
     canIssueInvoices(jobCard.branchId),
-  ]);
-  // Enyo, when switched on at Assist: unusual typed-in prices and when the vehicle is likely ready. Never in the way.
-  // The record's own organisation decides (its model and level), never the viewer's.
-  const enyoOrg = await organisationOfBranch(jobCard.branchId).catch(() => null);
-  const [priceFlags, readyEstimate, enyoName] = await Promise.all([
-    priceWarnings(enyoOrg, (estimate?.lineItems ?? []).map((li: { id: string; type: string; description: string; quantity: unknown; unitPrice: unknown }) => ({ id: li.id, type: li.type, description: li.description, quantity: Number(li.quantity) || 1, unitPrice: li.unitPrice == null ? null : Number(li.unitPrice) }))).catch(() => new Map()),
-    jobCard.readyForCollectionAt ? Promise.resolve(null) : shownDuration({ kind: 'JOB_CARD', id: id }, enyoOrg).catch(() => null),
-    getEnyoSettings(enyoOrg).then((x) => x.displayName),
   ]);
   const partCategoriesWithTypes = partCategories.map((category: (typeof partCategories)[number]) => ({
     id: category.id,
@@ -568,7 +521,6 @@ export default async function JobCardDetailPage({
         isEligibleManager,
       }).filter((s) => s !== 'CHECKED_OUT' || isPaidInFull || mayLeaveOnCredit);
 
-  const canRoadTest = await canRequestRoadTestOn('JOB_CARD', jobCard.id);
   return (
     <div className="p-8">
       <LoadingLink href="/workshop/job-cards" className="text-sm text-[var(--ejo-text-muted)] hover:text-[var(--ejo-text)]">
@@ -823,8 +775,7 @@ export default async function JobCardDetailPage({
 
           <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
             {(() => {
-              const realComplaints = jobCard.complaints.filter((c: (typeof jobCard.complaints)[number]) => !c.description.startsWith('[Inspection:'));
-              const inspectionFindings = jobCard.complaints.filter((c: (typeof jobCard.complaints)[number]) => c.description.startsWith('[Inspection:'));
+              const realComplaints = jobCard.complaints;
               return (
                 <>
                   <h2 className="text-sm font-semibold text-[var(--ejo-text)]">
@@ -843,24 +794,8 @@ export default async function JobCardDetailPage({
                     // Job Cards created before per-item complaints only have the old `complaint` field.
                     <p className="mt-2 text-sm text-[var(--ejo-text)]">{jobCard.complaint}</p>
                   ) : (
-                    <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">No complaints recorded. See the inspection findings below.</p>
+                    <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">No complaints recorded.</p>
                   )}
-                  {inspectionFindings.length > 0 ? (
-                    <>
-                      <h2 className="mt-5 text-sm font-semibold text-[var(--ejo-text)]">
-                        {pluralize(inspectionFindings.length, 'Inspection Finding')}
-                      </h2>
-                      <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">Carried over from the Vehicle Service inspection when it was escalated.</p>
-                      <ol className="mt-2 space-y-1.5">
-                        {inspectionFindings.map((c: (typeof jobCard.complaints)[number]) => (
-                          <li key={c.id} className="flex gap-2 text-sm text-[var(--ejo-text)]">
-                            <span className="shrink-0 font-medium text-[var(--ejo-text-muted)]">{c.sequenceNumber}.</span>
-                            <span>{c.description.replace(/^\[Inspection: [^\]]+\]\s*/, '')}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </>
-                  ) : null}
                 </>
               );
             })()}
@@ -870,6 +805,39 @@ export default async function JobCardDetailPage({
                 <p className="mt-2 text-sm text-[var(--ejo-text)]">{jobCard.diagnosis}</p>
               </>
             ) : null}
+          </div>
+
+          {/* The check-in inspection: one per Job Card, started, skipped or completed on its own page. */}
+          <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6" data-testid="job-card-inspection">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Vehicle inspection</h2>
+              <StatusChip tone={!inspection ? 'neutral' : inspection.status === 'COMPLETED' ? 'success' : inspection.status === 'SKIPPED' ? 'neutral' : 'info'}>
+                {!inspection ? 'Not started' : inspection.status === 'COMPLETED' ? 'Completed' : inspection.status === 'SKIPPED' ? 'Skipped' : 'In progress'}
+              </StatusChip>
+            </div>
+            {inspection && inspection.status !== 'SKIPPED' ? (() => {
+              const count = (sev: string) => inspection.items.filter((i: { severity: string | null }) => i.severity === sev).length;
+              const reviewed = inspection.items.filter((i: { severity: string | null }) => i.severity).length;
+              return (
+                <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
+                  {reviewed} of {inspection.items.length} items checked · {count('CRITICAL')} critical · {count('SERVICE_REQUIRED')} service required · {count('ATTENTION')} attention · {count('GOOD')} good
+                </p>
+              );
+            })() : inspection?.status === 'SKIPPED' ? (
+              <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Skipped{inspection.skipReason ? `: ${inspection.skipReason}` : '.'}</p>
+            ) : (
+              <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Check the vehicle at check-in and record what you find, or skip it with a reason.</p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-3 text-sm">
+              <LoadingLink href={`/workshop/job-cards/${jobCard.id}/inspection`} className="inline-flex min-h-10 items-center rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2 font-medium text-white hover:opacity-90">
+                {!inspection ? 'Start or skip the inspection' : 'Open the inspection'}
+              </LoadingLink>
+              {inspection && inspection.status !== 'SKIPPED' ? (
+                <a href={`/print/vehicle-inspections/${jobCard.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]">
+                  Print the report
+                </a>
+              ) : null}
+            </div>
           </div>
 
           <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
@@ -909,7 +877,6 @@ export default async function JobCardDetailPage({
               <p className="mt-2 text-sm text-[var(--ejo-text-muted)]">No estimate lines yet.</p>
             ) : (
               <>
-                {readyEstimate ? <ReadyEstimate prediction={readyEstimate} name={enyoName} /> : null}
                 <EstimateLinesTable
                   withActions={isEstimateContributor}
                   lines={estimate.lineItems.map((item: (typeof estimate.lineItems)[number]): EstimateLineView => {
@@ -941,9 +908,6 @@ export default async function JobCardDetailPage({
                       description: item.description,
                       notes: (
                         <>
-                          {WARRANTY_ON && item.type === 'STORE_PART' && item.matchedPartId && partWarrantyBadges[item.matchedPartId] ? (
-                            <div className="mt-0.5 text-[11px] font-medium text-[var(--ejo-success)]">Warranty: {partWarrantyBadges[item.matchedPartId]} — issued automatically when released</div>
-                          ) : null}
                           {item.type === 'STORE_PART' ? (
                             item.matchedPart ? (
                               <div className="mt-0.5 text-[11px] text-[var(--ejo-success)]">Matched: {item.matchedPart.name}</div>
@@ -951,7 +915,6 @@ export default async function JobCardDetailPage({
                               <div className="mt-0.5 text-[11px] font-medium text-[var(--ejo-warning-text)]">Awaiting Store match</div>
                             )
                           ) : null}
-                          {priceFlags.get(item.id) ? <UnusualPrice check={priceFlags.get(item.id)!} /> : null}
                           {item.discountAmount !== null && Number(item.discountAmount) > 0 && isCustomerLine(item) ? (
                             <div className="mt-0.5 text-[11px] font-medium text-[var(--ejo-success)]">Discount −{formatNaira(item.discountAmount)}</div>
                           ) : null}
@@ -1097,12 +1060,6 @@ export default async function JobCardDetailPage({
               </>
             )}
 
-            {jobCard.approvalStatus === 'APPROVED' && isEstimateContributor && (!estimate || estimate.status === 'DRAFT') ? (
-              // Enyo (Suggest mode only): lines similar jobs had; "Add" fills in the form below.
-              <Suspense fallback={null}>
-                <LikelyLinesCard kind="JOB_CARD" id={jobCard.id} existing={estimateLineItems} />
-              </Suspense>
-            ) : null}
 
             {jobCard.approvalStatus === 'APPROVED' && isEstimateContributor && (!estimate || estimate.status === 'DRAFT') ? (
               <EstimateLineItemForm
@@ -1304,10 +1261,6 @@ export default async function JobCardDetailPage({
 
           {billing ? <JobCardBillingPanel jobCardId={jobCard.id} billing={billing} /> : null}
 
-          <RoadTestsPanel rows={roadTests} ready={jobCard.status === 'QUALITY_CHECK'} requestHref={['CHECKED_IN', 'IN_PROGRESS', 'AWAITING_PARTS', 'QUALITY_CHECK', 'AWAITING_CUSTOMER_APPROVAL', 'COMPLETED', 'READY_FOR_COLLECTION', 'CLOSED'].includes(jobCard.status) && canRoadTest ? `/security/road-tests/new?jobCardId=${jobCard.id}` : null} />
-
-          {WARRANTY_ON ? <WarrantyList warranties={warranties} title="Warranties issued" /> : null}
-
           {invoice || (invoiceable && mayInvoice) ? (
             <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6" data-testid="invoice-panel">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1458,11 +1411,11 @@ export default async function JobCardDetailPage({
             </div>
           ) : null}
 
-          {sourcingNeeds.isEligibleToSource && (sourcingNeeds.needsStoreParts || sourcingNeeds.needsExternalProcurement) ? (
+          {sourcingNeeds.isEligibleToSource && sourcingNeeds.needsStoreParts ? (
             <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
               <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Sourcing</h2>
               <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
-                Based on this Job Card&apos;s estimate. Store parts and external procurement are requested separately.
+                Based on this Job Card&apos;s estimate. Parts bought outside are priced on the estimate and need no request.
               </p>
 
               {sourcingNeeds.needsStoreParts ? (
@@ -1502,51 +1455,6 @@ export default async function JobCardDetailPage({
                             <span className="font-medium text-[var(--ejo-text)]">{slip.referenceNumber}</span>
                             <span className={`rounded-full px-2 py-0.5 font-medium ${PART_REQUEST_STATUS_BADGE_CLASS[slip.status] ?? 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]'}`}>
                               {PART_REQUEST_STATUS_LABEL[slip.status] ?? slip.status}
-                            </span>
-                          </LoadingLink>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-              ) : null}
-
-              {sourcingNeeds.needsExternalProcurement ? (
-                <div className="mt-4 rounded-[var(--ejo-radius-md)] bg-[var(--ejo-warning)]/5 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0 text-[var(--ejo-warning)]">
-                          <rect x="2.5" y="5" width="15" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                          <circle cx="10" cy="10" r="2" stroke="currentColor" strokeWidth="1.5" />
-                          <path d="M2.5 8h1.5M16 8h1.5M2.5 12h1.5M16 12h1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                        </svg>
-                        <h3 className="text-xs font-semibold text-[var(--ejo-text)]">External Procurement</h3>
-                      </div>
-                      {sourcingNeeds.hasRequestableExternalLines ? (
-                        <LoadingLink
-                          href={`/workshop/job-cards/${id}/request-procurement`}
-                          className="inline-flex items-center gap-1 rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
-                        >
-                          + Request Procurement
-                        </LoadingLink>
-                      ) : sourcingNeeds.existingExternalProcurementRequests.length > 0 ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--ejo-success)]/15 px-2.5 py-1 text-xs font-medium text-[var(--ejo-success)]">
-                          All requested
-                        </span>
-                      ) : null}
-                    </div>
-                    {sourcingNeeds.existingExternalProcurementRequests.length === 0 ? (
-                      <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">No requests raised yet.</p>
-                    ) : (
-                      <div className="mt-3 space-y-1.5">
-                        {sourcingNeeds.existingExternalProcurementRequests.map((req: (typeof sourcingNeeds.existingExternalProcurementRequests)[number]) => (
-                          <LoadingLink
-                            key={req.id}
-                            href={`/workshop/external-procurement/${req.id}`}
-                            className="flex items-center justify-between rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs hover:opacity-80"
-                          >
-                            <span className="font-medium text-[var(--ejo-text)]">{req.referenceNumber}</span>
-                            <span className={`rounded-full px-2 py-0.5 font-medium ${EXTERNAL_PROCUREMENT_STATUS_BADGE_CLASS[req.status] ?? 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]'}`}>
-                              {EXTERNAL_PROCUREMENT_STATUS_LABEL[req.status] ?? req.status}
                             </span>
                           </LoadingLink>
                         ))}
@@ -2053,11 +1961,11 @@ export default async function JobCardDetailPage({
             </div>
           ) : null}
 
-          {sourcingNeeds.existingPartRequestSlips.length > 0 || sourcingNeeds.existingExternalProcurementRequests.length > 0 ? (
+          {sourcingNeeds.existingPartRequestSlips.length > 0 ? (
             <div className="h-fit rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 print:hidden">
               <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Attached records</h2>
               <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
-                Parts requests and external procurement requests raised against this Job Card.
+                Parts requests raised against this Job Card.
               </p>
               {sourcingNeeds.existingPartRequestSlips.length > 0 ? (
                 <div className="mt-3 space-y-1.5">
@@ -2075,22 +1983,6 @@ export default async function JobCardDetailPage({
                   ))}
                 </div>
               ) : null}
-              {sourcingNeeds.existingExternalProcurementRequests.length > 0 ? (
-                <div className="mt-3 space-y-1.5">
-                  {sourcingNeeds.existingExternalProcurementRequests.map((request: (typeof sourcingNeeds.existingExternalProcurementRequests)[number]) => (
-                    <LoadingLink
-                      key={request.id}
-                      href={`/workshop/external-procurement/${request.id}`}
-                      className="flex items-center justify-between rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs hover:opacity-80"
-                    >
-                      <span className="font-medium text-[var(--ejo-text)]">{request.referenceNumber}</span>
-                      <span className={`rounded-full px-2 py-0.5 font-medium ${EXTERNAL_PROCUREMENT_STATUS_BADGE_CLASS[request.status] ?? 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]'}`}>
-                        {EXTERNAL_PROCUREMENT_STATUS_LABEL[request.status] ?? request.status}
-                      </span>
-                    </LoadingLink>
-                  ))}
-                </div>
-              ) : null}
             </div>
           ) : null}
 
@@ -2098,7 +1990,6 @@ export default async function JobCardDetailPage({
         </div>
       </div>
 
-      {featureOn('sap') ? <SapTrail entityType="JobCard" entityId={jobCard.id} /> : null}
 
       <div className="mt-6 rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
         <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Audit trail</h2>
@@ -2109,7 +2000,7 @@ export default async function JobCardDetailPage({
             entries={auditTrail.map((entry) => ({
               id: entry.id,
               actionLabel: AUDIT_ACTION_LABEL[entry.action] ?? humanizeAction(entry.action),
-              userName: actorLabel(entry.user?.fullName ?? null, entry.metadata),
+              userName: entry.user?.fullName ?? null,
               detail: formatAuditDetail(entry),
               dateLabel: formatDateTime(entry.createdAt),
             }))}

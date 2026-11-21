@@ -3,8 +3,6 @@ import { guardAnyPage, allows } from '@/lib/authz/server';
 import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
 import { GrnRef } from '@/components/GrnRef';
 import { notFound } from 'next/navigation';
-import { listWarrantiesFor } from '@/lib/actions/warranty';
-import { WarrantyList } from '@/components/WarrantyList';
 import { getPartRequestSlip } from '@/lib/actions/sourcing';
 import { listEligibleManagersForBranch, currentUserIsMasterAdmin, currentUserId } from '@/lib/actions/workshop';
 import { listEligibleStoreManagersForBranch, listEligibleStoreOfficersForBranch } from '@/lib/actions/store';
@@ -29,7 +27,7 @@ import { CustomerLink } from '@/components/CustomerLink';
 import { RefineTextButton } from '@/components/enyo/RefineTextButton';
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING_HOD_APPROVAL: 'Awaiting HOD approval',
+  PENDING_HOD_APPROVAL: 'Awaiting supervisor approval',
   PENDING_STORE_APPROVAL: 'Awaiting Store approval',
   APPROVED: 'Approved — awaiting release',
   RELEASED: 'Released',
@@ -56,14 +54,13 @@ export default async function PartRequestSlipDetailPage({
   const { id } = await params;
   const { error, status } = await searchParams;
   const slip = await getPartRequestSlip(id);
-  const warranties = slip ? await listWarrantiesFor({ slipId: id }) : [];
   if (!slip) notFound();
   // Customer names link to their Customers (CRM) page for those who may open it.
   const canSeeCustomers = await allows('crm.view');
   // Goods receipts show delivery costs: a link only for those who may open them.
   const canSeeGrn = (await Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k)))).some(Boolean);
   // Who usually collects: the job's assigned technician.
-  const receiver = (slip.jobCard?.assignedTechnician ?? slip.vehicleService?.assignedTechnician) ?? null;
+  const receiver = slip.jobCard?.assignedTechnician ?? null;
 
   const [isMasterAdmin, viewerId, eligibleManagers, eligibleStoreManagers, eligibleStoreOfficers] = await Promise.all([
     currentUserIsMasterAdmin(),
@@ -83,16 +80,14 @@ export default async function PartRequestSlipDetailPage({
   const hodBlocked = !isMasterAdmin && viewerId === slip.requestedById;
   const storeBlocked = !isMasterAdmin && (viewerId === slip.requestedById || viewerId === slip.hodApprovedById);
   const serializedLines = slip.lines.filter((l: (typeof slip.lines)[number]) => l.part.trackingType === 'SERIALIZED');
-  // A slip comes from either a Job Card or a Vehicle Service estimate;
-  // exactly one of the two is set.
-  const source = slip.jobCard ?? slip.vehicleService;
-  const sourceLabel = slip.jobCard ? 'Job Card' : 'Vehicle Service';
-  const sourceNumber = slip.jobCard ? slip.jobCard.jobNumber : slip.vehicleService?.serviceNumber;
-  const sourceUrl = slip.jobCard ? `/workshop/job-cards/${slip.jobCard.id}` : `/workshop/vehicle-service/${slip.vehicleService?.id}`;
+  const source = slip.jobCard;
+  const sourceLabel = 'Job Card';
+  const sourceNumber = slip.jobCard?.jobNumber;
+  const sourceUrl = `/workshop/job-cards/${slip.jobCard?.id}`;
   const vehicle = source!.vehicle;
   const vehicleSummary = [vehicle.year, vehicle.make, vehicle.model, vehicle.engineType].filter(Boolean).join(' ') || 'No vehicle details on file';
   const totalAmount = slip.lines.reduce((sum: number, l: (typeof slip.lines)[number]) => {
-    const amount = l.estimateLineItem?.amount ?? l.serviceEstimateLineItem?.amount;
+    const amount = l.estimateLineItem?.amount;
     return sum + (amount !== null && amount !== undefined ? Number(amount) : 0);
   }, 0);
 
@@ -194,14 +189,13 @@ export default async function PartRequestSlipDetailPage({
                   <td data-hide-stacked className="px-3 py-2 text-[var(--ejo-text-muted)]">{i + 1}</td>
                   <td data-label="Part No." className="px-3 py-2 text-[var(--ejo-text-muted)]">{line.part.partNumber ?? '—'}</td>
                   <td data-wide data-label="Part Name" className="px-3 py-2 font-medium text-[var(--ejo-text)]">{line.part.name}</td>
-                  <td data-label="Description" className="px-3 py-2 text-[var(--ejo-text-muted)]">{(line.estimateLineItem ?? line.serviceEstimateLineItem)?.description ?? '—'}</td>
+                  <td data-label="Description" className="px-3 py-2 text-[var(--ejo-text-muted)]">{line.estimateLineItem?.description ?? '—'}</td>
                   <td data-label="Quantity" className="px-3 py-2 text-right text-[var(--ejo-text)]">
                     {Number(line.quantityRequested)} {pluralizeWord(Number(line.quantityRequested), line.part.baseUnitOfMeasure)}
                   </td>
                   <td data-label="Amount" className="px-3 py-2 text-right text-[var(--ejo-text)]">
                     {(() => {
-                      // Each line links to either a Job Card or a Vehicle Service estimate line.
-                      const amount = (line.estimateLineItem ?? line.serviceEstimateLineItem)?.amount;
+                      const amount = line.estimateLineItem?.amount;
                       return amount !== null && amount !== undefined ? formatNaira(Number(amount)) : '—';
                     })()}
                   </td>
@@ -291,13 +285,12 @@ export default async function PartRequestSlipDetailPage({
           ) : null}
           {slip.status === 'PENDING_HOD_APPROVAL' && isEligibleManager && hodBlocked ? (<p className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] p-4 text-sm text-[var(--ejo-text-muted)]" data-testid="sod-note">You raised this parts request, so another manager approves it.</p>) : slip.status === 'PENDING_HOD_APPROVAL' && isEligibleManager ? (
             <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-warning)]/30 bg-[var(--ejo-warning)]/5 p-6">
-              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Workshop HOD Approval</h2>
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Workshop Supervisor approval</h2>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <form action={approvePartRequestSlipByHodFormAction} className="space-y-2">
                   <FormPendingOverlay />
                   <input type="hidden" name="slipId" value={slip.id} />
                   <input type="hidden" name="jobCardId" value={slip.jobCard?.id ?? ''} />
-                  <input type="hidden" name="vehicleServiceId" value={slip.vehicleService?.id ?? ''} />
                   <textarea id="workshop-parts-requests-id-text-1" name="notes" rows={2} placeholder="Notes (optional)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs text-[var(--ejo-text)]" />
                   <RefineTextButton targetId="workshop-parts-requests-id-text-1" />
                   <SubmitButton label="Approve" pendingLabel="Approving…" className="w-full rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-3 py-2 text-xs font-medium text-white hover:opacity-90" />
@@ -306,7 +299,6 @@ export default async function PartRequestSlipDetailPage({
                   <FormPendingOverlay />
                   <input type="hidden" name="slipId" value={slip.id} />
                   <input type="hidden" name="jobCardId" value={slip.jobCard?.id ?? ''} />
-                  <input type="hidden" name="vehicleServiceId" value={slip.vehicleService?.id ?? ''} />
                   <textarea id="workshop-parts-requests-id-text-2" name="reason" required rows={2} placeholder="Reason for rejection" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs text-[var(--ejo-text)]" />
                   <RefineTextButton targetId="workshop-parts-requests-id-text-2" />
                   <SubmitButton label="Reject" pendingLabel="Rejecting…" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-error)] px-3 py-2 text-xs font-medium text-[var(--ejo-error)] hover:bg-[var(--ejo-error)]/5" />
@@ -324,7 +316,6 @@ export default async function PartRequestSlipDetailPage({
                   <FormPendingOverlay />
                   <input type="hidden" name="slipId" value={slip.id} />
                   <input type="hidden" name="jobCardId" value={slip.jobCard?.id ?? ''} />
-                  <input type="hidden" name="vehicleServiceId" value={slip.vehicleService?.id ?? ''} />
                   <textarea id="workshop-parts-requests-id-text-3" name="notes" rows={2} placeholder="Notes (optional)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs text-[var(--ejo-text)]" />
                   <RefineTextButton targetId="workshop-parts-requests-id-text-3" />
                   <SubmitButton label="Approve & Reserve" pendingLabel="Approving…" className="w-full rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-3 py-2 text-xs font-medium text-white hover:opacity-90" />
@@ -333,7 +324,6 @@ export default async function PartRequestSlipDetailPage({
                   <FormPendingOverlay />
                   <input type="hidden" name="slipId" value={slip.id} />
                   <input type="hidden" name="jobCardId" value={slip.jobCard?.id ?? ''} />
-                  <input type="hidden" name="vehicleServiceId" value={slip.vehicleService?.id ?? ''} />
                   <textarea id="workshop-parts-requests-id-text-4" name="reason" required rows={2} placeholder="Reason for rejection" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs text-[var(--ejo-text)]" />
                   <RefineTextButton targetId="workshop-parts-requests-id-text-4" />
                   <SubmitButton label="Reject" pendingLabel="Rejecting…" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-error)] px-3 py-2 text-xs font-medium text-[var(--ejo-error)] hover:bg-[var(--ejo-error)]/5" />
@@ -349,7 +339,6 @@ export default async function PartRequestSlipDetailPage({
                 <FormPendingOverlay />
                 <input type="hidden" name="slipId" value={slip.id} />
                 <input type="hidden" name="jobCardId" value={slip.jobCard?.id ?? ''} />
-                <input type="hidden" name="vehicleServiceId" value={slip.vehicleService?.id ?? ''} />
                 {serializedLines.map((line: (typeof slip.lines)[number]) => (
                   <input key={line.id} type="hidden" name="serializedLineId" value={line.id} />
                 ))}
@@ -380,7 +369,6 @@ export default async function PartRequestSlipDetailPage({
               </form>
             </div>
           ) : null}
-          <WarrantyList warranties={warranties} title="Warranties issued with this release" />
         </div>
 
         <div className="h-fit rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">
@@ -392,7 +380,7 @@ export default async function PartRequestSlipDetailPage({
             </div>
             {slip.hodApprovedBy ? (
               <div>
-                <dt className="text-xs text-[var(--ejo-text-muted)]">HOD Approved</dt>
+                <dt className="text-xs text-[var(--ejo-text-muted)]">Supervisor approved</dt>
                 <dd className="text-[var(--ejo-text)]">{slip.hodApprovedBy.fullName} · {slip.hodApprovedAt ? formatDateTime(new Date(slip.hodApprovedAt)) : ''}</dd>
               </div>
             ) : null}

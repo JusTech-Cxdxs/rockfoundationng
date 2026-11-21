@@ -41,7 +41,6 @@ export default async function IntegrityAlertPage({ params, searchParams }: { par
         <SectionCard icon="list" title="The facts">
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
             {a.subject ? <div><dt className="text-xs text-[var(--ejo-text-muted)]">Whose activity</dt><dd className="font-medium text-[var(--ejo-text)]">{a.subject}</dd></div> : null}
-            {a.reportedBy ? <div><dt className="text-xs text-[var(--ejo-text-muted)]">Raised by</dt><dd className="font-medium text-[var(--ejo-text)]">{a.reportedBy}</dd></div> : null}
             {facts.map(([k, v]) => <div key={k}><dt className="text-xs text-[var(--ejo-text-muted)]">{label(k)}</dt><dd className="break-words text-[var(--ejo-text)]">{show(v)}</dd></div>)}
           </dl>
           {details ? <p className="mt-4 whitespace-pre-wrap break-words rounded-[var(--ejo-radius-md)] bg-[var(--ejo-bg)] p-3 text-sm text-[var(--ejo-text)]">{details}</p> : null}

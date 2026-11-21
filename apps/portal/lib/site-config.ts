@@ -14,6 +14,8 @@ export const portalConfig = {
   companyName: organisationName,
   organisationName,
   poweredBy: PLATFORM.poweredBy,
+  /** The organisation's own line under its name (NEXT_PUBLIC_SITE_TAGLINE), on the sign-in pages. */
+  tagline: process.env.NEXT_PUBLIC_SITE_TAGLINE?.trim() || '',
   /** The installed app's home-screen name: NEXT_PUBLIC_APP_SHORT_NAME, or the organisation's initials. */
   appShortName: appShortName(organisationName, process.env.NEXT_PUBLIC_APP_SHORT_NAME),
 };

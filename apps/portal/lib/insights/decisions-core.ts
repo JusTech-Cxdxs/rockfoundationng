@@ -1,11 +1,10 @@
 /**
  * How decisions are made here (pure, tested): every approval step of every
- * workflow — parts slips, outside purchases, Job Card and service approvals,
- * cancellations, estimates, warranty claims at the provider — as one decision
- * log (who asked, which role decided, how long it waited, approved or sent
- * back, and why). From it: the process picture (volume, approval rate, wait,
- * the reasons things are sent back, by role), the readiness of each step for
- * Enyo's help, and the de-identified training rows for the decision model.
+ * workflow — parts slips, Job Card approvals, cancellations, estimates — as
+ * one decision log (who asked, which role decided, how long it waited,
+ * approved or sent back, and why). From it: the process picture (volume,
+ * approval rate, wait, the reasons things are sent back, by role) and the
+ * readiness of each step for Enyo's help.
  *
  * Nothing here decides anything. "Ready for Enyo" means a person could be
  * shown a suggestion first (shadow, then assist) — never that Enyo approves.
@@ -13,20 +12,16 @@
 import { ROLE_LABELS } from '../authz/catalogue';
 
 export const STEPS = [
-  'prs_hod', 'prs_store', 'epr_finance', 'epr_manager', 'job_card_approval', 'service_approval', 'job_cancellation', 'estimate_manager', 'warranty_provider',
+  'prs_hod', 'prs_store', 'job_card_approval', 'job_cancellation', 'estimate_manager',
 ] as const;
 export type Step = (typeof STEPS)[number];
 
 export const STEP_INFO: Record<Step, { workflow: string; label: string; href: string }> = {
   prs_hod: { workflow: 'Parts requests', label: 'Head of department approval', href: '/workshop/parts-requests' },
   prs_store: { workflow: 'Parts requests', label: 'Store approval', href: '/workshop/parts-requests' },
-  epr_finance: { workflow: 'Outside purchases', label: 'Finance review', href: '/workshop/external-procurement' },
-  epr_manager: { workflow: 'Outside purchases', label: 'Manager approval', href: '/workshop/external-procurement' },
   job_card_approval: { workflow: 'Job Cards', label: 'Supervisor approval', href: '/approvals' },
-  service_approval: { workflow: 'Vehicle services', label: 'Supervisor approval', href: '/approvals' },
   job_cancellation: { workflow: 'Job Cards', label: 'Cancellation decision', href: '/approvals' },
   estimate_manager: { workflow: 'Estimates', label: 'Manager approval', href: '/approvals' },
-  warranty_provider: { workflow: 'Warranty claims', label: 'Provider’s decision', href: '/warranty/claims' },
 };
 
 export type DecisionRow = {
@@ -126,55 +121,4 @@ export function stepPictures(rows: DecisionRow[]): StepPicture[] {
     });
   }
   return out;
-}
-
-// ─────────────────────────────────────────────────────────── the model's rows and features
-
-/**
- * The decision model's features, in order, for the steps and roles the model
- * was trained with (both are stored in the model, so the portal builds the
- * same vector the trainer did). Only what is known when a request ARRIVES at
- * the step — never the decider, the wait or the reason: the step, the
- * requester's role ("other" for a role the model has not seen), the amount,
- * the number of lines, and when it arrived (Lagos hour and weekday).
- */
-export function featureNames(steps: readonly string[], roles: readonly string[]): string[] {
-  return [...steps.map((s) => `step:${s}`), ...roles.map((r) => `requester:${r}`), 'requester:other', 'log_amount', 'lines', 'hour', 'weekday', 'has_amount'];
-}
-
-export type DecisionTrainingRow = {
-  row_id: string; on: string; step: Step; rejected: 0 | 1; amount: number; lines: number; hour: number; weekday: number;
-  requester_role: string | null; decider_role: string | null; wait_hours: number | null;
-};
-
-const lagosParts = (d: Date) => {
-  const p = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', weekday: 'short', hour: '2-digit', hour12: false, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
-  const get = (t: string) => p.find((x) => x.type === t)?.value ?? '';
-  return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour').replace('24', '0')), weekday: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(get('weekday')) + 1 };
-};
-
-/** De-identified: no names, no record ids or numbers, no reasons — the row id is a one-way hash made by the caller. */
-export function trainingRow(r: DecisionRow, rowId: string): DecisionTrainingRow {
-  const when = lagosParts(r.arrivedAt ?? r.at);
-  const w = waitHours(r);
-  return {
-    row_id: rowId, on: lagosParts(r.at).date, step: r.step, rejected: r.rejected ? 1 : 0, amount: Math.round(r.amount * 100) / 100, lines: r.lines,
-    hour: when.hour, weekday: when.weekday, requester_role: r.requesterRole, decider_role: r.deciderRole, wait_hours: w === null ? null : Math.round(w * 100) / 100,
-  };
-}
-
-/** The feature vector for one request arriving at a step (same order as featureNames). */
-export function decisionFeatures(x: { step: string; requester_role: string | null; amount: number; lines: number; hour: number; weekday: number }, steps: readonly string[], roles: readonly string[]): number[] {
-  const v = new Array<number>(featureNames(steps, roles).length).fill(0);
-  const s = steps.indexOf(x.step);
-  if (s >= 0) v[s] = 1;
-  const r = x.requester_role ? roles.indexOf(x.requester_role) : -1;
-  v[steps.length + (r >= 0 ? r : roles.length)] = 1;
-  const base = steps.length + roles.length + 1;
-  v[base] = Math.log1p(Math.max(0, x.amount));
-  v[base + 1] = x.lines;
-  v[base + 2] = x.hour;
-  v[base + 3] = x.weekday;
-  v[base + 4] = x.amount > 0 ? 1 : 0;
-  return v;
 }

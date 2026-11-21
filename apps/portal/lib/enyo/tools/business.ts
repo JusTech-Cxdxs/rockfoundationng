@@ -103,7 +103,7 @@ export const businessTools: StaffTool[] = [
     kind: 'read',
     status: 'Ranking the technicians…',
     description:
-      'Technicians ranked by jobs completed (Job Cards and Vehicle Services) this week, this month, last month or the last 30 days, with their average time from start of work to completion compared with the team average, and the labour they billed (only for people who see business figures). Includes the formula used. For managers and business analytics.',
+      'Technicians ranked by Job Cards completed this week, this month, last month or the last 30 days, with their average time from start of work to completion compared with the team average, and the labour they billed (only for people who see business figures). Includes the formula used. For managers and business analytics.',
     parameters: {
       type: 'object',
       properties: { period: { type: 'string', enum: ['this_week', 'this_month', 'last_month', 'last_30_days'], description: 'Which period (default this month).' } },
@@ -115,22 +115,17 @@ export const businessTools: StaffTool[] = [
       const { from, to, label } = rankingRange(text(args.period, 20) || 'this_month');
       const { where: reach, label: scope } = await scopeLabel(money ? 'analytics.business.view' : 'workshop.close.approve');
       const done = { completedAt: { gte: from, lt: to }, assignedTechnicianId: { not: null } };
-      const [jcs, svs] = await Promise.all([
-        prisma.jobCard.findMany({ where: { ...reach, ...done, status: { not: 'CANCELLED' } }, take: 2000, select: { assignedTechnicianId: true, assignedTechnician: { select: { fullName: true } }, workStartedAt: true, completedAt: true, estimate: { select: { lineItems: { select: { type: true, amount: true, billTo: true } } } } } }),
-        prisma.vehicleService.findMany({ where: { ...reach, ...done, status: { notIn: ['CANCELLED', 'ESCALATED'] } }, take: 2000, select: { assignedTechnicianId: true, assignedTechnician: { select: { fullName: true } }, workStartedAt: true, completedAt: true, serviceEstimate: { select: { lineItems: { select: { type: true, amount: true } } } } } }),
-      ]);
-      type Acc = { name: string; jobs: number; jobCards: number; services: number; hours: number[]; labour: number };
+      const jcs = await prisma.jobCard.findMany({ where: { ...reach, ...done, status: { not: 'CANCELLED' } }, take: 2000, select: { assignedTechnicianId: true, assignedTechnician: { select: { fullName: true } }, workStartedAt: true, completedAt: true, estimate: { select: { lineItems: { select: { type: true, amount: true, billTo: true } } } } } });
+      type Acc = { name: string; jobs: number; hours: number[]; labour: number };
       const by = new Map<string, Acc>();
-      const add = (id: string, name: string, kind: 'jc' | 'sv', started: Date | null, completed: Date | null, labour: number) => {
-        const a = by.get(id) ?? { name, jobs: 0, jobCards: 0, services: 0, hours: [], labour: 0 };
+      const add = (id: string, name: string, started: Date | null, completed: Date | null, labour: number) => {
+        const a = by.get(id) ?? { name, jobs: 0, hours: [], labour: 0 };
         a.jobs += 1;
-        if (kind === 'jc') a.jobCards += 1; else a.services += 1;
         if (started && completed && +completed > +started) a.hours.push((+completed - +started) / 3_600_000);
         a.labour += labour;
         by.set(id, a);
       };
-      for (const j of jcs) add(j.assignedTechnicianId!, j.assignedTechnician?.fullName ?? 'Former staff member', 'jc', j.workStartedAt, j.completedAt, labourOf(j.estimate?.lineItems ?? []));
-      for (const v of svs) add(v.assignedTechnicianId!, v.assignedTechnician?.fullName ?? 'Former staff member', 'sv', v.workStartedAt, v.completedAt, labourOf(v.serviceEstimate?.lineItems ?? []));
+      for (const j of jcs) add(j.assignedTechnicianId!, j.assignedTechnician?.fullName ?? 'Former staff member', j.workStartedAt, j.completedAt, labourOf(j.estimate?.lineItems ?? []));
       if (!by.size) return ok({ period: label, scope, from: day(from), to: day(new Date(to.getTime() - 1)), ranking: [], note: 'No technician completed a job in this period.' }, [{ label: 'Business analytics', href: '/analytics' }]);
       const all = [...by.values()].flatMap((a) => a.hours);
       const teamAvg = all.length ? all.reduce((s, h) => s + h, 0) / all.length : null;
@@ -140,8 +135,6 @@ export const businessTools: StaffTool[] = [
           return {
             technician: a.name,
             jobsCompleted: a.jobs,
-            jobCards: a.jobCards,
-            vehicleServices: a.services,
             averageHoursStartToComplete: avg === null ? null : Math.round(avg * 10) / 10,
             versusTeamAverage: avg !== null && teamAvg ? `${Math.round((avg / teamAvg) * 100)}% of the team average` : null,
             ...(money ? { labourBilled: r2(a.labour) } : {}),

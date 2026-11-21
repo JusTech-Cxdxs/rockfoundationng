@@ -110,7 +110,7 @@ body {
    panel until real photography is available. */
 .ejo-media-placeholder {
   background:
-    radial-gradient(circle at 20% 20%, rgba(236, 50, 55, 0.22), transparent 55%),
+    radial-gradient(circle at 15% 10%, rgba(236, 50, 55, 0.12), transparent 50%),
     radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.12), transparent 50%),
     radial-gradient(circle at 50% 90%, rgba(17, 24, 39, 0.45), transparent 60%),
     linear-gradient(135deg, #3e4095 0%, #34367f 50%, #24265c 100%);

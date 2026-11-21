@@ -1,4 +1,3 @@
-import { featureOn, moduleIsOn } from '@/lib/modules';
 import { BRANCH_TYPES, BRANCH_TYPE_HINTS, BRANCH_TYPE_WORDS } from '@/lib/branch-types';
 import { guardPage } from '@/lib/authz/server';
 import { notFound } from 'next/navigation';
@@ -81,20 +80,6 @@ export default async function BranchEditPage({
             </select>
             <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">{BRANCH_TYPE_HINTS[branch.type]} A branch holding records of its kind keeps that kind.</p>
           </div>
-          {/* The SAP plant code only matters with the SAP link or the assembly plant on (lib/modules.ts); otherwise it is kept as it is. */}
-          {featureOn('sap') || moduleIsOn('plant') ? (
-          <div>
-            <label htmlFor="branch-sap-plant" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">SAP plant code (WERKS)</label>
-            <input
-              id="branch-sap-plant"
-              name="sapPlant"
-              defaultValue={branch.sapPlant ?? ''}
-              maxLength={4}
-              placeholder="e.g. 1000 — when this branch is a plant or stock point in SAP"
-              className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 font-mono text-sm uppercase text-[var(--ejo-text)]"
-            />
-          </div>
-          ) : <input type="hidden" name="sapPlant" value={branch.sapPlant ?? ''} />}
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Address</label>
             <textarea id="branches-id-text-1"
@@ -164,7 +149,7 @@ export default async function BranchEditPage({
             </div>
             <div>
               <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Kind of place</dt>
-              <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{BRANCH_TYPE_WORDS[branch.type]}{branch.sapPlant && (featureOn('sap') || moduleIsOn('plant')) ? ` · SAP plant ${branch.sapPlant}` : ''}</dd>
+              <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{BRANCH_TYPE_WORDS[branch.type]}</dd>
             </div>
             <div>
               <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Address</dt>

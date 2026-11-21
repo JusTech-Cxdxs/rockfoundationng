@@ -30,10 +30,10 @@ export default async function PrintRefundPage({ params, searchParams }: { params
   const isOrgCopy = variant !== 'client';
   const [refund, organisation] = await Promise.all([getRefund(id), getOrganisation()]);
   if (!refund || !organisation) notFound();
-  const record = refund.jobCard ?? refund.vehicleService;
+  const record = refund.jobCard;
   if (!record) notFound();
-  const recordLabel = refund.jobCard ? 'Job Card' : 'Vehicle Service';
-  const recordNumber = refund.jobCard?.jobNumber ?? refund.vehicleService?.serviceNumber ?? '—';
+  const recordLabel = 'Job Card';
+  const recordNumber = record.jobNumber;
   const paid = record.payments.reduce((s: number, p: { amount: unknown }) => s + Number(p.amount), 0);
   const refunded = record.refunds.reduce((s: number, r: { amount: unknown }) => s + Number(r.amount), 0);
   const remaining = Math.max(0, Math.round((paid - refunded) * 100) / 100);

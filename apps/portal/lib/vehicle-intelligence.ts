@@ -2,7 +2,7 @@ import { pluralizeWord } from './utils/pluralize';
 /**
  * Vehicle intelligence — one vehicle's descriptive, diagnostic, predictive
  * and prescriptive picture, from facts already recorded (odometer
- * readings, visits, money, parts fitted, warranties, service schedule).
+ * readings, visits, money, parts fitted, service schedule).
  * Pure functions: every number is reproducible and tested.
  */
 export type VIInput = {
@@ -11,8 +11,7 @@ export type VIInput = {
   customerSpend: number;
   outstanding: number;
   coveredValue: number;
-  partsFitted: { partId: string; partName: string; date: Date | null; slipId: string; jobCard: { id: string; number: string } | null; vehicleService: { id: string; number: string } | null }[];
-  warranties: { id: string; number: string; endsAt: Date; distanceEnd: number | null; covering: boolean }[];
+  partsFitted: { partId: string; partName: string; date: Date | null; slipId: string; jobCard: { id: string; number: string } | null }[];
   service: { dueDate: Date | null; dueKm: number | null } | null;
   now?: Date;
 };
@@ -69,15 +68,7 @@ export function computeVehicleIntelligence(input: VIInput) {
     else if (byDate) serviceDue = { date: byDate, reason: 'date' };
     else if (byKm) serviceDue = { date: byKm, reason: 'km' };
   }
-  const warrantyEnds = input.warranties
-    .filter((w) => w.covering)
-    .map((w) => {
-      const byKm = w.distanceEnd !== null ? kmToDate(w.distanceEnd) : null;
-      const end = byKm && byKm.getTime() < w.endsAt.getTime() ? { date: byKm, reason: 'km' as const } : { date: w.endsAt, reason: 'date' as const };
-      return { id: w.id, number: w.number, ...end, daysLeft: Math.ceil((end.date.getTime() - now.getTime()) / DAY) };
-    })
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-  const predictive = { projectedKm, serviceDue, serviceDueInDays: serviceDue ? Math.ceil((serviceDue.date.getTime() - now.getTime()) / DAY) : null, warrantyEnds };
+  const predictive = { projectedKm, serviceDue, serviceDueInDays: serviceDue ? Math.ceil((serviceDue.date.getTime() - now.getTime()) / DAY) : null };
 
   // ── Prescriptive
   const actions: VIAction[] = [];
@@ -88,11 +79,8 @@ export function computeVehicleIntelligence(input: VIInput) {
     if (predictive.serviceDueInDays < 0) actions.push({ priority: 1, title: 'Service overdue', detail: `Due ${fmtDate(serviceDue.date)} (${serviceDue.reason === 'km' ? 'by projected mileage' : 'by date'}) — contact the customer to book it.`, href: null });
     else if (predictive.serviceDueInDays <= 14) actions.push({ priority: 2, title: `Service due in ${plural(predictive.serviceDueInDays, 'day')}`, detail: `${fmtDate(serviceDue.date)} (${serviceDue.reason === 'km' ? 'by projected mileage' : 'by date'}) — book it in.`, href: null });
   }
-  warrantyEnds.filter((w) => w.daysLeft >= 0 && w.daysLeft <= 60).forEach((w) =>
-    actions.push({ priority: 2, title: `${w.number} ends in ${plural(w.daysLeft, 'day')}`, detail: `Ends ${fmtDate(w.date)}${w.reason === 'km' ? ' (by projected mileage)' : ''} — offer a final warranty health check while repairs are still covered.`, href: `/warranty/${w.id}` }),
-  );
   repeatParts.forEach((p) =>
-    actions.push({ priority: 2, title: `Repeat part: ${p.partName} fitted ${plural(p.times, 'time')}`, detail: 'Within a year — look for the root cause, and check whether the latest one is under warranty.', href: `/inventory/parts/${p.partId}` }),
+    actions.push({ priority: 2, title: `Repeat part: ${p.partName} fitted ${plural(p.times, 'time')}`, detail: 'Within a year — look for the root cause, and check whether the latest one is under the workshop\'s warranty.', href: `/inventory/parts/${p.partId}` }),
   );
   if (diagnostic.daysSinceLastVisit !== null && diagnostic.daysSinceLastVisit > 365) {
     actions.push({ priority: 3, title: `No visit for ${plural(diagnostic.daysSinceLastVisit, 'day')}`, detail: 'Re-engage the customer with a service reminder.', href: null });

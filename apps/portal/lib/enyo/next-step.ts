@@ -1,12 +1,12 @@
 /**
- * "What happens next" for a Job Card or Vehicle Service, in one plain
+ * "What happens next" for a Job Card, in one plain
  * sentence, worked out from the record's own state (the same order of steps
  * the pages enforce). Pure, so it is unit-tested.
  */
-import { featureOn, moduleIsOn } from '../modules';
+import { moduleIsOn } from '../modules';
 
 export type JobState = {
-  kind: 'JC' | 'SV';
+  kind: 'JC';
   status: string;
   approvalStatus: string;
   hasTechnician: boolean;
@@ -28,12 +28,10 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 export const naira = (n: number) => `₦${r2(n).toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 export function nextStep(s: JobState): string {
-  const thing = s.kind === 'JC' ? 'Job Card' : 'Vehicle Service';
-  const done = ['CHECKED_OUT', 'COLLECTED'];
+  const thing = 'Job Card';
+  const done = ['CHECKED_OUT'];
   if (s.status === 'CANCELLED') return s.paid > 0.004 ? `Cancelled. ${naira(s.paid)} has been paid, so Finance records a refund before the vehicle is handed back.` : 'Cancelled. The front desk hands the vehicle back.';
   if (done.includes(s.status)) return 'Finished: the vehicle has left.';
-  if (s.status === 'ESCALATED') return 'Handed over to a Job Card: the work continues there.';
-  if (s.status === 'SCHEDULED') return 'Booked: the front desk checks the vehicle in when it arrives.';
   if (s.approvalStatus === 'PENDING') return `Waiting for the supervisor to approve the ${thing}.`;
   if (s.approvalStatus === 'REJECTED') return `The supervisor rejected the ${thing}; the front desk corrects it or opens a new one.`;
   if (s.status === 'CLOSED') return 'Closed by the Manager: the front desk checks the vehicle out to the person collecting it.';
@@ -58,11 +56,8 @@ export function nextStep(s: JobState): string {
         : 'Waiting for the customer to approve the estimate: by the link in their email, in the customer portal, or by phone. No deposit applies.';
     }
   }
-  // The Store and outside purchases are switched off in some editions (lib/modules.ts).
-  if (s.status === 'AWAITING_PARTS') {
-    const how = [moduleIsOn('inventory') ? 'Store release' : null, featureOn('externalProcurement') ? 'an outside purchase' : null].filter(Boolean);
-    return how.length ? `Waiting for parts (${how.join(' or ')}).` : 'Waiting for parts.';
-  }
+  // The Store can be switched off (lib/modules.ts).
+  if (s.status === 'AWAITING_PARTS') return moduleIsOn('inventory') ? 'Waiting for parts (Store release).' : 'Waiting for parts.';
   if (s.status === 'QUALITY_CHECK') return 'In quality check: the supervisor confirms the work.';
   return 'Work in progress with the technician.';
 }

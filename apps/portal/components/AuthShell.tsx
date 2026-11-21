@@ -3,7 +3,6 @@ import { portalConfig } from '@/lib/site-config';
 import { Wordmark } from './Wordmark';
 import { ThemeToggle } from './ThemeToggle';
 import { PoweredByEjo } from './PoweredByEjo';
-import { moduleIsOn } from '@/lib/modules';
 
 interface AuthShellProps {
   eyebrow?: string;
@@ -14,22 +13,19 @@ interface AuthShellProps {
 }
 
 const ic = (d: ReactNode) => d;
-/** What the platform runs — every module a member of staff may meet (each shows only what their role allows). */
+/** What the platform does for the workshop: each person sees only what their role allows. */
 const MODULES: { title: string; text: string; icon: ReactNode }[] = [
-  { title: 'Workshop', text: 'Job Cards and vehicle services, estimates, approvals, hand-over.', icon: ic(<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4 2.5-2.5z" />) },
-  // Only the areas this edition switches on (lib/modules.ts).
-  ...(moduleIsOn('inventory') ? [{ title: 'Store & purchasing', text: 'Parts, stock, goods receipts, outside purchases.', icon: ic(<><path d="M21 8 12 3 3 8v8l9 5 9-5V8z" /><path d="M3 8l9 5 9-5M12 13v8" /></>) }] : []),
-  ...(moduleIsOn('warranty') ? [{ title: 'Warranty', text: 'Warranties issued, claims approved, providers paid.', icon: ic(<><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z" /><path d="M8.5 12l2.5 2.5 4.5-5" /></>) }] : []),
-  { title: 'Customers & support', text: 'Customer records, the support centre, complaints.', icon: ic(<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>) },
-  { title: 'Scheduling & reminders', text: 'Bookings and the diary; service-due reminders for every vehicle.', icon: ic(<><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>) },
-  { title: 'Customer portal', text: 'Individuals and company fleets follow their vehicles and jobs.', icon: ic(<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>) },
-  { title: 'Security & gate', text: 'Visitors, exit passes, deliveries, incidents.', icon: ic(<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>) },
-  { title: 'Headquarters & analytics', text: 'Every branch side by side; money, work and teams.', icon: ic(<><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 5-6" /></>) },
-  { title: 'IT & audit', text: 'People and roles, error log, audit trail, system health.', icon: ic(<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></>) },
-  { title: 'Enyo, the assistant', text: 'Briefings by voice, answers from your own records.', icon: ic(<><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" /><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" /></>) },
+  { title: 'Front desk & workshop', text: 'Check-in, one job card for service and repair, estimates, approvals, quality check, hand-over.', icon: ic(<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4 2.5-2.5z" />) },
+  { title: 'Customer care', text: 'Customers and fleets, complaints, follow-ups, ratings and service reminders.', icon: ic(<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>) },
+  { title: 'WhatsApp first', text: 'Every message and document ready to send on WhatsApp, with email alongside.', icon: ic(<><path d="M3 21l1.7-5A8.5 8.5 0 1 1 8 19.3z" /><path d="M9 10c.5 2 2 3.5 4 4" /></>) },
+  { title: 'Parts store', text: 'Parts, stock, issue to job cards and counter sales; every part on the vehicle’s history.', icon: ic(<><path d="M21 8 12 3 3 8v8l9 5 9-5V8z" /><path d="M3 8l9 5 9-5M12 13v8" /></>) },
+  { title: 'Money & QuickBooks', text: 'Invoices, payments, credit and statements, ready for QuickBooks.', icon: ic(<><rect x="2" y="6" width="20" height="13" rx="2" /><circle cx="12" cy="12.5" r="2.5" /><path d="M6 6V4h12v2" /></>) },
+  { title: 'Customer portal', text: 'Customers and fleet companies follow their vehicles, approve estimates and see invoices.', icon: ic(<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>) },
+  { title: 'Gate', text: 'Vehicles in and out of the compound, gate passes with a QR code.', icon: ic(<><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>) },
+  { title: 'Enyo, the assistant', text: 'Answers from your own records, vehicle histories in a sentence, messages drafted.', icon: ic(<><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z" /><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" /></>) },
 ];
 
-const ROLES = ['Directors', 'Managers', 'Front desk', 'Technicians', ...(moduleIsOn('inventory') ? ['Store'] : []), 'Finance', ...(moduleIsOn('warranty') ? ['Warranty'] : []), 'Customer care', 'Security', 'IT'];
+const ROLES = ['GMD', 'Front desk', 'Service advisors', 'Technicians', 'Store', 'Accounts', 'Security'];
 
 /** What is true of every account, kept true to what the platform enforces. */
 const PROMISES = ['Access follows your role', 'Nobody approves their own request', 'Every action on the audit trail', 'Sessions end when access ends'];
@@ -38,7 +34,7 @@ const PROMISES = ['Access follows your role', 'Nobody approves their own request
  * The shared frame of every sign-in page (sign in, forgot password, set a new
  * password): the organisation's wordmark and what the platform does on the
  * brand panel, the form on a calm card, Light / Dark / System in the corner,
- * and the animated "Powered by EJO 100" signature. CSS-only motion.
+ * and the "Powered by EJO · JusTech" signature. CSS-only motion.
  */
 export function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
   const year = new Date().getFullYear();
@@ -47,15 +43,15 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
       {/* Brand panel — large screens */}
       <section className="relative hidden w-[46%] flex-col justify-between gap-8 overflow-hidden bg-[var(--ejo-secondary)] p-10 text-white lg:flex xl:p-14" aria-label={portalConfig.organisationName}>
         <div className="ejo-media-placeholder absolute inset-0 opacity-50" aria-hidden="true" />
-        <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-[var(--ejo-brand)]/20 blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
         <div className="ejo-rise relative flex items-center justify-between gap-4">
           <Wordmark name={portalConfig.organisationName} size="lg" tone="onDark" />
           <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium text-white/70">Staff portal</span>
         </div>
 
         <div className="ejo-rise relative max-w-xl" style={{ animationDelay: '80ms' }}>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--ejo-accent)]">Enterprise operations platform</p>
-          <h2 className="mt-3 text-[1.9rem] font-bold leading-tight xl:text-[2.2rem]">One platform for every branch, every department, every role.</h2>
+          {portalConfig.tagline ? <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/75"><span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-[var(--brand-red)] align-middle" aria-hidden="true" />{portalConfig.tagline}</p> : null}
+          <h2 className="mt-3 text-[1.9rem] font-bold leading-tight xl:text-[2.2rem]">Front desk, customer care and the workshop, <span className="text-[#ff8a8d]">in one place</span>.</h2>
           <ul className="mt-7 grid grid-cols-2 gap-x-5 gap-y-4">
             {MODULES.map((h) => (
               <li key={h.title} className="flex gap-3">

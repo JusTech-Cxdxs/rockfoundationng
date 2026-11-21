@@ -2,8 +2,6 @@ import { portalBaseUrl } from '@/lib/portal-url';
 import { notFound } from 'next/navigation';
 import { billingOf, billingSplit, isCustomerLine, coveredLabel, jobCardTotals } from '@/lib/estimate-billing';
 import { vatLabel } from '@/lib/pdf/document-props';
-import { listWarrantiesFor } from '@/lib/actions/warranty';
-import { WarrantiesIssuedPrint } from '@/components/print/WarrantiesIssuedPrint';
 import { getJobCard } from '@/lib/actions/workshop';
 import { getOrganisation } from '@/lib/actions/organisation';
 import { DocumentHeader, SignatureBlock, DocumentFooter } from '@/components/print/DocumentHeader';
@@ -12,7 +10,7 @@ import { pluralize, pluralizeWord } from '@/lib/utils/pluralize';
 import { formatDateOnly, formatDateTime } from '@/lib/utils/format-date';
 import { serviceJobCardCycle } from '@/lib/vehicle-service-cycle';
 import { visitDurations } from '@/lib/visit-durations';
-import { featureOn, moduleIsOn } from '@/lib/modules';
+import { moduleIsOn } from '@/lib/modules';
 
 function formatNaira(amount: number): string {
   return `₦${amount.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -60,8 +58,6 @@ export default async function PrintJobCardPage({
   const isOrgCopy = variant !== 'client';
 
   const [jobCard, organisation] = await Promise.all([getJobCard(id), getOrganisation()]);
-  // No warranties section when Warranty is switched off (the D'Phoenix Autocare edition).
-  const issuedWarranties = moduleIsOn('warranty') ? await listWarrantiesFor({ jobCardId: id }) : [];
   if (!jobCard || !organisation) notFound();
   if (jobCard.status !== 'CHECKED_OUT') notFound();
 
@@ -126,7 +122,6 @@ export default async function PrintJobCardPage({
         <Field label="CHECKED OUT" value={jobCard.checkedOutAt ? formatDateTime(new Date(jobCard.checkedOutAt)) : '—'} />
         {jobCard.isService ? <Field label="VISIT" value="Service" /> : null}
         {nextServiceDue ? <Field label="NEXT SERVICE DUE" value={`${nextServiceDue} — whichever comes first`} /> : null}
-        {jobCard.escalatedFromVehicleService ? <Field label="ESCALATED FROM" value={`Vehicle Service ${jobCard.escalatedFromVehicleService.serviceNumber}`} /> : null}
         {paymentRefs.length > 0 ? <Field label={pluralize(paymentRefs.length, 'PAYMENT REF', 'PAYMENT REFS')} value={paymentRefs.join(', ')} /> : null}
         {jobCard.refunds.length > 0 ? (
           <Field
@@ -146,17 +141,11 @@ export default async function PrintJobCardPage({
                 value={pluralize(inServiceDuration, 'working day')}
               />
             ) : null}
-            {/* PRS and EPR references only where the Store / outside-purchase approvals are on. */}
+            {/* Parts request references only where the Store is on. */}
             {moduleIsOn('inventory') && jobCard.partRequestSlips.length > 0 ? (
               <Field
                 label={pluralize(jobCard.partRequestSlips.length, 'STORE PARTS REQUEST REF', 'STORE PARTS REQUEST REFS')}
                 value={jobCard.partRequestSlips.map((s: (typeof jobCard.partRequestSlips)[number]) => s.referenceNumber).join(', ')}
-              />
-            ) : null}
-            {featureOn('externalProcurement') && jobCard.externalProcurementRequests.length > 0 ? (
-              <Field
-                label={pluralize(jobCard.externalProcurementRequests.length, 'EXTERNAL PROCUREMENT REF', 'EXTERNAL PROCUREMENT REFS')}
-                value={jobCard.externalProcurementRequests.map((r: (typeof jobCard.externalProcurementRequests)[number]) => r.referenceNumber).join(', ')}
               />
             ) : null}
           </>
@@ -215,7 +204,7 @@ export default async function PrintJobCardPage({
                     line.amount !== null ? formatNaira(Number(line.amount)) : '—'
                   ) : (
                     <span style={{ color: '#166534', fontSize: '11px' }}>
-                      {coveredLabel(line.billTo, line.coveringWarranty?.warrantyNumber)}
+                      {coveredLabel(line.billTo)}
                       {isOrgCopy && line.amount !== null ? ` (${formatNaira(Number(line.amount))})` : ''}
                     </span>
                   )}
@@ -226,7 +215,7 @@ export default async function PrintJobCardPage({
           <tfoot>
             {coveredTotal > 0 ? (
               <tr style={{ color: '#166534' }}>
-                <td style={{ padding: '6px 4px' }} colSpan={isOrgCopy ? 4 : 3}>{moduleIsOn('warranty') ? 'Covered by warranty / goodwill (not charged)' : 'Covered by goodwill / internal (not charged)'}</td>
+                <td style={{ padding: '6px 4px' }} colSpan={isOrgCopy ? 4 : 3}>Covered by the workshop (under warranty, goodwill or internal — not charged)</td>
                 <td style={{ padding: '6px 4px', textAlign: 'right' }}>{formatNaira(coveredTotal)}</td>
               </tr>
             ) : null}
@@ -398,7 +387,6 @@ export default async function PrintJobCardPage({
         </div>
       ) : null}
 
-      {moduleIsOn('warranty') ? <WarrantiesIssuedPrint warranties={issuedWarranties} /> : null}
       <SignatureBlock
         issuerLabel={wasCancelled ? 'Returned By (Workshop)' : 'Released By (Workshop)'}
         issuerName={jobCard.supervisor?.fullName ?? ((jobCard as { technicianAcceptanceStatus?: string | null }).technicianAcceptanceStatus === 'ACCEPTED' ? jobCard.assignedTechnician?.fullName : null) ?? null}

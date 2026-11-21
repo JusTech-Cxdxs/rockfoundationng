@@ -1,7 +1,5 @@
 import { portalBaseUrl } from '@/lib/portal-url';
 import { notFound } from 'next/navigation';
-import { listWarrantiesFor } from '@/lib/actions/warranty';
-import { WarrantiesIssuedPrint } from '@/components/print/WarrantiesIssuedPrint';
 import { getPartRequestSlip } from '@/lib/actions/sourcing';
 import { getOrganisation } from '@/lib/actions/organisation';
 import { DocumentHeader, SignatureBlock, DocumentFooter } from '@/components/print/DocumentHeader';
@@ -14,7 +12,7 @@ function formatNaira(amount: number): string {
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDING_HOD_APPROVAL: 'Awaiting HOD approval',
+  PENDING_HOD_APPROVAL: 'Awaiting supervisor approval',
   PENDING_STORE_APPROVAL: 'Awaiting Store approval',
   APPROVED: 'Approved — awaiting release',
   RELEASED: 'Released',
@@ -44,22 +42,19 @@ export default async function PrintPartRequestSlipPage({
   const isOrgCopy = variant !== 'client';
 
   const [slip, organisation] = await Promise.all([getPartRequestSlip(id), getOrganisation()]);
-  const issuedWarranties = await listWarrantiesFor({ slipId: id });
   if (!slip || !organisation) notFound();
   if (slip.status !== 'RELEASED') notFound();
 
   const portalUrl = portalBaseUrl();
   const logoUrl = `${portalUrl}/images/logo/logo.png`;
   const totalAmount = slip.lines.reduce((sum: number, l: (typeof slip.lines)[number]) => {
-    const amount = l.estimateLineItem?.amount ?? l.serviceEstimateLineItem?.amount;
+    const amount = l.estimateLineItem?.amount;
     return sum + (amount !== null && amount !== undefined ? Number(amount) : 0);
   }, 0);
   const collectorName = slip.receivedByUser?.fullName ?? slip.receivedByName ?? null;
-  // A slip comes from either a Job Card or a Vehicle Service estimate;
-  // exactly one of the two is set.
-  const source = slip.jobCard ?? slip.vehicleService;
-  const sourceLabel = slip.jobCard ? 'JOB CARD' : 'VEHICLE SERVICE';
-  const sourceNumber = slip.jobCard ? slip.jobCard.jobNumber : slip.vehicleService?.serviceNumber;
+  const source = slip.jobCard;
+  const sourceLabel = 'JOB CARD';
+  const sourceNumber = slip.jobCard?.jobNumber;
   const vehicleSummary = [source!.vehicle.year, source!.vehicle.make, source!.vehicle.model].filter(Boolean).join(' ') || '—';
 
   return (
@@ -109,7 +104,7 @@ export default async function PrintPartRequestSlipPage({
               <td style={{ padding: '6px 4px' }}>{line.part.partNumber ?? '—'}</td>
               <td style={{ padding: '6px 4px' }}>
                 {line.part.name}
-                {/* What the line was fulfilled from (batch, serial or GRN), for warranty and recall. */}
+                {/* What the line was fulfilled from (batch, serial or GRN), for recalls. */}
                 {line.batchConsumptions.map((c: (typeof line.batchConsumptions)[number], j: number) => (
                   <div key={`b${j}`} style={{ fontSize: '10px', color: '#64748B', marginTop: '2px' }}>
                     Batch {c.batch.batchNumber} — {Number(c.quantityTaken)} {pluralizeWord(Number(c.quantityTaken), line.part.baseUnitOfMeasure)}
@@ -129,14 +124,14 @@ export default async function PrintPartRequestSlipPage({
                   </div>
                 ))}
               </td>
-              <td style={{ padding: '6px 4px' }}>{(line.estimateLineItem ?? line.serviceEstimateLineItem)?.description ?? '—'}</td>
+              <td style={{ padding: '6px 4px' }}>{line.estimateLineItem?.description ?? '—'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'right' }}>
                 {Number(line.quantityRequested)} {pluralizeWord(Number(line.quantityRequested), line.part.baseUnitOfMeasure)}
               </td>
               <td style={{ padding: '6px 4px', textAlign: 'right' }}>
                 {(() => {
                   // Exactly one of the two is set.
-                  const amount = (line.estimateLineItem ?? line.serviceEstimateLineItem)?.amount;
+                  const amount = line.estimateLineItem?.amount;
                   return amount !== null && amount !== undefined ? formatNaira(Number(amount)) : '—';
                 })()}
               </td>
@@ -164,7 +159,7 @@ export default async function PrintPartRequestSlipPage({
               </tr>
               {slip.hodApprovedBy ? (
                 <tr>
-                  <td style={{ padding: '2px 0', color: '#475569' }}>HOD Approved</td>
+                  <td style={{ padding: '2px 0', color: '#475569' }}>Supervisor approved</td>
                   <td style={{ padding: '2px 0' }}>{slip.hodApprovedBy.fullName} — {slip.hodApprovedAt ? formatDateTime(new Date(slip.hodApprovedAt)) : ''}</td>
                 </tr>
               ) : null}
@@ -183,7 +178,6 @@ export default async function PrintPartRequestSlipPage({
         </div>
       ) : null}
 
-      <WarrantiesIssuedPrint warranties={issuedWarranties} />
       <SignatureBlock
         issuerLabel="Issued By (Store)"
         issuerName={slip.releasedBy?.fullName ?? null}

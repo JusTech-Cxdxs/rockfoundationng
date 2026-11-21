@@ -8,9 +8,8 @@
  * Each area keeps its tools in its own `tools/<area>.ts` file; every file in
  * this folder must be imported here (a unit test checks it).
  *
- * A tool whose module is switched off in this edition (lib/modules.ts — the
- * Store, Warranty and the plant in D'Phoenix Autocare) is left out entirely
- * (lib/enyo/edition.ts).
+ * A tool whose module is switched off (lib/modules.ts — the Store) is left
+ * out entirely (lib/enyo/edition.ts).
  *
  * General knowledge comes from the shared web look-up (Wikipedia, plus a
  * general search engine when a key is set; read only, nothing from the
@@ -29,9 +28,6 @@ import { aftercareTools } from './aftercare';
 import { personalTools } from './personal';
 import { draftTools } from './drafts';
 import { remindersTools } from './reminders';
-import { mailTools } from './mail';
-import { workshopTools } from './workshop';
-import { learningTools } from './learning';
 import { supportTools } from './support';
 import { integrityTools } from './integrity';
 import { organisationTools } from './organisation';
@@ -49,9 +45,6 @@ export function staffTools(): StaffTool[] {
     ...personalTools,
     ...draftTools,
     ...remindersTools,
-    ...mailTools,
-    ...workshopTools,
-    ...learningTools,
     ...supportTools,
     ...integrityTools,
     ...organisationTools,

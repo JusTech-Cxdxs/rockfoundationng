@@ -132,15 +132,6 @@ export default async function WorkshopJobCardsPage({
                         {jc.jobNumber}
                       </LoadingLink>
                       {jc.isService ? <ServiceJobCardBadge className="mt-1 block" /> : null}
-                      {jc.escalatedFromVehicleService ? (
-                        <LoadingLink
-                          href={`/workshop/vehicle-service/${jc.escalatedFromVehicleService.id}`}
-                          className="mt-1 block w-fit rounded-full bg-[var(--ejo-warning)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--ejo-warning)] hover:underline"
-                          title="This Job Card continues an escalated Vehicle Service"
-                        >
-                          Escalated from {jc.escalatedFromVehicleService.serviceNumber}
-                        </LoadingLink>
-                      ) : null}
                     </td>
                     <td data-label="Customer" className="px-4 py-3 text-[var(--ejo-text-muted)]"><CustomerLink id={jc.customerId} name={jc.customer.fullName} canView={canSeeCustomers} /></td>
                     <td data-label="Vehicle" className="px-4 py-3 text-[var(--ejo-text-muted)]">

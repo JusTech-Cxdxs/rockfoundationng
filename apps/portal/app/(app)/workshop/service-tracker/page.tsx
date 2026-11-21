@@ -2,14 +2,14 @@ import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
 import { guardAnyPage, allows, getPrincipal } from '@/lib/authz/server';
 import { prisma } from '@ejo/database';
 import { ServiceIntervalForm } from '@/components/ServiceIntervalForm';
-import { getServiceTracker } from '@/lib/actions/vehicle-service';
+import { getServiceTracker } from '@/lib/actions/service-tracking';
 import { currentUserIsMasterAdmin } from '@/lib/actions/workshop';
-import { bookServiceHref, separateVehicleServiceOn, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
+import { bookServiceHref, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
 import { serviceAnchorHref } from '@/lib/vehicle-service-cycle';
 import { getWorkshopBranchId, workshopContactFor } from '@/lib/workshop-core';
 import { WhatsAppLink } from '@/components/WhatsAppLink';
 import { customerWhatsAppUrl, serviceReminderMessage } from '@/lib/whatsapp-messages';
-import { attendToOverdueVehicleFormAction, sendManualServiceReminderFormAction, runServiceRemindersNowFormAction } from '@/lib/actions/vehicle-service-form-handlers';
+import { attendToOverdueVehicleFormAction, sendManualServiceReminderFormAction, runServiceRemindersNowFormAction } from '@/lib/actions/service-tracking-form-handlers';
 import { LoadingLink } from '@/components/LoadingLink';
 import { FormPendingOverlay } from '@/components/FormPendingOverlay';
 import { SubmitButton } from '@/components/SubmitButton';
@@ -44,8 +44,7 @@ export default async function ServiceTrackerPage({
   const branchId = await getWorkshopBranchId();
   const [tracker, workshop] = await Promise.all([getServiceTracker(branchId), workshopContactFor(branchId)]);
   const { remindersLast30Days, canRunReminders } = tracker;
-  // The organisation's service interval: set here as well as on the Vehicle Service page (which has no Workshop tile in
-  // this edition). The same action and the same rule: Master Admin, for their own organisation.
+  // The organisation's default service interval, set here by the Owner for their own organisation.
   const principal = await getPrincipal();
   const intervalOrg = principal.organisationId && (await currentUserIsMasterAdmin())
     ? await prisma.organisation.findUnique({ where: { id: principal.organisationId }, select: { id: true, primaryServiceIntervalKm: true, primaryServiceIntervalDays: true } })
@@ -108,7 +107,7 @@ export default async function ServiceTrackerPage({
           <p className="mt-1 max-w-3xl text-sm text-[var(--ejo-text-muted)]">
             Vehicles that have left the workshop: when each is next due (mileage or date, whichever comes first),
             where it stands now, and the reminders sent. Vehicles still with us are on{' '}
-            <LoadingLink href={separateVehicleServiceOn() ? '/workshop/vehicle-service-custody' : '/workshop/custody'} className="text-[var(--ejo-primary)] hover:underline">
+            <LoadingLink href="/workshop/custody" className="text-[var(--ejo-primary)] hover:underline">
               Vehicles In Custody
             </LoadingLink>
             .
@@ -198,7 +197,7 @@ export default async function ServiceTrackerPage({
 
       {shown.length === 0 ? (
         <p className="text-sm text-[var(--ejo-text-muted)]">
-          {vehicles.length === 0 ? 'No vehicles are being tracked yet — tracking starts the moment a Vehicle Service is completed.' : 'Nothing matches this view.'}
+          {vehicles.length === 0 ? 'No vehicles are being tracked yet — tracking starts when a service Job Card is checked out.' : 'Nothing matches this view.'}
         </p>
       ) : (
         <ResponsiveTable className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
@@ -245,14 +244,6 @@ export default async function ServiceTrackerPage({
                       <LoadingLink href={serviceAnchorHref(v)} className="text-[var(--ejo-primary)] hover:underline">
                         {v.lastService.serviceNumber}
                       </LoadingLink>
-                      {v.viaJobCard ? (
-                        <>
-                          {' '}via{' '}
-                          <LoadingLink href={`/workshop/job-cards/${v.viaJobCard.id}`} className="text-[var(--ejo-primary)] hover:underline">
-                            {v.viaJobCard.jobNumber}
-                          </LoadingLink>
-                        </>
-                      ) : null}
                       <div className="text-[var(--ejo-text-muted)]">
                         {v.lastService.date ? formatDateOnly(v.lastService.date) : '—'}
                         {v.lastService.mileage != null ? ` · ${v.lastService.mileage.toLocaleString('en-NG')} km` : ''}
@@ -271,7 +262,7 @@ export default async function ServiceTrackerPage({
                       {v.inWorkshop ? (
                         <div className="mt-1 text-xs">
                           <LoadingLink
-                            href={v.inWorkshop.kind === 'JOB_CARD' ? `/workshop/job-cards/${v.inWorkshop.id}` : `/workshop/vehicle-service/${v.inWorkshop.id}`}
+                            href={`/workshop/job-cards/${v.inWorkshop.id}`}
                             className="text-[var(--ejo-primary)] hover:underline"
                           >
                             {v.inWorkshop.number}
@@ -345,7 +336,7 @@ export default async function ServiceTrackerPage({
                             href={bookServiceHref(v.vehicleId)}
                             className="self-start whitespace-nowrap rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-3 py-1 text-xs font-medium text-white hover:opacity-90"
                           >
-                            {separateVehicleServiceOn() ? 'Book in' : OPEN_SERVICE_JOB_CARD}
+                            {OPEN_SERVICE_JOB_CARD}
                           </LoadingLink>
                         ) : null}
                       </div>

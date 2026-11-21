@@ -9,8 +9,7 @@ import { RecycleBinPanel } from '@/components/RecycleBinPanel';
 import {
   setCustomerPortalAccessFormAction, sendCustomerSetPasswordLinkFormAction, customerAddressFormAction, customerContactFormAction, customerNoteFormAction, customerCreditTermsFormAction,
 } from '@/lib/actions/crm-form-handlers';
-import { CUSTOMER_ACTION_LABEL, JOB_STATUS_LABEL, WARRANTY_STATUS_LABEL, customerActionLabel, describeChanges, jobTone, naira } from '@/lib/crm';
-import { CLAIM_STATUS_LABEL } from '@/lib/warranty-claim-status';
+import { CUSTOMER_ACTION_LABEL, JOB_STATUS_LABEL, customerActionLabel, describeChanges, jobTone, naira } from '@/lib/crm';
 import { humanizeAction } from '@/lib/humanize-action';
 import { formatDateOnly, formatDateTime, formatDateTimeCompact } from '@/lib/utils/format-date';
 import { pluralize } from '@/lib/utils/pluralize';
@@ -23,15 +22,14 @@ import { SpendChart } from '@/components/crm/LazyCrmCharts';
 import { EditCustomerForm } from '@/components/crm/EditCustomerForm';
 import { RefineTextButton } from '@/components/enyo/RefineTextButton';
 import { ExportAction } from '@/components/ExportAction';
-import { SapTrail } from '@/components/data-exchange/SapTrail';
-import { featureOn, moduleIsOn, oldSystemName } from '@/lib/modules';
-import { bookServiceHref, separateVehicleServiceOn, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
+import { oldSystemName } from '@/lib/modules';
+import { bookServiceHref, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
 import { WhatsAppSendButton } from '@/components/WhatsAppSendButton';
 import { customerCanWhatsApp } from '@/lib/whatsapp-messages';
 import { hasEmail } from '@/lib/customer-email';
 
 /** Where records from before EJO came from, in this edition's words. */
-const OLD_SYSTEM = featureOn('sap') ? 'SAP' : 'the previous system';
+const OLD_SYSTEM = 'the previous system';
 
 export const metadata = { title: 'Customer' };
 
@@ -40,8 +38,6 @@ const TABS: { key: string; label: string; icon: CrmIconName }[] = [
   { key: 'vehicles', label: 'Vehicles', icon: 'car' },
   { key: 'jobs', label: 'Jobs & services', icon: 'wrench' },
   { key: 'payments', label: 'Payments & refunds', icon: 'receipt' },
-  // Only while Warranty is switched on in this edition (lib/modules.ts).
-  ...(moduleIsOn('warranty') ? [{ key: 'warranties', label: 'Warranties & claims', icon: 'shield' as CrmIconName }] : []),
   { key: 'contacts', label: 'Contacts & addresses', icon: 'map' },
   { key: 'notes', label: 'Notes', icon: 'note' },
   { key: 'activity', label: 'Activity', icon: 'activity' },
@@ -86,11 +82,10 @@ export default async function Customer360Page({ params, searchParams }: { params
   if (!data) notFound();
   const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab! : 'overview';
   const { customer: c, portal, money, can } = data;
-  const [activity, binOffer, origin, mayDataRequest] = await Promise.all([
+  const [activity, binOffer, origin] = await Promise.all([
     tab === 'activity' ? getCustomerActivity(id, 300) : Promise.resolve([]),
     getRecycleBinOffer('Customer', id),
     provenanceOf({ organisationId: c.organisationId, createdAt: c.createdAt, createdBy: c.createdBy, importJobId: c.importJobId, externalSource: c.externalSource, externalId: c.externalId, numberLabel: 'customer number', original: { label: 'Customer since (before EJO)', date: c.customerSince } }),
-    allows('privacy.requests.manage'),
   ]);
   const base = `/crm/customers/${c.id}`;
   const notice: Notice | null = sp.error ? { kind: 'error', title: 'That didn’t work', text: sp.error } : sp.status ? STATUS[sp.status] ?? null : null;
@@ -137,7 +132,6 @@ export default async function Customer360Page({ params, searchParams }: { params
             {can.broadcast ? <Link href={`/notifications/broadcasts/new?for=customers&customerId=${encodeURIComponent(c.id)}`} className={ghost}><CrmIcon name="broadcast" size={14} />Send a message</Link> : null}
             {can.manage && !editing ? <Link href={`${base}?edit=1`} className={ghost}><CrmIcon name="edit" size={14} />Edit details</Link> : null}
             {/* Data requests only in an edition that has them (lib/modules.ts). */}
-            {mayDataRequest && featureOn('dataRequests') ? <Link href={`/data-requests/new?customer=${encodeURIComponent(c.id)}`} className={ghost} data-testid="record-data-request">Record a data request</Link> : null}
           </div>
         </div>
       </section>
@@ -168,7 +162,6 @@ export default async function Customer360Page({ params, searchParams }: { params
         <Kpi icon="car" label="Vehicles" value={data.vehicles.length} hint={data.vehicles.length ? data.vehicles.slice(0, 2).map((v) => v.plateNumber || v.make).filter(Boolean).join(', ') : 'None registered'} href={`${base}?tab=vehicles`} delay={160} />
         <Kpi icon="receipt" label="Average job" value={money.averageJob} format="naira" hint={`${pluralize(money.finishedJobs, 'finished job')}`} delay={200} />
         <Kpi icon="clock" label="Average turnaround" value={money.averageTurnaroundDays} format="days" hint="Received → completed" delay={240} />
-        {moduleIsOn('warranty') ? <Kpi icon="shield" label="Warranties active" value={money.activeWarranties} hint={`${pluralize(data.warranties.length, 'warranty', 'warranties')} in all`} href={`${base}?tab=warranties`} delay={280} /> : null}
       </div>
       {data.scope.branchOnly ? <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">Visits, jobs and money show {data.scope.branchName} only — the branch you work in.</p> : null}
 
@@ -238,7 +231,7 @@ export default async function Customer360Page({ params, searchParams }: { params
                     </dl>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Link href={`/workshop/vehicles/${v.id}/edit`} prefetch={false} className={ghost}>Vehicle page →</Link>
-                      {can.openJobs ? <Link href={bookServiceHref(v.id)} prefetch={false} className={ghost}><CrmIcon name="calendar" size={14} />{separateVehicleServiceOn() ? 'Book service' : OPEN_SERVICE_JOB_CARD}</Link> : null}
+                      {can.openJobs ? <Link href={bookServiceHref(v.id)} prefetch={false} className={ghost}><CrmIcon name="calendar" size={14} />{OPEN_SERVICE_JOB_CARD}</Link> : null}
                     </div>
                   </li>
                 ))}
@@ -248,7 +241,7 @@ export default async function Customer360Page({ params, searchParams }: { params
         ) : null}
 
         {tab === 'jobs' ? (
-          <Section icon="wrench" title={`Jobs & services (${data.jobs.length})`} subtitle="Job Cards and Vehicle Services, newest first. Billed = what the customer pays (warranty, goodwill and internal lines excluded).">
+          <Section icon="wrench" title={`Job Cards (${data.jobs.length})`} subtitle="Job Cards, newest first. Billed = what the customer pays (lines under warranty, goodwill and internal excluded).">
             <JobList jobs={data.jobs} />
           </Section>
         ) : null}
@@ -264,7 +257,7 @@ export default async function Customer360Page({ params, searchParams }: { params
         ) : null}
 
         {tab === 'payments' ? (
-          <Section icon="receipt" title="Payments & refunds" subtitle={`Paid ${naira(money.paidIn)} · refunded ${naira(money.refunded)} · net ${naira(money.netPaid - money.fromSap)}${money.fromSap ? ` · plus ${naira(money.fromSap)} invoiced ${featureOn('sap') ? 'in SAP ' : ''}before EJO (see Jobs)` : ''}`}>
+          <Section icon="receipt" title="Payments & refunds" subtitle={`Paid ${naira(money.paidIn)} · refunded ${naira(money.refunded)} · net ${naira(money.netPaid - money.fromSap)}${money.fromSap ? ` · plus ${naira(money.fromSap)} invoiced ${''}before EJO (see Jobs)` : ''}`}>
             {data.ledger.length === 0 ? <Empty icon="receipt" title="No payments or refunds yet." /> : (
               <ul className="divide-y divide-[var(--ejo-border)]">
                 {data.ledger.map((p) => (
@@ -284,44 +277,6 @@ export default async function Customer360Page({ params, searchParams }: { params
           </Section>
         ) : null}
 
-        {tab === 'warranties' ? (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <Section icon="shield" title={`Warranties (${data.warranties.length})`}>
-              {data.warranties.length === 0 ? <Empty icon="shield" title="No warranties registered." /> : (
-                <ul className="divide-y divide-[var(--ejo-border)]">
-                  {data.warranties.map((w) => {
-                    const live = w.status === 'ACTIVE' && +new Date(w.endsAt) > Date.now();
-                    return (
-                      <li key={w.id} className="py-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          {can.warranty ? <Link href={`/warranty/${w.id}`} prefetch={false} className="text-sm font-semibold text-[var(--ejo-primary)] hover:underline">{w.warrantyNumber}</Link> : <span className="text-sm font-semibold text-[var(--ejo-text)]">{w.warrantyNumber}</span>}
-                          <Chip tone={live ? 'success' : w.status === 'VOID' ? 'error' : 'muted'}>{live ? 'Covering' : w.status === 'ACTIVE' ? 'Expired' : WARRANTY_STATUS_LABEL[w.status] ?? w.status}</Chip>
-                        </div>
-                        <p className="mt-0.5 break-words text-sm text-[var(--ejo-text)]">{w.subjectDescription}</p>
-                        <p className="text-xs text-[var(--ejo-text-muted)]">{formatDateOnly(w.startsAt)} – {formatDateOnly(w.endsAt)}</p>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </Section>
-            <Section icon="note" title={`Claims (${data.claims.length})`}>
-              {data.claims.length === 0 ? <Empty icon="note" title="No warranty claims." /> : (
-                <ul className="divide-y divide-[var(--ejo-border)]">
-                  {data.claims.map((w) => (
-                    <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                      <div className="min-w-0">
-                        {can.warranty ? <Link href={`/warranty/claims/${w.id}`} prefetch={false} className="text-sm font-semibold text-[var(--ejo-primary)] hover:underline">{w.claimNumber}</Link> : <span className="text-sm font-semibold text-[var(--ejo-text)]">{w.claimNumber}</span>}
-                        <p className="text-xs text-[var(--ejo-text-muted)]">On {w.warranty.warrantyNumber} · {formatDateOnly(w.createdAt)}</p>
-                      </div>
-                      <Chip tone={w.status === 'SETTLED' || w.status === 'ACCEPTED' ? 'success' : w.status === 'REJECTED' || w.status === 'CANCELLED' ? 'error' : 'warning'}>{CLAIM_STATUS_LABEL[w.status] ?? humanizeAction(w.status)}</Chip>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </Section>
-          </div>
-        ) : null}
 
         {tab === 'contacts' ? <ContactsTab data={data} /> : null}
 
@@ -392,7 +347,6 @@ export default async function Customer360Page({ params, searchParams }: { params
         ) : null}
       </div>
       <RecycleBinPanel offer={binOffer} entity="Customer" id={c.id} className="mt-6 max-w-xl" />
-      <SapTrail entityType="Customer" entityId={c.id} />
     </div>
   );
 }
@@ -400,7 +354,7 @@ export default async function Customer360Page({ params, searchParams }: { params
 type Data = NonNullable<Awaited<ReturnType<typeof getCustomer360>>>;
 
 function JobList({ jobs }: { jobs: Data['jobs'] }) {
-  if (jobs.length === 0) return <Empty icon="wrench" title="No Job Cards or Vehicle Services yet." />;
+  if (jobs.length === 0) return <Empty icon="wrench" title="No Job Cards yet." />;
   return (
     <ul className="divide-y divide-[var(--ejo-border)]">
       {jobs.map((j) => {
@@ -412,7 +366,7 @@ function JobList({ jobs }: { jobs: Data['jobs'] }) {
                 <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]"><CrmIcon name={j.kind === 'JC' ? 'wrench' : 'calendar'} size={16} /></span>
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-[var(--ejo-text)]">{j.number}<Chip tone={jobTone(j.kind, j.status)}>{JOB_STATUS_LABEL[j.kind][j.status] ?? humanizeAction(j.status)}</Chip></p>
-                  <p className="truncate text-xs text-[var(--ejo-text-muted)]">{j.kind === 'JC' ? 'Job Card' : 'Vehicle Service'} · {j.vehicleLabel} · opened {formatDateOnly(j.openedAt)}{j.branchName ? ` · ${j.branchName}` : ''}</p>
+                  <p className="truncate text-xs text-[var(--ejo-text-muted)]">Job Card · {j.vehicleLabel} · opened {formatDateOnly(j.openedAt)}{j.branchName ? ` · ${j.branchName}` : ''}</p>
                 </div>
               </div>
               <div className="shrink-0 text-right text-xs">
@@ -640,7 +594,7 @@ function ContactsTab({ data }: { data: Data }) {
   );
 }
 
-/** Invoices from SAP before EJO 100: read-only (no links to edit, pay or refund). */
+/** Invoices from the previous system: read-only (no links to edit, pay or refund). */
 function PastJobList({ rows }: { rows: { id: string; number: string; service: boolean; openedAt: string; completedAt: string | null; mileage: number | null; vehicleLabel: string | null; description: string | null; workDone: string | null; total: number | null; invoiceNumber: string | null }[] }) {
   return (
     <ul className="divide-y divide-[var(--ejo-border)]" data-testid="past-jobs">
@@ -669,7 +623,7 @@ function SapInvoiceList({ rows }: { rows: { id: string; number: string; date: st
           <div className="flex min-w-0 items-start gap-3">
             <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[var(--ejo-bg)] text-[var(--ejo-text-muted)]"><CrmIcon name="receipt" size={16} /></span>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-[var(--ejo-text)]">Invoice {h.number}{h.fiscalYear ? ` · ${h.fiscalYear}` : ''}{h.companyCode ? <span className="ml-1.5 text-xs font-normal text-[var(--ejo-text-muted)]">company {h.companyCode}</span> : null}{h.documentType ? <span className="ml-1.5 text-xs font-normal text-[var(--ejo-text-muted)]">({h.documentType})</span> : null} <Chip tone="muted">{featureOn('sap') ? 'From SAP, before EJO' : 'Before EJO'}</Chip></p>
+              <p className="text-sm font-medium text-[var(--ejo-text)]">Invoice {h.number}{h.fiscalYear ? ` · ${h.fiscalYear}` : ''}{h.companyCode ? <span className="ml-1.5 text-xs font-normal text-[var(--ejo-text-muted)]">company {h.companyCode}</span> : null}{h.documentType ? <span className="ml-1.5 text-xs font-normal text-[var(--ejo-text-muted)]">({h.documentType})</span> : null} <Chip tone="muted">Before EJO</Chip></p>
               <p className="text-xs text-[var(--ejo-text-muted)]">{formatDateOnly(new Date(`${h.date}T12:00:00+01:00`))}{h.vehicleLabel ? ` · ${h.vehicleLabel}` : ''}{h.description ? ` · ${h.description}` : ''}</p>
             </div>
           </div>

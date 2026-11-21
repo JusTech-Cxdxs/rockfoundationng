@@ -21,19 +21,17 @@ export default async function WorkflowsPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const w = await getWorkflowInsights({ days: Number(sp.days) || 90 });
   const sentBack = w.steps.reduce((a, s) => a + s.rejected, 0);
-  const auc = typeof w.model?.metrics.auc === 'number' ? w.model.metrics.auc : null;
   return (
     <div className="w-full max-w-7xl p-4 sm:p-8">
       <PageHeader icon="chart" title="How work flows" back={{ href: '/analytics', label: 'Analytics' }} eyebrow="Analytics"
-        description="Every approval step of every workflow: how many decisions, how often things are sent back and why, how long they wait and who decides — and where Enyo could help. Enyo learns from these decisions; a person always decides." />
+        description="Every approval step of every workflow: how many decisions, how often things are sent back and why, how long they wait and who decides — and where Enyo could help. A person always decides." />
       <nav aria-label="Period" className="mb-4 flex flex-wrap gap-2 text-sm">
         {[30, 90, 180, 365].map((d) => <Link key={d} href={`/analytics/workflows?days=${d}`} aria-current={w.days === d ? 'page' : undefined} className={`min-h-10 rounded-full px-3 py-2 ${w.days === d ? 'bg-[var(--ejo-primary)] text-white' : 'border border-[var(--ejo-border)] text-[var(--ejo-text)]'}`}>Last {d} days</Link>)}
       </nav>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatTile icon="check-circle" label="Decisions" value={w.total} />
         <StatTile icon="restore" label="Sent back or refused" value={w.total ? `${Math.round((sentBack / w.total) * 100)}%` : '—'} />
         <StatTile icon="sparkles" label="Steps Enyo could prepare" value={w.steps.filter((s) => s.readiness.level === 'suggest').length} />
-        <StatTile icon="sparkles" label="Decision model" value={w.model ? (auc !== null ? `AUC ${auc.toFixed(2)}` : w.model.status.toLowerCase()) : 'Not trained'} href="/enyo/models" />
       </div>
       {w.steps.length ? (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

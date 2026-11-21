@@ -17,9 +17,7 @@ export type PartFittedRow = {
   slipId: string;
   slipNumber: string;
   jobCard: { id: string; number: string } | null;
-  vehicleService: { id: string; number: string } | null;
   customer: string | null;
-  warranties: { id: string; number: string }[];
 };
 
 const RECENT = 5;
@@ -29,7 +27,7 @@ export function filterPartsFitted(rows: PartFittedRow[], query: string): PartFit
   const t = query.trim().toLowerCase();
   if (!t) return rows;
   return rows.filter((r) =>
-    [r.slipNumber, r.jobCard?.number, r.vehicleService?.number, r.partName, r.partNumber, r.dateLabel, r.customer, ...r.serials, ...r.warranties.map((w) => w.number)]
+    [r.slipNumber, r.jobCard?.number, r.partName, r.partNumber, r.dateLabel, r.customer, ...r.serials]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(t)),
   );
@@ -37,8 +35,7 @@ export function filterPartsFitted(rows: PartFittedRow[], query: string): PartFit
 
 /**
  * Every part released to this vehicle, newest first — searchable by PRS,
- * Job Card, Vehicle Service, warranty number, part name or number, serial
- * or date. Shows the latest few with "View all"; rows wrap (never scroll
+ * Job Card, part name or number, serial or date. Shows the latest few with "View all"; rows wrap (never scroll
  * sideways) and every number opens its exact record.
  */
 export function VehiclePartsFitted({ rows }: { rows: PartFittedRow[] }) {
@@ -61,7 +58,7 @@ export function VehiclePartsFitted({ rows }: { rows: PartFittedRow[] }) {
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search PRS, JC, SV, warranty, part, serial or date…"
+            placeholder="Search PRS, JC, part, serial or date…"
             className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)] sm:w-80"
           />
         ) : null}
@@ -74,7 +71,7 @@ export function VehiclePartsFitted({ rows }: { rows: PartFittedRow[] }) {
       ) : (
         <ul className="mt-4 divide-y divide-[var(--ejo-border)]">
           {shown.map((r) => (
-            <li key={r.id} className="grid gap-x-6 gap-y-1 py-3 text-sm sm:grid-cols-[110px_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,1.5fr)]">
+            <li key={r.id} className="grid gap-x-6 gap-y-1 py-3 text-sm sm:grid-cols-[110px_minmax(0,2fr)_minmax(0,1.5fr)]">
               <span className="text-xs text-[var(--ejo-text-muted)]">{r.dateLabel}</span>
               <span className="min-w-0 break-words">
                 <LoadingLink href={`/inventory/parts/${r.partId}`} className={`font-medium ${link}`}>{r.partName}</LoadingLink>
@@ -88,18 +85,8 @@ export function VehiclePartsFitted({ rows }: { rows: PartFittedRow[] }) {
                 <LoadingLink href={`/workshop/parts-requests/${r.slipId}`} className={link}>{r.slipNumber}</LoadingLink>
                 {' · '}
                 {r.jobCard ? <LoadingLink href={`/workshop/job-cards/${r.jobCard.id}`} className={link}>{r.jobCard.number}</LoadingLink> : null}
-                {r.vehicleService ? <LoadingLink href={`/workshop/vehicle-service/${r.vehicleService.id}`} className={link}>{r.vehicleService.number}</LoadingLink> : null}
                 {r.customer ? <span className="block text-[var(--ejo-text-muted)]">{r.customer}</span> : null}
               </span>
-              <span className="min-w-0 break-words text-xs">
-                {r.warranties.length === 0 ? (
-                  <span className="text-[var(--ejo-text-muted)]">No warranty</span>
-                ) : (
-                  r.warranties.map((w, i) => (
-                    <span key={w.id}>
-                      {i > 0 ? ', ' : ''}
-                      <LoadingLink href={`/warranty/${w.id}`} className={link}>{w.number}</LoadingLink>
-                    </span>
                   ))
                 )}
               </span>

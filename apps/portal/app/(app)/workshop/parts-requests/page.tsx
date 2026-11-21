@@ -24,30 +24,19 @@ const STATUS_BADGE_CLASS: Record<string, string> = {
 };
 
 /**
- * Parts requests across the branch. Workshop HOD, Store and Storekeeper all
+ * Parts requests across the branch. The Workshop Supervisor and the Store all
  * work from this list; each slip shows the action for its current stage.
  * Searchable by reference or Job Card number.
  */
 export default async function PartsRequestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   await guardAnyPage(['workshop.view'], '/workshop');
-  const { q, type } = await searchParams;
+  const { q } = await searchParams;
   const branchId = await getStoreBranchId();
-  const allSlips = await listPartRequestSlips(branchId, q);
-  // Same type filter as Estimate Matching. Counts follow the search for
-  // both tabs, so the other tab's count stays visible.
-  const jcCount = allSlips.filter((sl: (typeof allSlips)[number]) => Boolean(sl.jobCard)).length;
-  const svCount = allSlips.filter((sl: (typeof allSlips)[number]) => Boolean(sl.vehicleService)).length;
-  const slips =
-    type === 'JOB_CARD'
-      ? allSlips.filter((sl: (typeof allSlips)[number]) => Boolean(sl.jobCard))
-      : type === 'VEHICLE_SERVICE'
-        ? allSlips.filter((sl: (typeof allSlips)[number]) => Boolean(sl.vehicleService))
-        : allSlips;
-  const qParam = q ? `&q=${encodeURIComponent(q)}` : '';
+  const slips = await listPartRequestSlips(branchId, q);
 
   return (
     <div className="p-8">
@@ -55,36 +44,14 @@ export default async function PartsRequestsPage({
         icon="package"
         back={{ href: "/workshop", label: "Back to Workshop" }}
         title="Parts Requests"
-        description={<>Every Store Parts request raised across active Job Cards and Vehicle Services.</>}
+        description={<>Every Store Parts request raised across active Job Cards.</>}
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <LoadingLink
-          href={`/workshop/parts-requests${q ? `?q=${encodeURIComponent(q)}` : ''}`}
-          className={`rounded-full px-3 py-1 text-xs font-medium ${!type ? 'bg-[var(--ejo-primary)] text-white' : 'border border-[var(--ejo-border)] text-[var(--ejo-text-muted)]'}`}
-        >
-          All ({jcCount + svCount})
-        </LoadingLink>
-        <LoadingLink
-          href={`/workshop/parts-requests?type=JOB_CARD${qParam}`}
-          className={`rounded-full px-3 py-1 text-xs font-medium ${type === 'JOB_CARD' ? 'bg-[var(--ejo-primary)] text-white' : 'border border-[var(--ejo-border)] text-[var(--ejo-text-muted)]'}`}
-        >
-          Job Cards ({jcCount})
-        </LoadingLink>
-        <LoadingLink
-          href={`/workshop/parts-requests?type=VEHICLE_SERVICE${qParam}`}
-          className={`rounded-full px-3 py-1 text-xs font-medium ${type === 'VEHICLE_SERVICE' ? 'bg-[var(--ejo-primary)] text-white' : 'border border-[var(--ejo-border)] text-[var(--ejo-text-muted)]'}`}
-        >
-          Vehicle Services ({svCount})
-        </LoadingLink>
-      </div>
-
       <form className="mb-6 flex gap-2" action="/workshop/parts-requests">
-        {type ? <input type="hidden" name="type" value={type} /> : null}
         <LiveSearchInput
           type="search" name="q"
           defaultValue={q ?? ''}
-          placeholder="Search by reference, Job Card, or Service number…"
+          placeholder="Search by reference or Job Card number…"
           className="w-full max-w-md rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
         />
         <button
@@ -95,7 +62,7 @@ export default async function PartsRequestsPage({
         </button>
         {q ? (
           <LoadingLink
-            href={`/workshop/parts-requests${type ? `?type=${type}` : ''}`}
+            href="/workshop/parts-requests"
             className="inline-flex items-center rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-surface)]"
           >
             Clear
@@ -104,7 +71,7 @@ export default async function PartsRequestsPage({
       </form>
 
       {slips.length === 0 ? (
-        <p className="text-sm text-[var(--ejo-text-muted)]">{q || type ? 'No parts requests match your search.' : 'No parts requests raised yet.'}</p>
+        <p className="text-sm text-[var(--ejo-text-muted)]">{q ? 'No parts requests match your search.' : 'No parts requests raised yet.'}</p>
       ) : (
         <ResponsiveTable className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
           <table className="w-full text-sm">
@@ -129,10 +96,6 @@ export default async function PartsRequestsPage({
                     {slip.jobCard ? (
                       <LoadingLink href={`/workshop/job-cards/${slip.jobCard.id}`} className="text-[var(--ejo-primary)] hover:underline">
                         {slip.jobCard.jobNumber}
-                      </LoadingLink>
-                    ) : slip.vehicleService ? (
-                      <LoadingLink href={`/workshop/vehicle-service/${slip.vehicleService.id}`} className="text-[var(--ejo-primary)] hover:underline">
-                        {slip.vehicleService.serviceNumber}
                       </LoadingLink>
                     ) : (
                       <span className="text-[var(--ejo-text-muted)]">—</span>

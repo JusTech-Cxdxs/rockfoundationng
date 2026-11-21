@@ -1,5 +1,5 @@
 /**
- * "Powered by EJO 100" — the platform mark (the EJO hexagon, its core gently
+ * "Powered by EJO · JusTech": the platform mark (the EJO hexagon, its core gently
  * pulsing, a dashed orbit turning slowly around it) beside the shimmering
  * credit. The same signature in the sidebar and on every sign-in page. Pure
  * CSS animation (globals.css), so it costs nothing to run, and it stops for
@@ -18,7 +18,7 @@ export function PoweredByEjo({ tone = 'default', size = 'md' }: { tone?: 'defaul
       </svg>
       <div className="leading-tight">
         <p className={`text-[10px] font-medium uppercase tracking-[0.14em] ${dark ? 'text-white/55' : 'text-[var(--ejo-text-muted)]'}`}>Powered by</p>
-        <p className={`${dark ? 'ejo-shimmer' : 'ejo-shimmer-soft'} font-bold ${size === 'lg' ? 'text-sm' : 'text-xs'}`}>{PLATFORM.name}</p>
+        <p className={`${dark ? 'ejo-shimmer' : 'ejo-shimmer-soft'} font-bold ${size === 'lg' ? 'text-sm' : 'text-xs'}`}>{PLATFORM.name} · {PLATFORM.makerShort}</p>
       </div>
     </div>
   );

@@ -10,8 +10,8 @@ import { customerLinks, customerRecordUrl } from '../lib/customer-links-core';
 import { aiDecision, unknownSpecifics, type Triage } from '../lib/support/core';
 import { draftUse, enyoMeasures, gapReport, similarity } from '../lib/support/monitor-core';
 import { staffHelpFence } from '../lib/support-rules';
-import { afterHours, benford, dailySeries, modifiedZ, moneySeverity, sameName, spike, splitGroups } from '../lib/integrity/core';
-import { decisionFeatures, featureNames, readiness, reasonKey, stepPictures, trainingRow, type DecisionRow } from '../lib/insights/decisions-core';
+import { afterHours, benford, dailySeries, modifiedZ, moneySeverity, sameName, spike } from '../lib/integrity/core';
+import { readiness, reasonKey, stepPictures, type DecisionRow } from '../lib/insights/decisions-core';
 
 const ROOT = join(__dirname, '..', '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -159,7 +159,7 @@ test('checking Enyo: drafts, verdicts, and the gap report says what to fix', () 
   assert.match(monitor, /RECORD_TOPICS\.includes\(topic\)/, 'answers about one customer’s records are never learned');
 });
 
-test('integrity statistics: robust z-scores, spikes, Benford, splits, names, hours', () => {
+test('integrity statistics: robust z-scores, spikes, Benford, names, hours', () => {
   assert.equal(Math.round(modifiedZ(10, [1, 2, 2, 3, 2, 1, 2]) * 10) / 10 > 3.5, true);
   assert.equal(modifiedZ(2, [1, 2, 2, 3, 2, 1, 2]) < 1, true);
   const quiet = new Array(60).fill(0).map((_, i) => (i % 3 === 0 ? 2 : 1));
@@ -171,9 +171,6 @@ test('integrity statistics: robust z-scores, spikes, Benford, splits, names, hou
   for (let i = 0; i < 3000; i += 1) natural.push(10 ** (1 + 4 * ((i * 0.6180339887) % 1)));
   assert.equal(benford(natural)!.band === 'close' || benford(natural)!.band === 'acceptable', true);
   assert.equal(benford(new Array(2000).fill(0).map((_, i) => 5000 + i))!.band, 'nonconformity');
-  const t = (h: number) => new Date(NOW.getTime() + h * 3_600_000);
-  const groups = splitGroups([{ id: 'a', at: t(0), amount: 90, by: 'u' }, { id: 'b', at: t(5), amount: 80, by: 'u' }, { id: 'c', at: t(30), amount: 70, by: 'u' }, { id: 'd', at: t(200), amount: 90, by: 'u' }], 100);
-  assert.deepEqual(groups.map((g) => g.ids), [['a', 'b', 'c']]);
   assert.equal(sameName('Mrs Ada Obi', 'ADA OBI'), true);
   assert.equal(sameName('Chinedu Eze', 'Ada Obi'), false);
   const hours = { '1': ['08:00', '17:00'] as [string, string], '2': ['08:00', '17:00'] as [string, string], '3': ['08:00', '17:00'] as [string, string], '4': ['08:00', '17:00'] as [string, string], '5': ['08:00', '17:00'] as [string, string] };
@@ -185,46 +182,27 @@ test('integrity statistics: robust z-scores, spikes, Benford, splits, names, hou
   assert.equal(moneySeverity(5_000, 'MEDIUM'), 'MEDIUM');
 });
 
-test('integrity: nobody sees or decides an alert about themselves; Speak up can be anonymous', () => {
+test('integrity: nobody sees or decides an alert about themselves', () => {
   const src = read('lib/actions/integrity.ts');
   assert.match(src, /OR: \[\{ subjectUserId: null \}, \{ subjectUserId: \{ not: r\.id \} \}\]/);
   assert.match(src, /Another reviewer must decide an alert about you/);
-  assert.match(src, /reportedById: anonymous \? null : me\.id/);
-  assert.match(src, /userId: anonymous \? null : me\.id, action: 'integrity\.speak_up'/);
-  const journal = read('../../packages/database/src/audit-journal.ts');
-  assert.match(journal, /'IntegrityAlert',/, 'the data journal never records who raised an anonymous concern');
   const labels = read('lib/notification-rules.ts');
-  for (const a of ['integrity.alert_raised', 'integrity.speak_up', 'user.signed_in', 'user.sign_in_failed']) assert.ok(labels.includes(`'${a}'`), `${a} stays out of the activity feed`);
+  for (const a of ['integrity.alert_raised', 'user.signed_in', 'user.sign_in_failed']) assert.ok(labels.includes(`'${a}'`), `${a} stays out of the activity feed`);
 });
 
-test('Enyo writes in the person\'s voice: own sent mail, with consent, removed with it', () => {
-  const mail = read('lib/actions/mail.ts');
-  assert.match(mail, /if \(box\.aiConsentAt\) await keepWritingSample/);
-  assert.match(mail, /if \(!box\?\.aiConsentAt\) return \[\];/);
-  assert.equal((mail.match(/mailStyleSample\.deleteMany\(\{ where: \{ userId: m\.id \} \}\)/g) ?? []).length, 2, 'withdrawn consent and disconnect remove the samples');
-  assert.match(read('lib/mail/sync.ts'), /mailStyleSample\.deleteMany\(\{ where: \{ sentAt: \{ lt: before \} \} \}\)/);
-});
-
-test('decisions: process picture, readiness, and de-identified training rows', () => {
+test('decisions: process picture and readiness', () => {
   const rows: DecisionRow[] = [];
   for (let i = 0; i < 220; i += 1) rows.push({ id: `p${i}`, step: 'prs_store', rejected: i < 4, at: new Date(NOW.getTime() + i * 3_600_000 + 6 * 3_600_000), arrivedAt: new Date(NOW.getTime() + i * 3_600_000), amount: 0, lines: 3, requesterRole: 'technician', deciderRole: 'store-officer', reason: i < 4 ? 'Wrong part number' : null, branchId: 'b1' });
-  for (let i = 0; i < 60; i += 1) rows.push({ id: `e${i}`, step: 'epr_manager', rejected: i % 3 === 0, at: NOW, arrivedAt: NOW, amount: 150_000, lines: 1, requesterRole: 'technician', deciderRole: 'workshop-manager', reason: i % 3 === 0 ? 'No quotation attached.' : null, branchId: 'b1' });
+  for (let i = 0; i < 60; i += 1) rows.push({ id: `e${i}`, step: 'estimate_manager', rejected: i % 3 === 0, at: NOW, arrivedAt: NOW, amount: 150_000, lines: 1, requesterRole: 'technician', deciderRole: 'workshop-manager', reason: i % 3 === 0 ? 'No quotation attached.' : null, branchId: 'b1' });
   const pics = stepPictures(rows);
   const store = pics.find((p) => p.step === 'prs_store')!;
   assert.equal(store.readiness.level, 'suggest');
   assert.equal(store.medianWaitH, 6);
-  const epr = pics.find((p) => p.step === 'epr_manager')!;
-  assert.equal(epr.readiness.level, 'guide');
-  assert.equal(epr.reasons[0]!.reason, 'No quotation attached.');
+  const est = pics.find((p) => p.step === 'estimate_manager')!;
+  assert.equal(est.readiness.level, 'guide');
+  assert.equal(est.reasons[0]!.reason, 'No quotation attached.');
   assert.equal(readiness(10, 0.5, 2, null).level, 'too_few');
   assert.equal(reasonKey('No quotation attached!!'), reasonKey('no quotation  attached'));
-  const tr = trainingRow(rows[0]!, 'hash1');
-  assert.deepEqual(Object.keys(tr).sort(), ['amount', 'decider_role', 'hour', 'lines', 'on', 'rejected', 'requester_role', 'row_id', 'step', 'wait_hours', 'weekday']);
-  assert.equal(JSON.stringify(tr).includes('Wrong part'), false, 'reasons never leave the portal');
-  const names = featureNames(['prs_store'], ['technician']);
-  const v = decisionFeatures({ step: 'prs_store', requester_role: 'unknown-role', amount: 0, lines: 2, hour: 9, weekday: 1 }, ['prs_store'], ['technician']);
-  assert.equal(v.length, names.length);
-  assert.equal(v[names.indexOf('requester:other')], 1);
 });
 
 test('review fixes: private details stay private', () => {

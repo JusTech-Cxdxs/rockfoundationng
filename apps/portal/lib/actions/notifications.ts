@@ -7,8 +7,7 @@ import { after } from 'next/server';
 import { prisma } from '@ejo/database';
 import { requireUser } from './workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
-import { authorize, allows, currentAssist, getPrincipal, refuseDuringAssist } from '@/lib/authz/server';
-import { actorLabel } from '@/lib/assist/rules';
+import { authorize, allows, getPrincipal } from '@/lib/authz/server';
 import { nameWithRole } from '@/lib/authz/catalogue';
 import { scopeFor } from '@/lib/authz/catalogue';
 import { getDashboardNotifications, type DashboardNotification } from './dashboard';
@@ -21,7 +20,6 @@ import { deliverDueBroadcastEmails } from '@/lib/broadcast-delivery';
 import { resolveRecords } from '@/lib/record-resolver';
 import { livePulse } from '@/lib/live-pulse';
 import { lagosYear } from '@/lib/utils/format-date';
-import { mailUnreadFor } from '@/lib/mail/counts';
 import { roleShown } from '@/lib/edition';
 
 class NotificationError extends Error {}
@@ -53,17 +51,13 @@ export async function getActivityFeed(opts: { unreadOnly?: boolean; take?: numbe
   // Business events only — the low-level data journal ("db:…") is the
   // complete record for the audit dashboard, never shown as activity.
   // …and records I am PART OF even before acting: the technician assigned,
-  // the supervisor, the person who opened the Job Card / service, and the
-  // person who raised a parts request or outside purchase.
+  // the supervisor, the person who opened the Job Card, and the person who
+  // raised a parts request.
   const recent = new Date(Date.now() - 90 * 86400000);
-  const [mine, jcs, svs, prss, eprs, assisted] = await Promise.all([
+  const [mine, jcs, prss] = await Promise.all([
     prisma.auditLog.findMany({ where: { userId: m.id, createdAt: { gte: recent }, NOT: { entityType: { startsWith: 'db:' } } }, distinct: ['entityType', 'entityId'], select: { entityType: true, entityId: true }, take: 2000 }),
     prisma.jobCard.findMany({ where: { updatedAt: { gte: recent }, OR: [{ assignedTechnicianId: m.id }, { supervisorId: m.id }, { createdById: m.id }] }, select: { id: true }, take: 500 }),
-    prisma.vehicleService.findMany({ where: { createdAt: { gte: new Date(Date.now() - 180 * 86400000) }, OR: [{ assignedTechnicianId: m.id }, { supervisorId: m.id }, { createdById: m.id }] }, select: { id: true }, take: 500 }),
     prisma.partRequestSlip.findMany({ where: { updatedAt: { gte: recent }, requestedById: m.id }, select: { id: true }, take: 500 }),
-    prisma.externalProcurementRequest.findMany({ where: { updatedAt: { gte: recent }, requestedById: m.id }, select: { id: true }, take: 500 }),
-    // Sessions a Branch Assistant held on my behalf ("… helped you with your work").
-    prisma.assistSession.findMany({ where: { subjectId: m.id, startedAt: { gte: recent } }, select: { id: true }, take: 200 }),
   ]);
   // Support tickets I own, and the unowned ones of the support queues I work (new, late, urgent).
   const myQueues = (await prisma.supportQueueMember.findMany({ where: { userId: m.id }, select: { queueId: true } }).catch(() => [])).map((q: { queueId: string }) => q.queueId);
@@ -83,10 +77,10 @@ export async function getActivityFeed(opts: { unreadOnly?: boolean; take?: numbe
   const byType = new Map<string, string[]>();
   for (const r of mine) if (r.entityId) byType.set(r.entityType, [...(byType.get(r.entityType) ?? []), r.entityId]);
   const add = (t: string, ids: { id: string }[]) => { if (ids.length) byType.set(t, [...new Set([...(byType.get(t) ?? []), ...ids.map((x) => x.id)])]); };
-  add('JobCard', jcs); add('VehicleService', svs); add('PartRequestSlip', prss); add('ExternalProcurementRequest', eprs); add('AssistSession', assisted); add('SupportTicket', tickets); add('SupportTicket', requested);
-  // Finance hears about every payment, refund, customer notification and
-  // outside purchase — so they know when money is expected or moves.
-  const financeWatch = m.roleSlugs.includes('finance-officer') ? [{ action: { contains: 'payment' } }, { action: { contains: 'refund' } }, { action: { contains: 'customer_notified' } }, { entityType: 'ExternalProcurementRequest' }] : [];
+  add('JobCard', jcs); add('PartRequestSlip', prss); add('SupportTicket', tickets); add('SupportTicket', requested);
+  // Finance hears about every payment, refund and customer notification —
+  // so they know when money is expected or moves.
+  const financeWatch = m.roleSlugs.includes('finance-officer') ? [{ action: { contains: 'payment' } }, { action: { contains: 'refund' } }, { action: { contains: 'customer_notified' } }] : [];
   const involved = [...byType.entries()].map(([entityType, ids]) => ({ entityType, entityId: { in: ids } }));
   const where = {
     // Only this organisation's events (the platform team sees every organisation).
@@ -138,7 +132,7 @@ export async function getActivityFeed(opts: { unreadOnly?: boolean; take?: numbe
       detail: securityActionDetail(r.action, meta),
       area: areaOf(r.entityType),
       url: r.entityId && r.entityType === 'SupportTicket' && myHelp.has(r.entityId) ? `/support/help/${r.entityId}` : r.entityId ? resolved.get(`${r.entityType}:${r.entityId}`)?.url ?? recordUrl(r.entityType, r.entityId) : '/audit-logs',
-      actor: r.userId ? actorLabel(name.get(r.userId) ?? null, meta) : 'System',
+      actor: r.userId ? name.get(r.userId) ?? null : 'System',
       at: r.createdAt,
       read: read.has(`audit:${r.id}`),
     }];
@@ -177,8 +171,6 @@ export type NotificationSummary = {
   /** Changes whenever something new arrives — the bell plays a sound. */
   signature: string;
   muted: boolean;
-  /** Unread messages in the person's own connected work mailbox (never during an assisted session). */
-  mailUnread?: number;
 };
 
 // Per-user summary cache (per server instance): if nothing has changed since
@@ -190,17 +182,6 @@ const SUMMARY_MIN_AGE_MS = 20_000;
 const summaryCache = new Map<string, { pulse: string; at: number; value: NotificationSummary }>();
 function forgetSummary(userId: string) { summaryCache.delete(userId); }
 
-/** The person's unread mail right now (the menu badge): cheap, never cached, 0 during an assisted session. */
-export async function getMailUnreadNow(): Promise<number> {
-  try {
-    const m = await me();
-    if (await currentAssist().catch(() => null)) return 0;
-    return await mailUnreadFor(m.id);
-  } catch {
-    return 0;
-  }
-}
-
 export async function getNotificationSummary(): Promise<NotificationSummary> {
   try {
     const m = await me();
@@ -210,8 +191,6 @@ export async function getNotificationSummary(): Promise<NotificationSummary> {
     // recomputed, but never more than once every 20 s per person: one busy
     // organisation can't make every open tab recompute on every click.
     if (hit && pulse && ((hit.pulse === pulse && Date.now() - hit.at < SUMMARY_TTL_MS) || Date.now() - hit.at < SUMMARY_MIN_AGE_MS)) {
-      // The cache is per person; during an assisted session the colleague's mail count stays theirs.
-      if (hit.value.mailUnread && (await currentAssist().catch(() => null))) return { ...hit.value, mailUnread: 0 };
       return hit.value;
     }
     const value = await computeSummary(m);
@@ -228,23 +207,19 @@ export async function getNotificationSummary(): Promise<NotificationSummary> {
 
 async function computeSummary(m: Me): Promise<NotificationSummary> {
   {
-    const [actions, activity, broadcasts, pref, mailUnread] = await Promise.all([
+    const [actions, activity, broadcasts, pref] = await Promise.all([
       getDashboardNotifications(),
       getActivityFeed({ unreadOnly: true, take: 100 }),
       getMyBroadcasts(),
       prisma.notificationPreference.findUnique({ where: { userId: m.id }, select: { muted: true } }),
-      // A person's mail is theirs alone: an assistant never sees a colleague's count.
-      currentAssist().then((a) => (a ? 0 : mailUnreadFor(m.id))).catch(() => 0),
     ]);
     const unreadBroadcasts = broadcasts.filter((b) => !b.read);
     const signature = [actions.map((a) => a.id).join(','), activity[0]?.key ?? '', unreadBroadcasts[0]?.key ?? ''].join('|');
-    return { actions, unreadActivity: activity, unreadBroadcasts, total: actions.length + activity.length + unreadBroadcasts.length, signature, muted: pref?.muted ?? false, mailUnread };
+    return { actions, unreadActivity: activity, unreadBroadcasts, total: actions.length + activity.length + unreadBroadcasts.length, signature, muted: pref?.muted ?? false };
   }
 }
 
 export async function markNotificationsRead(keys: string[]): Promise<void> {
-  // An assistant looking at a colleague's notifications leaves them unread for the colleague.
-  if (await currentAssist()) return;
   const m = await me();
   forgetSummary(m.id);
   const clean = [...new Set(keys.filter((k) => /^(audit|bc):[A-Za-z0-9_-]+$/.test(k)))].slice(0, 500);
@@ -253,7 +228,6 @@ export async function markNotificationsRead(keys: string[]): Promise<void> {
 
 /** Undo "read" — removes only THIS person's own read markers. */
 export async function markNotificationsUnread(keys: string[]): Promise<void> {
-  if (await currentAssist()) return;
   const m = await me();
   forgetSummary(m.id);
   const clean = [...new Set(keys.filter((k) => /^(audit|bc):[A-Za-z0-9_-]+$/.test(k)))].slice(0, 500);
@@ -269,7 +243,6 @@ export async function markAllRead(kind: 'activity' | 'broadcasts' | 'all'): Prom
 }
 
 export async function setNotificationsMuted(muted: boolean): Promise<void> {
-  await refuseDuringAssist('notifications.mute');
   const m = await me();
   forgetSummary(m.id);
   await prisma.notificationPreference.upsert({ where: { userId: m.id }, create: { userId: m.id, muted }, update: { muted } });

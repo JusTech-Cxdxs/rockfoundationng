@@ -6,15 +6,8 @@ import { RecycleBinPanel } from '@/components/RecycleBinPanel';
 import { guardAnyPage, allows } from '@/lib/authz/server';
 import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
 import { notFound } from 'next/navigation';
-import { durationLabel } from '@/lib/warranty-state';
-import { isPolicyId, policyAuditLabel } from '@/lib/audit-policy-label';
 import { humanizeAction } from '@/lib/humanize-action';
-import { SearchableSelect } from '@/components/SearchableSelect';
 import { IssuedToLinks } from '@/components/IssuedToLinks';
-import { listWarrantyPolicies, getPartWarrantyTrace, getWarrantyRoles, searchPartWarrantyPolicyOptions, loadPartWarrantyPolicyOptions, resolveWarrantyPolicyNames } from '@/lib/actions/warranty';
-import { PartWarrantyTraceTable } from '@/components/PartWarrantyTraceTable';
-import { coverageLabel, REMEDY_LABEL } from '@/lib/warranty-claim-status';
-import { setPartWarrantyPolicyFormAction } from '@/lib/actions/warranty-form-handlers';
 import { getPart, getPartAuditTrail } from '@/lib/actions/store';
 import { getLastEditInfo } from '@/lib/actions/workshop';
 import { createPartFitmentFormAction, updatePartFitmentFormAction, deletePartFitmentFormAction } from '@/lib/actions/store-form-handlers';
@@ -44,7 +37,6 @@ const PART_AUDIT_ACTION_LABEL: Record<string, string> = {
   'part.fitment_removed': 'Vehicle fitment removed',
   'part.selling_price_set': 'Selling price updated',
   'part.target_margin_set': 'Target margin updated',
-  'part.warranty_policy_set': 'Warranty changed',
   'part.stock_levels_set': 'Stock levels changed',
 };
 
@@ -67,29 +59,21 @@ export default async function PartDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; status?: string; editFitmentId?: string; editWarranty?: string }>;
+  searchParams: Promise<{ error?: string; status?: string; editFitmentId?: string }>;
 }) {
   await guardAnyPage(['store.view'], '/inventory');
   const { id } = await params;
-  const { error, status, editFitmentId, editWarranty } = await searchParams;
+  const { error, status, editFitmentId } = await searchParams;
   const part = await getPart(id);
-  const [partWarrantyPolicies, partWarrantyTrace, warrantyRoles] = await Promise.all([listWarrantyPolicies('PART'), getPartWarrantyTrace(id), getWarrantyRoles()]);
   if (!part) notFound();
   // Customer names link to their Customers (CRM) page for those who may open it.
   const canSeeCustomers = await allows('crm.view');
-  // Delivery costs and margins are for the Store, Finance, management and Warranty — not the workshop floor.
+  // Delivery costs and margins are for the Store, Accounts and management — not the workshop floor.
   const [canSeeCosts, canManage] = await Promise.all([Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k, { branchId: part.branchId }))).then((xs) => xs.some(Boolean)), allows('store.parts.manage', { branchId: part.branchId })]);
   const [lastEdit, auditTrail, binOffer, origin] = await Promise.all([
     getLastEditInfo('Part', id, 'part.updated'), getPartAuditTrail(id), getRecycleBinOffer('Part', id),
     provenanceOf({ branchId: part.branchId, createdAt: part.createdAt, createdBy: part.createdBy.fullName, importJobId: part.importJobId, externalSource: part.externalSource, externalId: part.externalId, numberLabel: 'material number' }),
   ]);
-  // Older warranty-change entries stored a policy id — show its name.
-  const policyIdsInTrail = auditTrail
-    .filter((e: (typeof auditTrail)[number]) => e.action === 'part.warranty_policy_set' && e.metadata && typeof e.metadata === 'object')
-    .flatMap((e: (typeof auditTrail)[number]) => [(e.metadata as { from?: unknown }).from, (e.metadata as { to?: unknown }).to])
-    .filter(isPolicyId);
-  const policyNames = await resolveWarrantyPolicyNames(policyIdsInTrail);
-  const policyLabel = (v: unknown) => policyAuditLabel(v, policyNames);
 
   return (
     <div className="p-8">
@@ -141,18 +125,13 @@ export default async function PartDetailPage({
         </div>
       ) : null}
 
-      {status === 'warranty_policy_set' ? (
-        <div className="mb-6 max-w-2xl">
-          <FormFeedbackBanner kind="success" message="Warranty updated — parts released from now on carry this warranty automatically." />
-        </div>
-      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
           {!canSeeCosts ? (
             <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
               <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Stock</h2>
-              <p className="mt-1 text-sm text-[var(--ejo-text-muted)]">Stock on hand is shown alongside. Delivery costs, batches and profit are kept to the Store, Finance and management.</p>
+              <p className="mt-1 text-sm text-[var(--ejo-text-muted)]">Stock on hand is shown alongside. Delivery costs, batches and profit are kept to the Store, Accounts and management.</p>
             </div>
           ) : part.trackingType === 'BATCH' ? (
             <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
@@ -275,13 +254,13 @@ export default async function PartDetailPage({
                   {part.batches.some((b: (typeof part.batches)[number]) => b.consumptions.length > 0) ? (
                     <div className="mt-4 border-t border-[var(--ejo-border)] pt-4">
                       <p className="mb-2 text-xs font-medium text-[var(--ejo-text-muted)]">
-                        Sold to: every issue from this batch, for warranty or defect tracing
+                        Sold to: every issue from this batch, for defect tracing
                       </p>
                       <div className="space-y-1.5">
                         {part.batches
                           .flatMap((batch: (typeof part.batches)[number]) => batch.consumptions.map((c: (typeof batch.consumptions)[number]) => ({ batch, c })))
                           .map(({ batch, c }: { batch: (typeof part.batches)[number]; c: (typeof part.batches)[number]['consumptions'][number] }) => {
-                            const source = c.slipLine.slip.jobCard ?? c.slipLine.slip.vehicleService;
+                            const source = c.slipLine.slip.jobCard;
                             return (
                               <div key={c.id} className="flex items-center justify-between text-xs">
                                 <span className="text-[var(--ejo-text)]">
@@ -405,7 +384,7 @@ export default async function PartDetailPage({
                   {part.serials.some((x: (typeof part.serials)[number]) => x.issuedToSlipLine) ? (
                     <div className="mt-4 border-t border-[var(--ejo-border)] pt-4">
                       <p className="mb-2 text-xs font-medium text-[var(--ejo-text-muted)]">
-                        Sold to: every issue of this part, for warranty or defect tracing
+                        Sold to: every issue of this part, for defect tracing
                       </p>
                       <div className="space-y-1.5">
                         {part.serials
@@ -413,7 +392,7 @@ export default async function PartDetailPage({
                           .map((x: (typeof part.serials)[number]) => {
                             // Same as Batch "Sold To", plus the serial number.
                             const slip = x.issuedToSlipLine!.slip;
-                            const owner = slip.jobCard?.customer ?? slip.vehicleService?.customer ?? null;
+                            const owner = slip.jobCard?.customer ?? null;
                             return (
                               <div key={x.id} className="flex items-center justify-between gap-3 text-xs">
                                 <span className="text-[var(--ejo-text)]">
@@ -566,11 +545,11 @@ export default async function PartDetailPage({
               {part.quantityConsumptions.length > 0 ? (
                 <div className="mt-6 border-t border-[var(--ejo-border)] pt-4">
                   <p className="mb-2 text-xs font-medium text-[var(--ejo-text-muted)]">
-                    Sold to: every issue of this part, for warranty or defect tracing
+                    Sold to: every issue of this part, for defect tracing
                   </p>
                   <div className="space-y-1.5">
                     {part.quantityConsumptions.map((c: (typeof part.quantityConsumptions)[number]) => {
-                      const source = c.slipLine.slip.jobCard ?? c.slipLine.slip.vehicleService;
+                      const source = c.slipLine.slip.jobCard;
                       const allocations = part.quantityTrace?.fifo.allocations.get(c.id) ?? [];
                       return (
                         <div key={c.id} className="flex items-center justify-between gap-3 text-xs">
@@ -803,70 +782,6 @@ export default async function PartDetailPage({
               </form>
             </details>
           </div>
-          {(() => {
-            const current = partWarrantyPolicies.find((p: (typeof partWarrantyPolicies)[number]) => p.id === part.warrantyPolicyId) ?? null;
-            const editing = editWarranty === '1' && warrantyRoles.canApprove;
-            return (
-              <div id="warranty" className="scroll-mt-24 rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Warranty</h2>
-                  {warrantyRoles.canApprove && !editing ? (
-                    <LoadingLink href={`/inventory/parts/${part.id}?editWarranty=1#warranty`} className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-3 py-1 text-xs font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]">
-                      {current ? 'Change' : 'Add warranty'}
-                    </LoadingLink>
-                  ) : null}
-                </div>
-                {editing ? (
-                  <div className="mt-3 space-y-3">
-                    <form action={setPartWarrantyPolicyFormAction} className="space-y-2">
-                      <FormPendingOverlay />
-                      <input type="hidden" name="partId" value={part.id} />
-                      <label className="block text-xs font-medium text-[var(--ejo-text-muted)]">Warranty policy</label>
-                      <SearchableSelect
-                        name="policyId"
-                        required
-                        search={searchPartWarrantyPolicyOptions}
-                        loadDefaultOptions={loadPartWarrantyPolicyOptions}
-                        defaultOptionsLabel="Active part policies"
-                        placeholder="Search policies by name, code or provider…"
-                        emptyMessage="No active part policy matches — add one under Warranty → Policies."
-                        minQueryLength={1}
-                        defaultValue={current?.id}
-                        defaultLabel={current ? `${current.name} — ${durationLabel(current)}${current.distanceLimit ? ` / ${current.distanceLimit.toLocaleString('en-NG')} km` : ''}` : undefined}
-                      />
-                      <div className="flex gap-2">
-                        <SubmitButton label="Save" pendingLabel="Saving…" className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90" />
-                        <LoadingLink href={`/inventory/parts/${part.id}#warranty`} className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]">Cancel</LoadingLink>
-                      </div>
-                    </form>
-                    {current ? (
-                      <form action={setPartWarrantyPolicyFormAction}>
-                        <FormPendingOverlay />
-                        <input type="hidden" name="partId" value={part.id} />
-                        <input type="hidden" name="policyId" value="" />
-                        <SubmitButton label="Remove warranty from this part" pendingLabel="Removing…" className="text-xs font-medium text-[var(--ejo-error)] hover:underline" />
-                      </form>
-                    ) : null}
-                    <p className="text-[11px] text-[var(--ejo-text-muted)]">Applies to units released from now on; warranties already issued keep their terms. The warranty department is emailed.</p>
-                  </div>
-                ) : current ? (
-                  <div className="mt-2 space-y-1 text-sm">
-                    <p className="text-[var(--ejo-text)]">
-                      <LoadingLink href={`/warranty/policies/${current.id}`} className="font-medium text-[var(--ejo-primary)] hover:underline">{current.name}</LoadingLink> ({current.code})
-                      {current.isSample ? <span className="ml-2 rounded-full bg-[var(--ejo-warning)]/15 px-2 py-0.5 text-[11px] font-medium text-[var(--ejo-warning)]">Sample terms</span> : null}
-                    </p>
-                    <p className="text-xs text-[var(--ejo-text-muted)]">
-                      {durationLabel(current)}{current.distanceLimit ? ` or ${current.distanceLimit.toLocaleString('en-NG')} km, whichever comes first` : ''} · pays for {coverageLabel(current).toLowerCase()} · remedy: {(REMEDY_LABEL[current.defaultRemedy] ?? '').toLowerCase()} · {current.provider.name}
-                    </p>
-                    <p className="text-xs text-[var(--ejo-text-muted)]">Every unit released to a customer gets its own warranty number automatically.</p>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-sm text-[var(--ejo-text-muted)]">No warranty.</p>
-                )}
-              </div>
-            );
-          })()}
-          {part.warrantyPolicyId || partWarrantyTrace.length > 0 ? <PartWarrantyTraceTable rows={partWarrantyTrace} canSeeCustomers={canSeeCustomers} /> : null}
         </div>
 
         <div className="h-fit space-y-4 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto xl:pb-6">
@@ -937,11 +852,6 @@ export default async function PartDetailPage({
                           const f = (v: number | null | undefined) => (v === null || v === undefined ? 'not set' : String(v));
                           return `Reorder ${f(m.from?.reorderPoint)} → ${f(m.to?.reorderPoint)} · safety ${f(m.from?.safetyStock)} → ${f(m.to?.safetyStock)}`;
                         })()}
-                      </p>
-                    ) : null}
-                    {entry.action === 'part.warranty_policy_set' && entry.metadata && typeof entry.metadata === 'object' ? (
-                      <p className="text-xs text-[var(--ejo-text)]">
-                        {policyLabel((entry.metadata as { from?: unknown }).from)} → {policyLabel((entry.metadata as { to?: unknown }).to)}
                       </p>
                     ) : null}
                     <p className="text-xs text-[var(--ejo-text-muted)]">{entry.userName}</p>

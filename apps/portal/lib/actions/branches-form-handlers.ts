@@ -31,7 +31,6 @@ export async function updateBranchFormAction(formData: FormData) {
       bankName: String(formData.get('bankName') ?? ''),
       bankAccountName: String(formData.get('bankAccountName') ?? ''),
       bankAccountNumber: String(formData.get('bankAccountNumber') ?? ''),
-      ...(formData.has('sapPlant') ? { sapPlant: String(formData.get('sapPlant') ?? '') } : {}),
       ...(formData.has('type') ? { type: String(formData.get('type') ?? '') } : {}),
     });
   } catch (err) {

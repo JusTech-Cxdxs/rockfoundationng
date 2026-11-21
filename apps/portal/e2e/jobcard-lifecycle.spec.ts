@@ -6,7 +6,7 @@ import {
   addLine, assignTechnician, expectStatus, jobNumber, jcForm, nextStep, notifyCustomer, openJobCard, recordPayment,
   requestStoreMatching, statusPanel, storeMatchesAll, submitEstimate, supervisorApproves, supervisorApprovesEstimate, technicianAccepts,
 } from './workflows';
-import { EXTERNAL_PROCUREMENT_ENABLED, EXTERNAL_PROCUREMENT_OFF, INVENTORY_ENABLED, INVENTORY_OFF, WARRANTY_ENABLED, WARRANTY_OFF } from './edition';
+import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
  * One Job Card, A to Z, by the people who really do each step:
@@ -16,15 +16,12 @@ import { EXTERNAL_PROCUREMENT_ENABLED, EXTERNAL_PROCUREMENT_OFF, INVENTORY_ENABL
  * approved by the supervisor → the same person may NOT give the Manager's
  * final approval (segregation of duties) → another Manager does → front desk
  * notifies the customer (email in Mailpit) → Finance records the 70% deposit
- * (a double click records ONE payment) → In Progress → parts request: HOD →
- * Store reserves → Store releases (stock moves, part warranty issued) →
- * outside purchase: Finance review → Manager → Finance disburses → quality
+ * (a double click records ONE payment) → In Progress → parts request:
+ * supervisor → Store reserves → Store releases (stock moves) → quality
  * check → completed → ready → balance paid → close requested → Manager
  * approves → checked out. Audit trail and notifications checked on the way.
- * The D'Phoenix edition has no Store, Warranty or outside purchases
- * (edition.ts): there the brake pads are an outside part the technician
- * prices, and the parts request, the part warranty and the outside purchase
- * are skipped — the rest of the story is the same.
+ * With the Store switched off (edition.ts) the brake pads are an outside part
+ * the technician prices, and the parts request steps are skipped.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -144,7 +141,7 @@ test('Finance records the 70% deposit — a double click records ONE payment —
   expect(await paymentsOn(S.id)).toBe(1);
 });
 
-test('parts: technician requests → HOD approves → Store reserves → Store releases (stock moves, warranty issued)', async ({ page }) => {
+test('parts: technician requests → supervisor approves → Store reserves → Store releases (stock moves)', async ({ page }) => {
   test.skip(!INVENTORY_ENABLED, INVENTORY_OFF);
   await as(page, 'store-manager');
   S.stockBefore = await readStock(page, S.partUrl);
@@ -179,68 +176,14 @@ test('parts: technician requests → HOD approves → Store reserves → Store r
     await open(page, S.prsUrl);
     await page.getByRole('button', { name: 'Release', exact: true }).click();
     await expect(page.getByText('Released.', { exact: true })).toBeVisible();
-    if (WARRANTY_ENABLED) await expect(page.getByText(/Warranties issued with this release/)).toBeVisible();
     const s = await readStock(page, S.partUrl);
     expect(s.onHand).toBe(S.stockBefore.onHand - 2);
     expect(s.reserved).toBe(S.stockBefore.reserved);
   });
-  await test.step('the Job Card resumes and lists the part warranty', async () => {
+  await test.step('the Job Card resumes', async () => {
     await open(page, S.url);
     await expectStatus(page, 'In Progress');
-    if (WARRANTY_ENABLED) await expect(page.getByRole('heading', { name: 'Warranties issued' })).toBeVisible();
   });
-});
-
-test('the data-change journal records the part warranty issued with the release', async () => {
-  test.skip(!INVENTORY_ENABLED || !WARRANTY_ENABLED, !INVENTORY_ENABLED ? INVENTORY_OFF : WARRANTY_OFF);
-  const warranties = await db().warranty.findMany({ where: { jobCardId: S.id }, select: { id: true } });
-  expect(warranties.length, 'a part warranty was issued').toBeGreaterThan(0);
-  const rows = await db().auditLog.count({ where: { entityType: 'db:Warranty', action: 'data.create', metadata: { path: ['after', 'jobCardId'], equals: S.id } } });
-  expect(rows, `journal rows for the warranties created for this Job Card${rows ? '' : ` — ${await journalDiagnosis(who('administrator').email)}`}`).toBe(warranties.length);
-});
-
-test('each journal row names the record it changed (the issued warranty)', async () => {
-  test.skip(!INVENTORY_ENABLED || !WARRANTY_ENABLED, !INVENTORY_ENABLED ? INVENTORY_OFF : WARRANTY_OFF);
-  const warranties = await db().warranty.findMany({ where: { jobCardId: S.id }, select: { id: true } });
-  const linked = await db().auditLog.count({ where: { entityType: 'db:Warranty', entityId: { in: warranties.map((w) => w.id) } } });
-  expect(linked, 'journal rows that name the issued warranties').toBe(warranties.length);
-});
-
-test('outside purchase: technician requests → Finance reviews → Manager approves → Finance disburses', async ({ page }) => {
-  test.skip(!EXTERNAL_PROCUREMENT_ENABLED, EXTERNAL_PROCUREMENT_OFF);
-  await as(page, 'technician');
-  await open(page, S.url);
-  await expect(page.getByRole('link', { name: '+ Request Procurement' })).toHaveAttribute('href', `${S.url}/request-procurement`);
-  // open() waits for the page to settle, so the button is live before it is pressed.
-  await open(page, `${S.url}/request-procurement`);
-  await expect(page.getByRole('heading', { name: 'Request External Procurement' })).toBeVisible();
-  await page.getByRole('button', { name: 'Raise Procurement Request' }).click();
-  await waitOutcome(page, /status=procurement_requested/);
-  await expectStatus(page, 'Awaiting Parts');
-  await page.getByRole('link', { name: /^EPR-/ }).first().click();
-  await page.waitForURL(/\/workshop\/external-procurement\//);
-  S.eprUrl = new URL(page.url()).pathname;
-
-  await as(page, 'finance-officer');
-  await open(page, S.eprUrl);
-  await expect(page.getByRole('heading', { name: 'Finance Review' })).toBeVisible();
-  await page.getByRole('button', { name: 'Send to Manager' }).click();
-  await expect(page.getByText('Sent to the Manager for approval.')).toBeVisible();
-
-  await as(page, 'workshop-manager');
-  await open(page, S.eprUrl);
-  await page.getByRole('heading', { name: 'Manager Approval' }).locator('..').getByRole('button', { name: 'Approve' }).click();
-  await expect(page.getByText('Approved — now awaiting Finance disbursement.')).toBeVisible();
-
-  await as(page, 'finance-officer');
-  await open(page, S.eprUrl);
-  await page.locator('input[name="paymentMethod"]').fill('Cash');
-  await page.locator('textarea[name="disbursementNotes"]').fill('Cash advance to the technician');
-  await page.getByRole('button', { name: 'Disburse' }).click();
-  await expect(page.getByText('Disbursed.', { exact: true })).toBeVisible();
-
-  await open(page, S.url);
-  await expectStatus(page, 'In Progress');
 });
 
 test('quality check → completed → ready; balance paid; close approved; vehicle checked out', async ({ page, request }) => {

@@ -2,8 +2,6 @@ import { guardAnyPage, allows } from '@/lib/authz/server';
 import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
 import { notFound } from 'next/navigation';
 import { humanizeAction } from '@/lib/humanize-action';
-import { listWarrantiesFor } from '@/lib/actions/warranty';
-import { WarrantyList } from '@/components/WarrantyList';
 import { getGoodsReceipt, getGoodsReceiptAuditTrail } from '@/lib/actions/store';
 import { updateGoodsReceiptFormAction } from '@/lib/actions/store-form-handlers';
 import { formatDateTime } from '@/lib/utils/format-date';
@@ -29,15 +27,15 @@ const AUDIT_ACTION_LABEL: Record<string, string> = {
  */
 type ReceiptWithTrace = NonNullable<Awaited<ReturnType<typeof getGoodsReceipt>>>;
 type ReceiptLine = ReceiptWithTrace['lines'][number];
-type SlipDestination = { id: string; referenceNumber: string; jobCard: { jobNumber: string; customer: { id?: string; fullName: string } } | null; vehicleService: { serviceNumber: string; customer: { id?: string; fullName: string } } | null };
+type SlipDestination = { id: string; referenceNumber: string; jobCard: { jobNumber: string; customer: { id?: string; fullName: string } } | null };
 
 function destination(slip: SlipDestination, quantity: number, detail: string | null): GoodsReceiptLineStockTrace['issuedTo'][number] {
   return {
     slipId: slip.id,
     referenceNumber: slip.referenceNumber,
-    sourceNumber: slip.jobCard?.jobNumber ?? slip.vehicleService?.serviceNumber ?? null,
-    customerName: slip.jobCard?.customer.fullName ?? slip.vehicleService?.customer.fullName ?? null,
-    customerId: slip.jobCard?.customer.id ?? slip.vehicleService?.customer.id ?? null,
+    sourceNumber: slip.jobCard?.jobNumber ?? null,
+    customerName: slip.jobCard?.customer.fullName ?? null,
+    customerId: slip.jobCard?.customer.id ?? null,
     quantity,
     detail,
   };
@@ -113,7 +111,7 @@ export default async function GoodsReceiptDetailPage({
   await guardAnyPage(STORE_COST_PERMISSIONS, '/inventory/goods-receipts');
   const { id } = await params;
   const { error, status } = await searchParams;
-  const [receipt, auditTrail, grnWarranties] = await Promise.all([getGoodsReceipt(id), getGoodsReceiptAuditTrail(id), listWarrantiesFor({ goodsReceiptId: id })]);
+  const [receipt, auditTrail] = await Promise.all([getGoodsReceipt(id), getGoodsReceiptAuditTrail(id)]);
   if (!receipt) notFound();
   // Customer names link to their Customers (CRM) page for those who may open it.
   const canSeeCustomers = await allows('crm.view');
@@ -200,10 +198,6 @@ export default async function GoodsReceiptDetailPage({
               ))}
             </div>
           </div>
-          <WarrantyList
-            warranties={grnWarranties}
-            title="Warranties issued from this receipt's stock"
-          />
         </div>
 
         <div className="h-fit rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 xl:sticky xl:top-6 xl:max-h-[calc(100vh-3rem)] xl:overflow-y-auto">

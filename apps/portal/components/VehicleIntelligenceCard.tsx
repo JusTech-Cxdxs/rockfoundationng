@@ -35,7 +35,7 @@ export function VehicleIntelligenceCard({ vi }: { vi: VehicleIntelligence }) {
           <dl className="mt-2 space-y-1 text-sm">
             <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Visits</dt><dd>{d.visits}</dd></div>
             <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Customer spend (approved)</dt><dd>{naira(d.customerSpend)}</dd></div>
-            <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Covered (warranty / goodwill)</dt><dd className="text-[var(--ejo-success)]">{naira(d.coveredValue)}</dd></div>
+            <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Covered (warranty, goodwill, internal)</dt><dd className="text-[var(--ejo-success)]">{naira(d.coveredValue)}</dd></div>
             <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Outstanding</dt><dd className={d.outstanding > 0 ? 'text-[var(--ejo-error)]' : ''}>{naira(d.outstanding)}</dd></div>
             <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Km recorded</dt><dd>{d.kmRecorded === null ? '—' : `${d.kmRecorded.toLocaleString('en-NG')} km`}</dd></div>
             <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Pace</dt><dd>{d.kmPerDay === null ? 'needs 2 readings' : `${d.kmPerDay.toLocaleString('en-NG')} km a day`}</dd></div>
@@ -49,12 +49,6 @@ export function VehicleIntelligenceCard({ vi }: { vi: VehicleIntelligence }) {
               <dt className="text-[var(--ejo-text-muted)]">Next service</dt>
               <dd>{p.serviceDue ? `${formatDateOnly(p.serviceDue.date)}${p.serviceDue.reason === 'km' ? ' (by km)' : ''}` : '—'}</dd>
             </div>
-            {p.warrantyEnds.map((w) => (
-              <div key={w.id} className="flex justify-between gap-2">
-                <dt className="text-[var(--ejo-text-muted)]"><LoadingLink href={`/warranty/${w.id}`} className="text-[var(--ejo-primary)] hover:underline">{w.number}</LoadingLink> ends</dt>
-                <dd>{formatDateOnly(w.date)}{w.reason === 'km' ? ' (by km)' : ''}</dd>
-              </div>
-            ))}
           </dl>
           <p className="mt-2 text-[11px] text-[var(--ejo-text-muted)]">Km-based dates use this vehicle&apos;s own recorded pace.</p>
         </div>

@@ -1,27 +1,22 @@
 import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
 import { provenanceOf } from '@/lib/data-exchange/provenance-server';
 import { ProvenanceCard } from '@/components/ProvenanceCard';
-import { actorLabel } from '@/lib/assist/rules';
 import { guardAnyPage, allows } from '@/lib/authz/server';
 import { notFound } from 'next/navigation';
 import { listPartsFittedToVehicle, getVehicleCoveredValue, getVehicleHistoryBeforeEjo } from '@/lib/actions/vehicle-history';
 import { naira as nairaText } from '@/lib/crm';
 import { computeVehicleIntelligence } from '@/lib/vehicle-intelligence';
 import { VehicleIntelligenceCard } from '@/components/VehicleIntelligenceCard';
-import { warrantyCoverage } from '@/lib/warranty-state';
 import { VehiclePartsFitted } from '@/components/VehiclePartsFitted';
 import { humanizeAction } from '@/lib/humanize-action';
-import { listWarrantiesFor } from '@/lib/actions/warranty';
-import { WarrantyList } from '@/components/WarrantyList';
-import { featureOn, moduleIsOn } from '@/lib/modules';
-import { bookServiceHref, separateVehicleServiceOn, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
+import { moduleIsOn } from '@/lib/modules';
+import { bookServiceHref, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
 import { getVehicle, getLastEditInfo, getVehicleAuditTrail } from '@/lib/actions/workshop';
 import { getRecycleBinOffer } from '@/lib/actions/recycle-bin';
 import { RecycleBinPanel } from '@/components/RecycleBinPanel';
-import { getVehicleServiceHealth, getVehicleAnalytics } from '@/lib/actions/vehicle-service';
-import { getVehicleReminderHistory } from '@/lib/actions/vehicle-service-reminders';
+import { getVehicleServiceHealth, getVehicleAnalytics, getVehicleReminderHistory } from '@/lib/actions/service-tracking';
 import { updateVehicleFormAction } from '@/lib/actions/workshop-form-handlers';
-import { sendManualServiceReminderFormAction } from '@/lib/actions/vehicle-service-form-handlers';
+import { sendManualServiceReminderFormAction } from '@/lib/actions/service-tracking-form-handlers';
 import { WhatsAppLink } from '@/components/WhatsAppLink';
 import { customerWhatsAppUrl, serviceReminderMessage } from '@/lib/whatsapp-messages';
 import { getWorkshopBranchId, workshopContactFor } from '@/lib/workshop-core';
@@ -95,10 +90,8 @@ export default async function VehiclePage({
   const { id } = await params;
   const { error, edit, status } = await searchParams;
   // Everything on this page needs only the vehicle's id — one round, all at once.
-  const [vehicle, vehicleWarranties, partsFitted, lastEdit, auditTrail, binOffer, serviceHealth, analytics, reminderHistory, coveredValue, beforeEjo] = await Promise.all([
+  const [vehicle, partsFitted, lastEdit, auditTrail, binOffer, serviceHealth, analytics, reminderHistory, coveredValue, beforeEjo] = await Promise.all([
     getVehicle(id),
-    // No warranties to show or register when Warranty is switched off (the D'Phoenix Autocare edition).
-    moduleIsOn('warranty') ? listWarrantiesFor({ vehicleId: id }) : Promise.resolve([]),
     listPartsFittedToVehicle(id),
     getLastEditInfo('CustomerVehicle', id, 'vehicle.updated'),
     getVehicleAuditTrail(id),
@@ -123,12 +116,7 @@ export default async function VehiclePage({
     partsFitted: partsFitted.map((r: (typeof partsFitted)[number]) => ({
       partId: r.part.id, partName: r.part.name, date: r.slip.releasedAt, slipId: r.slip.id,
       jobCard: r.slip.jobCard ? { id: r.slip.jobCard.id, number: r.slip.jobCard.jobNumber } : null,
-      vehicleService: r.slip.vehicleService ? { id: r.slip.vehicleService.id, number: r.slip.vehicleService.serviceNumber } : null,
     })),
-    warranties: vehicleWarranties.map((w: (typeof vehicleWarranties)[number]) => {
-      const cov = warrantyCoverage(w, w.vehicle?.mileage ?? null);
-      return { id: w.id, number: w.warrantyNumber, endsAt: new Date(w.endsAt), distanceEnd: w.startReading !== null && w.distanceLimit !== null ? w.startReading + w.distanceLimit : null, covering: cov.state === 'COVERED' || cov.state === 'EXPIRING_SOON' };
-    }),
     service: serviceHealth ? { dueDate: serviceHealth.nextServiceDueDate ? new Date(serviceHealth.nextServiceDueDate) : null, dueKm: serviceHealth.nextServiceDueOdometer } : null,
   });
   const isEditing = edit === 'true';
@@ -367,7 +355,7 @@ export default async function VehiclePage({
                   entries={auditTrail.map((entry: (typeof auditTrail)[number]) => ({
                     id: entry.id,
                     actionLabel: AUDIT_ACTION_LABEL[entry.action] ?? humanizeAction(entry.action),
-                    userName: actorLabel(entry.user?.fullName ?? null, entry.metadata),
+                    userName: entry.user?.fullName ?? null,
                     detail: formatAuditDetail(entry),
                     dateLabel: formatDateTime(entry.createdAt),
                   }))}
@@ -436,7 +424,7 @@ export default async function VehiclePage({
                 <p className="mt-2 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-info)]/40 bg-[var(--ejo-info)]/10 px-3 py-2 text-xs text-[var(--ejo-text)]">
                   In the workshop now on{' '}
                   <LoadingLink
-                    href={serviceHealth.inWorkshop.kind === 'JOB_CARD' ? `/workshop/job-cards/${serviceHealth.inWorkshop.id}` : `/workshop/vehicle-service/${serviceHealth.inWorkshop.id}`}
+                    href={`/workshop/job-cards/${serviceHealth.inWorkshop.id}`}
                     className="font-medium text-[var(--ejo-primary)] hover:underline"
                   >
                     {serviceHealth.inWorkshop.number}
@@ -481,14 +469,9 @@ export default async function VehiclePage({
                 <LoadingLink href={serviceHealth.serviceHref} className="text-[var(--ejo-primary)] hover:underline">
                   View {serviceHealth.serviceNumber}
                 </LoadingLink>
-                {serviceHealth.viaJobCard ? (
-                  <LoadingLink href={`/workshop/job-cards/${serviceHealth.viaJobCard.id}`} className="text-[var(--ejo-primary)] hover:underline">
-                    Serviced on {serviceHealth.viaJobCard.jobNumber}
-                  </LoadingLink>
-                ) : null}
                 {!serviceHealth.inWorkshop ? (
                   <LoadingLink href={bookServiceHref(vehicle.id)} className="text-[var(--ejo-primary)] hover:underline">
-                    {separateVehicleServiceOn() ? 'Book in for service' : OPEN_SERVICE_JOB_CARD}
+                    {OPEN_SERVICE_JOB_CARD}
                   </LoadingLink>
                 ) : null}
                 <LoadingLink href="/workshop/service-tracker" className="text-[var(--ejo-primary)] hover:underline">
@@ -498,23 +481,6 @@ export default async function VehiclePage({
             </div>
           ) : null}
 
-          {!moduleIsOn('warranty') ? null : vehicleWarranties.length > 0 ? (
-            <div className="space-y-2">
-              <WarrantyList warranties={vehicleWarranties} title="Warranties" />
-              <LoadingLink href={`/warranty/register?vehicleId=${vehicle.id}`} className="inline-block text-xs text-[var(--ejo-primary)] hover:underline">
-                Register another vehicle warranty →
-              </LoadingLink>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] px-5 py-3">
-              <p className="text-sm text-[var(--ejo-text-muted)]">
-                <span className="font-semibold text-[var(--ejo-text)]">Warranty</span> · No warranty on this vehicle
-              </p>
-              <LoadingLink href={`/warranty/register?vehicleId=${vehicle.id}`} className="text-xs font-medium text-[var(--ejo-primary)] hover:underline">
-                Register a vehicle warranty →
-              </LoadingLink>
-            </div>
-          )}
           <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
           <h2 className="text-sm font-semibold text-[var(--ejo-text)]">History</h2>
           <dl className="mt-3 space-y-3 text-sm">
@@ -540,7 +506,7 @@ export default async function VehiclePage({
           </div>
 
           <ProvenanceCard p={origin} />
-          {beforeEjo.checks.length || beforeEjo.invoices.length || beforeEjo.jobs.length ? <BeforeEjo data={beforeEjo} /> : null}
+          {beforeEjo.invoices.length || beforeEjo.jobs.length ? <BeforeEjo data={beforeEjo} /> : null}
 
           <RecycleBinPanel offer={binOffer} entity="CustomerVehicle" id={vehicle.id} />
         </div>
@@ -563,9 +529,7 @@ export default async function VehiclePage({
             slipId: r.slip.id,
             slipNumber: r.slip.referenceNumber,
             jobCard: r.slip.jobCard ? { id: r.slip.jobCard.id, number: r.slip.jobCard.jobNumber } : null,
-            vehicleService: r.slip.vehicleService ? { id: r.slip.vehicleService.id, number: r.slip.vehicleService.serviceNumber } : null,
-            customer: r.slip.jobCard?.customer.fullName ?? r.slip.vehicleService?.customer.fullName ?? null,
-            warranties: r.warranties.map((w: { id: string; warrantyNumber: string }) => ({ id: w.id, number: w.warrantyNumber })),
+            customer: r.slip.jobCard?.customer.fullName ?? null,
           }))}
         />
       </div>
@@ -582,8 +546,7 @@ export default async function VehiclePage({
                 data={analytics.mileageTimeline.map((p) => ({
                   label: p.label,
                   mileage: p.mileage,
-                  dateLabel: `${formatDateOnly(p.date)} — ${p.source === 'JOB_CARD' ? 'Job Card' : 'Vehicle Service'}`,
-                  source: p.source,
+                  dateLabel: `${formatDateOnly(p.date)} — Job Card ${p.label}`,
                 }))}
                 predictedMileage={serviceHealth?.nextServiceDueOdometer ?? undefined}
                 predictedLabel="Next Due"
@@ -607,8 +570,8 @@ export default async function VehiclePage({
             {analytics.latestInspection ? (
               <>
                 <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
-                  Current condition — latest inspection ({analytics.latestInspection.serviceNumber}
-                  {analytics.latestInspection.completedAt ? `, ${formatDateOnly(analytics.latestInspection.completedAt)}` : ''}). It stays here as the vehicle&apos;s record after the service is completed.
+                  Current condition — latest inspection ({analytics.latestInspection.jobNumber}
+                  {analytics.latestInspection.completedAt ? `, ${formatDateOnly(analytics.latestInspection.completedAt)}` : ''}). It stays here as the vehicle&apos;s record after the job is finished.
                 </p>
                 <VehicleFindingsBreakdownChart data={analytics.latestInspection.breakdown} />
                 <p className="mt-2 text-xs text-[var(--ejo-text-muted)]">
@@ -631,41 +594,18 @@ export default async function VehiclePage({
                     <div>
                       <dt className="text-xs text-[var(--ejo-text-muted)]">Total Visits</dt>
                       <dd className="mt-1 text-2xl font-bold text-[var(--ejo-text)]">{analytics.totalVisits}</dd>
-                      <dd className="text-xs text-[var(--ejo-text-muted)]">
-                        {analytics.jobCardVisits} Job Card · {analytics.serviceVisits} Vehicle Service
-                      </dd>
                     </div>
                     <div>
                       <dt className="text-xs text-[var(--ejo-text-muted)]">Total Approved Value</dt>
                       <dd className="mt-1 text-2xl font-bold text-[var(--ejo-text)]">{naira(analytics.totalSpend)}</dd>
                     </div>
                   </dl>
-                  <table className="mt-4 w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-[var(--ejo-border)] text-left text-[var(--ejo-text-muted)]">
-                        <th className="pb-1.5" />
-                        <th className="pb-1.5 text-right">Approved</th>
-                        <th className="pb-1.5 text-right">Paid</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-b border-[var(--ejo-border)]">
-                        <td className="py-1.5 text-[var(--ejo-text)]">Job Cards (repairs)</td>
-                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.approvedJobCard)}</td>
-                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.paidJobCard)}</td>
-                      </tr>
-                      <tr className="border-b border-[var(--ejo-border)]">
-                        <td className="py-1.5 text-[var(--ejo-text)]">Vehicle Services (routine)</td>
-                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.approvedService)}</td>
-                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.paidService)}</td>
-                      </tr>
-                      <tr className="font-semibold">
-                        <td className="py-1.5 text-[var(--ejo-text)]">Total</td>
-                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.totalSpend)}</td>
-                        <td className="py-1.5 text-right text-[var(--ejo-text)]">{naira(analytics.totalPaid)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <dl className="mt-4 grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <dt className="text-[var(--ejo-text-muted)]">Paid</dt>
+                      <dd className="mt-1 text-base font-semibold text-[var(--ejo-text)]">{naira(analytics.totalPaid)}</dd>
+                    </div>
+                  </dl>
                   <p className={`mt-3 text-xs font-medium ${analytics.outstanding > 0 ? 'text-[var(--ejo-warning)]' : 'text-[var(--ejo-success)]'}`}>
                     {analytics.outstanding > 0 ? `Outstanding: ${naira(analytics.outstanding)}` : 'Nothing outstanding.'}
                   </p>
@@ -762,32 +702,15 @@ export default async function VehiclePage({
   );
 }
 
-const CHECK_KIND: Record<string, string> = { PRODUCTION: 'Production', QC: 'Quality check', PDI: 'Pre-delivery inspection' };
-const RESULT_TONE: Record<string, string> = { PASS: 'text-[var(--ejo-success)]', FAIL: 'text-[var(--ejo-error)]', REWORK: 'text-[var(--ejo-warning-text)]', OPEN: 'text-[var(--ejo-text-muted)]' };
-const RESULT_WORD: Record<string, string> = { PASS: 'Pass', FAIL: 'Fail', REWORK: 'Rework', OPEN: 'Open' };
 const dayText = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
 
 /** Before EJO 100: the plant registers (production, QC, PDI), past job cards and invoices for this vehicle — read-only history. */
 function BeforeEjo({ data }: { data: Awaited<ReturnType<typeof getVehicleHistoryBeforeEjo>> }) {
-  const sapTotal = data.invoices.reduce((s, i) => s + i.amount, 0);
+  const invoicesTotal = data.invoices.reduce((s, i) => s + i.amount, 0);
   return (
     <div id="before-ejo" className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5">
-      <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Before EJO 100</h2>
-      <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">{featureOn('sap') ? 'Brought in from the plant registers, SAP service orders and SAP invoices.' : `Brought in from ${moduleIsOn('plant') ? 'the plant registers and ' : ''}the old system’s job cards and invoices.`} Read-only history.</p>
-      {data.checks.length ? (
-        <>
-          <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">Production, QC and PDI</h3>
-          <ol className="mt-2 space-y-2.5 border-l border-[var(--ejo-border)] pl-3">
-            {data.checks.map((c) => (
-              <li key={c.id} className="text-sm">
-                <p className="text-[var(--ejo-text)]"><span className="font-medium">{CHECK_KIND[c.kind] ?? c.kind}</span>{c.stage ? ` · ${c.stage}` : ''}{c.result ? <span className={`ml-1.5 font-semibold ${RESULT_TONE[c.result] ?? ''}`}>{RESULT_WORD[c.result] ?? c.result}</span> : null}</p>
-                <p className="text-xs text-[var(--ejo-text-muted)]">{dayText(c.date)}{c.inspector ? ` · ${c.inspector}` : ''}{c.reference ? ` · ${c.reference}` : ''}{c.model ? ` · ${c.model}` : ''}</p>
-                {c.notes ? <p className="text-xs text-[var(--ejo-text)]">{c.notes}</p> : null}
-              </li>
-            ))}
-          </ol>
-        </>
-      ) : null}
+      <h2 className="text-sm font-semibold text-[var(--ejo-text)]">From the previous system</h2>
+      <p className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">Job cards and invoices brought in from the previous system. Read-only history.</p>
       {data.jobs.length ? (
         <>
           <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">Job cards before EJO ({data.jobs.length})</h3>
@@ -808,7 +731,7 @@ function BeforeEjo({ data }: { data: Awaited<ReturnType<typeof getVehicleHistory
       ) : null}
       {data.invoices.length ? (
         <>
-          <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">{featureOn('sap') ? 'Invoices from SAP' : 'Invoices before EJO'} ({nairaText(sapTotal)})</h3>
+          <h3 className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">Invoices before EJO ({nairaText(invoicesTotal)})</h3>
           <ul className="mt-2 divide-y divide-[var(--ejo-border)] text-sm">
             {data.invoices.map((i) => (
               <li key={i.id} className="flex items-start justify-between gap-3 py-2">

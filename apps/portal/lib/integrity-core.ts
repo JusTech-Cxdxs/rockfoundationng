@@ -21,22 +21,14 @@ export function claimed(result: { count: number }, message?: string, expected = 
 /** The only tables/columns lockRows may name. Values are literal SQL identifiers. */
 export const LOCKABLE = {
   jobCard: { table: 'job_cards', column: 'id' },
-  vehicleService: { table: 'vehicle_services', column: 'id' },
   partStockByPart: { table: 'part_stock', column: 'partId' },
-  warrantyClaim: { table: 'warranty_claims', column: 'id' },
-  warranty: { table: 'warranties', column: 'id' },
   user: { table: 'users', column: 'id' },
-  meetingRoom: { table: 'meeting_rooms', column: 'id' },
   role: { table: 'roles', column: 'id' },
   partRequestSlip: { table: 'part_request_slips', column: 'id' },
   customerVehicle: { table: 'customer_vehicles', column: 'id' },
   customer: { table: 'customers', column: 'id' },
   part: { table: 'parts', column: 'id' },
   supplier: { table: 'suppliers', column: 'id' },
-  plantShipment: { table: 'plant_shipments', column: 'id' },
-  plantVehicle: { table: 'plant_vehicles', column: 'id' },
-  plantKit: { table: 'plant_kits', column: 'id' },
-  plantKitIssue: { table: 'plant_kit_issues', column: 'id' },
 } as const;
 export type LockTarget = keyof typeof LOCKABLE;
 

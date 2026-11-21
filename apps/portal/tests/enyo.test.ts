@@ -313,7 +313,6 @@ test('next step follows the record\'s state', () => {
   assert.deepEqual(paymentPosition(100000, 20000, 0), { label: 'Part paid, balance pending', balance: 80000 });
   assert.match(nextStep({ ...base, status: 'READY_FOR_COLLECTION', paid: 100000 }), /requests the close/);
   assert.match(nextStep({ ...base, status: 'CANCELLED', paid: 5000 }), /refund/);
-  assert.match(nextStep({ ...base, kind: 'SV', status: 'ESCALATED' }), /Job Card/);
   assert.deepEqual(paymentPosition(100000, 70000, 0.7), { label: 'Deposit met, balance pending', balance: 30000 });
   assert.deepEqual(paymentPosition(100000, 100000, 0.7), { label: 'Paid in full', balance: 0 });
   assert.deepEqual(paymentPosition(0, 0, 0.7), { label: 'No priced estimate yet', balance: 0 });

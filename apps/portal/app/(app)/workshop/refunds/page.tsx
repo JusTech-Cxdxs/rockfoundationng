@@ -29,8 +29,8 @@ export default async function RefundsRegisterPage({ searchParams }: { searchPara
         icon="refund"
         back={{ href: "/workshop", label: "Back to Workshop" }}
         title="Refunds"
-        description={<>Refunds paid to customers after a cancelled Job Card or Vehicle Service. A Manager authorises each refund;
-        Finance pays and records it, with an RF receipt.</>}
+        description={<>Refunds paid to customers after a cancelled Job Card or an overpayment. A Manager authorises each refund;
+        Accounts pays and records it, with an RF receipt.</>}
       />
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -54,7 +54,7 @@ export default async function RefundsRegisterPage({ searchParams }: { searchPara
         <LiveSearchInput
           type="search" name="q"
           defaultValue={q ?? ''}
-          placeholder="Search by RF number, Job Card / Service number, customer or recipient…"
+          placeholder="Search by RF number, Job Card number, customer or recipient…"
           className="w-full max-w-md rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
         />
         <button type="submit" className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 text-sm font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-surface)]">
@@ -82,9 +82,7 @@ export default async function RefundsRegisterPage({ searchParams }: { searchPara
               {refunds.map((r: (typeof refunds)[number]) => {
                 const record = r.jobCard
                   ? { href: `/workshop/job-cards/${r.jobCard.id}#refunds`, label: `Job Card ${r.jobCard.jobNumber}`, customer: r.jobCard.customer.fullName, customerId: r.jobCard.customer.id }
-                  : r.vehicleService
-                    ? { href: `/workshop/vehicle-service/${r.vehicleService.id}#refunds`, label: `Vehicle Service ${r.vehicleService.serviceNumber}`, customer: r.vehicleService.customer.fullName, customerId: r.vehicleService.customer.id }
-                    : null;
+                  : null;
                 return (
                   <tr key={r.id} className="border-b border-[var(--ejo-border)] align-top last:border-0">
                     <td className="px-3 py-2 font-medium text-[var(--ejo-text)]">{r.referenceNumber}</td>
