@@ -164,6 +164,8 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   SupportTicket: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '3 years after it is closed', ai: 'AUTHORISED_USER' },
   // Customer care: the callback list and "How did we do?" after every job.
   FollowUp: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '2 years after it is done; with the customer if the customer is removed', ai: 'AUTHORISED_USER' },
+  // Photos of the vehicle (plates, people nearby): staff who may open the Job Card only; never given to AI.
+  JobCardPhoto: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'Life of the Job Card', ai: 'NEVER' },
   JobRating: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the Job Card (the customer’s own words about the work)', ai: 'AUTHORISED_USER' },
   SupportReply: { tenancy: 'VIA_PARENT', owner: 'ticketId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'With its ticket', ai: 'AUTHORISED_USER' },
   SupportQueue: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'While the organisation uses it; switched off rather than deleted while tickets point at it', ai: 'AUTHORISED_USER' },

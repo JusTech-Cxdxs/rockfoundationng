@@ -93,6 +93,8 @@ const RECORD_CHECKS = [
   // Scheduled exports: the person's own export, and their own schedule, inside their organisation.
   'myExportOf(',
   'myScheduleOf(',
+  // Callbacks (lib/actions/customer-care.ts): where { id, organisationId } inside the person's branch reach (openCallback).
+  'openCallback(',
 ];
 /** authorize(key, { branchId … }) — a role check WITH the record's branch. */
 const AUTHORIZE_WITH_RECORD = /\bauthorize\([^,]+,\s*\{\s*branchId/;

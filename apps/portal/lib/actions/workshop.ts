@@ -892,8 +892,9 @@ export async function createJobCard(input: CreateJobCardInput) {
   }
   // What front desk entered for this kind of visit: checked, and the reason
   // written for a car wash or a service when left blank (lib/workshop/job-types.ts).
-  const visit = checkIn({ ...input, complaints: input.complaints });
-  if (typeof visit === 'string') throw new WorkshopActionError(visit);
+  const checked = checkIn({ ...input, complaints: input.complaints });
+  if (typeof checked === 'string') throw new WorkshopActionError(checked);
+  const visit = checked;
   const complaints = visit.complaints;
 
   // The department follows the work (lib/workshop/routing.ts), never client
@@ -4009,6 +4010,8 @@ export type WorkshopCustodyEntry = {
   jobNumber: string;
   /** Opened as a routine service (shown with a Service badge). */
   isService?: boolean;
+  /** What the visit is for (lib/workshop/job-types.ts), shown as a badge. */
+  jobType?: string;
   customerId?: string;
   customerName: string;
   vehicleDescription: string;
@@ -4074,6 +4077,7 @@ export async function getWorkshopCustodySummary(search?: string): Promise<{
       id: true,
       jobNumber: true,
       isService: true,
+      jobType: true,
       status: true,
       readyForCollectionAt: true,
       customer: { select: { id: true, fullName: true, phone: true, altPhone: true, customerType: true } },
@@ -4105,6 +4109,7 @@ export async function getWorkshopCustodySummary(search?: string): Promise<{
     id: string;
     jobNumber: string;
     isService: boolean;
+    jobType: string;
     status: string;
     readyForCollectionAt: Date | null;
     customer: { id: string; fullName: string; phone: string | null; altPhone: string | null; customerType: string };
@@ -4119,6 +4124,7 @@ export async function getWorkshopCustodySummary(search?: string): Promise<{
       vehicleType: jc.vehicle.vehicleType ?? null,
       jobNumber: jc.jobNumber,
       isService: jc.isService,
+      jobType: jc.jobType,
       customerId: jc.customer.id,
       customerName: jc.customer.fullName,
       vehicleDescription,

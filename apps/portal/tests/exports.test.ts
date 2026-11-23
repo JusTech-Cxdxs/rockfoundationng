@@ -188,5 +188,8 @@ test('every Export button names a real list; the file is built at download, for 
   assert.match(actions, /export async function createExport[\s\S]{0,300}authorize\('dataexchange\.export\.run'/);
   assert.match(actions, /EXPORTS_PER_HOUR/);
   // No copy of the data is stored: the export holds its filters only.
-  assert.doesNotMatch(read('../../packages/database/prisma/schema.prisma').slice(read('../../packages/database/prisma/schema.prisma').indexOf('model ExportJob')), /Bytes\b|content\s+String/);
+  const schema = read('../../packages/database/prisma/schema.prisma');
+  const exportModels = schema.slice(schema.indexOf('model ExportJob'), schema.indexOf('@@map("export_downloads")'));
+  assert.ok(exportModels.includes('model ExportDownload'), 'the export models are read');
+  assert.doesNotMatch(exportModels, /Bytes\b|content\s+String/);
 });
