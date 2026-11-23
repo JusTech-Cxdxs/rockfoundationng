@@ -173,6 +173,8 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   EnyoLearnedAnswer: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Kept while useful; administrators remove entries on the Enyo learning page', ai: 'AUTHORISED_USER' },
   SupportTicket: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '3 years after it is closed', ai: 'AUTHORISED_USER' },
   // Customer care: the callback list and "How did we do?" after every job.
+  // A workshop booking: the name, phone and vehicle a person gave, and the day they chose.
+  Appointment: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '2 years after the booked day; with the customer if the customer is removed', ai: 'AUTHORISED_USER' },
   FollowUp: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '2 years after it is done; with the customer if the customer is removed', ai: 'AUTHORISED_USER' },
   // Photos of the vehicle (plates, people nearby): staff who may open the Job Card only; never given to AI.
   JobCardPhoto: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'Life of the Job Card', ai: 'NEVER' },

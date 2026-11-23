@@ -121,6 +121,20 @@ export const WHATSAPP_TEMPLATES = [
     footer: CUSTOMER_FOOTER,
   },
   {
+    key: 'booking_confirmed', name: 'rf_booking_confirmed', category: 'UTILITY', audience: 'customer', header: null,
+    when: 'Front desk confirms a workshop booking, or moves it to another day or time.',
+    body: 'Hello {{1}}, your booking {{2}} at {{3}} is confirmed: {{4}} for {{5}}.\n\nPlease come a few minutes early with your vehicle. To change the booking, call us.',
+    params: [SAMPLE.name, { key: 'number', example: 'APT-2026-000012' }, SAMPLE.workshop, { key: 'visit', example: 'a service' }, { key: 'when', example: 'Tuesday 24/11/2026, 10:00' }],
+    footer: CUSTOMER_FOOTER,
+  },
+  {
+    key: 'booking_reminder', name: 'rf_booking_reminder', category: 'UTILITY', audience: 'customer', header: null,
+    when: 'The day before a confirmed workshop booking.',
+    body: 'Hello {{1}}, a reminder of your booking {{2}} at {{3}} tomorrow: {{4}} for {{5}}.\n\nWe look forward to seeing you. To change the booking, call us.',
+    params: [SAMPLE.name, { key: 'number', example: 'APT-2026-000012' }, SAMPLE.workshop, { key: 'visit', example: 'a service' }, { key: 'when', example: 'Tuesday 24/11/2026, 10:00' }],
+    footer: CUSTOMER_FOOTER,
+  },
+  {
     key: 'job_cancelled', name: 'rf_job_cancelled', category: 'UTILITY', audience: 'customer', header: null,
     when: 'A Job Card is cancelled.',
     body: 'Hello {{1}}, as requested, we have cancelled {{2}} for your {{3}}. No further work will be carried out under it.\n\nIf your vehicle is still with us, please arrange to collect it. If you paid anything towards this job, we will contact you about it.\n\nThank you.',
@@ -318,6 +332,7 @@ export const EMAIL_COVERAGE: Record<string, EmailCoverage> = {
   'portal:customer-collection-overdue': { whatsapp: ['cancelled_vehicle_waiting'] },
   'portal:customer-vehicle-checked-out': { whatsapp: ['vehicle_collected'] },
   'portal:customer-rating-request': { whatsapp: ['rating_request'] },
+  'portal:customer-booking': { whatsapp: ['booking_confirmed', 'booking_reminder'] },
   'portal:customer-job-card-cancelled': { whatsapp: ['job_cancelled'] },
   'portal:customer-job-card-closed': { whatsapp: ['job_closed'] },
   'portal:customer-estimate-approved': { whatsapp: ['estimate_ready'] },

@@ -12,7 +12,7 @@ Customer messages end with the workshop’s number (0803 304 9194); the other li
 - **Category:** UTILITY for messages about the customer’s own vehicle, job, money or request; MARKETING for announcements (Meta’s rule). Meta may change a category when it reviews a template; that is fine.
 - **Replies:** the portal does not read WhatsApp replies; the footer asks people to call. If the business number is also on the WhatsApp Business app (coexistence), replies arrive there.
 
-## The 26 templates
+## The 28 templates
 
 | Name in Meta | Category | Header | For | When it is sent |
 | --- | --- | --- | --- | --- |
@@ -25,6 +25,8 @@ Customer messages end with the workshop’s number (0803 304 9194); the other li
 | `rf_cancelled_vehicle_waiting` | UTILITY | None | Customers | A cancelled Job Card whose vehicle is still at the workshop: the collection notice. |
 | `rf_vehicle_collected` | UTILITY | None | Customers | The vehicle is checked out (collected). |
 | `rf_rating_request` | UTILITY | None | Customers | After the vehicle is collected: "How did we do?", with the link to rate the visit from 1 to 5. |
+| `rf_booking_confirmed` | UTILITY | None | Customers | Front desk confirms a workshop booking, or moves it to another day or time. |
+| `rf_booking_reminder` | UTILITY | None | Customers | The day before a confirmed workshop booking. |
 | `rf_job_cancelled` | UTILITY | None | Customers | A Job Card is cancelled. |
 | `rf_job_closed` | UTILITY | None | Customers | A Job Card is closed: the work and payment are settled. |
 | `rf_estimate_ready` | UTILITY | Document (PDF) | Customers | The approved estimate is sent to the customer (with the estimate PDF); also "Send now on WhatsApp" for the estimate. |
@@ -285,6 +287,56 @@ If anything was not right, tell us there and we will call you.
 | `{{3}}` | vehicle | Toyota Corolla (KJA 901 XY) |
 | `{{4}}` | record | Job Card JC-2026-000123 |
 | `{{5}}` | link | https://www.example.com/rate/abc123.signature |
+
+### `rf_booking_confirmed`
+
+- **Category:** UTILITY
+- **Language:** English (`en`)
+- **Header:** None
+- **Sent:** Front desk confirms a workshop booking, or moves it to another day or time.
+
+**Body**
+
+```text
+Hello {{1}}, your booking {{2}} at {{3}} is confirmed: {{4}} for {{5}}.
+
+Please come a few minutes early with your vehicle. To change the booking, call us.
+```
+
+**Footer:** Automatic message. Call us on 0803 304 9194.
+
+| Variable | What it is | Sample |
+| --- | --- | --- |
+| `{{1}}` | Greeting name (a person’s first name, or the organisation’s name) | Tunde |
+| `{{2}}` | number | APT-2026-000012 |
+| `{{3}}` | Your organisation’s name | Rock Foundation Automobile |
+| `{{4}}` | visit | a service |
+| `{{5}}` | when | Tuesday 24/11/2026, 10:00 |
+
+### `rf_booking_reminder`
+
+- **Category:** UTILITY
+- **Language:** English (`en`)
+- **Header:** None
+- **Sent:** The day before a confirmed workshop booking.
+
+**Body**
+
+```text
+Hello {{1}}, a reminder of your booking {{2}} at {{3}} tomorrow: {{4}} for {{5}}.
+
+We look forward to seeing you. To change the booking, call us.
+```
+
+**Footer:** Automatic message. Call us on 0803 304 9194.
+
+| Variable | What it is | Sample |
+| --- | --- | --- |
+| `{{1}}` | Greeting name (a person’s first name, or the organisation’s name) | Tunde |
+| `{{2}}` | number | APT-2026-000012 |
+| `{{3}}` | Your organisation’s name | Rock Foundation Automobile |
+| `{{4}}` | visit | a service |
+| `{{5}}` | when | Tuesday 24/11/2026, 10:00 |
 
 ### `rf_job_cancelled`
 

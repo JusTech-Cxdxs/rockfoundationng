@@ -10,7 +10,8 @@
     "./approval-link": "./src/approval-link.ts",
     "./whatsapp": "./src/whatsapp.ts",
     "./whatsapp-cloud": "./src/whatsapp-cloud.ts",
-    "./whatsapp-templates": "./src/whatsapp-templates.ts"
+    "./whatsapp-templates": "./src/whatsapp-templates.ts",
+    "./appointments": "./src/appointments.ts"
   },
   "typesVersions": {
     "*": {
@@ -28,6 +29,9 @@
       ],
       "whatsapp-templates": [
         "src/whatsapp-templates.ts"
+      ],
+      "appointments": [
+        "src/appointments.ts"
       ]
     }
   }

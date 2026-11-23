@@ -24,6 +24,8 @@ export const AREAS: { url: string; needs: PermissionKey[] }[] = [
   { url: '/workshop/job-cards', needs: ['workshop.view'] },
   { url: '/workshop/customers', needs: ['workshop.view'] },
   { url: '/workshop/custody', needs: ['workshop.view'] },
+  { url: '/workshop/appointments', needs: ['workshop.appointment.view'] },
+  { url: '/settings/appointments', needs: ['admin.organisation.manage'] },
   { url: '/workshop/refunds', needs: ['workshop.view'] },
   { url: '/workshop/parts-requests', needs: ['workshop.view'] },
   { url: '/inventory', needs: ['store.view'] },

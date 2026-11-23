@@ -146,6 +146,10 @@ model Organisation {
   // workshop's QuickBooks company file, the date order, the walk-in customer
   // (lib/quickbooks/settings.ts). Null: the defaults.
   quickbooksSettings Json?
+  // Workshop bookings (Settings → Bookings): the days open, the time slots
+  // and how many vehicles of each job type the workshop takes a day
+  // (@ejo/utils/appointments). Null: the defaults.
+  appointmentSettings Json?
   // A demonstration organisation: the only kind that gets demo people with
   // sign-ins and demo records (apps/portal/lib/demo). Set by the platform
   // team or `npm run demo:reset`; a real organisation never has it.
@@ -653,6 +657,7 @@ model Customer {
   notificationReads CustomerNotificationRead[]
   followUps       FollowUp[]
   jobRatings      JobRating[]
+  appointments    Appointment[]
 }
 
 // Optional company details when the customer is a business (fleet account).
@@ -712,6 +717,7 @@ model CustomerVehicle {
   createdAt    DateTime @default(now())
 
   jobCards JobCard[]
+  appointments Appointment[]
   reminderLogs ServiceReminderLog[]
 
   @@index([customerId])
@@ -893,6 +899,8 @@ model JobCard {
   rating             JobRating?
   followUps          FollowUp[]
   inspection         VehicleInspection?
+  // The booking this Job Card was opened from (Workshop → Bookings).
+  appointment        Appointment?
   complaints         JobCardComplaint[]
   estimate           Estimate?
   payments           Payment[]
@@ -3766,4 +3774,80 @@ model QuickBooksSync {
 
   @@unique([organisationId, kind, recordId])
   @@map("quickbooks_syncs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WORKSHOP BOOKINGS: a customer books a day and a time slot for a kind of
+// visit, on the website or by phone; front desk confirms, moves or cancels
+// it, and opens the Job Card from it when the vehicle arrives.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum AppointmentStatus {
+  // Waiting for front desk to confirm.
+  REQUESTED
+  CONFIRMED
+  // The vehicle came in: a Job Card was opened from it.
+  ARRIVED
+  CANCELLED
+  // The day passed and the vehicle did not come.
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  // The booking page on the website (anyone, no sign-in).
+  WEBSITE
+  // A signed-in customer in the customer portal.
+  PORTAL
+  // Front desk, for a customer who called or walked in.
+  STAFF
+}
+
+/// One booking: APT-YYYY-NNNNNN. The day is a Lagos calendar day
+/// (YYYY-MM-DD) and the slot its start time ("08:00"), so capacity is
+/// counted per day and job type without time-zone arithmetic.
+model Appointment {
+  id               String            @id @default(cuid())
+  number           String            @unique
+  organisationId   String
+  branchId         String?
+  // A registered customer and vehicle when known; a booking from the
+  // website by someone new carries the name, phone and vehicle in words.
+  customerId       String?
+  vehicleId        String?
+  jobType          JobType
+  day              String
+  slot             String
+  name             String
+  phone            String
+  whatsappPhone    String?
+  email            String?
+  vehicleText      String?
+  plateNumber      String?
+  note             String?
+  status           AppointmentStatus @default(REQUESTED)
+  source           AppointmentSource
+  confirmedAt      DateTime?
+  confirmedById    String?
+  // Moved to another day or slot by front desk (how many times, and the last time).
+  rescheduledCount Int               @default(0)
+  rescheduledAt    DateTime?
+  cancelledAt      DateTime?
+  // CUSTOMER or STAFF.
+  cancelledBy      String?
+  cancelReason     String?
+  // The day-before reminder (sent once).
+  reminderSentAt   DateTime?
+  jobCardId        String?           @unique
+  createdById      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  customer Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  vehicle  CustomerVehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  jobCard  JobCard?         @relation(fields: [jobCardId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId, day, status])
+  @@index([customerId, day])
+  @@index([phone, createdAt])
+  @@map("appointments")
 }

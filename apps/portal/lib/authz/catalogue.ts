@@ -66,6 +66,10 @@ export const PERMISSIONS = {
   'workshop.warranty.report': { module: 'Workshop', label: 'See the warranty report: comebacks, warranty cost and supplier claims' },
   // Customers (CRM)
   'crm.view': { module: 'Customers', label: 'See customers, their pages, spend and history' },
+  'workshop.appointment.view': { module: 'Workshop', label: 'See the workshop bookings (appointments)' },
+  'workshop.appointment.manage': { module: 'Workshop', label: 'Confirm, move and cancel bookings, and open the Job Card when the vehicle arrives (front desk)' },
+  'money.takings.view': { module: 'Money', label: 'See takings: money received, payments by method, and what customers owe (no profit)' },
+  'money.fleet_report.view': { module: 'Customers', label: 'Download fleet reports (a fleet customer\u2019s vehicles, jobs, spend and what is owed)' },
   'crm.manage': { module: 'Customers', label: 'Edit customers, their contacts, addresses, notes, tags and portal access' },
   'support.tickets.manage': { module: 'Customers', label: 'Work the Support centre: answer customers’ requests and complaints' },
   'support.manage': { module: 'Customers', label: 'Set up the Support centre: teams and their email addresses, who works them, opening hours, targets and how Enyo answers' },
@@ -120,12 +124,13 @@ export const ROLE_GRANTS: Record<string, Partial<Record<PermissionKey, Scope>>> 
     ...VIEW_WORKSHOP, 'workshop.job_card.create': B, 'workshop.customer.manage': B, 'workshop.customer.notify': B, 'workshop.close.request': B,
     'workshop.estimate.edit': B, 'workshop.payment.record': B, 'money.credit_note.request': B, 'money.statement.view': B,
     'crm.view': B, 'crm.manage': B, 'support.tickets.manage': B, 'store.view': B, 'store.counter.sell': B,
+    'workshop.appointment.view': B, 'workshop.appointment.manage': B, 'money.fleet_report.view': B,
     'dataexchange.import.run': B, 'dataexchange.export.run': B,
   },
   // Workshop Supervisor / Service Advisor: assigns technicians, inspects,
   // checks the estimate before the Owner, and does the quality check.
   'workshop-supervisor': {
-    ...VIEW_WORKSHOP, 'store.view': B, 'crm.view': B,
+    ...VIEW_WORKSHOP, 'store.view': B, 'crm.view': B, 'workshop.appointment.view': B,
     'workshop.job.supervise': B, 'workshop.technician.assign': B, 'workshop.estimate.edit': B, 'workshop.estimate.approve': B,
     'workshop.inspection.perform': B, 'workshop.job.work': B, 'workshop.close.request': B, 'sourcing.request': B, 'store.prs.approve_hod': B,
   },
@@ -144,7 +149,7 @@ export const ROLE_GRANTS: Record<string, Partial<Record<PermissionKey, Scope>>> 
   accounts: {
     ...VIEW_WORKSHOP, 'store.view': B, 'crm.view': B,
     'workshop.payment.record': B, 'workshop.refund.record': B, 'money.credit_note.request': B, 'money.statement.view': B, 'workshop.warranty.claims': B,
-    'money.quickbooks.export': B, 'dataexchange.export.run': B, 'dataexchange.export.sensitive': B,
+    'money.quickbooks.export': B, 'money.fleet_report.view': B, 'money.takings.view': B, 'dataexchange.export.run': B, 'dataexchange.export.sensitive': B,
   },
   // Security: the gate.
   security: { 'security.view': B, 'security.gate.operate': B },

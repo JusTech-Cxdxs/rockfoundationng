@@ -7,6 +7,7 @@ import { isCronRequest } from '@/lib/cron-auth';
 import { deliverRoleAccessNotices } from '@/lib/access-notices';
 import { deliverDueReminders } from '@/lib/reminders';
 import { handleLowRatings } from '@/lib/customer-care/server';
+import { runBookingReminders } from '@/lib/appointments/server';
 
 // Room for a batch of access-changed emails (a role with many holders).
 export const maxDuration = 60;
@@ -17,7 +18,8 @@ export const maxDuration = 60;
  * permission changes become one access-changed email per holder, and
  * personal reminders that are due reach the person's bell (and email when
  * they asked), and low "How did we do?" ratings become a complaint and a
- * callback. Each part is recorded on the scheduler log page.
+ * callback, and workshop bookings get their day-before reminder (missed ones
+ * are marked). Each part is recorded on the scheduler log page.
  */
 export async function GET(request: NextRequest) {
   if (!isCronRequest(request.headers.get('authorization'))) {
@@ -32,5 +34,7 @@ export async function GET(request: NextRequest) {
   if (personal) await recordJobRun('reminders', { remindersDelivered: personal.delivered, remindersEmailed: personal.emailed });
   const lowRatings = await handleLowRatings().catch((err) => { logFailure('Low ratings run failed', err); return null; });
   if (lowRatings !== null) await recordJobRun('low-ratings', { complaintsOpened: lowRatings });
-  return NextResponse.json({ ok: true, lowRatingsHandled: lowRatings ?? 0, broadcastEmailsSent: broadcastEmails ?? 0, personalRemindersDelivered: personal?.delivered ?? 0 });
+  const bookings = await runBookingReminders().catch((err) => { logFailure('Booking reminders failed', err); return null; });
+  if (bookings) await recordJobRun('appointment-reminders', { reminded: bookings.reminded, noShows: bookings.noShows });
+  return NextResponse.json({ ok: true, bookingsReminded: bookings?.reminded ?? 0, lowRatingsHandled: lowRatings ?? 0, broadcastEmailsSent: broadcastEmails ?? 0, personalRemindersDelivered: personal?.delivered ?? 0 });
 }

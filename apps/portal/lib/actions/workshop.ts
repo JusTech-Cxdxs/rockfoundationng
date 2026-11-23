@@ -897,6 +897,8 @@ export type CreateJobCardInput = {
   washPackage?: string | null;
   /** A comeback: the earlier Job Card on this vehicle whose guarantee this visit is under. */
   comebackOfId?: string | null;
+  /** Opened from a workshop booking: the booking is marked arrived and linked to this Job Card. */
+  appointmentId?: string | null;
 };
 
 
@@ -1117,6 +1119,17 @@ export async function createJobCard(input: CreateJobCardInput) {
     entityId: created.id,
     metadata: { jobNumber: created.jobNumber, departmentId: department.id, supervisorId: input.supervisorId, isService, jobType: visit.jobType, ...(comebackOf ? { comebackOf: comebackOf.jobNumber } : {}), ...(quickWash ? { quickCarWash: quickWash.description, price: quickWash.amount } : {}) },
   });
+
+  // Opened from a booking: the booking is marked arrived and points to this
+  // Job Card (only a booking of this organisation that is still open; a
+  // booking by someone new takes the customer and vehicle chosen here).
+  if (input.appointmentId && /^[a-z0-9]{20,40}$/.test(input.appointmentId)) {
+    const linked = await prisma.appointment.updateMany({
+      where: { id: input.appointmentId, ...(await orgWhere()), status: { in: ['REQUESTED', 'CONFIRMED'] }, jobCardId: null },
+      data: { status: 'ARRIVED', jobCardId: created.id, customerId: input.customerId, vehicleId: input.vehicleId },
+    });
+    if (linked.count) await writeAuditLog({ userId: user.id, action: 'appointment.arrived', entityType: 'Appointment', entityId: input.appointmentId, metadata: { jobNumber: created.jobNumber } });
+  }
 
 
   return created;

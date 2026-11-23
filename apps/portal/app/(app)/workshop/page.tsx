@@ -7,6 +7,7 @@ const allSections: { name: string; href: string; desc: string; icon: IconName }[
   { name: 'Customers', href: '/workshop/customers', icon: 'users', desc: 'Customer records and vehicle ownership history.' },
   { name: 'Vehicles', href: '/workshop/vehicles', icon: 'car', desc: 'Vehicle registry, chassis/VIN, and service history.' },
   { name: 'Job Cards', href: '/workshop/job-cards', icon: 'clipboard', desc: 'Repairs and routine services, open and past.' },
+  { name: 'Bookings', href: '/workshop/appointments', icon: 'calendar', desc: 'Customers who booked a day and time: confirm them, and open the Job Card when the vehicle arrives.' },
   { name: 'Vehicles In Custody', href: '/workshop/custody', icon: 'garage', desc: 'Vehicles in the workshop, grouped by what needs attention.' },
   { name: 'Refunds', href: '/workshop/refunds', icon: 'refund', desc: 'Refunds paid to customers, with printable receipts.' },
   { name: 'Service Tracker', href: '/workshop/service-tracker', icon: 'gauge', desc: 'Next service due for each vehicle after it leaves, and reminders sent.' },
@@ -18,8 +19,10 @@ const sections = allSections.filter((s) => s.href !== '/workshop/parts-requests'
 /** Workshop landing page: links to each workshop area. */
 export default async function WorkshopPage() {
   // Customers live in the Customers (CRM) hub for anyone who can open it; link there directly.
-  const canCrm = await allows('crm.view');
-  const cards = sections.map((s) => (s.href === '/workshop/customers' && canCrm ? { ...s, href: '/crm' } : s));
+  const [canCrm, canBookings] = await Promise.all([allows('crm.view'), allows('workshop.appointment.view')]);
+  const cards = sections
+    .filter((s) => s.href !== '/workshop/appointments' || canBookings)
+    .map((s) => (s.href === '/workshop/customers' && canCrm ? { ...s, href: '/crm' } : s));
   return (
     <div className="w-full p-4 sm:p-8">
       <PageHeader

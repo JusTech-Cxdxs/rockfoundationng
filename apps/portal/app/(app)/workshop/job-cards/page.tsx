@@ -13,13 +13,14 @@ import { FormPendingOverlay } from '@/components/FormPendingOverlay';
 import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
 import { CustomerVehiclePicker } from '@/components/CustomerVehiclePicker';
 import { JobTypeFields } from '@/components/JobTypeFields';
+import type { JobType } from '@/lib/workshop/job-types';
 import { CategoryFilterTabs } from '@/components/CategoryFilterTabs';
 import { BinnedNotice } from '@/components/RecycleBinPanel';
 import { LiveSearchInput } from '@/components/LiveSearchInput';
 import { BackLink, PageHeader, StatusChip } from '@/components/ui';
 import { CustomerLink } from '@/components/CustomerLink';
 import { parseJobCardPrefill } from '@/lib/enyo/prefill';
-import { checkJobCardPrefill, checkServiceVehiclePrefill } from '@/lib/enyo/prefill-server';
+import { checkAppointmentPrefill, checkJobCardPrefill, checkServiceVehiclePrefill } from '@/lib/enyo/prefill-server';
 import { JobTypeBadge } from '@/components/JobTypeBadge';
 import { ExportAction } from '@/components/ExportAction';
 
@@ -42,7 +43,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function WorkshopJobCardsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; type?: string; status?: string; error?: string; outcome?: string; binned?: string; prefill?: string; customerId?: string; vehicleId?: string; complaint?: string | string[]; mileage?: string; service?: string; vehicle?: string }>;
+  searchParams: Promise<{ q?: string; type?: string; status?: string; error?: string; outcome?: string; binned?: string; prefill?: string; customerId?: string; vehicleId?: string; complaint?: string | string[]; mileage?: string; service?: string; vehicle?: string; appointment?: string }>;
 }) {
   await guardAnyPage(['workshop.view'], '/workshop');
   const sp = await searchParams;
@@ -53,7 +54,7 @@ export default async function WorkshopJobCardsPage({
   // "Open a service Job Card" from a vehicle (?service=1&vehicle=<id>): Service
   // is chosen, and the vehicle and its owner filled in (checked the same way).
   const forService = sp.service === '1';
-  const prefill = enyoPrefill ?? (forService ? await checkServiceVehiclePrefill(sp.vehicle) : null);
+  const prefill = enyoPrefill ?? (sp.appointment ? await checkAppointmentPrefill(sp.appointment) : null) ?? (forService ? await checkServiceVehiclePrefill(sp.vehicle) : null);
   // Customer names link to their Customers (CRM) page for those who may open it.
   const canSeeCustomers = await allows('crm.view');
   // Opening a Job Card is front desk's (and the Owner's); technicians and others only see their list.
@@ -166,10 +167,17 @@ export default async function WorkshopJobCardsPage({
               Prepared by Enyo. Check the details, choose the supervisor and press &ldquo;Open Job Card&rdquo; — nothing is saved until you do.
             </p>
           ) : null}
+          {prefill?.appointment ? (
+            <p role="status" data-testid="from-booking" className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-primary)]/30 bg-[var(--ejo-primary)]/5 px-3 py-2 text-xs text-[var(--ejo-text)]">
+              From booking {prefill.appointment.number}: {prefill.appointment.name}, {prefill.appointment.phone}{prefill.appointment.vehicle ? `, ${prefill.appointment.vehicle}` : ''}.{' '}
+              {prefill.appointment.registered ? 'Check the details and open the Job Card.' : 'Not yet a registered customer: register them and their vehicle first, then choose them here.'}
+            </p>
+          ) : null}
           <form action={createJobCardFormAction} className="mt-4 space-y-3">
             <FormPendingOverlay />
             <CustomerVehiclePicker initialCustomer={prefill?.customer} initialVehicleId={prefill?.vehicleId} />
-            <JobTypeFields initialType={forService ? 'SERVICE' : 'REPAIR'} initialComplaints={prefill?.complaints} initialMileage={prefill?.mileage ?? null} />
+            {prefill?.appointment ? <input type="hidden" name="appointmentId" value={prefill.appointment.id} /> : null}
+            <JobTypeFields initialType={(prefill?.jobType as JobType | undefined) ?? (forService ? 'SERVICE' : 'REPAIR')} initialComplaints={prefill?.complaints} initialMileage={prefill?.mileage ?? null} />
             <SubmitButton
               label="Open Job Card"
               pendingLabel="Opening…"

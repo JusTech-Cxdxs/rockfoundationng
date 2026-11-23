@@ -97,6 +97,8 @@ const RECORD_CHECKS = [
   'myScheduleOf(',
   // Callbacks (lib/actions/customer-care.ts): where { id, organisationId } inside the person's branch reach (openCallback).
   'openCallback(',
+  // Bookings (lib/actions/appointments.ts): where { id, organisationId } of the person's own organisation (openBooking).
+  'openBooking(',
 ];
 /** authorize(key, { branchId … }) — a role check WITH the record's branch. */
 const AUTHORIZE_WITH_RECORD = /\bauthorize\([^,]+,\s*\{\s*branchId/;

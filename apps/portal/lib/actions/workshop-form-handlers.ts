@@ -158,6 +158,7 @@ export async function createJobCardFormAction(formData: FormData) {
       sprayPanels: formData.getAll('sprayPanels').map((v) => String(v)),
       washPackage: str(formData, 'washPackage'),
       comebackOfId: str(formData, 'comebackOfId') || null,
+      appointmentId: str(formData, 'appointmentId') || null,
     });
     jobCardId = jobCard.id;
   } catch (err) {
