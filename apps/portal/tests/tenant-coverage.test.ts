@@ -52,6 +52,8 @@ const READ_FENCES = [
   'requireEligible', 'currentUserIsMasterAdmin', 'branchInMyOrganisationOrSystem',
   // The gate (lib/actions/security.ts): the Job Card's branch, checked against the gate desk's reach.
   'jobCardOnMyDesk(',
+  // QuickBooks exports (lib/actions/quickbooks.ts): where { id, organisationId } of the person's own organisation (qbScope).
+  'qbScope(',
   'allows(', // with the record (branch / assignees)
   // Customers (lib/actions/crm.ts): the customer, or its address / contact / note, looked up inside the person's organisation (orgWhere).
   'fencedCustomer',

@@ -142,6 +142,10 @@ model Organisation {
   // { "SERVICE": { "days": 30, "km": 1000 }, "SPRAYING": { "days": 365 } }.
   // Fixed on each Job Card at checkout (lib/money/warranty.ts).
   warrantyTerms Json?
+  // QuickBooks (Settings → QuickBooks): account and item names in the
+  // workshop's QuickBooks company file, the date order, the walk-in customer
+  // (lib/quickbooks/settings.ts). Null: the defaults.
+  quickbooksSettings Json?
   // A demonstration organisation: the only kind that gets demo people with
   // sign-ins and demo records (apps/portal/lib/demo). Set by the platform
   // team or `npm run demo:reset`; a real organisation never has it.
@@ -170,6 +174,8 @@ model Organisation {
   documentLinks DocumentLink[]
   whatsAppMessages WhatsAppMessage[]
   creditNotes   CreditNote[]
+  quickbooksExports QuickBooksExport[]
+  quickbooksConnection QuickBooksConnection?
   supplierClaims SupplierClaim[]
 }
 
@@ -3667,4 +3673,97 @@ model SupplierClaim {
   @@index([organisationId, status, createdAt])
   @@index([jobCardId])
   @@map("supplier_claims")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// QUICKBOOKS: the export for QuickBooks Desktop (IIF) and Excel (CSV), and
+// the optional QuickBooks Online connection (off unless its settings exist).
+// ─────────────────────────────────────────────────────────────────────────
+
+/// One QuickBooks export (Money → QuickBooks): the files made for a date
+/// range, kept so the same files can be downloaded again, with the records
+/// they carried so a later export can leave them out.
+model QuickBooksExport {
+  id              String   @id @default(cuid())
+  organisationId  String
+  // QBX-2026-000001
+  number          String   @unique
+  // The Lagos days covered, inclusive (YYYY-MM-DD).
+  fromDay         String
+  toDay           String
+  // IIF | CSV
+  format          String
+  // customers | items | invoices | counterSales | payments | creditNotes | refunds | stockMovements
+  kinds           String[]
+  // Records an earlier export carried were included again.
+  includeExported Boolean  @default(false)
+  // How many of each kind, and their totals in naira.
+  counts          Json
+  totals          Json
+  // [{ name, kind, text }]: the files exactly as first made.
+  files           Json
+  // Customers' names, phones and emails are in it.
+  sensitive       Boolean  @default(true)
+  createdById     String
+  createdAt       DateTime @default(now())
+
+  organisation Organisation             @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  records      QuickBooksExportRecord[]
+
+  @@index([organisationId, createdAt])
+  @@map("quickbooks_exports")
+}
+
+/// A record an export carried (an invoice, a payment, a counter sale…).
+model QuickBooksExportRecord {
+  id             String @id @default(cuid())
+  exportId       String
+  organisationId String
+  kind           String
+  recordId       String
+
+  export QuickBooksExport @relation(fields: [exportId], references: [id], onDelete: Cascade)
+
+  @@unique([exportId, kind, recordId])
+  @@index([organisationId, kind, recordId])
+  @@map("quickbooks_export_records")
+}
+
+/// The organisation's QuickBooks Online company, when the Owner has
+/// connected it. Tokens are encrypted at rest (lib/quickbooks/token-crypto.ts)
+/// and never shown or logged.
+model QuickBooksConnection {
+  id               String    @id @default(cuid())
+  organisationId   String    @unique
+  realmId          String
+  // sandbox | production
+  environment      String
+  accessToken      String
+  refreshToken     String
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  connectedById    String
+  connectedAt      DateTime  @default(now())
+  lastUsedAt       DateTime?
+  lastError        String?
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@map("quickbooks_connections")
+}
+
+/// A record already sent to QuickBooks Online, and its id there, so it is
+/// never sent twice.
+model QuickBooksSync {
+  id             String   @id @default(cuid())
+  organisationId String
+  // customer | invoice | payment | creditNote
+  kind           String
+  recordId       String
+  qboId          String
+  syncedById     String?
+  syncedAt       DateTime @default(now())
+
+  @@unique([organisationId, kind, recordId])
+  @@map("quickbooks_syncs")
 }

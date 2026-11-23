@@ -95,6 +95,7 @@ export async function resolveReferenceNumbers(texts: (string | null | undefined)
   q('INV', async (n) => { for (const r of await prisma.invoice.findMany({ where: { invoiceNumber: { in: n } }, select: { invoiceNumber: true, jobCardId: true } })) out.set(r.invoiceNumber, jcUrl(r.jobCardId)); });
   q('RCT', async (n) => { for (const r of await prisma.payment.findMany({ where: { receiptNumber: { in: n } }, select: { receiptNumber: true, jobCardId: true } })) if (r.receiptNumber && r.jobCardId) out.set(r.receiptNumber, jcUrl(r.jobCardId)); });
   q('IMP', async (n) => { for (const r of await prisma.importJob.findMany({ where: { number: { in: n } }, select: { id: true, number: true } })) out.set(r.number, referenceUrl('IMP', r.id)); });
+  q('QBX', async (n) => { for (const r of await prisma.quickBooksExport.findMany({ where: { number: { in: n } }, select: { id: true, number: true } })) out.set(r.number, referenceUrl('QBX', r.id)); });
   q('EXP', async (n) => { for (const r of await prisma.exportJob.findMany({ where: { number: { in: n } }, select: { id: true, number: true } })) out.set(r.number, referenceUrl('EXP', r.id)); });
   await Promise.all(jobs);
   return out;

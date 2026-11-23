@@ -139,7 +139,7 @@ export async function globalSearch(raw: string): Promise<SearchGroup[]> {
   const W = <T,>(w: Where) => w as T;
   const newest = { createdAt: 'desc' } as const;
 
-  const [jcs, prs, grns, sales, counts, refunds, invoices, receipts, creditNotes, supplierClaims, exits, broadcasts, tickets, imports, exportJobs, vehicles, customers, parts, branches, departments, staff] = await Promise.all([
+  const [jcs, prs, grns, sales, counts, refunds, invoices, receipts, creditNotes, supplierClaims, exits, broadcasts, tickets, imports, exportJobs, qbExports, vehicles, customers, parts, branches, departments, staff] = await Promise.all([
     find(jobReach, { numbers: [['JC', 'jobNumber']], text: ['customer.fullName'], codes: ['vehicle.plateNumber'], phones: ['customer.phone'] },
       (w) => prisma.jobCard.findMany({ where: W<Prisma.JobCardWhereInput>(w), take, orderBy: newest, select: { id: true, branchId: true, jobNumber: true, status: true, customer: { select: { fullName: true } }, vehicle: { select: { plateNumber: true } } } })),
     find(prsReach, { numbers: [['PRS', 'referenceNumber']] },
@@ -175,6 +175,8 @@ export async function globalSearch(raw: string): Promise<SearchGroup[]> {
     // Exports (Data Exchange): those who export lists, in their own organisation — their own, or everyone's for those who read the audit trail.
     find(allowed('dataexchange.export.run') && { ...sameOrg, ...(allowed('audit.view') ? {} : { createdById: user.id }) }, { numbers: [['EXP', 'number']], text: ['summary'] },
       (w) => prisma.exportJob.findMany({ where: W<Prisma.ExportJobWhereInput>(w), take, orderBy: newest, select: { id: true, number: true, kind: true, format: true } })),
+    find(allowed('money.quickbooks.export') && sameOrg, { numbers: [['QBX', 'number']] },
+      (w) => prisma.quickBooksExport.findMany({ where: W<Prisma.QuickBooksExportWhereInput>(w), take, orderBy: newest, select: { id: true, number: true, fromDay: true, toDay: true, format: true } })),
     find(canWorkshop && { customer: mineOrg }, { text: ['make', 'model'], codes: ['plateNumber', 'chassisNumber', 'engineNumber'] },
       (w) => prisma.customerVehicle.findMany({ where: W<Prisma.CustomerVehicleWhereInput>(w), take, select: { id: true, make: true, model: true, plateNumber: true, chassisNumber: true, customer: { select: { fullName: true } } } })),
     find(canCustomers && mineOrg, { text: ['fullName', 'email'], phones: ['phone', 'altPhone'] },
@@ -216,6 +218,7 @@ export async function globalSearch(raw: string): Promise<SearchGroup[]> {
     ref('SUP', 'Support tickets', tickets.map((r) => ({ label: r.number, sub: dot(r.contactName, words(r.status)), href: referenceUrl('SUP', r.id) }))),
     ref('IMP', 'Imports', imports.map((r) => ({ label: r.number, sub: dot(r.fileName, words(r.status)), href: referenceUrl('IMP', r.id) }))),
     ref('EXP', 'Exports', exportJobs.map((r) => ({ label: r.number, sub: dot(words(r.kind.replace(/-/g, ' ')), r.format.toUpperCase()), href: referenceUrl('EXP', r.id) }))),
+    ref('QBX', 'QuickBooks exports', qbExports.map((r) => ({ label: r.number, sub: dot(`${r.fromDay.split('-').reverse().join('/')} to ${r.toDay.split('-').reverse().join('/')}`, r.format), href: referenceUrl('QBX', r.id) }))),
     // A vehicle with a VIN opens its one page (its whole history); one without opens its workshop record.
     { group: 'Vehicles', hits: vehicles.map((r) => ({ label: [r.make, r.model].filter(Boolean).join(' ') || 'Vehicle', sub: dot(r.plateNumber, r.chassisNumber, r.customer?.fullName), href: r.chassisNumber && isChassisLike(r.chassisNumber) ? vehiclePagePath(r.chassisNumber) : `/workshop/vehicles/${r.id}/edit` })) },
     // The customer's 360° page (CRM), or the Workshop customer list for people without the CRM.

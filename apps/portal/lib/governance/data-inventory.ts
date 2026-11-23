@@ -198,6 +198,12 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   // stored: the file is built at download time for the person downloading it.
   ExportJob: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Life of the contract (the record of what left EJO, never deleted); the link itself stops working after 24 hours', ai: 'NEVER' },
   ExportDownload: { tenancy: 'VIA_PARENT', owner: 'exportJobId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'With its export', ai: 'NEVER' },
+  // QuickBooks: the files made for the accountant (sales and money, with customers' names and contact details when the customer list is included).
+  QuickBooksExport: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL', 'FINANCIAL'], lifecycle: 'ARCHIVE', retention: 'Life of the contract (the record of what went to the accounts, never deleted)', ai: 'NEVER' },
+  QuickBooksExportRecord: { tenancy: 'VIA_PARENT', owner: 'exportId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'With its export', ai: 'NEVER' },
+  // The QuickBooks Online tokens: encrypted, never displayed, exported or given to AI.
+  QuickBooksConnection: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['SECRET'], lifecycle: 'EDITABLE', retention: 'Until the Owner disconnects (the tokens are revoked at Intuit)', ai: 'NEVER' },
+  QuickBooksSync: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: 'Life of the contract (so nothing is sent to QuickBooks Online twice)', ai: 'NEVER' },
   // A4c3: an export repeated on a schedule — the list, format and filters only (never data), its owner and its days. Ended schedules are kept.
   ExportSchedule: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'ARCHIVE', retention: 'Life of the contract (ended schedules are kept, never deleted)', ai: 'NEVER' },
   // D2: which records the demo organisation's demo load made (model and id), so a reset removes exactly those. Demo data only; no personal data of its own.

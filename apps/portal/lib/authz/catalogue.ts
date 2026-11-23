@@ -61,6 +61,7 @@ export const PERMISSIONS = {
   'money.credit_note.request': { module: 'Money', label: 'Ask for a credit note on an invoice (an overcharge, goodwill, a part returned)' },
   'money.credit_note.approve': { module: 'Money', label: 'Approve or decline credit notes (Owner)' },
   'money.statement.view': { module: 'Money', label: 'See what customers owe: statements and ageing' },
+  'money.quickbooks.export': { module: 'Money', label: 'Export sales, payments, credit notes and refunds to QuickBooks, and set the QuickBooks account names' },
   'workshop.warranty.claims': { module: 'Workshop', label: 'Record faulty parts and claim them back from suppliers' },
   'workshop.warranty.report': { module: 'Workshop', label: 'See the warranty report: comebacks, warranty cost and supplier claims' },
   // Customers (CRM)
@@ -143,7 +144,7 @@ export const ROLE_GRANTS: Record<string, Partial<Record<PermissionKey, Scope>>> 
   accounts: {
     ...VIEW_WORKSHOP, 'store.view': B, 'crm.view': B,
     'workshop.payment.record': B, 'workshop.refund.record': B, 'money.credit_note.request': B, 'money.statement.view': B, 'workshop.warranty.claims': B,
-    'dataexchange.export.run': B, 'dataexchange.export.sensitive': B,
+    'money.quickbooks.export': B, 'dataexchange.export.run': B, 'dataexchange.export.sensitive': B,
   },
   // Security: the gate.
   security: { 'security.view': B, 'security.gate.operate': B },

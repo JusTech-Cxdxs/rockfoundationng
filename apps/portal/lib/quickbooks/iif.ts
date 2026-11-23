@@ -1,21 +1,26 @@
 /**
  * QuickBooks Desktop files (pure: no database). The workshop keeps
  * QuickBooks as its accounting system; these builders turn EJO's customers,
- * parts, invoices, payments, credit notes and stock movements into the files
- * QuickBooks Desktop imports:
+ * parts, invoices, counter sales, payments, refunds, credit notes and stock
+ * movements into the files QuickBooks imports:
  *
  *  - IIF (Intuit Interchange Format): tab-separated text, the format of
  *    File → Utilities → Import → IIF Files. Lists use one header row
  *    (!CUST, !INVITEM); each transaction is a !TRNS row, its !SPL rows and
  *    ENDTRNS, and must balance (the TRNS amount equals minus the sum of its
  *    splits), or QuickBooks refuses it.
- *  - CSV for the lists (customers and items), for File → Utilities → Import
- *    → Excel Files, which maps columns on screen.
+ *  - CSV, one file per kind, for File → Utilities → Import → Excel Files
+ *    (QuickBooks Desktop maps the columns on screen), QuickBooks Online's
+ *    import screens, or the accountant's own checks in Excel.
  *
  * Signs follow Intuit's own samples: an invoice debits Accounts Receivable
  * (positive TRNS amount) and credits income and VAT (negative splits with
  * negative quantities); a credit note is the reverse; a payment debits
- * Undeposited Funds and credits Accounts Receivable.
+ * the account for its payment method (cash to Undeposited Funds, a transfer
+ * to the bank, a card to the POS clearing account) and credits Accounts
+ * Receivable; a counter sale is a cash sale into the same account; a refund
+ * is a cheque out of the account it was paid from, back against Accounts
+ * Receivable.
  *
  * VAT is posted as its own split to the VAT account named in Settings, not
  * through QuickBooks' sales-tax items, so the file imports whether or not the
@@ -29,12 +34,20 @@ export type QbDateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY';
 /** The account and item names in the workshop's QuickBooks company file. */
 export type QbAccounts = {
   receivable: string;
+  /** Where cash is held until it is banked. */
   undepositedFunds: string;
+  /** Where a bank transfer lands. */
+  bank: string;
+  /** Where card payments on the POS terminal land until the bank settles them. */
+  pos: string;
   labourIncome: string;
   partsIncome: string;
   sundryIncome: string;
+  carWashIncome: string;
   vat: string;
   discounts: string;
+  /** What a credit note takes back off sales. */
+  salesReturns: string;
   inventoryAsset: string;
   costOfGoodsSold: string;
   stockAdjustment: string;
@@ -43,15 +56,31 @@ export type QbAccounts = {
 export const DEFAULT_QB_ACCOUNTS: QbAccounts = {
   receivable: 'Accounts Receivable',
   undepositedFunds: 'Undeposited Funds',
+  bank: 'Bank Account',
+  pos: 'POS Clearing',
   labourIncome: 'Labour Income',
   partsIncome: 'Parts Sales',
   sundryIncome: 'Sundry Income',
+  carWashIncome: 'Car Wash Income',
   vat: 'VAT Payable',
   discounts: 'Discounts Given',
+  salesReturns: 'Sales Returns and Allowances',
   inventoryAsset: 'Inventory Asset',
   costOfGoodsSold: 'Cost of Goods Sold',
   stockAdjustment: 'Inventory Adjustments',
 };
+
+/** How the money came in or went out (EJO's payment methods). */
+export type QbMethod = 'CASH' | 'BANK_TRANSFER' | 'POS';
+export const QB_METHOD_LABEL: Record<QbMethod, string> = { CASH: 'Cash', BANK_TRANSFER: 'Bank transfer', POS: 'POS (card)' };
+
+/** The account a payment method's money sits in. */
+export function paymentAccountFor(method: string, accounts: QbAccounts): string {
+  if (method === 'BANK_TRANSFER') return accounts.bank;
+  if (method === 'POS') return accounts.pos;
+  return accounts.undepositedFunds;
+}
+const methodLabel = (m: string) => QB_METHOD_LABEL[m as QbMethod] ?? m;
 
 export type QbCustomer = {
   name: string;
@@ -82,8 +111,8 @@ export type QbItem = {
   preferredVendor?: string | null;
 };
 
-/** Labour, a stock part, a part bought outside, a sundry or the customer's own part. */
-export type QbLineKind = 'LABOUR' | 'PART' | 'OUTSIDE_PART' | 'SUNDRY' | 'CLIENT_PART';
+/** Labour, a stock part, a part bought outside, a sundry, the customer's own part, or a car wash. */
+export type QbLineKind = 'LABOUR' | 'PART' | 'OUTSIDE_PART' | 'SUNDRY' | 'CLIENT_PART' | 'CAR_WASH';
 
 export type QbInvoiceLine = {
   kind: QbLineKind;
@@ -116,8 +145,36 @@ export type QbPayment = {
   date: Date;
   customer: string;
   amount: number;
+  /** CASH, BANK_TRANSFER or POS: decides the account the money goes to. */
   method: string;
   invoiceNumber?: string | null;
+  memo?: string | null;
+};
+
+/** A counter sale: paid on the spot, so a cash sale (QuickBooks' sales receipt), no invoice. */
+export type QbSalesReceipt = {
+  number: string;
+  date: Date;
+  customer: string;
+  method: string;
+  /** The transfer or POS terminal reference. */
+  reference?: string | null;
+  memo?: string | null;
+  lines: QbInvoiceLine[];
+  vatRate: number;
+  vatAmount: number;
+  /** lines + VAT. */
+  total: number;
+};
+
+/** Money paid back to a customer. */
+export type QbRefund = {
+  reference: string;
+  date: Date;
+  customer: string;
+  amount: number;
+  method: string;
+  reason: string;
   memo?: string | null;
 };
 
@@ -192,7 +249,14 @@ const transactionHeader = () => [row(TRNS_HEAD), row(SPL_HEAD), row(['!ENDTRNS']
 export function incomeAccountFor(kind: QbLineKind, accounts: QbAccounts): string {
   if (kind === 'LABOUR') return accounts.labourIncome;
   if (kind === 'SUNDRY') return accounts.sundryIncome;
+  if (kind === 'CAR_WASH') return accounts.carWashIncome;
   return accounts.partsIncome;
+}
+
+/** Lines − discount + VAT must equal the total (to the kobo), or the document is not exported. */
+export function documentAddsUp(d: { lines: { amount: number }[]; discount?: number; vatAmount: number; total: number }): boolean {
+  const lineTotal = d.lines.reduce((s, l) => s + Math.round(l.amount * 100), 0);
+  return Math.abs(lineTotal - Math.round((d.discount ?? 0) * 100) + Math.round(d.vatAmount * 100) - Math.round(d.total * 100)) <= 1;
 }
 
 /** The invoice in IIF rows. Throws when its figures do not add up, so a broken file never reaches the accountant. */
@@ -233,7 +297,7 @@ export function paymentsIif(payments: QbPayment[], accounts: QbAccounts = DEFAUL
   for (const p of payments) {
     const date = qbDate(p.date, format);
     const memo = p.memo ?? (p.invoiceNumber ? `For invoice ${p.invoiceNumber}` : '');
-    out.push(row(['TRNS', '', 'PAYMENT', date, accounts.undepositedFunds, p.customer, money(p.amount), p.reference, memo, '', p.method]));
+    out.push(row(['TRNS', '', 'PAYMENT', date, paymentAccountFor(p.method, accounts), p.customer, money(p.amount), p.reference, memo, '', methodLabel(p.method)]));
     out.push(row(['SPL', '', 'PAYMENT', date, accounts.receivable, p.customer, money(-p.amount), p.reference, memo, '', '', '']));
     out.push('ENDTRNS');
   }
@@ -246,11 +310,57 @@ export function creditNotesIif(notes: QbCreditNote[], accounts: QbAccounts = DEF
     const date = qbDate(n.date, format);
     const memo = n.invoiceNumber ? `${n.reason} (invoice ${n.invoiceNumber})` : n.reason;
     out.push(row(['TRNS', '', 'CREDIT MEMO', date, accounts.receivable, n.customer, money(-n.total), n.number, memo, '', '']));
-    out.push(row(['SPL', '', 'CREDIT MEMO', date, accounts.sundryIncome, '', money(n.netAmount), n.number, memo, '', '', '']));
+    out.push(row(['SPL', '', 'CREDIT MEMO', date, accounts.salesReturns, '', money(n.netAmount), n.number, memo, '', '', '']));
     if (n.vatAmount > 0) out.push(row(['SPL', '', 'CREDIT MEMO', date, accounts.vat, '', money(n.vatAmount), n.number, 'VAT', '', '', '']));
     out.push('ENDTRNS');
   }
   return out.join('\r\n') + '\r\n';
+}
+
+/** Counter sales as cash sales (sales receipts): the money into its method's account, the parts and VAT credited. */
+export function salesReceiptsIif(sales: QbSalesReceipt[], accounts: QbAccounts = DEFAULT_QB_ACCOUNTS, format: QbDateFormat = 'DD/MM/YYYY'): string {
+  const out = transactionHeader();
+  for (const sr of sales) {
+    if (!documentAddsUp(sr)) throw new Error(`Counter sale ${sr.number} does not add up: its lines and VAT are not ${money(sr.total)}.`);
+    const date = qbDate(sr.date, format);
+    const memo = [sr.memo, sr.reference ? `Ref ${sr.reference}` : null].filter(Boolean).join(' · ');
+    const rows = [row(['TRNS', '', 'CASH SALE', date, paymentAccountFor(sr.method, accounts), sr.customer, money(sr.total), sr.number, memo, '', methodLabel(sr.method)])];
+    for (const l of sr.lines) rows.push(row(['SPL', '', 'CASH SALE', date, incomeAccountFor(l.kind, accounts), '', money(-l.amount), sr.number, l.description, qty(-l.quantity), money(l.unitPrice), l.item]));
+    if (sr.vatAmount > 0) rows.push(row(['SPL', '', 'CASH SALE', date, accounts.vat, '', money(-sr.vatAmount), sr.number, `VAT ${sr.vatRate}%`, '', '', '']));
+    out.push(...rows, 'ENDTRNS');
+  }
+  return out.join('\r\n') + '\r\n';
+}
+
+/** Refunds: a cheque out of the account the money is paid from, debiting the customer's account. */
+export function refundsIif(refunds: QbRefund[], accounts: QbAccounts = DEFAULT_QB_ACCOUNTS, format: QbDateFormat = 'DD/MM/YYYY'): string {
+  const out = transactionHeader();
+  for (const r of refunds) {
+    const date = qbDate(r.date, format);
+    const memo = r.memo ? `${r.reason} (${r.memo})` : r.reason;
+    out.push(row(['TRNS', '', 'CHECK', date, paymentAccountFor(r.method, accounts), r.customer, money(-r.amount), r.reference, `Refund: ${memo}`, '', methodLabel(r.method)]));
+    out.push(row(['SPL', '', 'CHECK', date, accounts.receivable, r.customer, money(r.amount), r.reference, `Refund: ${memo}`, '', '', '']));
+    out.push('ENDTRNS');
+  }
+  return out.join('\r\n') + '\r\n';
+}
+
+/**
+ * Every transaction in an IIF file that does not balance (TRNS plus its
+ * splits is not zero, to the kobo), by document number. Checked on every file
+ * before it is offered for download.
+ */
+export function unbalancedTransactions(file: string): string[] {
+  const bad: string[] = [];
+  let sum: number | null = null;
+  let doc = '';
+  for (const line of file.split(/\r?\n/)) {
+    const c = line.split('\t');
+    if (c[0] === 'TRNS') { sum = Math.round(Number(c[6]) * 100); doc = c[7] ?? ''; }
+    else if (c[0] === 'SPL' && sum !== null) sum += Math.round(Number(c[6]) * 100);
+    else if (c[0] === 'ENDTRNS') { if (sum !== 0 || Number.isNaN(sum)) bad.push(doc || '(no number)'); sum = null; }
+  }
+  return bad;
 }
 
 /** Stock counted up or down, or written off: an inventory adjustment against the adjustments account. */
@@ -288,5 +398,53 @@ export function itemsCsv(items: QbItem[], accounts: QbAccounts = DEFAULT_QB_ACCO
   return csv([
     ['Item Name', 'Type', 'Description', 'Sales Price', 'Cost', 'Income Account', 'Asset Account', 'COGS Account', 'Reorder Point', 'Preferred Vendor'],
     ...items.map((i) => { const stock = i.kind === 'INVENTORY'; return [i.name, type[i.kind], i.description, money(i.salesPrice), stock && i.cost != null ? money(i.cost) : '', i.incomeAccount, stock ? accounts.inventoryAsset : '', stock ? accounts.costOfGoodsSold : '', stock && i.reorderPoint != null ? qty(i.reorderPoint) : '', i.preferredVendor ?? '']; }),
+  ]);
+}
+
+/** Invoices for Excel or QuickBooks Online's invoice import: one row per line; the invoice's discount, VAT and total on its first row. */
+export function invoicesCsv(invoices: QbInvoice[], accounts: QbAccounts = DEFAULT_QB_ACCOUNTS, format: QbDateFormat = 'DD/MM/YYYY'): string {
+  const rows: unknown[][] = [['Invoice No', 'Customer', 'Invoice Date', 'Due Date', 'Item', 'Description', 'Quantity', 'Rate', 'Amount', 'Income Account', 'Discount', 'VAT Rate', 'VAT', 'Invoice Total', 'Memo']];
+  for (const inv of invoices) {
+    inv.lines.forEach((l, i) => rows.push([inv.number, inv.customer, qbDate(inv.date, format), inv.dueDate ? qbDate(inv.dueDate, format) : '', l.item, l.description, qty(l.quantity), money(l.unitPrice), money(l.amount), incomeAccountFor(l.kind, accounts),
+      i === 0 ? money(inv.discount) : '', i === 0 ? `${inv.vatRate}%` : '', i === 0 ? money(inv.vatAmount) : '', i === 0 ? money(inv.total) : '', i === 0 ? inv.memo ?? '' : '']));
+  }
+  return csv(rows);
+}
+
+/** Counter sales, one row per line; the method, reference, VAT and total on the sale's first row. */
+export function salesReceiptsCsv(sales: QbSalesReceipt[], accounts: QbAccounts = DEFAULT_QB_ACCOUNTS, format: QbDateFormat = 'DD/MM/YYYY'): string {
+  const rows: unknown[][] = [['Sales Receipt No', 'Customer', 'Date', 'Payment Method', 'Deposit To', 'Reference', 'Item', 'Description', 'Quantity', 'Rate', 'Amount', 'Income Account', 'VAT Rate', 'VAT', 'Total']];
+  for (const sr of sales) {
+    sr.lines.forEach((l, i) => rows.push([sr.number, sr.customer, qbDate(sr.date, format), i === 0 ? methodLabel(sr.method) : '', i === 0 ? paymentAccountFor(sr.method, accounts) : '', i === 0 ? sr.reference ?? '' : '', l.item, l.description, qty(l.quantity), money(l.unitPrice), money(l.amount), incomeAccountFor(l.kind, accounts),
+      i === 0 ? `${sr.vatRate}%` : '', i === 0 ? money(sr.vatAmount) : '', i === 0 ? money(sr.total) : '']));
+  }
+  return csv(rows);
+}
+
+export function paymentsCsv(payments: QbPayment[], accounts: QbAccounts = DEFAULT_QB_ACCOUNTS, format: QbDateFormat = 'DD/MM/YYYY'): string {
+  return csv([
+    ['Receipt No', 'Date', 'Customer', 'Amount', 'Payment Method', 'Deposit To', 'For Invoice', 'Memo'],
+    ...payments.map((p) => [p.reference, qbDate(p.date, format), p.customer, money(p.amount), methodLabel(p.method), paymentAccountFor(p.method, accounts), p.invoiceNumber ?? '', p.memo ?? '']),
+  ]);
+}
+
+export function creditNotesCsv(notes: QbCreditNote[], accounts: QbAccounts = DEFAULT_QB_ACCOUNTS, format: QbDateFormat = 'DD/MM/YYYY'): string {
+  return csv([
+    ['Credit Note No', 'Date', 'Customer', 'Against Invoice', 'Reason', 'Account', 'Amount before VAT', 'VAT', 'Total'],
+    ...notes.map((n) => [n.number, qbDate(n.date, format), n.customer, n.invoiceNumber ?? '', n.reason, accounts.salesReturns, money(n.netAmount), money(n.vatAmount), money(n.total)]),
+  ]);
+}
+
+export function refundsCsv(refunds: QbRefund[], accounts: QbAccounts = DEFAULT_QB_ACCOUNTS, format: QbDateFormat = 'DD/MM/YYYY'): string {
+  return csv([
+    ['Refund No', 'Date', 'Customer', 'Amount', 'Payment Method', 'Paid From', 'Reason'],
+    ...refunds.map((r) => [r.reference, qbDate(r.date, format), r.customer, money(r.amount), methodLabel(r.method), paymentAccountFor(r.method, accounts), r.memo ? `${r.reason} (${r.memo})` : r.reason]),
+  ]);
+}
+
+export function stockMovementsCsv(moves: QbStockMovement[], accounts: QbAccounts = DEFAULT_QB_ACCOUNTS, format: QbDateFormat = 'DD/MM/YYYY'): string {
+  return csv([
+    ['Reference', 'Date', 'Item', 'Quantity', 'Value', 'Adjustment Account', 'Memo'],
+    ...moves.map((m) => [m.reference, qbDate(m.date, format), m.item, qty(m.quantity), money(m.value), accounts.stockAdjustment, m.memo]),
   ]);
 }

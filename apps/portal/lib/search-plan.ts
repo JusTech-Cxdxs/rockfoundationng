@@ -31,6 +31,7 @@ export const REFERENCE_TYPES = [
   { prefix: 'IMP', model: 'ImportJob', group: 'Imports', path: (id: string) => `/data-exchange/imports/${id}` },
   // Data Exchange: an export of a list to Excel or CSV.
   { prefix: 'EXP', model: 'ExportJob', group: 'Exports', path: (id: string) => `/data-exchange/exports/${id}` },
+  { prefix: 'QBX', model: 'QuickBooksExport', group: 'QuickBooks exports', path: (id: string) => `/money/quickbooks/exports/${id}` },
 ] as const;
 
 export type RefPrefix = (typeof REFERENCE_TYPES)[number]['prefix'];
