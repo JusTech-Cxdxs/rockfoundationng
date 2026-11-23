@@ -76,6 +76,7 @@ export const AREAS: { prefix: string; title: string }[] = [
   { prefix: '/security', title: 'Gate' },
   { prefix: '/crm', title: 'Customers & support' },
   { prefix: '/support', title: 'Help' },
+  { prefix: '/money', title: 'Money' },
   { prefix: '/analytics', title: 'Analytics' },
   { prefix: '/notifications', title: 'Notifications' },
   { prefix: '/reminders', title: 'Reminders' },

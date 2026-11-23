@@ -79,7 +79,7 @@ export default async function QuickBooksSettingsPage({ searchParams }: { searchP
             {!qbo.serverReady ? (
               <div className="space-y-2 text-sm">
                 <p className="font-semibold text-[var(--ejo-text)]">Not connected</p>
-                <p className="text-[var(--ejo-text-muted)]">QuickBooks Online is off on this server. Your developer switches it on by adding these settings to the server (never in this page): {qbo.missing.join(', ')}. The step-by-step is in docs/QUICKBOOKS_IMPORT.md.</p>
+                <p className="text-[var(--ejo-text-muted)]">QuickBooks Online is off on this server. Your developer switches it on by adding these settings to the server (never in this page): {qbo.missing.join(', ')}. Until then, the CSV files from Money → QuickBooks import into QuickBooks Online by hand.</p>
               </div>
             ) : qbo.connected ? (
               <div className="space-y-3 text-sm">

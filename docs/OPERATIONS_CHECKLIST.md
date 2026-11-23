@@ -84,10 +84,16 @@ variable, with an example and a note, is in [.env.example](../.env.example).
 
 Set the same values in both projects, then redeploy both (docs/SETUP.md, 5a).
 
+### QuickBooks Online (optional, portal only)
+
+`QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_REDIRECT_URI`, `QBO_TOKEN_KEY`
+(32 random bytes, base64; keep it, or the Owner must connect again) and
+`QBO_ENVIRONMENT` (`sandbox` or `production`). Off unless all are set; the
+QuickBooks Desktop and CSV exports need none of them (docs/SETUP.md, 5b).
+
 ### Planned, not read by the code yet
 
-`QUICKBOOKS_*` (QuickBooks
-Online, Phase 7) and `R2_*` (nightly backup copy, Phase 9) are listed in
+`R2_*` (nightly backup copy, Phase 9) is listed in
 `.env.example` so the settings can be prepared. Each stays off until its
 phase is released and the Owner switches it on.
 

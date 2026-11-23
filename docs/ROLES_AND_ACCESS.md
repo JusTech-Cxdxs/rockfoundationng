@@ -26,7 +26,7 @@ Three things hold for everyone:
 | **Workshop Supervisor / Service Advisor** | Optional | The workshop | Accepts supervising a job, assigns technicians, inspects, writes and checks estimates before the Owner, works on jobs, raises parts requests and gives them first approval. |
 | **Technician** | Optional | Their own jobs | Sees only the jobs assigned to them; inspects, records the work, writes estimate lines and raises parts requests on those jobs. |
 | **Store Keeper** | Optional | The workshop | Parts and their selling prices, stock and reorder levels, goods received from suppliers, matching estimate parts to stock, approving and issuing parts requests. Sees selling prices, not cost prices or margins. |
-| **Accounts** | Optional | The workshop | Records payments (cash, transfer, POS) and refunds, asks for credit notes, sees what customers owe (statements and ageing), records and follows warranty claims to suppliers, sees customers and Job Cards, exports lists including customers' contact details and payments. |
+| **Accounts** | Optional | The workshop | Records payments (cash, transfer, POS) and refunds, asks for credit notes, sees what customers owe (statements and ageing), records and follows warranty claims to suppliers, exports the sales and money to QuickBooks (`money.quickbooks.export`) and keeps the QuickBooks account names, sees customers and Job Cards, exports lists including customers' contact details and payments. |
 | **Security** | Optional | The workshop | The gate: vehicles in the compound, vehicles leaving, gate passes. |
 
 The platform administrator (JusTech) is separate from these roles. It is
@@ -95,6 +95,7 @@ on the Permissions page) can never be granted to the organisation's roles.
 | Pricing, margins, stock value | ✓ | | | | | | |
 | Gate | ✓ | | | | | | ✓ |
 | Money: what customers owe, credit notes | ✓ | ✓ | | | | ✓ | |
+| Money: QuickBooks export and Settings → QuickBooks | ✓ | | | | | ✓ | |
 | Warranty: report | ✓ | | | | | | |
 | Warranty: claims to suppliers | ✓ | | | | | ✓ | |
 | Business Analytics | ✓ | | | | | | |

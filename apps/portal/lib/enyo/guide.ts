@@ -380,6 +380,16 @@ export const GUIDE: GuideEntry[] = [
     ],
   },
   {
+    id: 'quickbooks-export', title: 'Send the month to QuickBooks', page: '/money/quickbooks', needs: ['money.quickbooks.export'], who: 'Accounts (or the Owner)',
+    keywords: ['quickbooks', 'qb', 'iif', 'accounts', 'books', 'post', 'accounting', 'month end', 'export sales', 'vat return', 'quickbooks online'],
+    steps: [
+      'Once: open Settings → QuickBooks and make each account and item name match your QuickBooks company file exactly.',
+      'Go to Money → QuickBooks, choose the days, tick what goes in (customers, items, invoices, counter sales, payments, credit notes, refunds) and press "Check the figures".',
+      'Compare the counts and totals with your own figures, then press "Create the IIF file" (QuickBooks Desktop) or choose CSV for Excel and QuickBooks Online.',
+      'Download it and import it in QuickBooks Desktop: File → Utilities → Import → IIF Files. Records already exported are left out next time, so nothing is posted twice.',
+    ],
+  },
+  {
     id: 'export-list', title: 'Export a list to Excel', page: '/data-exchange/exports', needs: ['dataexchange.export.run'],
     keywords: ['export', 'excel', 'csv', 'download list', 'spreadsheet'],
     steps: ['On any list you can open, press "Export" and choose Excel or CSV. The file has what you see, with your filters.', 'Your exports are listed under Exports; each link works for 24 hours.'],

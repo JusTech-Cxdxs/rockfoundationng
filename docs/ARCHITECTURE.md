@@ -272,6 +272,19 @@ record inside the portal.
   suppliers (`SupplierClaim`, CLM-YYYY-NNNNNN). The warranty report shows the
   comeback rate by job type and technician, warranty and goodwill cost, and
   open claims.
+- **QuickBooks** (`lib/quickbooks/*`, `lib/actions/quickbooks.ts`): Money →
+  QuickBooks builds one IIF file for QuickBooks Desktop (lists first, then
+  invoices, counter sales as cash sales, payments into the account for their
+  method, credit memos, refunds as cheques, stock count adjustments at cost)
+  or one CSV per kind, from the frozen figures; every IIF transaction is
+  checked to balance before the file is kept (`QuickBooksExport`, QBX-YYYY-
+  NNNNNN) and the records it carried are remembered
+  (`QuickBooksExportRecord`), so the next export leaves them out. Account and
+  item names live on the organisation (`quickbooksSettings`). The optional
+  QuickBooks Online connection (OAuth 2, tokens AES-256-GCM encrypted with
+  `QBO_TOKEN_KEY`, bound to the organisation) sends invoices, counter sales,
+  payments and credit notes not sent yet (`QuickBooksSync`); it is off unless
+  every `QBO_*` setting exists.
 
 ## System design and scale
 

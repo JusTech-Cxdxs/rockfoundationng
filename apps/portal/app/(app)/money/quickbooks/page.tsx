@@ -127,7 +127,7 @@ export default async function QuickBooksPage({ searchParams }: { searchParams: P
         <div className="space-y-6">
           <SectionCard icon="settings" title="Your QuickBooks names" description="The file uses your company file's account and item names, and its date order.">
             <Link href="/settings/quickbooks" className={secondary}>Settings → QuickBooks</Link>
-            <p className="mt-3 text-xs text-[var(--ejo-text-muted)]">New to this? The step-by-step guide for the accountant is in the Help guides (QuickBooks import).</p>
+            <p className="mt-3 text-xs text-[var(--ejo-text-muted)]">New to this? The step-by-step is in Get help → Guides (“Send the month to QuickBooks”).</p>
           </SectionCard>
           <SectionCard icon="layers" title="QuickBooks Online" description="Optional: send invoices, counter sales, payments and credit notes straight to QuickBooks Online.">
             {!page.qbo.serverReady ? (

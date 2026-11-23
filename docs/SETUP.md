@@ -204,6 +204,22 @@ payment method in WhatsApp Manager → **Billing**. To stop all automatic
 WhatsApp at once, remove `WHATSAPP_ACCESS_TOKEN` from both projects and
 redeploy: the **Send on WhatsApp** buttons keep working.
 
+## 5b. QuickBooks
+
+QuickBooks stays the accounting system. Nothing needs setting up on the server
+for the QuickBooks Desktop file or the CSV files: the Owner or Accounts opens
+**Settings → QuickBooks**, makes the account and item names match the company
+file, and then exports from **Money → QuickBooks**. The full guide for the
+accountant is [QUICKBOOKS_IMPORT.md](QUICKBOOKS_IMPORT.md).
+
+The **QuickBooks Online connection** is optional and off until these are set
+in the **portal** project (names only here; the values come from the Intuit
+developer app, never in chat or code): `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`,
+`QBO_REDIRECT_URI` (`https://<portal address>/api/quickbooks/callback`),
+`QBO_TOKEN_KEY` (32 random bytes, base64) and `QBO_ENVIRONMENT` (`sandbox`
+first, then `production`). Redeploy, then the Owner connects it in
+**Settings → QuickBooks**.
+
 ## 6. Scheduled jobs
 
 - **Vercel** runs the daily morning job by itself (`apps/portal/vercel.json`),
