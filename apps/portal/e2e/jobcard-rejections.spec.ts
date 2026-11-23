@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { SUPERMANAGER, who } from './people';
+import { who } from './people';
 import { as, open, expectNoUrlError, latestMail, waitOutcome } from './helpers';
 import { freshVehicle } from './db';
 import { addLine, assignTechnician, card, jcForm, jobNumber, openJobCard, submitEstimate, supervisorApprovesEstimate } from './workflows';
@@ -47,19 +47,19 @@ test('a supervisor rejects the Job Card; the front desk routes it to another sup
   await open(page, S.url);
   const reassign = jcForm(page, 'Reassign');
   await expect(page.getByRole('heading', { name: 'Reassign supervisor' })).toBeVisible();
-  await reassign.locator('select[name="supervisorId"]').selectOption({ label: SUPERMANAGER.name });
+  await reassign.locator('select[name="supervisorId"]').selectOption({ label: who('workshop-supervisor').name });
   await reassign.getByRole('button', { name: 'Reassign' }).click();
   await expect(page.getByText('Awaiting Supervisor Approval').first()).toBeVisible();
   expectNoUrlError(page);
 
-  await as(page, SUPERMANAGER);
+  await as(page, 'workshop-supervisor');
   await open(page, S.url);
   await page.locator('#review-approval').getByRole('button', { name: 'Approve' }).click();
-  await expect(page.getByText(`Approved by ${SUPERMANAGER.name}`)).toBeVisible();
+  await expect(page.getByText(`Approved by ${who('workshop-supervisor').name}`)).toBeVisible();
 });
 
 test('a technician turns the assignment down; it is reassigned and accepted', async ({ page }) => {
-  await as(page, SUPERMANAGER);
+  await as(page, 'workshop-supervisor');
   await open(page, S.url);
   await assignTechnician(page);
 
@@ -71,14 +71,14 @@ test('a technician turns the assignment down; it is reassigned and accepted', as
   await expect(page.locator('#technician-response')).toHaveCount(0);
   // The assignment is handed back (the reason is kept on the trail): no longer
   // their job, so the technician no longer sees it; the supervisor does.
-  await as(page, SUPERMANAGER);
+  await as(page, 'workshop-supervisor');
   await open(page, S.url);
   await expect(page.getByText('Assigned technician').locator('..')).toContainText('Unassigned');
   const trail = page.getByRole('heading', { name: 'Audit trail' }).locator('..');
   await expect(trail).toContainText('Technician rejected assignment');
   await expect(trail).toContainText('Reason: On leave tomorrow');
 
-  await as(page, SUPERMANAGER);
+  await as(page, 'workshop-supervisor');
   await open(page, S.url);
   await assignTechnician(page);
   await as(page, 'technician');
@@ -88,7 +88,7 @@ test('a technician turns the assignment down; it is reassigned and accepted', as
 });
 
 test('the Owner sends the estimate back for changes; the supervisor fixes and re-approves', async ({ page }) => {
-  await as(page, SUPERMANAGER);
+  await as(page, 'workshop-supervisor');
   await open(page, S.url);
   await addLine(page, { type: 'LABOUR', description: 'Wheel alignment', price: 12000 });
   await submitEstimate(page);
@@ -105,7 +105,7 @@ test('the Owner sends the estimate back for changes; the supervisor fixes and re
   await expect(card(page, 'Estimate')).toContainText('Awaiting supervisor validation');
   await expect(page.getByRole('button', { name: 'Approve as Owner' })).toHaveCount(0);
 
-  await as(page, SUPERMANAGER);
+  await as(page, 'workshop-supervisor');
   await open(page, S.url);
   // The supervisor can correct a submitted estimate.
   await card(page, 'Estimate').getByRole('link', { name: 'Edit' }).first().click();

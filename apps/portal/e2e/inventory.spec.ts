@@ -80,9 +80,11 @@ test('the Store Keeper receives a delivery without its cost; the Owner enters th
 
   const stock = await readStock(page, S.partUrl);
   expect(stock.onHand).toBe(12);
-  // The receipt is traceable from the part, and shows the Store Keeper no cost.
-  await expect(page.getByRole('link', { name: /^GRN-/ }).first()).toBeVisible();
-  await page.getByRole('link', { name: /^GRN-/ }).first().click();
+  // The receipt is listed under Goods receipts (the part page keeps its delivery history for those who see costs),
+  // and shows the Store Keeper no cost.
+  await page.goto('/inventory/goods-receipts');
+  const row = page.locator('tr', { hasText: 'E2E Wipers Ltd' }).first();
+  await row.getByRole('link', { name: /^GRN-/ }).click();
   await page.waitForURL(/\/inventory\/goods-receipts\/[^/?]+/);
   await expectHealthy(page);
   S.grn = page.url().split('?')[0]!;
@@ -93,7 +95,11 @@ test('the Store Keeper receives a delivery without its cost; the Owner enters th
   await as(page, 'owner');
   await page.goto(S.grn);
   await expect(page.getByText('Not entered yet')).toBeVisible();
-  await page.getByRole('button', { name: 'Enter the cost' }).click();
+  // The button opens the field once the page is interactive: try again until it does.
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Enter the cost' }).click();
+    await expect(page.locator('input[name="unitCost"]')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   await page.locator('input[name="unitCost"]').fill('3000');
   await page.getByRole('button', { name: 'Correct', exact: true }).click();
   await waitOutcome(page, /status=cost_updated/);

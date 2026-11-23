@@ -51,7 +51,8 @@ test('more than is free in stock cannot be sold', async ({ page }) => {
   await qty.evaluate((el) => el.removeAttribute('max'));
   await qty.fill('100000');
   await page.getByRole('button', { name: 'Record the sale' }).click();
-  await waitOutcome(page, /\/inventory\/counter-sales\/new\?error=/);
+  // Refused: back on the form with the reason (waitOutcome is for successes only).
+  await page.waitForURL(/\/inventory\/counter-sales\/new\?error=/);
   await expect(page.getByText(/can be sold: the rest is not in stock or is kept for a job/)).toBeVisible();
 });
 
