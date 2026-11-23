@@ -87,8 +87,8 @@ test('invoices from the old system: totals before approval, read-only history in
   // Accounts confirms the totals.
   await as(page, 'accounts');
   await open(page, invoicesUrl);
-  await page.getByRole('button', { name: 'Confirm the totals (Finance)' }).click();
-  await expect(page.getByText(/Totals confirmed by .* \(Finance\)/)).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm the totals (Accounts)' }).click();
+  await expect(page.getByText(/Totals confirmed by .* \(Accounts\)/)).toBeVisible();
   // The customer: lifetime spend and visits include the old system's invoices, marked; they are listed read-only.
   await as(page, 'owner');
   await open(page, `/crm/customers/${customerId}`);

@@ -163,8 +163,8 @@ test('no cost is read for anyone who may not see it (source)', () => {
   assert.match(store, /const withCosts = await seesCosts\(input\.branchId\);/);
   assert.match(store, /const typedCost = withCosts \? line\.totalCost : null;/);
   // Pricing alerts and margin targets are emailed to those who see costs only.
-  assert.match(store, /Costs and margins: only those who see costs \(the Owner\), never the Store Keeper\./);
-  assert.match(store, /margin: seeCost\.has\(recipient\.email\) \? margin : null/);
+  // Emails: the margin only in the Owner's copy (tests/store-costs.test.ts checks every store email).
+  assert.match(store, /margin: recipient\.seesCosts \? margin : null/);
 });
 
 test('every new action is fenced to the organisation and branch (source)', () => {
