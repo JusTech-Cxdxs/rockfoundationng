@@ -4,9 +4,9 @@ import { PDF_FONT, registerPdfFonts } from './fonts';
 import type { EstimatePdfProps } from './document-types';
 
 /**
- * Two money documents as PDFs, in the receipt's letterhead and layout so the
- * set reads as one: a credit note (CN-number) and a customer statement with
- * its ageing. Every figure arrives already worked out and in words
+ * Three money documents as PDFs, in the receipt's letterhead and layout so the
+ * set reads as one: a credit note (CN-number), a customer statement with its
+ * ageing, and a fleet customer's report for a period. Every figure arrives already worked out and in words
  * (lib/money/documents.ts); nothing is calculated here.
  */
 
@@ -188,6 +188,56 @@ export function StatementPdf(p: StatementPdfProps) {
           <View style={styles.balanceRow}><Text style={styles.totalLabel}>Total owed</Text><Text style={styles.totalLabel}>{p.owed}</Text></View>
         </View>
         <Text style={styles.note}>Please pay into {p.bank.accountName}, {p.bank.bankName}, account number {p.bank.accountNumber}, quoting the invoice numbers. If your records differ from this statement, please call us.</Text>
+        <Foot lh={p} />
+      </Page>
+    </Document>
+  );
+}
+
+export type FleetReportPdfProps = MoneyLetterhead & {
+  dateLabel: string;
+  customerName: string;
+  periodLabel: string;
+  termsLine: string | null;
+  tiles: { label: string; value: string }[];
+  byType: { visit: string; visits: string; charged: string }[];
+  vehicles: { vehicle: string; plate: string; visits: string; charged: string; owed: string; lastVisit: string; nextService: string }[];
+};
+
+const FLEET_COLS: [string, keyof FleetReportPdfProps['vehicles'][number], number][] = [
+  ['VEHICLE', 'vehicle', 2.4], ['PLATE', 'plate', 1.2], ['VISITS', 'visits', 0.8], ['CHARGED', 'charged', 1.3], ['STILL OWED', 'owed', 1.3], ['LAST VISIT', 'lastVisit', 1.2], ['NEXT SERVICE', 'nextService', 1.8],
+];
+
+/** A fleet customer's report for a period: what was done on their vehicles, what it came to, what is owed and what is due. */
+export function FleetReportPdf(p: FleetReportPdfProps) {
+  registerPdfFonts();
+  return (
+    <Document>
+      <Page size="A4" orientation="landscape" style={styles.page}>
+        <Head lh={p} title="Fleet Report" reference={p.periodLabel} date={p.dateLabel} />
+        <View style={styles.fieldGrid}>
+          <F label="CUSTOMER" value={p.customerName} />
+          <F label="PERIOD" value={p.periodLabel} />
+          {p.termsLine ? <F label="CREDIT TERMS" value={p.termsLine} /> : null}
+        </View>
+        <View style={styles.ageRow}>
+          {p.tiles.map((t) => <View key={t.label} style={styles.ageCell}><Text style={styles.ageLabel}>{t.label.toUpperCase()}</Text><Text style={styles.ageValue}>{t.value}</Text></View>)}
+        </View>
+        {p.byType.length ? (
+          <View style={styles.table}>
+            <View style={styles.th}><Text style={[styles.thText, { flex: 2 }]}>VISIT</Text><Text style={[styles.thText, { flex: 1 }]}>VISITS</Text><Text style={[styles.thText, { flex: 1 }]}>CHARGED</Text></View>
+            {p.byType.map((t) => <View key={t.visit} style={styles.tr} wrap={false}><Text style={[styles.td, { flex: 2 }]}>{t.visit}</Text><Text style={[styles.td, { flex: 1 }]}>{t.visits}</Text><Text style={[styles.td, { flex: 1 }]}>{t.charged}</Text></View>)}
+          </View>
+        ) : null}
+        <View style={styles.table}>
+          <View style={styles.th}>{FLEET_COLS.map(([h, , w]) => <Text key={h} style={[styles.thText, { flex: w }]}>{h}</Text>)}</View>
+          {p.vehicles.length === 0 ? <Text style={[styles.td, { paddingVertical: 8 }]}>No vehicles on this account yet.</Text> : p.vehicles.map((r, i) => (
+            <View key={`${r.plate}-${i}`} style={styles.tr} wrap={false}>
+              {FLEET_COLS.map(([h, k, w]) => <Text key={h} style={[styles.td, { flex: w }]}>{r[k]}</Text>)}
+            </View>
+          ))}
+        </View>
+        <Text style={styles.note}>Charged: invoices, else estimates you were sent, VAT included, for visits opened in the period. Still owed: on every visit, whatever the period, after payments and credit notes. Next service: by date or distance, whichever comes first.</Text>
         <Foot lh={p} />
       </Page>
     </Document>

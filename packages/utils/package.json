@@ -11,7 +11,8 @@
     "./whatsapp": "./src/whatsapp.ts",
     "./whatsapp-cloud": "./src/whatsapp-cloud.ts",
     "./whatsapp-templates": "./src/whatsapp-templates.ts",
-    "./appointments": "./src/appointments.ts"
+    "./appointments": "./src/appointments.ts",
+    "./fleet-report": "./src/fleet-report.ts"
   },
   "typesVersions": {
     "*": {
@@ -32,6 +33,9 @@
       ],
       "appointments": [
         "src/appointments.ts"
+      ],
+      "fleet-report": [
+        "src/fleet-report.ts"
       ]
     }
   }

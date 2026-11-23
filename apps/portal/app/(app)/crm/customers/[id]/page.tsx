@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { provenanceOf } from '@/lib/data-exchange/provenance-server';
 import { ProvenanceCard } from '@/components/ProvenanceCard';
 import { notFound } from 'next/navigation';
-import { guardPage } from '@/lib/authz/server';
+import { allows, guardPage } from '@/lib/authz/server';
 import { getCustomer360, getCustomerActivity } from '@/lib/actions/crm';
 import { getRecycleBinOffer } from '@/lib/actions/recycle-bin';
 import { RecycleBinPanel } from '@/components/RecycleBinPanel';
@@ -82,6 +82,8 @@ export default async function Customer360Page({ params, searchParams }: { params
   if (!data) notFound();
   const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab! : 'overview';
   const { customer: c, portal, money, can } = data;
+  // Fleet report (a company with vehicles): front desk, Accounts and the Owner.
+  const canFleet = c.customerType === 'ORGANIZATION' && data.vehicles.length > 0 && (await allows('money.fleet_report.view'));
   const [activity, binOffer, origin] = await Promise.all([
     tab === 'activity' ? getCustomerActivity(id, 300) : Promise.resolve([]),
     getRecycleBinOffer('Customer', id),
@@ -198,6 +200,15 @@ export default async function Customer360Page({ params, searchParams }: { params
               {pinned.length ? (
                 <Section icon="pin" title="Pinned notes" action={<Link href={`${base}?tab=notes`} className="text-xs font-medium text-[var(--ejo-primary)] hover:underline">All notes →</Link>}>
                   <ul className="space-y-2">{pinned.slice(0, 3).map((n) => <li key={n.id} className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-warning)]/30 bg-[var(--ejo-warning)]/[0.06] p-3 text-sm"><p className="whitespace-pre-line break-words text-[var(--ejo-text)]">{n.body}</p><p className="mt-1 text-[11px] text-[var(--ejo-text-muted)]">{n.author} · {formatDateTimeCompact(n.createdAt)}</p></li>)}</ul>
+                </Section>
+              ) : null}
+              {canFleet ? (
+                <Section icon="receipt" title="Fleet report" subtitle="Their vehicles, visits, what was charged, what is still owed and what is due for service (PDF).">
+                  <ul className="flex flex-wrap gap-2" data-testid="fleet-report-links">
+                    {([['this-month', 'This month'], ['last-month', 'Last month'], ['last-3-months', 'Last 3 months'], ['this-year', 'This year']] as const).map(([k, label]) => (
+                      <li key={k}><a href={`/api/customers/${id}/fleet-report?period=${k}`} className="inline-flex min-h-10 items-center rounded-full border border-[var(--ejo-border)] px-3.5 text-sm font-medium text-[var(--ejo-text)] hover:border-[var(--ejo-primary)]">{label}</a></li>
+                    ))}
+                  </ul>
                 </Section>
               ) : null}
               <Section icon="car" title="Vehicles" action={<Link href={`${base}?tab=vehicles`} className="text-xs font-medium text-[var(--ejo-primary)] hover:underline">Details →</Link>}>

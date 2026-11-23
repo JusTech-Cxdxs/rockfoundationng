@@ -139,6 +139,7 @@ export default async function CustomerOverviewPage() {
           <div className="flex shrink-0 flex-wrap gap-2">
             <Link href="/customer-portal/dashboard/services" className="inline-flex items-center gap-2 rounded-full bg-[var(--ejo-primary)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95"><Icon name="wrench" size={15} /> My services</Link>
             <Link href="/book" className="inline-flex items-center gap-2 rounded-full border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-4 py-2 text-sm font-semibold text-[var(--ejo-text)]"><Icon name="calendar" size={15} /> Book a visit</Link>
+            {me.customerType === 'ORGANIZATION' ? <Link href="/customer-portal/dashboard/fleet-report" data-testid="fleet-report-link" className="inline-flex items-center gap-2 rounded-full border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-4 py-2 text-sm font-semibold text-[var(--ejo-text)]"><Icon name="chart" size={15} /> Fleet report</Link> : null}
             {totalOwed > 0 ? <Link href="/customer-portal/dashboard/payments" className="inline-flex items-center gap-2 rounded-full border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-4 py-2 text-sm font-semibold text-[var(--ejo-text)]"><Icon name="wallet" size={15} /> {naira(totalOwed)} to pay</Link> : null}
           </div>
         </div>

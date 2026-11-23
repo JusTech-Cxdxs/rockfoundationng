@@ -70,6 +70,8 @@ export type ServiceItem = {
   jobType: string;
   /** The workshop's guarantee on this visit's work, once checked out. */
   guarantee: { until: Date | null; km: number | null } | null;
+  /** Opened as a comeback under the workshop's guarantee. */
+  comeback: boolean;
   /** Credit notes approved on the invoice: taken off what is owed. */
   creditNotes: { number: string; amount: number; at: Date | null }[];
   invoice: InvoiceRow | null;
@@ -86,7 +88,7 @@ const toRefund = (r: { id: string; amount: unknown; method: unknown; recordedAt:
 export const jobCardItemSelect = {
   id: true, jobNumber: true, status: true, createdAt: true, updatedAt: true,
   workStartedAt: true, completedAt: true, readyForCollectionAt: true, closedAt: true, checkedOutAt: true,
-  isService: true, jobType: true, mileageAtCheckIn: true, warrantyUntil: true, warrantyUntilKm: true,
+  isService: true, jobType: true, mileageAtCheckIn: true, warrantyUntil: true, warrantyUntilKm: true, comebackOfId: true,
   // The service interval (the vehicle's own, else the organisation's), for a service Job Card's next-service point.
   vehicle: { select: { ...vehicleSelect, serviceIntervalKm: true, serviceIntervalDays: true } },
   // …and the organisation's VAT switch and rate, for the total.
@@ -153,6 +155,7 @@ export function jobCardItem(jc: JobCardRow, now = new Date()): ServiceItem {
     isServiceJobCard: jc.isService,
     jobType: String(jc.jobType),
     guarantee: jc.checkedOutAt && (jc.warrantyUntil || jc.warrantyUntilKm) ? { until: jc.warrantyUntil, km: jc.warrantyUntilKm } : null,
+    comeback: Boolean(jc.comebackOfId),
     creditNotes: jc.creditNotes.map((c) => ({ number: c.number ?? '', amount: num(c.amount), at: c.decidedAt })),
     answer: jc.estimate && (jc.estimate.customerApprovedAt || jc.estimate.customerDeclinedAt) ? { approvedAt: jc.estimate.customerApprovedAt, via: jc.estimate.customerApprovedVia, declinedAt: jc.estimate.customerDeclinedAt, declineNote: jc.estimate.customerDeclineNote } : null,
     invoice: jc.invoice ? { id: jc.invoice.id, number: jc.invoice.invoiceNumber, issuedAt: jc.invoice.issuedAt, total: num(jc.invoice.total) } : null,
