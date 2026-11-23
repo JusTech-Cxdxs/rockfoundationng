@@ -7,18 +7,18 @@ import { Icon } from '@/components/ui/Icon';
 import { BRANCH_TYPE_WORDS, branchHostsModule, isBranchType, moduleOfPath } from '@/lib/branch-types';
 
 /** How each branch-bound area is named when a branch does not have it. */
-const AREA_WORDS: Record<string, string> = { workshop: 'a workshop', inventory: 'a store (Inventory)', warranty: 'a warranty desk', plant: 'an assembly line' };
+const AREA_WORDS: Record<string, string> = { workshop: 'a workshop', inventory: 'a parts store' };
 
 /**
- * The branch bar for headquarters roles, under the header on every page:
- * "All branches" or one branch. Every module's lists and analytics follow it
- * (the server narrows what is read; records opened from a link still open).
+ * The branch bar for people who see the whole business, under the header,
+ * once there is more than one branch: "All branches" or one branch. Every
+ * module's lists and analytics follow it (the server narrows what is read;
+ * records opened from a link still open).
  *
- * On a page of an area that only some kinds of branch have — Workshop,
- * Inventory, Warranty, the Assembly plant — the bar offers only the branches
- * that have it: the plant is not a choice under Inventory, and the workshop
- * is not a choice on the line. If the branch being viewed does not have the
- * area, the bar says so instead of showing an empty page without a reason.
+ * On a page of an area that only some kinds of branch have (the Workshop,
+ * the Parts store), the bar offers only the branches that have it. If the
+ * branch being viewed does not have the area, the bar says so instead of
+ * showing an empty page without a reason.
  */
 export function BranchLensBar({ options }: { options: NonNullable<LensOptions> }) {
   const router = useRouter();
@@ -51,8 +51,7 @@ export function BranchLensBar({ options }: { options: NonNullable<LensOptions> }
           {pending ? 'Switching…' : elsewhere && current ? null : current ? `Every page shows ${current.name} only` : area && here.length < options.branches.length ? `Showing the ${here.length === 1 ? 'branch' : `${here.length} branches`} with ${AREA_WORDS[area] ?? 'this area'}` : 'Every page shows the whole organisation'}
         </span>
       </div>
-      {/* The plant's own pages explain this themselves, with a one-tap switch (PlantReachNotice). */}
-      {elsewhere && current && area && area !== 'plant' ? (
+      {elsewhere && current && area ? (
         <p role="alert" data-testid="branch-lens-elsewhere" className="mt-2 text-xs text-[var(--ejo-warning-text)]">
           You are viewing {current.name}, which does not have {AREA_WORDS[area] ?? 'this area'}. To see this page’s records, choose {here.length === 1 ? here[0]!.name : 'a branch that does'}, or All branches.
         </p>
