@@ -1,4 +1,5 @@
 import { jobCardVisible, guardAnyPage, can, allows } from '@/lib/authz/server';
+import { PAYMENT_METHOD_LABEL } from '@/lib/money/rules';
 import { JobCardPhotos } from '@/components/JobCardPhotos';
 import { listJobCardPhotos } from '@/lib/actions/job-card-photos';
 import { fuelLevelLabel, sprayPanelLabels, washPackageLabel } from '@/lib/workshop/job-types';
@@ -10,6 +11,9 @@ import { APPROVED_VIA_LABEL } from '@/lib/customer-approval';
 import { ApprovalLinkPanel } from '@/components/ApprovalLinkPanel';
 import { recordCustomerApprovalByPhoneFormAction } from '@/lib/actions/customer-approval-form-handlers';
 import { canIssueInvoices, getJobCardInvoice } from '@/lib/actions/invoices';
+import { getInvoiceCreditNotes } from '@/lib/actions/credit-notes';
+import { credited } from '@/lib/money/rules';
+import { CreditNotesPanel } from '@/components/money/CreditNotesPanel';
 import { emailInvoiceFormAction, issueInvoiceFormAction } from '@/lib/actions/invoices-form-handlers';
 import { getJobCardBilling } from '@/lib/actions/estimate-billing';
 import { JobCardBillingPanel } from '@/components/JobCardBillingPanel';
@@ -17,6 +21,8 @@ import { humanizeAction } from '@/lib/humanize-action';
 import { JobCardStatusForm } from '@/components/JobCardStatusForm';
 import { AuditTrail } from '@/components/AuditTrail';
 import { getSelectableJobCardStatuses, isReworkTransition } from '@/lib/job-card-status-rules';
+import { carWashNextStatuses } from '@/lib/workshop/car-wash';
+import { guaranteeRuns, guaranteeText } from '@/lib/money/warranty';
 import { visitDurations } from '@/lib/visit-durations';
 import { listRefunds } from '@/lib/actions/refunds';
 import { RefundsPanel } from '@/components/RefundsPanel';
@@ -206,7 +212,7 @@ function formatAuditDetail(entry: { action: string; metadata: unknown }): string
     case 'payment.recorded': {
       const parts: string[] = [];
       if (typeof meta.amount === 'number') parts.push(formatNaira(meta.amount));
-      if (typeof meta.method === 'string') parts.push(meta.method === 'CASH' ? 'Cash' : 'Bank Transfer');
+      if (typeof meta.method === 'string') parts.push(PAYMENT_METHOD_LABEL[meta.method] ?? 'Bank transfer');
       if (typeof meta.notes === 'string' && meta.notes) parts.push(meta.notes);
       return parts.join(' — ') || null;
     }
@@ -278,7 +284,7 @@ const PAYMENT_STATUS_COLOR: Record<string, string> = {
 const ESTIMATE_STATUS_LABEL: Record<string, string> = {
   DRAFT: 'Draft',
   SUBMITTED: 'Awaiting supervisor validation',
-  APPROVED: 'Awaiting manager review',
+  APPROVED: 'Waiting for the Owner',
   MANAGER_APPROVED: 'Approved',
 };
 
@@ -353,6 +359,9 @@ export default async function JobCardDetailPage({
     getVehicleInspection(id),
   ]);
   const invoice = await getJobCardInvoice(id).catch(() => null);
+  // Credit notes on the invoice (Phase 5): approved ones lower what is owed.
+  const creditNotes = invoice ? await getInvoiceCreditNotes(invoice.id).catch(() => null) : null;
+  const creditedTotal = credited((creditNotes?.rows ?? []).map((r) => ({ amount: r.amount, status: r.status })));
   if (!jobCard) notFound();
   // Parts requests (PRS) need the Store: switched off, nothing to raise, list or link to.
   const sourcingNeeds = {
@@ -438,8 +447,8 @@ export default async function JobCardDetailPage({
   // Check-out is only offered once payments cover the total (the same rule
   // the server enforces). A Job Card with nothing owed counts as paid.
   // CLOSED is never offered here; it goes through the close request flow.
-  const isPaidInFull = paidInFull(paymentsTotal, estimateTotal);
-  const outstanding = Math.max(0, Math.round((estimateTotal - paymentsTotal) * 100) / 100);
+  const isPaidInFull = paidInFull(paymentsTotal + creditedTotal, estimateTotal);
+  const outstanding = Math.max(0, Math.round((estimateTotal - paymentsTotal - creditedTotal) * 100) / 100);
   // An organisation on credit leaves with a balance once invoiced, within its
   // credit limit; a Job Card the Owner has closed has had that decision.
   const credit = !isPaidInFull && !isCancelled && jobCard.customer.customerType === 'ORGANIZATION' ? await creditStanding(id, outstanding) : null;
@@ -473,10 +482,14 @@ export default async function JobCardDetailPage({
   // Next steps for this viewer's role. Platform Administrator sees the normal steps;
   // the override dropdown is separate. Handing a cancelled vehicle back is
   // a front-desk step (the server checks the same).
-  const canFrontDesk = isCancelled ? (await can('workshop.job_card.create', { branchId: jobCard.branchId })).allowed : false;
+  // A quick car wash (lib/workshop/car-wash.ts): from the wash to completed, then checked out once paid.
+  const quickWash = jobCard.jobType === 'CAR_WASH' && estimate?.customerApprovedVia === 'COUNTER';
+  const canFrontDesk = isCancelled || quickWash ? (await can('workshop.job_card.create', { branchId: jobCard.branchId })).allowed : false;
+  const washSteps = quickWash && (canFrontDesk || isApprover || isAssignedTechnician || isEligibleManager) ? carWashNextStatuses(jobCard.status) : [];
+  const withWash = (xs: string[]) => [...new Set([...washSteps, ...xs])];
   const nextSteps = isCancelled
     ? (canFrontDesk ? ['CHECKED_OUT'] : [])
-    : (getSelectableJobCardStatuses(jobCard.status, {
+    : withWash(getSelectableJobCardStatuses(jobCard.status, {
         isMasterAdmin: false,
         isSupervisor: isApprover,
         isAssignedTechnician,
@@ -484,12 +497,12 @@ export default async function JobCardDetailPage({
       }) as string[]);
   const selectableStatuses = isCancelled
     ? (canFrontDesk ? (['CHECKED_OUT'] as const) : ([] as const))
-    : getSelectableJobCardStatuses(jobCard.status, {
+    : (withWash(getSelectableJobCardStatuses(jobCard.status, {
         isMasterAdmin,
         isSupervisor: isApprover,
         isAssignedTechnician,
         isEligibleManager,
-      }).filter((s) => s !== 'CHECKED_OUT' || isPaidInFull || mayLeaveOnCredit);
+      }) as string[]) as typeof jobCard.status[]).filter((s) => s !== 'CHECKED_OUT' || isPaidInFull || mayLeaveOnCredit);
 
   return (
     <div className="p-8">
@@ -718,6 +731,18 @@ export default async function JobCardDetailPage({
                 <div>
                   <dt className="text-[var(--ejo-text-muted)]">Car wash</dt>
                   <dd className="mt-0.5 font-medium text-[var(--ejo-text)]">{washPackageLabel(jobCard.washPackage) ?? '—'}</dd>
+                </div>
+              ) : null}
+              {jobCard.comebackOf ? (
+                <div className="sm:col-span-2" data-testid="job-card-comeback">
+                  <dt className="text-[var(--ejo-text-muted)]">Under warranty (comeback)</dt>
+                  <dd className="mt-0.5 font-medium text-[var(--ejo-text)]">Putting right the work on <LoadingLink href={`/workshop/job-cards/${jobCard.comebackOf.id}`} className="text-[var(--ejo-primary)] hover:underline">{jobCard.comebackOf.jobNumber}</LoadingLink>. Its lines are under warranty unless the Owner decides otherwise.</dd>
+                </div>
+              ) : null}
+              {guaranteeText(jobCard) ? (
+                <div className="sm:col-span-2" data-testid="job-card-guarantee">
+                  <dt className="text-[var(--ejo-text-muted)]">Workshop guarantee</dt>
+                  <dd className="mt-0.5 font-medium text-[var(--ejo-text)]">{guaranteeRuns(jobCard, new Date()) ? 'Runs' : 'Ended'} {guaranteeText(jobCard)}</dd>
                 </div>
               ) : null}
               <div>
@@ -1204,7 +1229,7 @@ export default async function JobCardDetailPage({
                 <FormPendingOverlay />
                 <input type="hidden" name="jobCardId" value={jobCard.id} />
                 <p className="mb-2 text-xs text-[var(--ejo-text-muted)]">
-                  Approved by the manager. Check the estimate, then notify the customer.
+                  Fully approved. Check the estimate, then send it to the customer.
                 </p>
                 <SubmitButton
                   label="Notify customer"
@@ -1301,6 +1326,8 @@ export default async function JobCardDetailPage({
             </div>
           ) : null}
 
+          {invoice && creditNotes ? <CreditNotesPanel jobCardId={jobCard.id} invoiceId={invoice.id} data={creditNotes} /> : null}
+
           {refunds.length > 0 || ((jobCard.status === 'CANCELLED' || pendingCancellationRequest) && paymentsTotal > 0) || (billing?.overpaid ?? 0) > 0 ? (
             <RefundsPanel
               target={{ jobCardId: jobCard.id }}
@@ -1331,7 +1358,7 @@ export default async function JobCardDetailPage({
                     <div key={p.id} className="flex items-center justify-between border-b border-[var(--ejo-border)] pb-2 last:border-0">
                       <div>
                         <p className="text-[var(--ejo-text)]">
-                          {formatNaira(p.amount)} — {p.method === 'CASH' ? 'Cash' : 'Bank Transfer'}
+                          {formatNaira(p.amount)} — {PAYMENT_METHOD_LABEL[p.method] ?? 'Bank transfer'}{p.posReference ? ` · ref ${p.posReference}` : ''}
                         </p>
                         <p className="text-xs text-[var(--ejo-text-muted)]">
                           Receipt {p.receiptNumber ?? '—'} · {p.recordedBy.fullName} · {formatDateTime(p.recordedAt)}
@@ -1397,7 +1424,15 @@ export default async function JobCardDetailPage({
                     >
                       <option value="BANK_TRANSFER">Bank Transfer</option>
                       <option value="CASH">Cash</option>
+                      <option value="POS">POS (card)</option>
                     </select>
+                    <input
+                      name="posReference"
+                      placeholder="POS reference (RRN), for card payments"
+                      aria-label="POS transaction reference"
+                      maxLength={40}
+                      className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-2 py-2 text-xs text-[var(--ejo-text)]"
+                    />
                     <input
                       name="notes"
                       placeholder="Reference / notes (optional)"
@@ -1609,7 +1644,7 @@ export default async function JobCardDetailPage({
             {/* Automatic stages — nothing to click; say what moves them on. */}
             {jobCard.status === 'CHECKED_IN' ? (
               <p className="mt-3 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs text-[var(--ejo-text)]">
-                Next: write the estimate → supervisor validates → manager approves → notify the customer. The status then moves on by itself.
+                Next: write the estimate → the supervisor checks it (the Owner approves it too when needed) → send it to the customer. The status then moves on by itself.
               </p>
             ) : null}
             {jobCard.status === 'AWAITING_CUSTOMER_APPROVAL' ? (

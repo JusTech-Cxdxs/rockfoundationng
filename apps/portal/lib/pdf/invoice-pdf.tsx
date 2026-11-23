@@ -200,6 +200,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
           <Text style={styles.paymentNote}>Or pay the cashier at our {branch.name} office.</Text>
         </View>
 
+        {props.guarantee ? <Text style={{ marginTop: 12, fontSize: 9, color: '#334155' }}>{props.guarantee}</Text> : null}
         <Text style={styles.closing}>{props.closing}</Text>
         <View style={styles.closingRule} />
 

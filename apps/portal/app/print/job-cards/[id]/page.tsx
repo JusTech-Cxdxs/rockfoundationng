@@ -29,6 +29,7 @@ const TYPE_LABEL: Record<string, string> = {
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CASH: 'Cash',
   BANK_TRANSFER: 'Bank Transfer',
+  POS: 'POS (card)',
   CARD: 'Card',
   CHEQUE: 'Cheque',
 };

@@ -157,6 +157,7 @@ export async function createJobCardFormAction(formData: FormData) {
       sprayColourCode: str(formData, 'sprayColourCode'),
       sprayPanels: formData.getAll('sprayPanels').map((v) => String(v)),
       washPackage: str(formData, 'washPackage'),
+      comebackOfId: str(formData, 'comebackOfId') || null,
     });
     jobCardId = jobCard.id;
   } catch (err) {
@@ -250,6 +251,8 @@ export async function addEstimateLineItemFormAction(formData: FormData) {
       unitPrice: num(formData, 'unitPrice'),
       partTypeId: str(formData, 'partTypeId') || undefined,
       unitOfMeasure: str(formData, 'unitOfMeasure') || undefined,
+      warrantyMonths: str(formData, 'warrantyMonths') || null,
+      warrantyKm: str(formData, 'warrantyKm') || null,
     });
   } catch (err) {
     const message = friendlyError(err, 'Could not add estimate line item.', 'workshop-form-handlers');
@@ -372,9 +375,10 @@ export async function recordPaymentFormAction(formData: FormData) {
     await recordPayment(
       jobCardId,
       num(formData, 'amount') ?? NaN,
-      str(formData, 'method') === 'CASH' ? 'CASH' : 'BANK_TRANSFER',
+      str(formData, 'method') === 'CASH' ? 'CASH' : str(formData, 'method') === 'POS' ? 'POS' : 'BANK_TRANSFER',
       str(formData, 'notes') || undefined,
       str(formData, 'idempotencyKey') || undefined,
+      str(formData, 'posReference') || undefined,
     );
   } catch (err) {
     const message = friendlyError(err, 'Could not record payment.', 'workshop-form-handlers');

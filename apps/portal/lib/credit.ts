@@ -11,7 +11,7 @@ import { creditLimitOf, isOnCredit, isOverdue, withinCreditLimit } from '@/lib/c
 const net = (rows: { amount: unknown }[]) => rows.reduce((s, r) => s + Number(r.amount ?? 0), 0);
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-export type OwedInvoice = { id: string; invoiceNumber: string; jobCardId: string; jobNumber: string; issuedAt: Date; dueDate: Date | null; total: number; paid: number; balance: number; overdue: boolean };
+export type OwedInvoice = { id: string; invoiceNumber: string; jobCardId: string; jobNumber: string; issuedAt: Date; dueDate: Date | null; total: number; paid: number; credited: number; balance: number; overdue: boolean };
 
 /** The customer's invoices with a balance, oldest first: what they owe now, and how much of it is overdue. */
 export async function owedOnInvoices(customerId: string, now = new Date()): Promise<{ owed: number; overdue: number; invoices: OwedInvoice[] }> {
@@ -19,15 +19,17 @@ export async function owedOnInvoices(customerId: string, now = new Date()): Prom
     where: { customerId },
     orderBy: { issuedAt: 'asc' },
     take: 500,
-    select: { id: true, invoiceNumber: true, issuedAt: true, dueDate: true, total: true, jobCardId: true, jobCard: { select: { jobNumber: true, status: true, payments: { select: { amount: true } }, refunds: { select: { amount: true } } } } },
+    select: { id: true, invoiceNumber: true, issuedAt: true, dueDate: true, total: true, jobCardId: true, jobCard: { select: { jobNumber: true, status: true, payments: { select: { amount: true } }, refunds: { select: { amount: true } } } }, creditNotes: { where: { status: 'APPROVED' }, select: { amount: true } } },
   });
   const invoices: OwedInvoice[] = [];
   for (const r of rows) {
     if (r.jobCard.status === 'CANCELLED') continue;
     const paid = r2(Math.max(0, net(r.jobCard.payments) - net(r.jobCard.refunds)));
-    const balance = r2(Math.max(0, Number(r.total) - paid));
+    // Approved credit notes are money the customer no longer owes.
+    const credited = r2(net(r.creditNotes));
+    const balance = r2(Math.max(0, Number(r.total) - paid - credited));
     if (balance <= 0) continue;
-    invoices.push({ id: r.id, invoiceNumber: r.invoiceNumber, jobCardId: r.jobCardId, jobNumber: r.jobCard.jobNumber, issuedAt: r.issuedAt, dueDate: r.dueDate, total: Number(r.total), paid, balance, overdue: isOverdue({ dueDate: r.dueDate, balance }, now) });
+    invoices.push({ id: r.id, invoiceNumber: r.invoiceNumber, jobCardId: r.jobCardId, jobNumber: r.jobCard.jobNumber, issuedAt: r.issuedAt, dueDate: r.dueDate, total: Number(r.total), paid, credited, balance, overdue: isOverdue({ dueDate: r.dueDate, balance }, now) });
   }
   return { owed: r2(invoices.reduce((s, i) => s + i.balance, 0)), overdue: r2(invoices.filter((i) => i.overdue).reduce((s, i) => s + i.balance, 0)), invoices };
 }

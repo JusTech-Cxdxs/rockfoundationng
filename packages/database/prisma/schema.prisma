@@ -127,6 +127,21 @@ model Organisation {
   optionalRoles String[] @default([])
   depositRequired Boolean @default(false)
   depositPercent  Int     @default(70)
+  // Phase 5. The Owner gives the final approval of every estimate when this
+  // is on; when off, the supervisor's check is enough unless the estimate is
+  // above ownerApprovalAbove (naira, VAT included), carries a discount above
+  // the limit, or has lines the business pays for (warranty, goodwill,
+  // internal): lib/money/rules.ts ownerMustApprove.
+  ownerApprovesEstimates Boolean @default(false)
+  ownerApprovalAbove     Decimal? @db.Decimal(14, 2)
+  // Car wash prices by package (lib/workshop/job-types.ts WASH_PACKAGES), in
+  // naira: { "BASIC": 3000, "FULL": 5000 }. A car wash whose package has a
+  // price is a quick check-in: priced, approved and started at once.
+  carWashPrices Json?
+  // The workshop's guarantee on its own work, per job type:
+  // { "SERVICE": { "days": 30, "km": 1000 }, "SPRAYING": { "days": 365 } }.
+  // Fixed on each Job Card at checkout (lib/money/warranty.ts).
+  warrantyTerms Json?
   // A demonstration organisation: the only kind that gets demo people with
   // sign-ins and demo records (apps/portal/lib/demo). Set by the platform
   // team or `npm run demo:reset`; a real organisation never has it.
@@ -154,6 +169,8 @@ model Organisation {
   invoices      Invoice[]
   documentLinks DocumentLink[]
   whatsAppMessages WhatsAppMessage[]
+  creditNotes   CreditNote[]
+  supplierClaims SupplierClaim[]
 }
 
 model BusinessUnit {
@@ -416,6 +433,9 @@ model User {
   importMappingProfilesCreated ImportMappingProfile[] @relation("ImportMappingProfileCreatedBy")
   suppliersCreated  Supplier[] @relation("SupplierCreatedBy")
   followUpsAssigned FollowUp[] @relation("FollowUpAssignee")
+  creditNotesRequested  CreditNote[]    @relation("CreditNoteRequestedBy")
+  creditNotesDecided    CreditNote[]    @relation("CreditNoteDecidedBy")
+  supplierClaimsCreated SupplierClaim[] @relation("SupplierClaimCreatedBy")
 }
 
 // One-to-one HR extension of User, keeping the identity table small.
@@ -614,6 +634,7 @@ model Customer {
   // Search by the old-system number alone.
   @@index([organisationId, externalId])
   invoices        Invoice[]
+  creditNotes     CreditNote[]
   @@map("customers")
   notes           CustomerNote[]
   notificationReads CustomerNotificationRead[]
@@ -782,6 +803,14 @@ model JobCard {
   sprayPanels     String[]  @default([])
   // Car wash: the package chosen at the quick check-in.
   washPackage     String?
+  // The workshop's guarantee on this job, fixed at checkout from the
+  // organisation's terms for its job type: until a date and/or a mileage.
+  warrantyUntil   DateTime?
+  warrantyUntilKm Int?
+  // A comeback: this visit puts right work done on that earlier Job Card
+  // while its guarantee runs. Its lines bill to WARRANTY by default and need
+  // the Owner's approval.
+  comebackOfId    String?
 
   assignedTechnicianId String? // User.id — nullable until a technician is assigned
   // Separate from status/approvalStatus: being assigned is not the same as
@@ -856,6 +885,10 @@ model JobCard {
   payments           Payment[]
   refunds Refund[]
   invoice Invoice?
+  comebackOf  JobCard?  @relation("JobCardComeback", fields: [comebackOfId], references: [id], onDelete: SetNull)
+  comebacks   JobCard[] @relation("JobCardComeback")
+  creditNotes CreditNote[]
+  supplierClaims SupplierClaim[]
   cancellationRequests CancellationRequest[]
   closeRequests        CloseRequest[]
   partRequestSlips     PartRequestSlip[]
@@ -869,6 +902,7 @@ model JobCard {
   @@index([supervisorId])
   @@index([importJobId])
   @@index([branchId, externalSource, externalId])
+  @@index([comebackOfId])
   @@map("job_cards")
   gateExit VehicleGateExit?
 }
@@ -1052,6 +1086,9 @@ model EstimateLineItem {
   // INTERNAL are absorbed by the business. Only the Owner sets it; audited.
   billTo             EstimateBillTo @default(CUSTOMER)
   billToNote         String?
+  // Parts warranty on this line (a part fitted), printed on the invoice.
+  warrantyMonths     Int?
+  warrantyKm         Int?
 }
 
 // Payments toward a Job Card's estimate (usually a deposit, then the
@@ -1060,6 +1097,9 @@ model EstimateLineItem {
 enum PaymentMethod {
   BANK_TRANSFER
   CASH
+  // A card payment on the workshop's POS terminal (posReference: the
+  // terminal's transaction reference).
+  POS
 }
 
 model Payment {
@@ -1078,6 +1118,8 @@ model Payment {
   // The customer's receipt number, RCT-2026-000001, given when a Job Card
   // payment is recorded. Payments recorded before receipts existed have none.
   receiptNumber  String? @unique
+  // POS: the terminal's transaction reference (RRN or STAN), required for POS.
+  posReference   String?
 
   jobCard        JobCard?        @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
   recordedBy    User    @relation(fields: [recordedById], references: [id])
@@ -1143,8 +1185,12 @@ model Invoice {
   // When payment is due: issuedAt + the customer's payment terms, for an
   // organisation on credit. Null = due before collection.
   dueDate           DateTime?
-  // [{ description, type, quantity, unitOfMeasure, unitPrice, lineDiscount, amount, billTo }]
+  // [{ description, type, quantity, unitOfMeasure, unitPrice, lineDiscount, amount, billTo, warranty }]
   lines             Json
+  // The workshop's guarantee on this job's work, in words, as the terms
+  // stood at issue ("3 months or 5,000 km, whichever comes first, from
+  // collection"); null when the job type carries none.
+  guarantee         String?
   issuedAt          DateTime @default(now())
   issuedById        String
   createdAt         DateTime @default(now())
@@ -1154,6 +1200,7 @@ model Invoice {
   jobCard      JobCard      @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   issuedBy     User         @relation("InvoiceIssuedBy", fields: [issuedById], references: [id])
+  creditNotes  CreditNote[]
 
   @@index([organisationId, issuedAt])
   @@index([branchId])
@@ -2971,6 +3018,7 @@ model Supplier {
   organisation Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   createdBy    User           @relation("SupplierCreatedBy", fields: [createdById], references: [id])
   receipts     GoodsReceipt[]
+  claims       SupplierClaim[]
 
   @@unique([organisationId, externalSource, externalId])
   @@index([organisationId, name])
@@ -3304,4 +3352,106 @@ model JobCardPhoto {
 
   @@index([jobCardId, createdAt])
   @@map("job_card_photos")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// MONEY (Phase 5): credit notes against an invoice.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum CreditNoteStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+/// A credit note against an issued invoice: money the customer no longer
+/// owes (an overcharge, a goodwill reduction, a returned part). Asked for by
+/// front desk or Accounts, approved by the Owner, numbered CN-YYYY-NNNNNN on
+/// approval. Its VAT follows the invoice's rate. An approved credit note
+/// lowers what the customer owes on that Job Card (lib/money/rules.ts).
+model CreditNote {
+  id             String           @id @default(cuid())
+  // CN-2026-000001, given on approval (null while pending or declined).
+  number         String?          @unique
+  organisationId String
+  branchId       String
+  invoiceId      String
+  jobCardId      String
+  customerId     String
+  status         CreditNoteStatus @default(PENDING)
+  // What the customer is credited, VAT included, and its VAT part.
+  amount         Decimal          @db.Decimal(12, 2)
+  vatAmount      Decimal          @db.Decimal(12, 2)
+  reason         String
+  requestedById  String
+  requestedAt    DateTime         @default(now())
+  decidedById    String?
+  decidedAt      DateTime?
+  declineNote    String?
+  /// Operation id from the form: the same request is never recorded twice.
+  idempotencyKey String?          @unique
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  jobCard      JobCard      @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  requestedBy  User         @relation("CreditNoteRequestedBy", fields: [requestedById], references: [id])
+  decidedBy    User?        @relation("CreditNoteDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([organisationId, status, requestedAt])
+  @@index([jobCardId])
+  @@index([customerId])
+  @@map("credit_notes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// WARRANTY (Phase 5): claims back to suppliers for faulty parts.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum SupplierClaimStatus {
+  // Recorded; the part is with us.
+  OPEN
+  // Sent to the supplier.
+  SUBMITTED
+  // The supplier gave a credit, a refund or a replacement.
+  SETTLED
+  // The supplier refused it.
+  REJECTED
+}
+
+/// A faulty part claimed back from its supplier under the supplier's
+/// warranty: what failed, on which job, what we asked for and what came back.
+/// SC-YYYY-NNNNNN. Kept for the warranty report; never deleted.
+model SupplierClaim {
+  id              String              @id @default(cuid())
+  number          String              @unique
+  organisationId  String
+  branchId        String
+  supplierId      String?
+  supplierName    String
+  jobCardId       String?
+  partName        String
+  partNumber      String?
+  quantity        Int                 @default(1)
+  // What the part cost us (claimed back), and what the supplier gave.
+  amountClaimed   Decimal             @db.Decimal(12, 2)
+  amountRecovered Decimal?            @db.Decimal(12, 2)
+  fault           String
+  status          SupplierClaimStatus @default(OPEN)
+  // How it was settled, or why it was refused.
+  outcome         String?
+  submittedAt     DateTime?
+  closedAt        DateTime?
+  createdById     String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  supplier     Supplier?    @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  jobCard      JobCard?     @relation(fields: [jobCardId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("SupplierClaimCreatedBy", fields: [createdById], references: [id])
+
+  @@index([organisationId, status, createdAt])
+  @@index([jobCardId])
+  @@map("supplier_claims")
 }

@@ -317,7 +317,7 @@ export function ImportJobView({ job }: { job: ImportJobDetail }) {
       ) : null}
 
       {['APPROVED', 'LOADING', 'PAUSED'].includes(job.status) ? (
-        <SectionCard icon="rocket" title="Load" description={`Approved by ${job.approvedBy ?? 'a manager'}. Rows load in batches; each batch is all or nothing, and a row is never loaded twice.`}>
+        <SectionCard icon="rocket" title="Load" description={`Approved by ${job.approvedBy ?? 'the Owner'}. Rows load in batches; each batch is all or nothing, and a row is never loaded twice.`}>
           {!progress ? <Bar done={job.createdRows + job.updatedRows + job.skippedRows} total={job.goodRows + job.warningRows} label={`${nf(job.createdRows + job.updatedRows + job.skippedRows)} of ${nf(job.goodRows + job.warningRows)} rows loaded`} /> : null}
           {mayLoad ? (
             <div className="mt-4 flex flex-wrap gap-2">

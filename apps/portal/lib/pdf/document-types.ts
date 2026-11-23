@@ -133,6 +133,8 @@ export type InvoicePdfProps = {
   paymentRemarkSuggestion: string;
   /** "Thank you for choosing <the organisation>." */
   closing: string;
+  /** The workshop's guarantee on the work, in a sentence (null: none). */
+  guarantee?: string | null;
 };
 
 export type ReceiptPdfProps = {

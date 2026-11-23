@@ -92,7 +92,7 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
             // eslint-disable-next-line react/no-array-index-key
             <tr key={i} style={{ borderBottom: '1px solid #E2E8F0' }}>
               <td style={cell}>{i + 1}</td>
-              <td style={cell}>{l.description}</td>
+              <td style={cell}>{l.description}{l.warranty ? <div style={{ fontSize: '11px', color: '#475569' }}>Warranty: {l.warranty}</div> : null}</td>
               <td style={cellRight}>{l.quantity}{l.unitOfMeasure ? ` ${pluralizeWord(l.quantity, l.unitOfMeasure)}` : ''}</td>
               <td style={cellRight}>{isCustomerLine(l) && l.unitPrice !== null ? naira(l.unitPrice) : '—'}</td>
               <td style={cellRight}>{isCustomerLine(l) && l.lineDiscount > 0 ? `−${naira(l.lineDiscount)}` : '—'}</td>
@@ -126,6 +126,7 @@ export default async function PrintInvoicePage({ params }: { params: Promise<{ i
       ) : null}
 
       <div style={{ marginTop: '28px', textAlign: 'center' }}>
+        {inv.guarantee ? <p style={{ fontSize: '12px', color: '#334155', margin: '0 0 10px' }} data-testid="invoice-guarantee">Workshop guarantee on this work: {inv.guarantee}. Bring the vehicle back to us if anything we did is not right.</p> : null}
         <div style={{ fontSize: '14px', fontWeight: 700, color: '#3E4095' }}>Thank you for choosing {inv.organisation.name}.</div>
         <div style={{ borderTop: `2px solid ${RED}`, width: '160px', margin: '8px auto 0' }} />
         <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '6px' }}>Issued by {inv.issuedBy.fullName} on {invoiceDate(inv.issuedAt)}.</div>

@@ -16,6 +16,10 @@ export const REFERENCE_TYPES = [
   // Invoices and payment receipts open on their Job Card too (each has its print page there).
   { prefix: 'INV', model: 'Invoice', group: 'Invoices', path: (parentUrl: string) => parentUrl },
   { prefix: 'RCT', model: 'Payment', group: 'Receipts', path: (parentUrl: string) => parentUrl },
+  // Credit notes open on their Job Card too (the invoice's credit notes are listed there).
+  { prefix: 'CN', model: 'CreditNote', group: 'Credit notes', path: (parentUrl: string) => parentUrl },
+  // Warranty claims to suppliers.
+  { prefix: 'SC', model: 'SupplierClaim', group: 'Supplier claims', path: (id: string) => `/warranty/claims/${id}` },
   { prefix: 'VX', model: 'VehicleGateExit', group: 'Vehicle exits', path: (id: string) => `/security/vehicles/exits/${id}` },
   { prefix: 'BC', model: 'Broadcast', group: 'Broadcasts', path: (id: string) => `/notifications/broadcasts/${id}` },
   // Support tickets: customers and website visitors handed over by Enyo (numbered by the website).

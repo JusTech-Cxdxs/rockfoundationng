@@ -1,4 +1,5 @@
 import { renderToBuffer } from '@react-pdf/renderer';
+import { termText, warrantyTerms, type JobTypeKey } from '@/lib/money/warranty';
 import { prisma, type Prisma } from '@ejo/database';
 import { lockExisting } from '@/lib/integrity';
 import { isUniqueClashOn, retryOnNumberClash } from '@/lib/integrity-core';
@@ -57,15 +58,15 @@ export async function ensureInvoice(jobCardId: string, issuedById: string): Prom
       const jc = await tx.jobCard.findUnique({
         where: { id: jobCardId },
         select: {
-          status: true, branchId: true, customerId: true,
+          status: true, branchId: true, customerId: true, jobType: true,
           customer: { select: { customerType: true, customerCompany: { select: { paymentTermsDays: true, creditApprovedAt: true } } } },
-          branch: { select: { businessUnit: { select: { organisationId: true, organisation: { select: BILLING_SETTINGS_SELECT } } } } },
+          branch: { select: { businessUnit: { select: { organisationId: true, organisation: { select: { ...BILLING_SETTINGS_SELECT, warrantyTerms: true } } } } } },
           payments: { select: { amount: true } },
           refunds: { select: { amount: true } },
           estimate: {
             select: {
               status: true, discountAmount: true, discountReason: true, vatRate: true,
-              lineItems: { orderBy: { createdAt: 'asc' }, select: { type: true, description: true, quantity: true, unitPrice: true, amount: true, unitOfMeasure: true, billTo: true, discountAmount: true } },
+              lineItems: { orderBy: { createdAt: 'asc' }, select: { type: true, description: true, quantity: true, unitPrice: true, amount: true, unitOfMeasure: true, billTo: true, discountAmount: true, warrantyMonths: true, warrantyKm: true } },
             },
           },
         },
@@ -94,6 +95,8 @@ export async function ensureInvoice(jobCardId: string, issuedById: string): Prom
           total: t.total,
           amountPaidAtIssue: Math.max(0, Math.round((net(jc.payments) - net(jc.refunds)) * 100) / 100),
           lines: invoiceLinesFrom(jc.estimate.lineItems) as unknown as Prisma.InputJsonValue,
+          // The guarantee on this kind of work as the terms stand now (lib/money/warranty.ts).
+          guarantee: (() => { const term = warrantyTerms(settings.warrantyTerms)[jc.jobType as JobTypeKey]; return term && (term.days || term.km) ? `${termText(term)}, from collection` : null; })(),
           issuedAt,
           dueDate,
           issuedById,
@@ -130,7 +133,7 @@ export async function setInvoiceDueDate(invoiceId: string, paymentTermsDays: num
 /** Everything a printed or PDF invoice shows. */
 export const INVOICE_DOCUMENT_SELECT = {
   id: true, invoiceNumber: true, issuedAt: true, dueDate: true, subtotal: true, lineDiscounts: true, discountAmount: true, discountReason: true,
-  vatRate: true, vatAmount: true, vatNumber: true, total: true, amountPaidAtIssue: true, lines: true,
+  vatRate: true, vatAmount: true, vatNumber: true, total: true, amountPaidAtIssue: true, lines: true, guarantee: true,
   issuedBy: { select: { fullName: true } },
   jobCard: {
     select: {
@@ -172,6 +175,7 @@ export async function invoicePdfBuffer(inv: InvoiceDocument): Promise<Buffer> {
     lines: invoiceLines(inv),
     figures: inv,
     amountPaid: paidTowards(inv),
+    guarantee: inv.guarantee,
   })));
 }
 

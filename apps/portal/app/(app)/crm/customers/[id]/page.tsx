@@ -72,7 +72,7 @@ const STATUS: Record<string, Notice> = {
   credit_removed: { kind: 'success', title: 'Credit switched off', text: 'Its Job Cards must be paid in full before the vehicle leaves again.' },
 };
 
-const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash' };
+const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash', POS: 'POS (card)' };
 
 export default async function Customer360Page({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string; edit?: string; status?: string; error?: string }> }) {
   await guardPage('crm.view', '/crm');

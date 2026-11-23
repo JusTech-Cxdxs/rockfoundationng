@@ -78,7 +78,7 @@ export async function getReceipt(paymentId: string) {
   const p = await prisma.payment.findUnique({
     where: { id: paymentId },
     select: {
-      id: true, receiptNumber: true, amount: true, method: true, notes: true, recordedAt: true,
+      id: true, receiptNumber: true, amount: true, method: true, posReference: true, notes: true, recordedAt: true,
       recordedBy: { select: { fullName: true } },
       jobCard: {
         select: {

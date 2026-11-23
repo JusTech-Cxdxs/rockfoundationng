@@ -67,6 +67,10 @@ export function navigationFor(p: Principal, view: BranchView = {}): NavItem[] {
     // Customers handed over by Enyo, right under Customers.
     if (m.key === 'crm' && can('support.tickets.manage')) out.push({ key: 'support-inbox', name: 'Support centre', href: '/crm/support', status: m.status });
   }
+  // Money: what customers owe (statements, ageing) and credit notes.
+  if (can('money.statement.view') || can('money.credit_note.request') || can('money.credit_note.approve')) out.push({ key: 'money', name: 'Money', href: can('money.statement.view') ? '/money/statements' : '/money/credit-notes', status: 'LIVE' });
+  // The workshop's warranty: comebacks, warranty cost and claims to suppliers.
+  if (can('workshop.warranty.report') || can('workshop.warranty.claims')) out.push({ key: 'warranty', name: 'Warranty', href: can('workshop.warranty.report') ? '/warranty' : '/warranty/claims', status: 'LIVE' });
   // Everyone's own reminders.
   out.push({ key: 'reminders', name: 'Reminders', href: '/reminders', status: 'LIVE' });
   // Everyone in an organisation can ask for help (the platform team answers, it does not ask).

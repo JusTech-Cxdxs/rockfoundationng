@@ -22,7 +22,7 @@ export function renderCloseRequestDeclinedEmail(o: CloseRequestDeclinedEmailOpti
       ['Customer', o.customerName],
       ['Declined by', o.declinedByName],
     ])}
-    ${notes ? callout(notes, 'neutral', 'Note from the manager') : ''}`;
+    ${notes ? callout(notes, 'neutral', 'Note from the Owner') : ''}`;
   return renderEmailLayout({
     previewText: `The request to close Job Card ${o.jobNumber} was declined.`,
     companyName: o.companyName,

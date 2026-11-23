@@ -9,10 +9,11 @@ import { pluralize } from '@/lib/utils/pluralize';
 import { getMyPending } from '@/lib/actions/pending';
 import { WaitingOnOthers } from '@/components/WaitingOnOthers';
 
-const AREA_ICON: Record<ApprovalArea, IconName> = { Workshop: 'wrench', Store: 'package' };
+const AREA_ICON: Record<ApprovalArea, IconName> = { Workshop: 'wrench', Store: 'package', Money: 'receipt' };
 const AREA_HINT: Record<ApprovalArea, string> = {
   Workshop: 'Estimates, discounts, jobs to supervise, closing and cancelling',
   Store: 'Parts requests',
+  Money: 'Credit notes',
 };
 
 /**

@@ -8,6 +8,8 @@
  * never the internal line types. Lines the workshop covers (under its own
  * warranty, goodwill or internal) are never charged, and say so.
  */
+import { PAYMENT_METHOD_LABEL } from '../money/rules';
+import { partWarrantyText } from '../money/warranty';
 import { BILL_TO_LABEL, balanceDue, billingTotals, coveredLabel, depositOf, depositPercentOf, isCustomerLine, type BillTo, type VatSetting } from '../estimate-billing';
 import { pluralizeWord } from '../utils/pluralize';
 import type { EstimatePdfProps, InspectionPdfProps, InvoicePdfProps, ReceiptPdfProps } from './document-types';
@@ -123,7 +125,7 @@ export function inspectionPdfProps(p: { letterhead: Letterhead; jobNumber: strin
 }
 
 /** One line of an invoice as frozen when it was issued (Invoice.lines). */
-export type InvoiceLine = { description: string; type: string; quantity: number; unitOfMeasure: string | null; unitPrice: number | null; lineDiscount: number; amount: number; billTo: string };
+export type InvoiceLine = { description: string; type: string; quantity: number; unitOfMeasure: string | null; unitPrice: number | null; lineDiscount: number; amount: number; billTo: string; warranty?: string | null };
 
 /** The frozen figures of an issued invoice (the Invoice row). */
 export type InvoiceFigures = { subtotal: unknown; lineDiscounts: unknown; discountAmount: unknown; discountReason: string | null; vatRate: unknown; vatAmount: unknown; vatNumber: string | null; total: unknown };
@@ -131,7 +133,7 @@ export type InvoiceFigures = { subtotal: unknown; lineDiscounts: unknown; discou
 const money = (v: unknown) => Math.round(Number(v ?? 0) * 100) / 100;
 
 /** The lines as an invoice keeps them: what each cost, its discount, and what the customer pays for it. */
-export function invoiceLinesFrom(lineItems: { type: string; description: string; quantity: unknown; unitPrice: unknown; amount: unknown; unitOfMeasure: string | null; billTo?: string | null; discountAmount?: unknown }[]): InvoiceLine[] {
+export function invoiceLinesFrom(lineItems: { type: string; description: string; quantity: unknown; unitPrice: unknown; amount: unknown; unitOfMeasure: string | null; billTo?: string | null; discountAmount?: unknown; warrantyMonths?: number | null; warrantyKm?: number | null }[]): InvoiceLine[] {
   const t = billingTotals({ lines: lineItems });
   return lineItems.map((li, i) => ({
     description: li.description,
@@ -142,6 +144,8 @@ export function invoiceLinesFrom(lineItems: { type: string; description: string;
     lineDiscount: t.lines[i]!.discount,
     amount: t.lines[i]!.amount,
     billTo: (li.billTo ?? 'CUSTOMER') as string,
+    // A part's own warranty, in words, frozen with the line (only when it has one).
+    ...(partWarrantyText(li.warrantyMonths, li.warrantyKm) ? { warranty: partWarrantyText(li.warrantyMonths, li.warrantyKm) } : {}),
   }));
 }
 
@@ -163,6 +167,8 @@ export function invoicePdfProps(p: {
   lines: InvoiceLine[];
   figures: InvoiceFigures;
   amountPaid: number;
+  /** The workshop's guarantee on the work, as frozen on the invoice. */
+  guarantee?: string | null;
 }): InvoicePdfProps {
   const total = money(p.figures.total);
   const vatRate = Number(p.figures.vatRate ?? 0);
@@ -182,7 +188,7 @@ export function invoicePdfProps(p: {
     plateNumber: p.vehicle.plateNumber,
     mileage: p.vehicle.mileage != null ? `${p.vehicle.mileage.toLocaleString('en-NG')} km` : null,
     lineItems: p.lines.map((l) => ({
-      description: l.description,
+      description: l.warranty ? `${l.description} (warranty: ${l.warranty})` : l.description,
       quantity: l.quantity,
       unitLabel: l.unitOfMeasure ? pluralizeWord(l.quantity, l.unitOfMeasure) : null,
       unitPrice: isCustomerLine(l) && l.unitPrice !== null ? nairaForPdf(l.unitPrice) : '',
@@ -201,6 +207,7 @@ export function invoicePdfProps(p: {
     ...p.bank,
     paymentRemarkSuggestion: [p.invoiceNumber, p.jobNumber, p.vehicle.plateNumber].filter(Boolean).join(' '),
     closing: `Thank you for choosing ${p.letterhead.organisation.name}.`,
+    guarantee: p.guarantee ? `Workshop guarantee on this work: ${p.guarantee}. Bring the vehicle back to us if anything we did is not right.` : null,
   };
 }
 
@@ -237,7 +244,7 @@ export function receiptPdfProps(p: {
     vehicleDescription: [p.vehicle.make, p.vehicle.model].filter(Boolean).join(' ') || 'Vehicle',
     plateNumber: p.vehicle.plateNumber,
     amountReceived: nairaForPdf(money(p.amount)),
-    methodLabel: p.method === 'CASH' ? 'Cash' : 'Bank Transfer',
+    methodLabel: PAYMENT_METHOD_LABEL[p.method] ?? 'Bank transfer',
     reference: p.reference?.trim() || null,
     receivedByName: p.receivedByName,
     totalAmount: nairaForPdf(total),

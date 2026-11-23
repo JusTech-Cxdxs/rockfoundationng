@@ -50,7 +50,7 @@ export type LeadershipPulse = {
 };
 
 export async function getLeadershipPulse(): Promise<LeadershipPulse> {
-  await authorize('analytics.business.view', undefined, 'getLeadershipPulse', 'This overview is for leadership and managers.');
+  await authorize('analytics.business.view', undefined, 'getLeadershipPulse', 'This overview is for the Owner.');
   const branchIds = await myBranches('analytics.business.view');
   const reach = await reachWhere('analytics.business.view');
   const org = await myOrganisationId();
@@ -87,7 +87,7 @@ export async function getLeadershipPulse(): Promise<LeadershipPulse> {
   const waiting = [
     w('estimate_supervisor', 'Estimates waiting for the supervisor', estSup, '/approvals'),
     w('estimate_manager', 'Estimates waiting for final approval', estMgr, '/approvals'),
-    ...(storeOn ? [w('prs_hod', 'Parts requests waiting for the manager', prsHod, '/workshop/parts-requests'), w('prs_store', 'Parts requests waiting for the Store', prsStore, '/workshop/parts-requests')] : []),
+    ...(storeOn ? [w('prs_hod', 'Parts requests waiting for the supervisor', prsHod, '/workshop/parts-requests'), w('prs_store', 'Parts requests waiting for the Store', prsStore, '/workshop/parts-requests')] : []),
   ];
 
   const count = (rows: { branchId: string; _count: { _all: number } }[]) => new Map(rows.map((r) => [r.branchId, r._count._all]));

@@ -138,7 +138,7 @@ test('one list of prefixes: the pattern, the URLs and every generator agree', ()
 test('every record link points at a real page', () => {
   const app = join(ROOT, 'app', '(app)');
   for (const t of REFERENCE_TYPES) {
-    if (t.prefix === 'RF' || t.prefix === 'INV' || t.prefix === 'RCT') continue; // opens on its Job Card / Vehicle Service
+    if (t.prefix === 'RF' || t.prefix === 'INV' || t.prefix === 'RCT' || t.prefix === 'CN') continue; // opens on its Job Card
     const dir = join(app, referenceUrl(t.prefix, '[id]'));
     assert.ok(statSync(join(dir, 'page.tsx')).isFile(), `${t.prefix} → ${dir}`);
   }

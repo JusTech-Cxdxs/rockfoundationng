@@ -9,6 +9,7 @@ import {
   type VehicleSearchResult,
   type EligibleSupervisor,
 } from '@/lib/actions/workshop';
+import { listComebackOptions, type ComebackOption } from '@/lib/actions/warranty';
 
 type AsyncState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -86,6 +87,16 @@ export function CustomerVehiclePicker({
         setSupervisors([]);
         setSupervisorsState('error');
       });
+  }, [selectedVehicleId]);
+
+  // A vehicle back while the workshop's guarantee on an earlier job runs: offer
+  // "Under warranty (comeback)" (lib/actions/warranty.ts, checked again on save).
+  const [comebacks, setComebacks] = useState<ComebackOption[]>([]);
+  useEffect(() => {
+    let live = true;
+    setComebacks([]);
+    if (selectedVehicleId) listComebackOptions(selectedVehicleId).then((o) => { if (live) setComebacks(o); }).catch(() => undefined);
+    return () => { live = false; };
   }, [selectedVehicleId]);
 
   return (
@@ -180,6 +191,17 @@ export function CustomerVehiclePicker({
               They&apos;ll be emailed to come inspect the vehicle and begin the assessment.
             </p>
           )}
+        </div>
+      ) : null}
+
+      {comebacks.length > 0 ? (
+        <div className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-warning)]/40 bg-[var(--ejo-warning)]/5 p-3" data-testid="comeback-choice">
+          <label htmlFor="comebackOfId" className="mb-1 block text-xs font-medium text-[var(--ejo-text)]">This vehicle is still under the workshop&apos;s guarantee</label>
+          <select id="comebackOfId" name="comebackOfId" defaultValue="" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]">
+            <option value="">No — a new job, charged as usual</option>
+            {comebacks.map((c) => <option key={c.id} value={c.id}>Under warranty (comeback) on {c.jobNumber} — {c.jobType}, {c.guarantee}</option>)}
+          </select>
+          <p className="mt-1 text-[11px] text-[var(--ejo-text-muted)]">A comeback puts the earlier work right: its lines are not charged and the Owner approves the estimate.</p>
         </div>
       ) : null}
     </>

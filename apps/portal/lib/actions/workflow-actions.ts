@@ -1,6 +1,6 @@
 'use server';
 
-import { reachWhere, jobCardReach } from '@/lib/authz/server';
+import { allows, reachWhere, jobCardReach } from '@/lib/authz/server';
 import { prisma } from '@ejo/database';
 import { requireUser, currentUserIsMasterAdmin, listEligibleManagersForBranch } from './workshop';
 import { listEligibleStoreManagersForBranch, listEligibleStoreOfficersForBranch } from './store';
@@ -29,7 +29,10 @@ export async function getWorkflowActionItems(): Promise<WorkflowAction[]> {
   const jc = { select: { id: true, jobNumber: true, branchId: true, supervisorId: true, createdById: true } } as const;
   // Store matching and parts requests only where the Store is on (lib/modules.ts).
   const storeOn = moduleIsOn('inventory');
-  const [estSubmitted, estApproved, estToNotify, estMatching, prs, jcClosed, jcCompleted] = await Promise.all([
+  // Credit notes waiting for the Owner (Money → Credit notes).
+  const decidesCredit = await allows('money.credit_note.approve');
+  const reachOfCredit = decidesCredit ? await reachWhere('money.credit_note.approve', { lens: false }) : null;
+  const [estSubmitted, estApproved, estToNotify, estMatching, prs, jcClosed, jcCompleted, creditNotes] = await Promise.all([
     prisma.estimate.findMany({ where: { status: 'SUBMITTED', jobCard: { ...reach, ...me('supervisorId') } }, take: T, select: { updatedAt: true, jobCard: jc } }),
     prisma.estimate.findMany({ where: { status: 'APPROVED', jobCard: reach }, take: T, select: { updatedAt: true, jobCard: jc } }),
     prisma.estimate.findMany({ where: { status: 'MANAGER_APPROVED', customerNotifiedAt: null, jobCard: { status: { notIn: ['CHECKED_OUT', 'CANCELLED'] }, ...reach, ...me('createdById') } }, take: T, select: { managerApprovedAt: true, jobCard: jc } }),
@@ -37,6 +40,7 @@ export async function getWorkflowActionItems(): Promise<WorkflowAction[]> {
     storeOn ? prisma.partRequestSlip.findMany({ where: { status: { in: ['PENDING_HOD_APPROVAL', 'PENDING_STORE_APPROVAL', 'APPROVED'] }, ...reachOfBranch }, take: T, select: { id: true, referenceNumber: true, status: true, branchId: true, updatedAt: true } }) : [],
     prisma.jobCard.findMany({ where: { status: 'CLOSED', ...reach, ...me('createdById') }, take: T, select: { id: true, jobNumber: true, createdById: true, updatedAt: true } }),
     prisma.jobCard.findMany({ where: { status: 'COMPLETED', ...reach, ...me('supervisorId') }, take: T, select: { id: true, jobNumber: true, supervisorId: true, updatedAt: true } }),
+    reachOfCredit ? prisma.creditNote.findMany({ where: { status: 'PENDING', ...reachOfCredit }, take: T, select: { id: true, amount: true, requestedAt: true, invoice: { select: { invoiceNumber: true } } } }) : [],
   ]);
 
   // Who counts as manager / store for each branch involved.
@@ -70,5 +74,6 @@ export async function getWorkflowActionItems(): Promise<WorkflowAction[]> {
   }
   for (const j of jcCompleted) if (j.supervisorId === user.id || isMaster) out.push({ id: `jc-ready-${j.id}`, title: `Mark ready for collection — ${j.jobNumber}`, detail: 'The work is completed.', url: jcUrl(j.id, 'status'), createdAt: at(j.updatedAt) });
   for (const j of jcClosed) if (mine(j.createdById)) out.push({ id: `jc-out-${j.id}`, title: `Check the vehicle out — ${j.jobNumber}`, detail: 'Closed by the Owner — release the vehicle to the customer.', url: jcUrl(j.id, 'status'), createdAt: at(j.updatedAt) });
+  for (const c of creditNotes) out.push({ id: `cn-${c.id}`, title: `Approve the credit note — ${c.invoice.invoiceNumber}`, detail: `₦${Number(c.amount).toLocaleString('en-NG', { minimumFractionDigits: 2 })} off what the customer owes.`, url: '/money/credit-notes?show=pending', createdAt: at(c.requestedAt) });
   return out;
 }

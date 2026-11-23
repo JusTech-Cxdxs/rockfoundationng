@@ -10,7 +10,7 @@ export const STANDARDS = {
   job: { label: 'Job, work started to finished', hours: 72 },
   estimateCheck: { label: 'Estimate checked by the supervisor', hours: 24 },
   estimateFinal: { label: 'Estimate final approval', hours: 24 },
-  partsHod: { label: 'Parts request, manager approval', hours: 8 },
+  partsHod: { label: 'Parts request, supervisor approval', hours: 8 },
   partsStore: { label: 'Parts request, Store approval', hours: 8 },
   partsRelease: { label: 'Parts released after approval', hours: 8 },
 } as const;

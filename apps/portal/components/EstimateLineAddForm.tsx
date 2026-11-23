@@ -167,6 +167,18 @@ export function EstimateLineAddForm({
             )}
           </div>
         </div>
+        {isStorePart || type === 'EXTERNAL_PART' ? (
+          <div className="grid grid-cols-2 gap-3 @md:col-span-6 @md:grid-cols-3" data-testid="part-warranty-fields">
+            <div>
+              <label htmlFor={`${ids}-wm`} className={LABEL}>Part warranty (months, optional)</label>
+              <input id={`${ids}-wm`} name="warrantyMonths" type="number" inputMode="numeric" step="1" min="1" max="120" placeholder="e.g. 6" className={FIELD} />
+            </div>
+            <div>
+              <label htmlFor={`${ids}-wk`} className={LABEL}>or kilometres (optional)</label>
+              <input id={`${ids}-wk`} name="warrantyKm" type="number" inputMode="numeric" step="1" min="1" max="500000" placeholder="e.g. 10000" className={FIELD} />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <SubmitButton

@@ -111,6 +111,6 @@ export function Icon({ name, size = 18, className, strokeWidth = 1.7, title }: {
 /** Each live module's icon (keys from lib/modules.ts and lib/authz/navigation.ts). */
 export const MODULE_ICON: Record<string, IconName> = {
   dashboard: 'dashboard', headquarters: 'building', it: 'shield', news: 'megaphone', organisation: 'building', structure: 'sitemap', branches: 'branch', users: 'users', roles: 'shield', permissions: 'key',
-  crm: 'handshake', workshop: 'wrench', inventory: 'boxes', warranty: 'shield-check', security: 'lock', scheduling: 'calendar', analytics: 'chart',
+  crm: 'handshake', workshop: 'wrench', inventory: 'boxes', warranty: 'shield-check', money: 'receipt', security: 'lock', scheduling: 'calendar', analytics: 'chart',
   notifications: 'bell', 'audit-logs': 'history', 'recycle-bin': 'trash', settings: 'settings', approvals: 'check-circle', profile: 'user', assist: 'user-plus', mail: 'mail', reminders: 'clock', 'support-inbox': 'inbox', 'get-help': 'help', integrity: 'shield', 'data-requests': 'lock', 'data-exchange': 'layers', exports: 'download', plant: 'garage',
 };

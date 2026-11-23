@@ -21,6 +21,7 @@ const GROUPS: Group[] = [
     id: 'organisation', title: 'Organisation', text: 'Who you are and how you are organised.',
     areas: [
       { href: '/organisation', icon: 'building', title: 'Business details', text: 'Name, address, phones and RC number printed on every document; VAT, deposits and the discount limit.', needs: 'admin.organisation.manage' },
+      { href: '/settings/money', icon: 'receipt', title: 'Estimates, car wash and warranty', text: 'When the Owner approves estimates, the car wash price list and the workshop’s guarantee per job type.', needs: 'admin.organisation.manage' },
       { href: '/branches', icon: 'branch', title: 'Workshop and bank account', text: 'The workshop’s address, phones and the bank account customers pay into.', needs: 'admin.structure.manage' },
       { href: '/structure', icon: 'sitemap', title: 'Departments', text: 'Departments, teams and reporting lines.', needs: 'admin.structure.manage' },
     ],

@@ -7,7 +7,7 @@
  */
 import { moduleIsOn } from './modules';
 
-export type ApprovalArea = 'Workshop' | 'Store';
+export type ApprovalArea = 'Workshop' | 'Store' | 'Money';
 
 const PREFIXES: [string, ApprovalArea][] = [
   ['cancel-', 'Workshop'],
@@ -17,6 +17,7 @@ const PREFIXES: [string, ApprovalArea][] = [
   ['est-mgr-', 'Workshop'],
   ['prs-hod-', 'Store'],
   ['prs-store-', 'Store'],
+  ['cn-', 'Money'],
 ];
 
 /** The area of an approval item, or null when the item is not a decision. */
@@ -35,4 +36,4 @@ export function approvalAreaOn(area: ApprovalArea): boolean {
   return true;
 }
 
-export const APPROVAL_AREAS: ApprovalArea[] = (['Workshop', 'Store'] as ApprovalArea[]).filter(approvalAreaOn);
+export const APPROVAL_AREAS: ApprovalArea[] = (['Workshop', 'Store', 'Money'] as ApprovalArea[]).filter(approvalAreaOn);

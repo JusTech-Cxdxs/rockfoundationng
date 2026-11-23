@@ -30,7 +30,7 @@ export function renderEstimateReadyForCustomerNotificationEmail(o: EstimateReady
     logoUrl: o.logoUrl,
     orgContext: [o.branchName],
     status: { label: 'Ready for the customer', tone: 'success' },
-    heading: `Estimate for ${o.jobNumber} approved by the manager`,
+    heading: `Estimate for ${o.jobNumber} fully approved`,
     bodyHtml,
     ctaLabel: 'Review and notify customer',
     ctaUrl: o.jobCardUrl,

@@ -22,6 +22,8 @@ export const APPROVED_VIA_LABEL: Record<string, string> = {
   PHONE: 'by phone',
   DEPOSIT: 'by paying at the counter',
   IMPORT: 'before EJO',
+  // A quick car wash: asked for at the desk, at the price list (lib/workshop/car-wash.ts).
+  COUNTER: 'at the desk (car wash at the list price)',
 };
 
 /**

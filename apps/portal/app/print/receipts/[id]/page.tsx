@@ -1,4 +1,5 @@
 import { portalBaseUrl } from '@/lib/portal-url';
+import { PAYMENT_METHOD_LABEL } from '@/lib/money/rules';
 import { notFound } from 'next/navigation';
 import { getReceipt } from '@/lib/actions/invoices';
 import { getOrganisation } from '@/lib/actions/organisation';
@@ -56,7 +57,7 @@ export default async function PrintReceiptPage({ params }: { params: Promise<{ i
         <Field label="RECEIVED FROM" value={customerName} />
         <Field label="JOB CARD" value={jc.jobNumber} />
         <Field label="VEHICLE" value={[vehicle, jc.vehicle.plateNumber].filter(Boolean).join(' · ')} />
-        <Field label="PAID BY" value={payment.method === 'CASH' ? 'Cash' : 'Bank Transfer'} />
+        <Field label="PAID BY" value={`${PAYMENT_METHOD_LABEL[payment.method] ?? 'Bank transfer'}${payment.posReference ? ` · ref ${payment.posReference}` : ''}`} />
         {payment.notes ? <Field label="REFERENCE / NOTE" value={payment.notes} /> : null}
         <Field label="RECEIVED BY" value={payment.recordedBy.fullName} />
       </div>

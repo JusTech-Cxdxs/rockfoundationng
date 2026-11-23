@@ -1,5 +1,8 @@
 'use server';
-import { checkIn } from '@/lib/workshop/job-types';
+import { checkIn, isWashPackage } from '@/lib/workshop/job-types';
+import { carWashLine, carWashNextStatuses, carWashPrice } from '@/lib/workshop/car-wash';
+import { guaranteeAtCheckout, guaranteeRuns, parsePartWarranty, warrantyTerms, type JobTypeKey } from '@/lib/money/warranty';
+import { credited, ownerMustApprove, ownerApprovalWhy, checkPosReference } from '@/lib/money/rules';
 import { supervisorWhere, workshopHandSlugs } from '@/lib/duty-roles';
 import { dutyRoleSlugs } from '@/lib/duty-roles';
 import { NO_CUSTOMER_EMAIL } from '@/lib/customer-email';
@@ -831,6 +834,8 @@ async function getJobCardUnscoped(id: string) {
       },
       // Store Parts Request numbers, listed on the receipt's organisation copy.
       partRequestSlips: { select: { referenceNumber: true } },
+      // A comeback: the earlier job this visit puts right under warranty.
+      comebackOf: { select: { id: true, jobNumber: true } },
     },
   });
 }
@@ -890,6 +895,8 @@ export type CreateJobCardInput = {
   sprayPanels?: string[];
   /** Car wash only: the package. */
   washPackage?: string | null;
+  /** A comeback: the earlier Job Card on this vehicle whose guarantee this visit is under. */
+  comebackOfId?: string | null;
 };
 
 
@@ -933,6 +940,28 @@ export async function createJobCard(input: CreateJobCardInput) {
 
   const branchId = await getWorkshopBranchId();
   const isService = visit.isService;
+  const now = new Date();
+
+  // A comeback is only on this vehicle's own earlier, checked-out job whose
+  // guarantee still runs (lib/money/warranty.ts), never chosen freely.
+  let comebackOf: { id: string; jobNumber: string } | null = null;
+  if (input.comebackOfId) {
+    const prior = await prisma.jobCard.findFirst({
+      where: { id: input.comebackOfId, vehicleId: input.vehicleId, status: JobCardStatus.CHECKED_OUT, customer: await orgWhere() },
+      select: { id: true, jobNumber: true, warrantyUntil: true, warrantyUntilKm: true },
+    });
+    if (!prior || !guaranteeRuns(prior, now, input.mileageAtCheckIn ?? null)) {
+      throw new WorkshopActionError('That earlier Job Card is no longer under the workshop’s guarantee — open this visit as a new job.');
+    }
+    comebackOf = { id: prior.id, jobNumber: prior.jobNumber };
+  }
+
+  // A car wash with a list price is a quick check-in (lib/workshop/car-wash.ts):
+  // priced, approved by the person opening it and started at once.
+  const org = await prisma.branch.findUnique({ where: { id: branchId }, select: { businessUnit: { select: { organisation: { select: { carWashPrices: true, vatEnabled: true, vatRate: true } } } } } });
+  const settings = org?.businessUnit.organisation;
+  const washPrice = visit.jobType === 'CAR_WASH' && !comebackOf ? carWashPrice(settings?.carWashPrices, visit.washPackage) : null;
+  const quickWash = washPrice !== null && isWashPackage(visit.washPackage) ? carWashLine(visit.washPackage, washPrice) : null;
 
   // Retries only on a jobNumber collision (two creates reading the same
   // latest number). Any other error is re-thrown immediately.
@@ -962,8 +991,23 @@ export async function createJobCard(input: CreateJobCardInput) {
         sprayColourCode: visit.sprayColourCode,
         sprayPanels: visit.sprayPanels,
         washPackage: visit.washPackage,
+        comebackOfId: comebackOf?.id ?? null,
         createdById: user.id,
-        status: JobCardStatus.CHECKED_IN,
+        status: quickWash ? JobCardStatus.IN_PROGRESS : JobCardStatus.CHECKED_IN,
+        ...(quickWash ? {
+          approvalStatus: 'APPROVED' as const, approvedById: user.id, approvedAt: now, workStartedAt: now,
+          approvalNotes: 'Quick car wash: priced from the price list and started at check-in.',
+          // The price list is the approved estimate; the customer asked for it at the desk.
+          estimate: {
+            create: {
+              status: 'MANAGER_APPROVED' as const, submittedAt: now, approvedAt: now, approvedById: user.id, managerApprovedAt: now, managerApprovedById: user.id,
+              customerNotifiedAt: now, customerNotifiedById: user.id, customerApprovedAt: now, customerApprovedVia: 'COUNTER', customerApprovedByStaffId: user.id,
+              vatRate: settings?.vatEnabled ? Number(settings.vatRate) : 0,
+              createdById: user.id,
+              lineItems: { create: [{ ...quickWash, enteredById: user.id }] },
+            },
+          },
+        } : {}),
         complaints: {
           create: complaints.map((description, i) => ({
             sequenceNumber: i + 1,
@@ -1009,9 +1053,9 @@ export async function createJobCard(input: CreateJobCardInput) {
     throw new WorkshopActionError('Could not generate a unique Job Card number after several attempts — please try again.');
   }
 
-  // Notify the assigned supervisor. Fail-soft: an email failure never undoes
-  // the creation.
-  try {
+  // Notify the assigned supervisor (a quick car wash needs nobody's review).
+  // Fail-soft: an email failure never undoes the creation.
+  if (!quickWash) try {
     const orgContext = await getWorkshopOrgContext(department.name);
     const portalUrl = portalBaseUrl();
     await whatsAppToStaff({
@@ -1071,7 +1115,7 @@ export async function createJobCard(input: CreateJobCardInput) {
     action: 'job_card.created',
     entityType: 'JobCard',
     entityId: created.id,
-    metadata: { jobNumber: created.jobNumber, departmentId: department.id, supervisorId: input.supervisorId, isService, jobType: visit.jobType },
+    metadata: { jobNumber: created.jobNumber, departmentId: department.id, supervisorId: input.supervisorId, isService, jobType: visit.jobType, ...(comebackOf ? { comebackOf: comebackOf.jobNumber } : {}), ...(quickWash ? { quickCarWash: quickWash.description, price: quickWash.amount } : {}) },
   });
 
 
@@ -1091,15 +1135,19 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
       completedAt: true,
       checkedOutAt: true,
       isService: true,
+      jobType: true,
+      mileageAtCheckIn: true,
       createdById: true,
       supervisorId: true,
       assignedTechnicianId: true,
       customerId: true,
+      // Approved credit notes lower what is owed (lib/money/rules.ts credited).
+      creditNotes: { where: { status: 'APPROVED' }, select: { amount: true } },
+      branch: { select: { businessUnit: { select: { organisation: { select: { ...BILLING_SETTINGS_SELECT, warrantyTerms: true } } } } } },
       department: { select: { name: true } },
       customer: { select: { fullName: true, email: true } },
       vehicle: { select: { make: true, model: true, plateNumber: true } },
-      estimate: { select: ESTIMATE_TOTALS_SELECT },
-      ...JOB_CARD_BILLING_SELECT,
+      estimate: { select: { ...ESTIMATE_TOTALS_SELECT, customerApprovedVia: true } },
       payments: { select: { amount: true } },
       refunds: { select: { amount: true } },
     },
@@ -1150,7 +1198,8 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
     && jobCard.status !== JobCardStatus.CANCELLED
   ) {
     const totalEstimate = jobCardTotals(jobCard.estimate, billingOf(jobCard)).total;
-    const totalPaid = jobCard.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount), 0);
+    // Paid, plus approved credit notes (money the customer no longer owes).
+    const totalPaid = jobCard.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount), 0) + credited(jobCard.creditNotes);
     if (!paidInFull(totalPaid, totalEstimate)) {
       await leaveOnCredit(id, balanceDue(totalEstimate, totalPaid), user.id, {
         checkLimit: jobCard.status !== JobCardStatus.CLOSED,
@@ -1176,7 +1225,14 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
         isAssignedTechnician: jobCard.assignedTechnicianId === user.id,
         isEligibleManager: managers.supervisors.some((m) => m.id === user.id),
       };
-      const allowed = getSelectableJobCardStatuses(priorStatus, roleContext);
+      // A quick car wash (priced at the desk, lib/workshop/car-wash.ts) goes
+      // straight from the wash to completed and on to checked out once paid:
+      // front desk and the people on it move it.
+      const quickWash = jobCard.jobType === 'CAR_WASH' && jobCard.estimate?.customerApprovedVia === 'COUNTER';
+      const mayMoveWash = quickWash && (roleContext.isSupervisor || roleContext.isAssignedTechnician || roleContext.isEligibleManager || await allows('workshop.job_card.create', { branchId: jobCard.branchId }));
+      const allowed = quickWash
+        ? [...new Set([...(mayMoveWash ? carWashNextStatuses(priorStatus) : []), ...getSelectableJobCardStatuses(priorStatus, roleContext)])] as JobCardStatus[]
+        : getSelectableJobCardStatuses(priorStatus, roleContext);
       if (!allowed.includes(status)) {
         throw new WorkshopActionError(`This Job Card can't move from ${priorStatus} to ${status} directly — choose one of the next steps offered on the page.`);
       }
@@ -1212,6 +1268,12 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
       // (the audit trail keeps each pass).
       completedAt: isReworkTransition && priorStatus !== JobCardStatus.QUALITY_CHECK ? null : status === JobCardStatus.COMPLETED && !jobCard.completedAt ? new Date() : undefined,
       checkedOutAt: status === JobCardStatus.CHECKED_OUT && !jobCard.checkedOutAt ? new Date() : undefined,
+      // The workshop's guarantee on this job is fixed as the vehicle leaves
+      // (never on a cancelled job: no work was done).
+      ...(status === JobCardStatus.CHECKED_OUT && priorStatus !== JobCardStatus.CANCELLED && !jobCard.checkedOutAt ? (() => {
+        const g = guaranteeAtCheckout(warrantyTerms(jobCard.branch.businessUnit.organisation.warrantyTerms)[jobCard.jobType as JobTypeKey] ?? { days: null, km: null }, new Date(), jobCard.mileageAtCheckIn);
+        return { warrantyUntil: g.until, warrantyUntilKm: g.untilKm };
+      })() : {}),
       collectedByName: status === JobCardStatus.CHECKED_OUT ? collectedByName?.trim() : undefined,
     },
   }));
@@ -1972,6 +2034,9 @@ export type EstimateLineItemInput = {
   partTypeId?: string;
   /** Non-STORE_PART lines only. A Store Part's unit is set when Store matches it. */
   unitOfMeasure?: string;
+  /** Part lines: the part's own warranty, printed on the invoice (lib/money/warranty.ts). */
+  warrantyMonths?: string | number | null;
+  warrantyKm?: string | number | null;
 };
 
 /** Who may add to or edit an estimate: the assigned supervisor, the assigned
@@ -2060,7 +2125,7 @@ export async function addEstimateLineItem(jobCardId: string, input: EstimateLine
 
   const jobCard = await prisma.jobCard.findUnique({
     where: { id: jobCardId },
-    select: { supervisorId: true, assignedTechnicianId: true, jobNumber: true, approvalStatus: true },
+    select: { supervisorId: true, assignedTechnicianId: true, jobNumber: true, approvalStatus: true, comebackOfId: true },
   });
   if (!jobCard) {
     throw new WorkshopActionError('Job Card not found.');
@@ -2068,6 +2133,10 @@ export async function addEstimateLineItem(jobCardId: string, input: EstimateLine
   if (jobCard.approvalStatus !== 'APPROVED') {
     throw new WorkshopActionError('This Job Card must be approved by its supervisor before an estimate can be started.');
   }
+  // A part's own warranty (part lines only).
+  const isPart = input.type === 'STORE_PART' || input.type === 'EXTERNAL_PART';
+  const pw = isPart ? parsePartWarranty(input.warrantyMonths, input.warrantyKm) : { months: null, km: null };
+  if (typeof pw === 'string') throw new WorkshopActionError(pw);
   const contributor = await requireEstimateContributor(jobCard);
 
   const estimate = await prisma.estimate.upsert({
@@ -2126,6 +2195,12 @@ export async function addEstimateLineItem(jobCardId: string, input: EstimateLine
       enteredById: contributor.id,
       partTypeId: input.type === 'STORE_PART' ? input.partTypeId : null,
       unitOfMeasure: input.type === 'STORE_PART' ? null : input.unitOfMeasure?.trim() || null,
+      warrantyMonths: pw.months,
+      warrantyKm: pw.km,
+      // A comeback puts earlier work right under the workshop's warranty: its
+      // lines are not charged unless the Owner decides otherwise (and the
+      // Owner approves the estimate: lib/money/rules.ts ownerMustApprove).
+      ...(jobCard.comebackOfId ? { billTo: 'WARRANTY' as const, billToNote: 'Comeback under the workshop’s guarantee' } : {}),
     },
   }));
 
@@ -2186,7 +2261,7 @@ export async function updateEstimateLineItem(lineItemId: string, input: Estimate
   if (lineItem.estimate.status === 'MANAGER_APPROVED' || lineItem.estimate.status === 'APPROVED') {
     throw new WorkshopActionError(lineItem.estimate.status === 'APPROVED'
       ? 'This estimate has been approved by the supervisor and is waiting for the Owner — it can no longer be edited. Ask the Owner to send it back if it needs changing.'
-      : 'This estimate has already been approved by the manager and can no longer be edited.');
+      : 'This estimate has already been fully approved and can no longer be edited.');
   }
   const editor = await requireEstimateContributor(lineItem.estimate.jobCard);
   if (input.unitPrice !== undefined) {
@@ -2259,7 +2334,7 @@ export async function deleteEstimateLineItem(lineItemId: string): Promise<void> 
   if (lineItem.estimate.status === 'MANAGER_APPROVED' || lineItem.estimate.status === 'APPROVED') {
     throw new WorkshopActionError(lineItem.estimate.status === 'APPROVED'
       ? 'This estimate has been approved by the supervisor and is waiting for the Owner — it can no longer be edited. Ask the Owner to send it back if it needs changing.'
-      : 'This estimate has already been approved by the manager and can no longer be edited.');
+      : 'This estimate has already been fully approved and can no longer be edited.');
   }
   const user = await requireUser();
   const isOwnEntry = lineItem.enteredById === user.id;
@@ -2283,7 +2358,7 @@ export async function deleteEstimateLineItem(lineItemId: string): Promise<void> 
 const DISCOUNT_EDITABLE = ['DRAFT', 'SUBMITTED'] as const;
 const discountLockedMessage = (status: string) => status === 'APPROVED'
   ? 'This estimate is waiting for the Owner — discounts can no longer change. Ask the Owner to send it back if it needs changing.'
-  : 'This estimate has already been approved by the manager — discounts can no longer change.';
+  : 'This estimate has already been fully approved — discounts can no longer change.';
 const nairaText = (value: number) => `₦${value.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** A discount amount as typed: two decimals, never negative. */
@@ -2633,21 +2708,30 @@ export async function requireEligibleManager(branchId: string, key: ManagerPermi
 }
 
 /** The assigned supervisor (or a Platform Administrator) approves a submitted
- * estimate; it then goes to the Owner. */
+ * estimate. That is its final approval unless the Owner must decide
+ * (lib/money/rules.ts ownerMustApprove: the Owner approves every estimate
+ * when set, above an amount, a discount above the limit, lines the business
+ * pays for, a comeback); then it goes to the Owner. When the Owner checks it
+ * themselves, that check is the Owner's approval too. */
 export async function approveEstimate(jobCardId: string): Promise<void> {
   const estimate = await prisma.estimate.findUnique({
     where: { jobCardId },
     select: {
       id: true,
       status: true,
-      lineItems: { select: { type: true, matchedPartId: true, description: true } },
+      discountAmount: true,
+      discountApprovedAt: true,
+      vatRate: true,
+      lineItems: { select: { type: true, matchedPartId: true, description: true, amount: true, billTo: true, discountAmount: true } },
       jobCard: {
         select: {
           supervisorId: true,
           branchId: true,
           jobNumber: true,
+          comebackOfId: true,
+          createdBy: { select: { fullName: true, email: true } },
           customer: { select: { fullName: true } },
-          branch: { select: { name: true, businessUnit: { select: { organisation: { select: { name: true } } } } } },
+          branch: { select: { name: true, businessUnit: { select: { organisation: { select: { name: true, ...BILLING_SETTINGS_SELECT, ownerApprovesEstimates: true, ownerApprovalAbove: true } } } } } },
         },
       },
     },
@@ -2671,9 +2755,28 @@ export async function approveEstimate(jobCardId: string): Promise<void> {
   const user = await requireJobCardApprover(estimate.jobCard);
   await authorize('workshop.estimate.approve', { branchId: estimate.jobCard.branchId, assigneeIds: [estimate.jobCard.supervisorId] }, 'approveEstimate');
 
+  // Does the Owner need to decide? (Settings → Billing, and the estimate itself.)
+  const settings = estimate.jobCard.branch.businessUnit.organisation;
+  const totals = jobCardTotals(estimate, settings);
+  const reasons = ownerMustApprove({
+    setting: settings, total: totals.total, lines: estimate.lineItems, comeback: Boolean(estimate.jobCard.comebackOfId),
+    discountNeedsOwner: !estimate.discountApprovedAt && discountNeedsManager(totals, settings.discountApprovalPercent),
+  });
+  // The Owner checking it themselves gives the final approval in the same
+  // step, except for a discount above the limit, which they approve explicitly.
+  const ownerChecking = reasons.length > 0 && !reasons.includes('DISCOUNT') && await allows('workshop.estimate.final_approve', { branchId: estimate.jobCard.branchId });
+  const final = reasons.length === 0 || ownerChecking;
+  const approvedAt = new Date();
+
   claimed(await prisma.estimate.updateMany({
     where: { id: estimate.id, status: 'SUBMITTED' },
-    data: { status: 'APPROVED', approvedAt: new Date(), approvedById: user.id },
+    data: final
+      ? {
+        status: 'MANAGER_APPROVED', approvedAt, approvedById: user.id, managerApprovedAt: approvedAt, managerApprovedById: user.id,
+        // The VAT is fixed now: the price the customer is sent never changes with the settings.
+        vatRate: settings.vatEnabled ? Number(settings.vatRate) : 0,
+      }
+      : { status: 'APPROVED', approvedAt, approvedById: user.id },
   }), 'This estimate was just approved or changed by someone else — refresh the page.');
 
   await writeAuditLog({
@@ -2681,7 +2784,13 @@ export async function approveEstimate(jobCardId: string): Promise<void> {
     action: 'estimate.approved',
     entityType: 'JobCard',
     entityId: jobCardId,
+    metadata: final ? { finalApproval: true, ownerApproval: ownerChecking ? 'given by the Owner checking it' : 'not needed' } : { waitingForOwner: ownerApprovalWhy(reasons) },
   });
+  if (final) {
+    await writeAuditLog({ userId: user.id, action: 'estimate.manager_approved', entityType: 'JobCard', entityId: jobCardId, metadata: { inOneStep: true } });
+    await tellCreatorEstimateReady(jobCardId, estimate.jobCard, user.id);
+    return;
+  }
 
   // Notify the Owner after the approval is committed (fail-soft).
   try {
@@ -2756,10 +2865,10 @@ export async function approveEstimateAsManager(jobCardId: string, approveDiscoun
   }
   const user = await requireEligibleManager(estimate.jobCard.branchId, 'workshop.estimate.final_approve');
   await authorize('workshop.estimate.final_approve', { branchId: estimate.jobCard.branchId }, 'approveEstimateAsManager');
-  // Segregation of duties: the Owner's approval must come from someone other
-  // than the supervisor who approved it.
-  if (estimate.approvedById === user.id && !(await currentUserIsMasterAdmin())) {
-    throw new WorkshopActionError('You approved this estimate as its supervisor — another Owner gives the final approval.');
+  // The supervisor's check and the final approval are two people, unless the
+  // person is the Owner (who answers for both in this workshop).
+  if (estimate.approvedById === user.id && !(await currentUserIsMasterAdmin()) && !(await getPrincipal()).roleSlugs.includes('owner')) {
+    throw new WorkshopActionError('You checked this estimate as its supervisor — the Owner gives the final approval.');
   }
   // The discount rule (Billing & tax): above the limit, the Owner approves it explicitly.
   const settings = estimate.jobCard.branch.businessUnit.organisation;
@@ -2799,27 +2908,36 @@ export async function approveEstimateAsManager(jobCardId: string, approveDiscoun
 
   // Tell the Job Card's creator; they decide when the customer is notified
   // (notifyCustomerOfApprovedEstimate). Fail-soft.
+  await tellCreatorEstimateReady(jobCardId, estimate.jobCard, user.id);
+}
+
+/** The estimate is fully approved: its Job Card's creator sends it to the customer when ready (fail-soft). */
+async function tellCreatorEstimateReady(
+  jobCardId: string,
+  jc: { jobNumber: string; createdBy: { fullName: string; email: string }; customer: { fullName: string }; branch: { name: string; businessUnit: { organisation: { name: string } } } },
+  approverId: string,
+): Promise<void> {
   try {
-    const manager = await prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } });
+    const approver = await prisma.user.findUnique({ where: { id: approverId }, select: { fullName: true } });
     const total = (await jobCardTotalsNow(jobCardId)).total;
     const portalUrl = portalBaseUrl();
     await whatsAppToStaff({
-      to: [estimate.jobCard.createdBy], key: 'staff_update', related: { type: 'JobCard', id: jobCardId },
-      values: { what: `The estimate on Job Card ${estimate.jobCard.jobNumber} is approved and ready to send to the customer`, details: detailsLine([['Customer', estimate.jobCard.customer.fullName], ['Total', nairaText(total)], ['Approved by', manager?.fullName ?? 'The manager']]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
+      to: [jc.createdBy], key: 'staff_update', related: { type: 'JobCard', id: jobCardId },
+      values: { what: `The estimate on Job Card ${jc.jobNumber} is approved and ready to send to the customer`, details: detailsLine([['Customer', jc.customer.fullName], ['Total', nairaText(total)], ['Approved by', approver?.fullName ?? 'The Owner']]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
     });
     await sendEmail(
-      estimate.jobCard.createdBy.email,
-      `Estimate for Job Card ${estimate.jobCard.jobNumber} approved by manager — ready to send`,
+      jc.createdBy.email,
+      `Estimate for Job Card ${jc.jobNumber} approved — ready to send`,
       renderEstimateReadyForCustomerNotificationEmail({
-        recipientName: estimate.jobCard.createdBy.fullName,
-        jobNumber: estimate.jobCard.jobNumber,
-        customerName: estimate.jobCard.customer.fullName,
-        approvedByManagerName: manager?.fullName ?? 'The manager',
+        recipientName: jc.createdBy.fullName,
+        jobNumber: jc.jobNumber,
+        customerName: jc.customer.fullName,
+        approvedByManagerName: approver?.fullName ?? 'The Owner',
         totalAmount: `₦${total.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${jobCardId}`,
         logoUrl: `${portalUrl}/brand/emblem.png`,
-        companyName: estimate.jobCard.branch.businessUnit.organisation.name,
-        branchName: estimate.jobCard.branch.name,
+        companyName: jc.branch.businessUnit.organisation.name,
+        branchName: jc.branch.name,
       }),
     );
   } catch (err) {
@@ -2858,10 +2976,10 @@ export async function returnEstimateForChanges(jobCardId: string, reason: string
     where: 'estimate.returned_for_changes',
     notice: {
       subject: `Estimate sent back — Job Card ${estimate.jobCard.jobNumber}`,
-      heading: 'The manager sent an estimate back',
-      intro: `The manager sent the estimate on Job Card ${estimate.jobCard.jobNumber} back for changes before approving it.`,
+      heading: 'The Owner sent an estimate back',
+      intro: `The Owner sent the estimate on Job Card ${estimate.jobCard.jobNumber} back for changes before approving it.`,
       facts: [['Job Card', estimate.jobCard.jobNumber], ['What to change', why]],
-      next: 'Change the estimate, then the supervisor approves it again and it goes back to the manager.',
+      next: 'Change the estimate, then the supervisor approves it again and, when the Owner must decide, it comes back to the Owner.',
       status: { label: 'Sent back', tone: 'warning' },
       ctaLabel: 'Open the Job Card',
     },
@@ -2897,7 +3015,7 @@ export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promi
     throw new WorkshopActionError('This Job Card has no estimate yet.');
   }
   if (estimate.status !== 'MANAGER_APPROVED') {
-    throw new WorkshopActionError('This estimate has not been approved by the manager yet.');
+    throw new WorkshopActionError('This estimate has not been fully approved yet.');
   }
   const user = await requireUser();
   const isMasterAdmin = await currentUserIsMasterAdmin();
@@ -3015,7 +3133,7 @@ export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promi
 // payments (deposit, then balance).
 // ---------------------------------------------------------------------------
 
-export type PaymentMethod = 'BANK_TRANSFER' | 'CASH';
+export type PaymentMethod = 'BANK_TRANSFER' | 'CASH' | 'POS';
 
 /** Who records payments for the branch: Accounts while that role is on,
  * otherwise Front Desk (with the Platform Administrator fallback). */
@@ -3089,6 +3207,7 @@ export async function recordPayment(
   method: PaymentMethod,
   notes?: string,
   idempotencyKey?: string,
+  posReferenceRaw?: string,
 ): Promise<void> {
   // Catalogue check first (who may attempt this); branch eligibility and
   // workflow state are checked below.
@@ -3096,6 +3215,11 @@ export async function recordPayment(
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new WorkshopActionError('Enter a valid payment amount.');
   }
+  if (!['CASH', 'BANK_TRANSFER', 'POS'].includes(method)) throw new WorkshopActionError('Choose how the customer paid.');
+  // A POS (card) payment carries the terminal's transaction reference.
+  const pos = checkPosReference(method, posReferenceRaw);
+  if (pos && typeof pos === 'object') throw new WorkshopActionError(pos.error);
+  const posReference = typeof pos === 'string' ? pos : null;
   const jobCard = await prisma.jobCard.findUnique({
     where: { id: jobCardId },
     select: {
@@ -3111,6 +3235,7 @@ export async function recordPayment(
       estimate: { select: ESTIMATE_TOTALS_SELECT },
       ...JOB_CARD_BILLING_SELECT,
       payments: { select: { amount: true } },
+      creditNotes: { where: { status: 'APPROVED' }, select: { amount: true } },
       invoice: { select: { id: true } },
     },
   });
@@ -3156,7 +3281,8 @@ export async function recordPayment(
 
   // The total after discounts and VAT: the one shared calculation, as on every screen and document.
   const total = jobCardTotals(jobCard.estimate, billingOf(jobCard)).total;
-  const alreadyPaid = jobCard.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount ?? 0), 0);
+  // Approved credit notes count as settled: the customer no longer owes them.
+  const alreadyPaid = jobCard.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount ?? 0), 0) + credited(jobCard.creditNotes);
   const formatNaira = (value: number) => `₦${value.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (total > 0 && paidInFull(alreadyPaid, total)) {
@@ -3183,13 +3309,13 @@ export async function recordPayment(
     if (idempotencyKey && (await tx.payment.findUnique({ where: { idempotencyKey }, select: { id: true } }))) return null;
     const now = await tx.jobCard.findUnique({
       where: { id: jobCardId },
-      select: { status: true, workStartedAt: true, customer: { select: { customerType: true } }, estimate: { select: { ...ESTIMATE_TOTALS_SELECT, id: true, customerApprovedAt: true } }, ...JOB_CARD_BILLING_SELECT, payments: { select: { amount: true } }, invoice: { select: { id: true } } },
+      select: { status: true, workStartedAt: true, customer: { select: { customerType: true } }, estimate: { select: { ...ESTIMATE_TOTALS_SELECT, id: true, customerApprovedAt: true } }, ...JOB_CARD_BILLING_SELECT, payments: { select: { amount: true } }, creditNotes: { where: { status: 'APPROVED' }, select: { amount: true } }, invoice: { select: { id: true } } },
     });
     if (!now || !payable(now.status, Boolean(now.invoice))) {
       throw new WorkshopActionError('This Job Card changed while you were recording the payment — refresh the page.');
     }
     const totalNow = jobCardTotals(now.estimate, billingOf(now)).total;
-    const paidNow = now.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount ?? 0), 0);
+    const paidNow = now.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount ?? 0), 0) + credited(now.creditNotes);
     if (exceedsBalance(paidNow, roundedAmount, totalNow)) {
       const remaining = balanceDue(totalNow, paidNow);
       throw new WorkshopActionError(
@@ -3211,6 +3337,7 @@ export async function recordPayment(
         jobCardId,
         amount: roundedAmount,
         method,
+        posReference,
         notes: notes?.trim() || null,
         recordedById: user.id,
         receiptNumber,
@@ -3657,7 +3784,7 @@ export async function approveCancellationRequest(requestId: string, decisionNote
           recipientName: recipient.fullName,
           jobNumber: request.jobCard.jobNumber,
           customerName: request.jobCard.customer.fullName,
-          approvedByName: approver?.fullName ?? 'The manager',
+          approvedByName: approver?.fullName ?? 'The Owner',
           reason: request.reason,
           jobCardUrl: `${portalUrl}/workshop/job-cards/${request.jobCardId}`,
           logoUrl: `${portalUrl}/brand/emblem.png`,
@@ -3748,7 +3875,7 @@ export async function declineCancellationRequest(requestId: string, decisionNote
     const portalUrl = portalBaseUrl();
     await whatsAppToStaff({
       to: [{ id: request.requestedById }], key: 'staff_update', related: { type: 'JobCard', id: request.jobCardId },
-      values: { what: `Your request to cancel Job Card ${request.jobCard.jobNumber} was declined`, details: detailsLine([['Customer', request.jobCard.customer.fullName], ['By', decliner?.fullName ?? 'The manager'], ['Note', decisionNotes?.trim()]]), link: `${portalUrl}/workshop/job-cards/${request.jobCardId}` },
+      values: { what: `Your request to cancel Job Card ${request.jobCard.jobNumber} was declined`, details: detailsLine([['Customer', request.jobCard.customer.fullName], ['By', decliner?.fullName ?? 'The Owner'], ['Note', decisionNotes?.trim()]]), link: `${portalUrl}/workshop/job-cards/${request.jobCardId}` },
     });
     await sendEmail(
       requester.email,
@@ -3757,7 +3884,7 @@ export async function declineCancellationRequest(requestId: string, decisionNote
         recipientName: requester.fullName,
         jobNumber: request.jobCard.jobNumber,
         customerName: request.jobCard.customer.fullName,
-        declinedByName: decliner?.fullName ?? 'The manager',
+        declinedByName: decliner?.fullName ?? 'The Owner',
         decisionNotes,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${request.jobCardId}`,
         logoUrl: `${portalUrl}/brand/emblem.png`,
@@ -3799,6 +3926,7 @@ export async function requestJobCardClose(jobCardId: string): Promise<void> {
       estimate: { select: ESTIMATE_TOTALS_SELECT },
       ...JOB_CARD_BILLING_SELECT,
       payments: { select: { amount: true } },
+      creditNotes: { where: { status: 'APPROVED' }, select: { amount: true } },
     },
   });
   if (!jobCard) {
@@ -3818,7 +3946,7 @@ export async function requestJobCardClose(jobCardId: string): Promise<void> {
   // its invoice is issued now, and the Owner deciding sees whether it fits
   // the credit limit (only the Owner can close over it).
   const totalEstimate = jobCardTotals(jobCard.estimate, billingOf(jobCard)).total;
-  const totalPaid = jobCard.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount), 0);
+  const totalPaid = jobCard.payments.reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount), 0) + credited(jobCard.creditNotes);
   if (!paidInFull(totalPaid, totalEstimate)) {
     await leaveOnCredit(jobCardId, balanceDue(totalEstimate, totalPaid), user.id, {
       checkLimit: false,
@@ -3925,9 +4053,9 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
   // Money is checked again at the decision: paid in full, or an organisation
   // on credit (invoiced). Over its credit limit only the Owner's explicit
   // tick closes it, and that is recorded.
-  const money = await prisma.jobCard.findUnique({ where: { id: request.jobCardId }, select: { estimate: { select: ESTIMATE_TOTALS_SELECT }, ...JOB_CARD_BILLING_SELECT, payments: { select: { amount: true } } } });
+  const money = await prisma.jobCard.findUnique({ where: { id: request.jobCardId }, select: { estimate: { select: ESTIMATE_TOTALS_SELECT }, ...JOB_CARD_BILLING_SELECT, payments: { select: { amount: true } }, creditNotes: { where: { status: 'APPROVED' }, select: { amount: true } } } });
   const owedTotal = money ? jobCardTotals(money.estimate, billingOf(money)).total : 0;
-  const owedPaid = (money?.payments ?? []).reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount), 0);
+  const owedPaid = (money?.payments ?? []).reduce((sum: number, p: { amount: unknown }) => sum + Number(p.amount), 0) + credited(money?.creditNotes ?? []);
   const credit = paidInFull(owedPaid, owedTotal)
     ? null
     : await leaveOnCredit(request.jobCardId, balanceDue(owedTotal, owedPaid), user.id, {
@@ -4017,7 +4145,7 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
           recipientName: recipient.fullName,
           jobNumber: request.jobCard.jobNumber,
           customerName: request.jobCard.customer.fullName,
-          closedByName: approver?.fullName ?? 'The manager',
+          closedByName: approver?.fullName ?? 'The Owner',
           jobCardUrl: `${portalUrl}/workshop/job-cards/${request.jobCardId}`,
           logoUrl: `${portalUrl}/brand/emblem.png`,
           companyName: orgContext.companyName,
@@ -4086,7 +4214,7 @@ export async function declineCloseRequest(requestId: string, decisionNotes?: str
     const portalUrl = portalBaseUrl();
     await whatsAppToStaff({
       to: [{ id: request.requestedById }], key: 'staff_update', related: { type: 'JobCard', id: request.jobCardId },
-      values: { what: `Your request to close Job Card ${request.jobCard.jobNumber} was declined`, details: detailsLine([['Customer', request.jobCard.customer.fullName], ['By', decliner?.fullName ?? 'The manager'], ['Note', decisionNotes?.trim()]]), link: `${portalUrl}/workshop/job-cards/${request.jobCardId}` },
+      values: { what: `Your request to close Job Card ${request.jobCard.jobNumber} was declined`, details: detailsLine([['Customer', request.jobCard.customer.fullName], ['By', decliner?.fullName ?? 'The Owner'], ['Note', decisionNotes?.trim()]]), link: `${portalUrl}/workshop/job-cards/${request.jobCardId}` },
     });
     await sendEmail(
       requester.email,
@@ -4095,7 +4223,7 @@ export async function declineCloseRequest(requestId: string, decisionNotes?: str
         recipientName: requester.fullName,
         jobNumber: request.jobCard.jobNumber,
         customerName: request.jobCard.customer.fullName,
-        declinedByName: decliner?.fullName ?? 'The manager',
+        declinedByName: decliner?.fullName ?? 'The Owner',
         decisionNotes,
         jobCardUrl: `${portalUrl}/workshop/job-cards/${request.jobCardId}`,
         logoUrl: `${portalUrl}/brand/emblem.png`,

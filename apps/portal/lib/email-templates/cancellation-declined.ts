@@ -22,7 +22,7 @@ export function renderCancellationDeclinedEmail(o: CancellationDeclinedEmailOpti
       ['Customer', o.customerName],
       ['Declined by', o.declinedByName],
     ])}
-    ${notes ? callout(notes, 'neutral', 'Note from the manager') : ''}`;
+    ${notes ? callout(notes, 'neutral', 'Note from the Owner') : ''}`;
   return renderEmailLayout({
     previewText: `Your request to cancel Job Card ${o.jobNumber} was declined.`,
     companyName: o.companyName,

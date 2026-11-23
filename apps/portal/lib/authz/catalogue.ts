@@ -58,6 +58,11 @@ export const PERMISSIONS = {
   'store.prs.approve_hod': { module: 'Workshop', label: 'Parts requests: first approval, before the store' },
   'workshop.payment.record': { module: 'Money', label: 'Record payments and issue receipts' },
   'workshop.refund.record': { module: 'Money', label: 'Record refunds' },
+  'money.credit_note.request': { module: 'Money', label: 'Ask for a credit note on an invoice (an overcharge, goodwill, a part returned)' },
+  'money.credit_note.approve': { module: 'Money', label: 'Approve or decline credit notes (Owner)' },
+  'money.statement.view': { module: 'Money', label: 'See what customers owe: statements and ageing' },
+  'workshop.warranty.claims': { module: 'Workshop', label: 'Record faulty parts and claim them back from suppliers' },
+  'workshop.warranty.report': { module: 'Workshop', label: 'See the warranty report: comebacks, warranty cost and supplier claims' },
   // Customers (CRM)
   'crm.view': { module: 'Customers', label: 'See customers, their pages, spend and history' },
   'crm.manage': { module: 'Customers', label: 'Edit customers, their contacts, addresses, notes, tags and portal access' },
@@ -109,7 +114,7 @@ export const ROLE_GRANTS: Record<string, Partial<Record<PermissionKey, Scope>>> 
   // and looks after complaints, follow-ups and appointments.
   'front-desk': {
     ...VIEW_WORKSHOP, 'workshop.job_card.create': B, 'workshop.customer.manage': B, 'workshop.customer.notify': B, 'workshop.close.request': B,
-    'workshop.estimate.edit': B, 'workshop.payment.record': B,
+    'workshop.estimate.edit': B, 'workshop.payment.record': B, 'money.credit_note.request': B, 'money.statement.view': B,
     'crm.view': B, 'crm.manage': B, 'support.tickets.manage': B, 'store.view': B,
     'dataexchange.import.run': B, 'dataexchange.export.run': B,
   },
@@ -133,7 +138,7 @@ export const ROLE_GRANTS: Record<string, Partial<Record<PermissionKey, Scope>>> 
   // Accounts: payments, refunds, statements and the QuickBooks export.
   accounts: {
     ...VIEW_WORKSHOP, 'store.view': B, 'crm.view': B,
-    'workshop.payment.record': B, 'workshop.refund.record': B,
+    'workshop.payment.record': B, 'workshop.refund.record': B, 'money.credit_note.request': B, 'money.statement.view': B, 'workshop.warranty.claims': B,
     'dataexchange.export.run': B, 'dataexchange.export.sensitive': B,
   },
   // Security: the gate.
@@ -149,7 +154,7 @@ export const OPTIONAL_ROLE_COVER: Record<OptionalRole, Partial<Record<Permission
   'workshop-supervisor': { 'workshop.job.supervise': B, 'workshop.technician.assign': B, 'workshop.estimate.approve': B, 'workshop.inspection.perform': B, 'sourcing.request': B },
   technician: { 'workshop.job.work': B, 'workshop.inspection.perform': B, 'sourcing.request': B },
   'store-keeper': { 'store.matching': B, 'store.parts.manage': B, 'store.grn.record': B, 'store.prs.release': B },
-  accounts: { 'workshop.refund.record': B, 'dataexchange.export.sensitive': B },
+  accounts: { 'workshop.refund.record': B, 'dataexchange.export.sensitive': B, 'workshop.warranty.claims': B },
   security: { 'security.view': B, 'security.gate.operate': B },
 };
 
@@ -273,6 +278,7 @@ export const ROLE_DESCRIPTIONS: Record<string, string> = {
  * listed separately on the Roles page and used for the Approvals menu. */
 export const APPROVAL_PERMISSIONS: PermissionKey[] = [
   'workshop.job.supervise', 'workshop.estimate.approve', 'workshop.estimate.final_approve', 'workshop.close.approve', 'store.prs.approve_hod', 'store.prs.release',
+  'money.credit_note.approve',
 ];
 
 /** Pages and figures that show cost prices, margins, stock value and profit: the Owner only by default. */

@@ -49,6 +49,7 @@ export type EstimatePrintAuditEntry = { id: string; action: string; createdAt: D
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CASH: 'Cash',
   BANK_TRANSFER: 'Bank Transfer',
+  POS: 'POS (card)',
   CARD: 'Card',
   CHEQUE: 'Cheque',
 };
@@ -66,7 +67,7 @@ const ESTIMATE_AUDIT_LABEL: Record<string, string> = {
   'estimate.line_item_removed': 'Estimate line removed',
   'estimate.submitted': 'Estimate submitted for validation',
   'estimate.approved': 'Estimate approved',
-  'estimate.manager_approved': 'Estimate approved by manager',
+  'estimate.manager_approved': 'Estimate approved by the Owner',
   'estimate.customer_notified': 'Customer notified of approved estimate',
   'estimate.nudge_to_technician': 'Supervisor notified technician about estimate',
   'estimate.nudge_to_supervisor': 'Technician notified supervisor about estimate',
@@ -84,7 +85,7 @@ const ESTIMATE_AUDIT_LABEL: Record<string, string> = {
   'service_estimate.nudge_to_technician': 'Supervisor notified technician about estimate',
   'service_estimate.submitted': 'Estimate submitted for validation',
   'service_estimate.approved': 'Estimate approved',
-  'service_estimate.manager_approved': 'Estimate approved by manager',
+  'service_estimate.manager_approved': 'Estimate approved by the Owner',
   'service_estimate.customer_notified': 'Customer notified of approved estimate',
   'service_estimate.cancelled': 'Estimate cancelled',
   'payment.recorded': 'Payment recorded',
@@ -428,7 +429,7 @@ export function EstimatePrintDocument({
                   </td>
                 </tr>
                 <tr>
-                  <td style={{ padding: '2px 0', color: '#475569' }}>Approved by manager</td>
+                  <td style={{ padding: '2px 0', color: '#475569' }}>Final approval</td>
                   <td style={{ padding: '2px 0' }}>
                     {approvals.managerApprovedBy ?? '—'}
                     {approvals.managerApprovedAt ? ` — ${formatDateTime(approvals.managerApprovedAt)}` : ''}
