@@ -37,3 +37,19 @@ test('a goods receipt is open to the Store Keeper, its costs are not', () => {
     assert.match(read(page), /guardAnyPage\(\['store\.grn\.record', \.\.\.STORE_COST_PERMISSIONS\]/, page);
   }
 });
+
+test('store emails carry costs and margins only to the Owner', () => {
+  const store = read('lib/actions/store.ts');
+  // A new selling price: everyone hears of it; the margin and target only in the Owner's copy.
+  const priceEmails = store.split('renderPartSellingPriceSetEmail({').slice(1);
+  assert.equal(priceEmails.length, 2);
+  for (const e of priceEmails) assert.match(e.slice(0, 900), /targetMarginPercent: recipient\.seesCosts \? /);
+  assert.match(priceEmails[0]!.slice(0, 900), /margin: recipient\.seesCosts \? margin : null/);
+  // Target margins and pricing alerts (unit costs) go to the Owner alone.
+  for (const marker of ['renderPartTargetMarginSetEmail({', 'renderPricingAlertRaisedEmail({']) {
+    const before = store.slice(0, store.indexOf(marker));
+    const block = before.slice(before.lastIndexOf('const recipients'));
+    assert.match(block, /for \(const staffMember of managers\.staff\) recipients\.set/, marker);
+    assert.doesNotMatch(block, /officers\.staff/, marker);
+  }
+});

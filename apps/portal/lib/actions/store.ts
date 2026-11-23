@@ -338,10 +338,10 @@ export async function setPartSellingPrice(partId: string, sellingPrice: number):
       listEligibleStoreManagersForBranch(part.branchId),
       prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }),
     ]);
-    const recipients = new Map<string, { fullName: string; email: string }>();
-    for (const staffMember of [...officers.staff, ...managers.staff]) {
-      recipients.set(staffMember.id, staffMember);
-    }
+    // The margin is cost information: only the Owner's copy carries it, never the Store Keeper's or Front Desk's.
+    const recipients = new Map<string, { fullName: string; email: string; seesCosts: boolean }>();
+    for (const staffMember of officers.staff) recipients.set(staffMember.id, { ...staffMember, seesCosts: false });
+    for (const staffMember of managers.staff) recipients.set(staffMember.id, { ...staffMember, seesCosts: true });
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
     const logoUrl = `${portalUrl}/brand/emblem.png`;
@@ -356,8 +356,8 @@ export async function setPartSellingPrice(partId: string, sellingPrice: number):
           baseUnitOfMeasure: part.baseUnitOfMeasure,
           previousSellingPrice,
           newSellingPrice: sellingPrice,
-          margin,
-          targetMarginPercent,
+          margin: recipient.seesCosts ? margin : null,
+          targetMarginPercent: recipient.seesCosts ? targetMarginPercent : null,
           partUrl: `${portalUrl}/inventory/parts/${partId}`,
           logoUrl,
           companyName: orgContext.companyName,
@@ -408,15 +408,13 @@ export async function setPartTargetMargin(partId: string, targetValue: number, p
 
   // Notify Store of the new target. Email failures never block the save.
   try {
-    const [officers, managers, setByUser] = await Promise.all([
-      listEligibleStoreOfficersForBranch(part.branchId),
+    const [managers, setByUser] = await Promise.all([
       listEligibleStoreManagersForBranch(part.branchId),
       prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }),
     ]);
+    // Target margins are cost policy: the Owner's alone, never the Store Keeper's (or Front Desk's) inbox.
     const recipients = new Map<string, { fullName: string; email: string }>();
-    for (const staffMember of [...officers.staff, ...managers.staff]) {
-      recipients.set(staffMember.id, staffMember);
-    }
+    for (const staffMember of managers.staff) recipients.set(staffMember.id, staffMember);
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
     const logoUrl = `${portalUrl}/brand/emblem.png`;
@@ -1644,15 +1642,13 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
   // Separate email for any new pricing alerts. Failures never block the receipt.
   if (newAlertsForEmail.length > 0) {
     try {
-      const [orgContext, officers, managers] = await Promise.all([
+      const [orgContext, managers] = await Promise.all([
         getStoreOrgContext(),
-        listEligibleStoreOfficersForBranch(input.branchId),
         listEligibleStoreManagersForBranch(input.branchId),
       ]);
-      const recipients = new Map<string, { fullName: string; email: string }>();
-      for (const staffMember of [...officers.staff, ...managers.staff]) {
-        recipients.set(staffMember.id, staffMember);
-      }
+      // A pricing alert shows unit costs and margins: the Owner's alone.
+        const recipients = new Map<string, { fullName: string; email: string }>();
+      for (const staffMember of managers.staff) recipients.set(staffMember.id, staffMember);
       const portalUrl = portalBaseUrl();
       const logoUrl = `${portalUrl}/brand/emblem.png`;
       const formatNairaForAlert = (value: number) => `₦${value.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1867,10 +1863,10 @@ export async function syncPartPriceToTargetMargin(alertId: string): Promise<void
       listEligibleStoreManagersForBranch(alert.part.branchId),
       prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }),
     ]);
-    const recipients = new Map<string, { fullName: string; email: string }>();
-    for (const staffMember of [...officers.staff, ...managers.staff]) {
-      recipients.set(staffMember.id, staffMember);
-    }
+    // Everyone in the store hears of the new selling price; the target margin is in the Owner's copy only.
+    const recipients = new Map<string, { fullName: string; email: string; seesCosts: boolean }>();
+    for (const staffMember of officers.staff) recipients.set(staffMember.id, { ...staffMember, seesCosts: false });
+    for (const staffMember of managers.staff) recipients.set(staffMember.id, { ...staffMember, seesCosts: true });
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
     const logoUrl = `${portalUrl}/brand/emblem.png`;
@@ -1888,7 +1884,7 @@ export async function syncPartPriceToTargetMargin(alertId: string): Promise<void
           // The alert only stores cost, price and margin, not the quantity/revenue
           // context of a manual edit; the template handles a null insight.
           margin: null,
-          targetMarginPercent: targetMargin,
+          targetMarginPercent: recipient.seesCosts ? targetMargin : null,
           partUrl: `${portalUrl}/inventory/parts/${alert.part.id}`,
           logoUrl,
           companyName: orgContext.companyName,
