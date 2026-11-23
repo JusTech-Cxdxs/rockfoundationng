@@ -119,8 +119,8 @@ test('opening stock: totals before approval, an opening-balance receipt at the c
   // Accounts confirms the value.
   await as(page, 'accounts');
   await open(page, stockUrl);
-  await page.getByRole('button', { name: 'Confirm the value (Finance)' }).click();
-  await expect(page.getByText(/Value confirmed by .* \(Finance\)/)).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm the value (Accounts)' }).click();
+  await expect(page.getByText(/Value confirmed by .* \(Accounts\)/)).toBeVisible();
 });
 
 test('Accounts opens only stock imports; reversing the opening stock takes it back off the shelf', async ({ page }) => {

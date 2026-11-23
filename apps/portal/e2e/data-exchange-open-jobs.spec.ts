@@ -118,8 +118,8 @@ test('the job card page carries its origin; search finds it by the old number; A
   // Accounts confirms the totals.
   await as(page, 'accounts');
   await open(page, importUrl);
-  await page.getByRole('button', { name: 'Confirm the totals (Finance)' }).click();
-  await expect(page.getByText(/Totals confirmed by .* \(Finance\)/)).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm the totals (Accounts)' }).click();
+  await expect(page.getByText(/Totals confirmed by .* \(Accounts\)/)).toBeVisible();
 });
 
 test('undo: a job card worked on since stays (reported); the others go to the Recycle bin with their estimate and opening payment, and one is restored whole', async ({ page }) => {

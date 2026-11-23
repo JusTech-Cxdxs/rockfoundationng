@@ -10,7 +10,7 @@ import { humanizeAction } from '@/lib/humanize-action';
 import { IssuedToLinks } from '@/components/IssuedToLinks';
 import { getPart, getPartAuditTrail } from '@/lib/actions/store';
 import { getLastEditInfo } from '@/lib/actions/workshop';
-import { createPartFitmentFormAction, updatePartFitmentFormAction, deletePartFitmentFormAction } from '@/lib/actions/store-form-handlers';
+import { createPartFitmentFormAction, updatePartFitmentFormAction, deletePartFitmentFormAction, setPartSellingPriceFormAction } from '@/lib/actions/store-form-handlers';
 import { LoadingLink } from '@/components/LoadingLink';
 import { SellingPriceCalculator } from '@/components/SellingPriceCalculator';
 import { TargetMarginEditor } from '@/components/TargetMarginEditor';
@@ -650,7 +650,24 @@ export default async function PartDetailPage({
             currentTargetMarginPercent={part.targetMarginPercent !== null ? Number(part.targetMarginPercent) : null}
             currentPricingMethod={part.pricingMethod}
           />
-          </>) : null}
+          </>) : canManage ? (
+            // The Store Keeper sets the selling price without seeing what the part cost (the Owner sees the margin).
+            <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6" data-testid="selling-price">
+              <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Selling price</h2>
+              <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
+                {part.sellingPrice !== null ? `Now ${formatNaira(Number(part.sellingPrice))} per ${part.baseUnitOfMeasure}.` : 'Not set yet: the part cannot go on an estimate or a counter sale until it is.'}
+              </p>
+              <form action={setPartSellingPriceFormAction} className="mt-3 flex items-end gap-2">
+                <FormPendingOverlay />
+                <input type="hidden" name="id" value={part.id} />
+                <label className="flex-1">
+                  <span className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Selling price per {part.baseUnitOfMeasure} (₦)</span>
+                  <input name="sellingPrice" type="number" step="0.01" min="0.01" required placeholder="e.g. 4500" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                </label>
+                <SubmitButton label={part.sellingPrice !== null ? 'Save' : 'Set'} pendingLabel="Saving…" className="shrink-0 rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90" />
+              </form>
+            </div>
+          ) : null}
 
           <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
             <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Vehicle fitment</h2>
