@@ -23,7 +23,7 @@ const STATUS: Record<StockStatus, { label: string; colour: string; chip: string 
   BELOW_REORDER: { label: 'At / below reorder point', colour: '#F59E0B', chip: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning-text)]' },
   HEALTHY: { label: 'Healthy', colour: '#16A34A', chip: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' },
   OVERSTOCK: { label: 'Overstocked', colour: '#86EFAC', chip: 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]' },
-  DEAD: { label: 'Dead stock', colour: '#6B7280', chip: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]' },
+  DEAD: { label: 'Dead stock', colour: '#6B7280', chip: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]' },
   NO_DEMAND: { label: 'No recent demand', colour: '#CBD5E1', chip: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]' },
 };
 const ATTENTION: StockStatus[] = ['OUT_OF_STOCK', 'BELOW_SAFETY', 'BELOW_REORDER'];
@@ -117,12 +117,12 @@ export default async function InventoryAnalyticsPage({ searchParams }: { searchP
 
       <form action="/inventory/analytics" className={`${card} mb-8 flex flex-wrap items-end gap-4 text-sm`}>
         <div>
-          <label className="block text-xs text-[var(--ejo-text-muted)]">Supplier lead time (days)</label>
-          <input name="lead" type="number" min={1} max={180} defaultValue={lead} className={`${input} w-24`} />
+          <label htmlFor="inventory-analytics-lead" className="block text-xs text-[var(--ejo-text-muted)]">Supplier lead time (days)</label>
+          <input id="inventory-analytics-lead" name="lead" type="number" min={1} max={180} defaultValue={lead} className={`${input} w-24`} />
         </div>
         <div>
-          <label className="block text-xs text-[var(--ejo-text-muted)]">Service level (chance of not running out)</label>
-          <select name="service" defaultValue={String(service)} className={input}>
+          <label htmlFor="inventory-analytics-service" className="block text-xs text-[var(--ejo-text-muted)]">Service level (chance of not running out)</label>
+          <select id="inventory-analytics-service" name="service" defaultValue={String(service)} className={input}>
             <option value="0.9">90%</option><option value="0.95">95%</option><option value="0.975">97.5%</option><option value="0.99">99%</option>
           </select>
         </div>

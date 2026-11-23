@@ -46,8 +46,8 @@ export default async function EditPartPage({
         <input type="hidden" name="id" value={part.id} />
 
         <div>
-          <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Name</label>
-          <input
+          <label htmlFor="parts-edit-name" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Name</label>
+          <input id="parts-edit-name"
             name="name"
             required
             defaultValue={part.name}
@@ -55,23 +55,23 @@ export default async function EditPartPage({
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Category</label>
-          <input
+          <label htmlFor="parts-edit-category" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Category</label>
+          <input id="parts-edit-category"
             name="category"
             defaultValue={part.category ?? ''}
             className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Part Number</label>
-          <input
+          <label htmlFor="parts-edit-partNumber" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Part Number</label>
+          <input id="parts-edit-partNumber"
             name="partNumber"
             defaultValue={part.partNumber ?? ''}
             className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Description</label>
+          <label htmlFor="inventory-parts-id-edit-text-1" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Description</label>
           <textarea id="inventory-parts-id-edit-text-1"
             name="description"
             rows={2}
@@ -95,7 +95,7 @@ export default async function EditPartPage({
                       placeholder={i === 0 ? 'e.g. Drum, Carton' : 'Unit name'}
                       className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
                     />
-                    <input
+                    <input aria-label="Conversion factor"
                       name="altUnitFactor"
                       type="number"
                       step="0.0001"
@@ -128,8 +128,8 @@ export default async function EditPartPage({
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Reorder Point</label>
-            <input
+            <label htmlFor="parts-edit-reorderPoint" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Reorder Point</label>
+            <input id="parts-edit-reorderPoint"
               name="reorderPoint"
               type="number"
               step="0.001"
@@ -138,8 +138,8 @@ export default async function EditPartPage({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Safety Stock</label>
-            <input
+            <label htmlFor="parts-edit-safetyStock" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Safety Stock</label>
+            <input id="parts-edit-safetyStock"
               name="safetyStock"
               type="number"
               step="0.001"

@@ -33,7 +33,7 @@ export default async function BroadcastsPage({ searchParams }: { searchParams: P
         {TABS.map(([k, l]) => <LoadingLink key={k} href={keep(k)} className={`rounded-full px-3 py-1 text-xs font-medium ${current === k ? 'bg-[var(--ejo-primary)] text-white' : 'border border-[var(--ejo-border)] text-[var(--ejo-text)]'}`}>{l} ({counts[k as keyof typeof counts]})</LoadingLink>)}
         <form className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
           <input type="hidden" name="tab" value={current} />
-          <select name="category" defaultValue={category ?? ''} className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-1.5 text-sm text-[var(--ejo-text)]">
+          <select aria-label="Category" name="category" defaultValue={category ?? ''} className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-1.5 text-sm text-[var(--ejo-text)]">
             <option value="">Every kind</option>
             {Object.entries(BROADCAST_CATEGORY).map(([k, m]) => <option key={k} value={k}>{m.icon} {m.label}</option>)}
           </select>

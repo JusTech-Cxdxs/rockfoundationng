@@ -132,7 +132,7 @@ export function PortalShell({ who, initialUnread, children }: { who: Who; initia
       {/* Sidebar — desktop */}
       <aside className="sticky top-0 hidden h-[100dvh] w-[268px] shrink-0 flex-col border-r border-[var(--ejo-border)] bg-[var(--ejo-surface)] lg:flex" aria-label="Customer portal">
         <div className="px-5 pb-4 pt-6">
-          <Link href={BASE} aria-label="Overview"><Wordmark name={siteConfig.companyShortName} /></Link>
+          <Link href={BASE}><Wordmark name={siteConfig.companyShortName} /><span className="sr-only"> — overview</span></Link>
           <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[var(--ejo-primary)]/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--ejo-primary)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[var(--ejo-primary)]" />Customer portal
           </p>
@@ -271,11 +271,11 @@ function AccountMenu({ who, onSignOut, signingOut }: { who: Who; onSignOut: () =
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Your account"
         className="flex shrink-0 items-center gap-2 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ejo-primary)]/40 sm:pr-2"
       >
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--ejo-accent)] to-[var(--ejo-primary-dark)] text-xs font-bold text-white shadow-sm">{who.initials}</span>
+        <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--ejo-accent)] to-[var(--ejo-primary-dark)] text-xs font-bold text-white shadow-sm">{who.initials}</span>
         <span className="hidden text-[var(--ejo-text-muted)] sm:inline-flex"><Icon name="chevronDown" size={16} /></span>
+        <span className="sr-only">Your account</span>
       </button>
       {open ? (
         <div role="menu" className="ejo-pop absolute right-0 top-12 z-50 w-[min(16rem,calc(100vw-1.5rem))] overflow-hidden rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] shadow-2xl">

@@ -148,8 +148,8 @@ export function SellingPriceCalculator({
             <FormPendingOverlay />
             <input type="hidden" name="id" value={partId} />
             <div className="flex-1">
-              <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Selling Price per {baseUnitOfMeasure}</label>
-              <input
+              <label htmlFor="selling-price-calculator-sellingPrice" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Selling Price per {baseUnitOfMeasure}</label>
+              <input id="selling-price-calculator-sellingPrice"
                 name="sellingPrice"
                 type="number"
                 step="0.01"

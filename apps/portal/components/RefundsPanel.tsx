@@ -107,8 +107,8 @@ export function RefundsPanel({
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Amount refunded (₦)</label>
-              <input
+              <label htmlFor="refunds-panel-amount" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Amount refunded (₦)</label>
+              <input id="refunds-panel-amount"
                 name="amount"
                 type="number"
                 step="0.01"
@@ -120,15 +120,15 @@ export function RefundsPanel({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Paid by</label>
-              <select name="method" required className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] px-3 py-2 text-sm text-[var(--ejo-text)]">
+              <label htmlFor="refunds-panel-method" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Paid by</label>
+              <select id="refunds-panel-method" name="method" required className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] px-3 py-2 text-sm text-[var(--ejo-text)]">
                 <option value="BANK_TRANSFER">Bank Transfer</option>
                 <option value="CASH">Cash</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Received by (full name)</label>
-              <input
+              <label htmlFor="refunds-panel-paidToName" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Received by (full name)</label>
+              <input id="refunds-panel-paidToName"
                 name="paidToName"
                 required
                 defaultValue={defaultPaidTo}
@@ -136,13 +136,13 @@ export function RefundsPanel({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Transfer reference / note (optional)</label>
-              <input name="notes" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+              <label htmlFor="refunds-panel-notes" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Transfer reference / note (optional)</label>
+              <input id="refunds-panel-notes" name="notes" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Reason</label>
-            <input
+            <label htmlFor="refunds-panel-reason" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Reason</label>
+            <input id="refunds-panel-reason"
               name="reason"
               required
               defaultValue={defaultReason ?? ''}

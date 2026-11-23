@@ -61,11 +61,11 @@ export default async function BroadcastPage({ params, searchParams }: { params: 
                 <Hidden action="reactivate" />
                 <p className="text-sm text-[var(--ejo-text)]">Run it again from now</p>
                 <div className="flex flex-wrap gap-2">
-                  <select name="duration" required defaultValue="" className={`${input} min-w-0 flex-1`}>
+                  <select aria-label="How long" name="duration" required defaultValue="" className={`${input} min-w-0 flex-1`}>
                     <option value="" disabled>For how long?</option>
                     {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
                   </select>
-                  <select name="resendEmail" required defaultValue="" className={input}>
+                  <select aria-label="Send the email again?" name="resendEmail" required defaultValue="" className={input}>
                     <option value="" disabled>Email again?</option>
                     <option value="yes">Yes</option>
                     <option value="no">No</option>

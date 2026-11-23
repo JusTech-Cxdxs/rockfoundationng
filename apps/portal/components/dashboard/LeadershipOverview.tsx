@@ -86,7 +86,7 @@ export async function LeadershipOverview() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <SectionCard icon="branch" title="Branches side by side" description="In the workshop now, ready to collect, opened and collected this month" flush>
           {p.branches.length ? (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Branches side by side">
               <table className="w-full min-w-[520px] text-left text-sm">
                 <thead><tr className="text-xs text-[var(--ejo-text-muted)]"><th className="px-4 py-2 font-medium">Branch</th><th className="px-3 py-2 text-right font-medium">In now</th><th className="px-3 py-2 text-right font-medium">Ready</th><th className="px-3 py-2 text-right font-medium">Opened</th><th className="px-4 py-2 text-right font-medium">Collected</th></tr></thead>
                 <tbody>

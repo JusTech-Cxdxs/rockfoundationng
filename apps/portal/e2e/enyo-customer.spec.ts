@@ -27,7 +27,7 @@ test.beforeAll(async ({ request }) => {
 async function ask(page: Page, text: string) {
   const chat = page.getByTestId('enyo-chat');
   if (!(await chat.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: /^Chat with / }).click();
+    await page.getByRole('button', { name: /^Ask / }).click();
     await expect(chat).toBeVisible();
   }
   const answers = chat.getByTestId('enyo-answer');
@@ -206,7 +206,7 @@ test.describe('a website visitor', () => {
     test.use({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true });
     test('the chat fills the screen, closes with its button, and nothing scrolls sideways', async ({ page }) => {
       await page.goto(`${WEB}/support`);
-      const button = page.getByRole('button', { name: /^Chat with / });
+      const button = page.getByRole('button', { name: /^Ask / });
       await button.click();
       const chat = page.getByTestId('enyo-chat');
       await expect(chat).toBeVisible();

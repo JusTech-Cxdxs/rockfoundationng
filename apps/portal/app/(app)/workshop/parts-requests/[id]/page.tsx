@@ -349,8 +349,8 @@ export default async function PartRequestSlipDetailPage({
                     <p className="mt-1 text-[11px] text-[var(--ejo-text-muted)]">{receiver ? 'Pre-filled with the assigned technician — change it if someone else collects.' : 'Choose who is collecting the parts.'}</p>
                   </div>
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Not on staff? Type their name instead</label>
-                    <input name="receivedByName" placeholder="e.g. an intern or a driver" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                    <label htmlFor="workshop-parts-requests-receivedByName" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Not on staff? Type their name instead</label>
+                    <input id="workshop-parts-requests-receivedByName" name="receivedByName" placeholder="e.g. an intern or a driver" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
                   </div>
                 </div>
                 {serializedLines.map((line: (typeof slip.lines)[number]) => (

@@ -300,7 +300,7 @@ export function EnyoChat({ variant }: { variant: 'portal' | 'public' }) {
           type="button"
           onClick={() => setOpen(true)}
           aria-haspopup="dialog"
-          aria-label={`Chat with ${name}`}
+          aria-label={`Ask ${name}`}
           data-testid="enyo-chat-button"
           className={`ejo-rise fixed right-[calc(env(safe-area-inset-right)+1rem)] z-[45] flex h-14 min-w-14 items-center justify-center gap-2 rounded-full bg-[var(--ejo-primary)] px-4 text-white shadow-lg shadow-[var(--ejo-primary)]/25 transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--ejo-primary)]/35 motion-reduce:transition-none motion-reduce:hover:scale-100 sm:right-6 ${lift}`}
         >

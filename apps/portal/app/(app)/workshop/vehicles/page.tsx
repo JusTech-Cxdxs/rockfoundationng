@@ -93,7 +93,7 @@ export default async function WorkshopVehiclesPage({
                   <th className="px-4 py-3 font-medium">Owner</th>
                   <th className="px-4 py-3 font-medium">Mileage</th>
                   <th className="px-4 py-3 font-medium">Registered</th>
-                  <th className="px-4 py-3 font-medium">&nbsp;</th>
+                  <th className="px-4 py-3 font-medium"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -144,12 +144,12 @@ export default async function WorkshopVehiclesPage({
               <VehicleMakeModelPicker />
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Year <span className="text-[var(--ejo-error)]">*</span></label>
-                  <input name="year" type="number" required className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                  <label htmlFor="workshop-vehicles-year" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Year <span className="text-[var(--ejo-error)]">*</span></label>
+                  <input id="workshop-vehicles-year" name="year" type="number" required className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Mileage (km)</label>
-                  <input name="mileage" type="number" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                  <label htmlFor="workshop-vehicles-mileage" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Mileage (km)</label>
+                  <input id="workshop-vehicles-mileage" name="mileage" type="number" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
                 </div>
               </div>
 
@@ -158,7 +158,7 @@ export default async function WorkshopVehiclesPage({
                   Plate number <span className="text-[var(--ejo-error)]">*</span>{' '}
                   <span className="text-[var(--ejo-text-muted)] font-normal">(AAA 000 AA)</span>
                 </label>
-                <SegmentedCodeInput name="plateNumber" length={8} groups={[3, 3, 2]} placeholder="LAGXXXAA" />
+                <SegmentedCodeInput label="Plate number" name="plateNumber" length={8} groups={[3, 3, 2]} placeholder="LAGXXXAA" />
                 <p className="mt-1 text-[11px] text-[var(--ejo-text-muted)]">
                   No two registered vehicles can share the same plate.
                 </p>
@@ -169,12 +169,12 @@ export default async function WorkshopVehiclesPage({
                   Chassis / VIN <span className="text-[var(--ejo-error)]">*</span>{' '}
                   <span className="text-[var(--ejo-text-muted)] font-normal">(17 characters)</span>
                 </label>
-                <SegmentedCodeInput name="chassisNumber" length={17} groups={[9, 8]} />
+                <SegmentedCodeInput label="Chassis number" name="chassisNumber" length={17} groups={[9, 8]} />
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Engine number</label>
-                <input name="engineNumber" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                <label htmlFor="workshop-vehicles-engineNumber" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Engine number</label>
+                <input id="workshop-vehicles-engineNumber" name="engineNumber" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
               </div>
 
               <SubmitButton

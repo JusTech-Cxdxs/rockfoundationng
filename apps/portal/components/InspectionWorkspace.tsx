@@ -417,6 +417,7 @@ function FieldSet({
           </datalist>
         </div>
         <select
+          aria-label="Severity"
           name={`severity-${itemId}`}
           value={currentSeverity}
           onChange={(e) => onSeverityChange(e.target.value as Severity | '')}

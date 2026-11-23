@@ -56,8 +56,8 @@ export default async function BranchEditPage({
           <input type="hidden" name="branchId" value={branch.id} />
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Branch Name</label>
-            <input
+            <label htmlFor="app-branches-name" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Branch Name</label>
+            <input id="app-branches-name"
               name="name"
               defaultValue={branch.name}
               required
@@ -65,8 +65,8 @@ export default async function BranchEditPage({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Document Code</label>
-            <input
+            <label htmlFor="app-branches-code" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Document Code</label>
+            <input id="app-branches-code"
               name="code"
               defaultValue={branch.code ?? ''}
               placeholder="e.g. KWL-WS — used in document numbering"
@@ -81,7 +81,7 @@ export default async function BranchEditPage({
             <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">{BRANCH_TYPE_HINTS[branch.type]} A branch holding records of its kind keeps that kind.</p>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Address</label>
+            <label htmlFor="branches-id-text-1" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Address</label>
             <textarea id="branches-id-text-1"
               name="address"
               defaultValue={branch.address ?? ''}
@@ -92,8 +92,8 @@ export default async function BranchEditPage({
             <RefineTextButton targetId="branches-id-text-1" />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Email</label>
-            <input
+            <label htmlFor="app-branches-email" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Email</label>
+            <input id="app-branches-email"
               name="email"
               type="email"
               defaultValue={branch.email ?? ''}

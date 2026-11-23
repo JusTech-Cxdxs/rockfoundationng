@@ -127,8 +127,8 @@ export default async function WorkshopCustomersPage({
           <form action={createCustomerFormAction} className="mt-4 space-y-3">
             <FormPendingOverlay />
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Customer type</label>
-              <select
+              <label htmlFor="workshop-customers-customerType" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Customer type</label>
+              <select id="workshop-customers-customerType"
                 name="customerType"
                 required
                 defaultValue="INDIVIDUAL"
@@ -139,16 +139,16 @@ export default async function WorkshopCustomersPage({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Full name / Organization name</label>
-              <input
+              <label htmlFor="workshop-customers-fullName" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Full name / Organization name</label>
+              <input id="workshop-customers-fullName"
                 name="fullName"
                 required
                 className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Primary address</label>
-              <input
+              <label htmlFor="workshop-customers-address" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Primary address</label>
+              <input id="workshop-customers-address"
                 name="address"
                 required
                 maxLength={80}
@@ -160,8 +160,8 @@ export default async function WorkshopCustomersPage({
               </p>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Email</label>
-              <input
+              <label htmlFor="workshop-customers-email" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Email</label>
+              <input id="workshop-customers-email"
                 name="email"
                 type="email"
                 required
@@ -169,8 +169,8 @@ export default async function WorkshopCustomersPage({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Phone</label>
-              <input
+              <label htmlFor="workshop-customers-phone" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Phone</label>
+              <input id="workshop-customers-phone"
                 name="phone"
                 required
                 type="tel"

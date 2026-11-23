@@ -18,6 +18,7 @@ run it.
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | How the system is put together; system design and scale; adding a module; changing the database; coding rules |
 | [ARCHITECTURE_BASELINE.md](ARCHITECTURE_BASELINE.md) | The binding security and integrity rules every change keeps |
+| [ACCESSIBILITY.md](ACCESSIBILITY.md) | The accessibility standard (WCAG 2.2 AA): field labels, the text colours that keep 4.5:1 in light and dark, lists, tables, headings and landmarks, and how to check a change |
 | [ENYO.md](ENYO.md) | Enyo, the assistant: where it appears, what keeps it safe, how it learns, switching it on |
 | [SUPPORT_CENTRE.md](SUPPORT_CENTRE.md) | Customer requests and complaints: teams, addresses, Enyo's part, the rules, the numbers |
 

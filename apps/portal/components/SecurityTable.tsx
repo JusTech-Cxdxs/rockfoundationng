@@ -30,7 +30,7 @@ ${headers.map((h, i) => (h ? `  .${cls} td:nth-child(${i + 1})::before { content
             {widths ? <colgroup>{widths.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup> : null}
             <thead>
               <tr className="border-b border-[var(--ejo-border)] text-left text-xs font-semibold text-[var(--ejo-text-muted)]">
-                {headers.map((h, i) => <th key={`${h}-${i}`} className="px-3 py-2.5">{h}</th>)}
+                {headers.map((h, i) => <th key={`${h}-${i}`} className="px-3 py-2.5">{h || <span className="sr-only">Actions</span>}</th>)}
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--ejo-border)] [&_td]:break-words [&_td]:px-3 [&_td]:py-2.5 [&_td]:align-top">{children}</tbody>

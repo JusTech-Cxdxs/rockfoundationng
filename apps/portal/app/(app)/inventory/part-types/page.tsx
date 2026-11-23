@@ -95,7 +95,7 @@ export default async function PartTypesPage({
                         {category.code}
                       </span>
                     ) : null}
-                    <span className="ml-auto rounded-full bg-[var(--ejo-text-muted)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--ejo-text-muted)]">
+                    <span className="ml-auto rounded-full bg-[var(--ejo-text-muted)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--ejo-text-muted)]">
                       {children.length}
                     </span>
                   </div>

@@ -37,7 +37,7 @@ export default async function PaymentsPage() {
         {[
           { label: 'Paid to date', value: paid, icon: 'checkCircle' as const, tone: 'text-[var(--ejo-success)]' },
           { label: 'Refunded to you', value: refunded, icon: 'refund' as const, tone: 'text-[var(--ejo-info)]' },
-          { label: 'Still to pay', value: totalOwed, icon: 'wallet' as const, tone: totalOwed > 0 ? 'text-[#b45309] dark:text-[var(--ejo-warning)]' : 'text-[var(--ejo-success)]' },
+          { label: 'Still to pay', value: totalOwed, icon: 'wallet' as const, tone: totalOwed > 0 ? 'text-[var(--ejo-warning-text)]' : 'text-[var(--ejo-success)]' },
         ].map((t, idx) => (
           <Card key={t.label} className="p-4" delay={idx * 50}>
             <div className="flex items-center justify-between"><p className="text-xs font-medium text-[var(--ejo-text-muted)]">{t.label}</p><span className={t.tone}><Icon name={t.icon} size={17} /></span></div>
@@ -69,7 +69,7 @@ export default async function PaymentsPage() {
                       <span className="block break-words text-sm font-semibold text-[var(--ejo-text)]">{i.number}<span className="font-normal text-[var(--ejo-text-muted)]"> · {i.vehicle.label}</span></span>
                       <span className="block text-xs text-[var(--ejo-text-muted)]">{i.awaitingApproval ? ((i.money.depositDue ?? 0) > 0 ? `Waiting for your approval and the deposit of ${naira(i.money.depositDue ?? 0)}` : 'Waiting for your approval') : `Paid ${naira(i.money.netPaid)} of ${naira(i.money.estimateTotal ?? 0)}`}</span>
                     </span>
-                    <span className="shrink-0 text-base font-bold tabular-nums text-[#b45309] sm:text-right dark:text-[var(--ejo-warning)]">{naira(outstanding(i))}</span>
+                    <span className="shrink-0 text-base font-bold tabular-nums text-[var(--ejo-warning-text)] sm:text-right dark:text-[var(--ejo-warning)]">{naira(outstanding(i))}</span>
                   </Link>
                 ))}
               </div>

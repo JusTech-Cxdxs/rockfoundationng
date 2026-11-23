@@ -104,7 +104,7 @@ export default async function PartsRequestsPage({
                   <td data-label="Requested By" className="px-4 py-2 text-[var(--ejo-text-muted)]">{slip.requestedBy.fullName}</td>
                   <td data-label="Lines" className="px-4 py-2 text-[var(--ejo-text-muted)]">{pluralize(slip.lines.length, 'line')}</td>
                   <td data-label="Status" className="px-4 py-2">
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASS[slip.status] ?? 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]'}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASS[slip.status] ?? 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]'}`}>
                       {STATUS_LABEL[slip.status] ?? slip.status}
                     </span>
                   </td>

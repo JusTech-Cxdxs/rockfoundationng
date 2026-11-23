@@ -12,7 +12,7 @@ const CHIP: Record<string, { text: string; cls: string }> = {
   overdue: { text: 'Due', cls: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning-text)]' },
   upcoming: { text: 'Upcoming', cls: 'bg-[var(--ejo-info)]/15 text-[var(--ejo-info)]' },
   DONE: { text: 'Done', cls: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' },
-  CANCELLED: { text: 'Cancelled', cls: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]' },
+  CANCELLED: { text: 'Cancelled', cls: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]' },
 };
 
 /** One reminder with its own buttons (each a small form — works without scripts). */

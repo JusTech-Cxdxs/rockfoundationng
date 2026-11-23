@@ -45,7 +45,8 @@ export default async function ApprovalsPage() {
       {groups.length === 0 ? (
         <div className="rounded-[var(--ejo-radius-lg)] border border-dashed border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
           <EmptyState icon="check-circle" title="Nothing is waiting for your approval.">
-            New requests appear here as soon as they reach you, and you are told by the bell.
+            New requests appear here as soon as they reach you, and you are told by the bell.{' '}
+            <LoadingLink href="/dashboard" className="font-medium text-[var(--ejo-primary)] underline underline-offset-2 hover:no-underline">Back to the dashboard</LoadingLink>
           </EmptyState>
         </div>
       ) : (

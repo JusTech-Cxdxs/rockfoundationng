@@ -58,7 +58,7 @@ const GLANCE_ICON: Record<string, IconName> = {
 const GLANCE_TONE: Record<string, Tone> = { warning: 'warning', error: 'error', muted: 'neutral' };
 const TONE_CHIP: Record<string, string> = {
   success: 'bg-[var(--ejo-success)]/12 text-[var(--ejo-success)]', warning: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning-text)]', error: 'bg-[var(--ejo-error)]/12 text-[var(--ejo-error)]',
-  info: 'bg-[var(--ejo-info)]/12 text-[var(--ejo-info)]', brand: 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]', muted: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]',
+  info: 'bg-[var(--ejo-info)]/12 text-[var(--ejo-info)]', brand: 'bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)]', muted: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]',
 };
 
 function greeting(): string {

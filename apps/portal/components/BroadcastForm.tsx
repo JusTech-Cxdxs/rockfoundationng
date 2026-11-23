@@ -39,11 +39,11 @@ export function BroadcastForm({ options, action, initialAudience, initialCustome
         </div>
         {category ? (
           <>
-            <div><label className={label}>Title</label><input name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder={category === 'GREETING' ? 'e.g. Happy Independence Day!' : category === 'MAINTENANCE' ? 'e.g. EJO maintenance on Saturday' : category === 'SECURITY_ALERT' ? 'e.g. Fire drill at 2 pm — assemble at the car park' : 'A short headline'} className={input} /></div>
-            <div><label className={label}>Message</label><textarea id="broadcast-message" name="message" required rows={5} value={message} onChange={(e) => setMessage(e.target.value)} className={input} /><RefineTextButton targetId="broadcast-message" /></div>
+            <div><label htmlFor="broadcast-form-title" className={label}>Title</label><input id="broadcast-form-title" name="title" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder={category === 'GREETING' ? 'e.g. Happy Independence Day!' : category === 'MAINTENANCE' ? 'e.g. EJO maintenance on Saturday' : category === 'SECURITY_ALERT' ? 'e.g. Fire drill at 2 pm — assemble at the car park' : 'A short headline'} className={input} /></div>
+            <div><label htmlFor="broadcast-message" className={label}>Message</label><textarea id="broadcast-message" name="message" required rows={5} value={message} onChange={(e) => setMessage(e.target.value)} className={input} /><RefineTextButton targetId="broadcast-message" /></div>
             <div>
-              <label className={label}>Who is it for?</label>
-              <select name="audience" required value={audience} onChange={(e) => setAudience(e.target.value)} className={input}>
+              <label htmlFor="broadcast-form-audience" className={label}>Who is it for?</label>
+              <select id="broadcast-form-audience" name="audience" required value={audience} onChange={(e) => setAudience(e.target.value)} className={input}>
                 <option value="" disabled>Choose…</option>
                 <option value="ALL">Everyone in the organisation</option>
                 <option value="BRANCH">Particular branches</option>
@@ -64,26 +64,26 @@ export function BroadcastForm({ options, action, initialAudience, initialCustome
             ) : audience && audience !== 'ALL' && !isCustomerAudience(audience) ? <p className="text-xs text-[var(--ejo-text-muted)]">None set up yet.</p> : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className={label}>Starts</label>
-                <select name="when" required value={when} onChange={(e) => setWhen(e.target.value)} className={input}>
+                <label htmlFor="broadcast-form-when" className={label}>Starts</label>
+                <select id="broadcast-form-when" name="when" required value={when} onChange={(e) => setWhen(e.target.value)} className={input}>
                   <option value="" disabled>Choose…</option>
                   <option value="NOW">Now</option>
                   <option value="LATER">At a set time</option>
                 </select>
               </div>
-              {when === 'LATER' ? <div><label className={label}>Start date and time</label><input name="startsAt" type="datetime-local" required className={input} /></div> : null}
+              {when === 'LATER' ? <div><label htmlFor="broadcast-form-startsAt" className={label}>Start date and time</label><input id="broadcast-form-startsAt" name="startsAt" type="datetime-local" required className={input} /></div> : null}
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className={label}>Runs for</label>
-                <select name="duration" required defaultValue="" className={input}>
+                <label htmlFor="broadcast-form-duration" className={label}>Runs for</label>
+                <select id="broadcast-form-duration" name="duration" required defaultValue="" className={input}>
                   <option value="" disabled>Choose…</option>
                   {DURATIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className={label}>Email it too?</label>
-                <select name="sendEmail" required defaultValue="" className={input}>
+                <label htmlFor="broadcast-form-sendEmail" className={label}>Email it too?</label>
+                <select id="broadcast-form-sendEmail" name="sendEmail" required defaultValue="" className={input}>
                   <option value="" disabled>Choose…</option>
                   <option value="yes">{isCustomerAudience(audience) ? 'Yes — email the customers who chose email updates' : 'Yes — email everyone it is for'}</option>
                   <option value="no">No — dashboard and notifications only</option>

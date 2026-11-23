@@ -159,7 +159,7 @@ export function SearchableSelect({
         type="text"
         role="combobox"
         aria-expanded={showDropdown}
-        aria-controls={listboxId}
+        aria-controls={showDropdown ? listboxId : undefined}
         aria-autocomplete="list"
         aria-busy={state === 'loading'}
         placeholder={placeholder}

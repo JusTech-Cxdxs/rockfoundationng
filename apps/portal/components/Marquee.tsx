@@ -26,7 +26,7 @@ export function Marquee() {
   if (items.length === 0) return null;
   const doubled = [...items, ...items];
   return (
-    <div className="ejo-marquee relative flex w-full shrink-0 items-center overflow-hidden border-b border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
+    <section aria-label="Latest updates" className="ejo-marquee relative flex w-full shrink-0 items-center overflow-hidden border-b border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
       <span className="relative z-10 flex shrink-0 items-center gap-1.5 self-stretch bg-[var(--ejo-surface)] pl-3 pr-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--ejo-primary)] sm:pl-5">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--ejo-primary)]" aria-hidden="true" />
         <span className="hidden sm:inline">Latest</span>
@@ -50,6 +50,6 @@ export function Marquee() {
         @keyframes ejo-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         @media (prefers-reduced-motion: reduce) { .ejo-marquee-track { animation: none; } }
       `}</style>
-    </div>
+    </section>
   );
 }

@@ -194,7 +194,7 @@ export default async function BusinessAnalyticsPage({ searchParams }: { searchPa
           <T as="h2" icon="trend-up">Forecast <span className="font-normal text-[var(--ejo-text-muted)]">· predictive</span></T>
           <p className="text-sm text-[var(--ejo-text)]">This month so far <span className="font-semibold">{naira(a.predictive.monthToDate)}</span> in {pluralize(a.predictive.workingDaysDone, 'working day')} — on course for about <span className="font-semibold">{naira(a.predictive.monthProjection)}</span> over {pluralize(a.predictive.workingDaysInMonth, 'working day')}.</p>
           <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">Weekly trend {a.predictive.trendPerWeek >= 0 ? 'rising' : 'falling'} by about {naira(Math.abs(a.predictive.trendPerWeek))} a week.</p>
-          <div className="mt-3 overflow-x-auto">
+          <div className="mt-3 overflow-x-auto" tabIndex={0} role="region" aria-label="Table">
             <table className="w-full text-sm">
               <thead><tr className="text-left text-xs text-[var(--ejo-text-muted)]"><th className="py-1">Week</th><th>Expected</th><th>Likely range</th></tr></thead>
               <tbody>{a.predictive.forecast.map((f) => <tr key={f.label} className="border-t border-[var(--ejo-border)]"><td className="py-1.5">{f.label}</td><td>{naira(f.expected)}</td><td className="text-xs text-[var(--ejo-text-muted)]">{naira(f.low)} – {naira(f.high)}</td></tr>)}</tbody>

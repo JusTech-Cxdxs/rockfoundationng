@@ -85,7 +85,7 @@ export default async function WhatsAppSettingsPage() {
         <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">
           Create each one in WhatsApp Manager exactly as docs/WHATSAPP_TEMPLATES.md gives it. {meta ? (meta.ok ? 'Status as Meta reports it now.' : `Meta's list could not be read: ${meta.message}`) : 'Set WHATSAPP_BUSINESS_ACCOUNT_ID to see each one’s approval here.'}
         </p>
-        <div className="mt-3 overflow-x-auto">
+        <div className="mt-3 overflow-x-auto" tabIndex={0} role="region" aria-label="Table">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="text-[11px] uppercase tracking-wide text-[var(--ejo-text-muted)]"><tr><th className="py-2 pr-3 font-medium">Name in Meta</th><th className="py-2 pr-3 font-medium">Category</th><th className="py-2 pr-3 font-medium">PDF</th><th className="py-2 pr-3 font-medium">When</th><th className="py-2 font-medium">Status</th></tr></thead>
             <tbody className="divide-y divide-[var(--ejo-border)]">

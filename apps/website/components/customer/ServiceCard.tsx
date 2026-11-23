@@ -39,7 +39,7 @@ export function ServiceCard({ item, delay }: { item: ServiceItem; delay?: number
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[var(--ejo-border)] pt-3 text-xs text-[var(--ejo-text-muted)]">
         <span className="inline-flex items-center gap-1"><Icon name="calendar" size={13} /> {fmtDate(item.createdAt)}</span>
         {item.money.estimateTotal !== null ? <span className="inline-flex items-center gap-1"><Icon name="receipt" size={13} /> Estimate {naira(item.money.estimateTotal)}</span> : null}
-        {owe !== null && owe > 0 ? <span className="inline-flex items-center gap-1 font-semibold text-[#b45309] dark:text-[var(--ejo-warning)]"><Icon name="wallet" size={13} /> {naira(owe)} to pay</span> : null}
+        {owe !== null && owe > 0 ? <span className="inline-flex items-center gap-1 font-semibold text-[var(--ejo-warning-text)]"><Icon name="wallet" size={13} /> {naira(owe)} to pay</span> : null}
         {owe === 0 && item.money.estimateTotal ? <span className="inline-flex items-center gap-1 font-medium text-[var(--ejo-success)]"><Icon name="checkCircle" size={13} /> Paid in full</span> : null}
         <span className="ml-auto inline-flex items-center gap-1 font-medium text-[var(--ejo-primary)]">Updated {timeAgo(item.lastUpdate)} <Icon name="chevronRight" size={14} /></span>
       </div>

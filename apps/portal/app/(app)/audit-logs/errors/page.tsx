@@ -14,7 +14,7 @@ type SP = { ref?: string; app?: string; kind?: string; route?: string; from?: st
 const KIND_CHIP: Record<string, string> = {
   connection: 'bg-[var(--ejo-info)]/12 text-[var(--ejo-info)]',
   database: 'bg-[var(--ejo-error)]/12 text-[var(--ejo-error)]',
-  permission: 'bg-[var(--ejo-warning)]/15 text-[#b45309] dark:text-[var(--ejo-warning)]',
+  permission: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning-text)]',
   'not-found': 'bg-[var(--ejo-text-muted)]/12 text-[var(--ejo-text-muted)]',
   browser: 'bg-[var(--ejo-text-muted)]/12 text-[var(--ejo-text-muted)]',
 };

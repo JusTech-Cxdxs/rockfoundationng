@@ -30,21 +30,21 @@ export function JobCardStatusForm({
     <form action={updateJobCardStatusFormAction} className="mt-4 space-y-3">
       <FormPendingOverlay />
       <input type="hidden" name="jobCardId" value={jobCardId} />
-      <select
+      <select aria-label="New status"
         name="status"
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
         className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
       >
         {selectableStatuses.map((s) => (
-          <option key={s} value={s} style={s === 'CANCELLED' ? { color: 'var(--ejo-error)' } : undefined}>
+          <option key={s} value={s} style={s === 'CANCELLED' ? { color: 'var(--ejo-error-text)' } : undefined}>
             {statusLabels[s]}
           </option>
         ))}
       </select>
       {isReworkTransition ? (
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Reason for rework</label>
+          <label htmlFor="status-rework-reason" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Reason for rework</label>
           <textarea id="status-rework-reason"
             name="reworkReason"
             required
@@ -60,8 +60,8 @@ export function JobCardStatusForm({
       ) : null}
       {selected === 'CHECKED_OUT' ? (
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Collected By (name)</label>
-          <input
+          <label htmlFor="job-card-status-form-collectedByName" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Collected By (name)</label>
+          <input id="job-card-status-form-collectedByName"
             name="collectedByName"
             required
             placeholder="e.g. the customer's own name, or whoever they sent"

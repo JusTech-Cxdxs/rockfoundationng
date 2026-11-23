@@ -15,7 +15,7 @@ export function MonthlyBars({ data, label }: { data: { month: string; value: num
           const last = i === data.length - 1;
           return (
             <div key={d.month} className="flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-              <span className={`text-[10px] font-medium ${d.value > 0 ? 'text-[var(--ejo-text-muted)]' : 'text-transparent'}`}>{nairaShort(d.value)}</span>
+              <span className={`text-[10px] font-medium ${d.value > 0 ? 'text-[var(--ejo-text-muted)]' : 'invisible'}`}>{nairaShort(d.value)}</span>
               <div
                 className={`ejo-grow-y w-full max-w-[38px] rounded-t-md ${d.value > 0 ? (last ? 'bg-[var(--ejo-primary)]' : 'bg-[var(--ejo-primary)]/45') : 'bg-[var(--ejo-border)]'}`}
                 style={{ height: `${h}%`, animationDelay: `${i * 70}ms` }}

@@ -31,12 +31,12 @@ export function PayHow({ branchBank, reference, compact = false }: { branchBank?
       {bank ? (
         <dl className="mt-3 divide-y divide-[var(--ejo-border)] rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)]">
           {rows.map((r) => (
-            <div key={r.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
-              <div className="min-w-0">
-                <dt className="text-xs text-[var(--ejo-text-muted)]">{r.label}</dt>
-                <dd className="break-words text-sm font-semibold tracking-wide text-[var(--ejo-text)] [overflow-wrap:anywhere]">{r.value}</dd>
-              </div>
-              {r.copy ? <CopyButton value={r.value} label={r.label.toLowerCase()} /> : null}
+            // Each row holds only its dt and dd (a valid description list); the
+            // copy button is its own dd in the right-hand column.
+            <div key={r.label} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2.5">
+              <dt className="col-start-1 text-xs text-[var(--ejo-text-muted)]">{r.label}</dt>
+              <dd className="col-start-1 break-words text-sm font-semibold tracking-wide text-[var(--ejo-text)] [overflow-wrap:anywhere]">{r.value}</dd>
+              {r.copy ? <dd className="col-start-2 row-span-2 row-start-1"><CopyButton value={r.value} label={r.label.toLowerCase()} /></dd> : null}
             </div>
           ))}
         </dl>

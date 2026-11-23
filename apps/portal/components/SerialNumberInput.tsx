@@ -64,7 +64,7 @@ export function SerialNumberInput({
 
   return (
     <div className="flex-1">
-      <input
+      <input aria-label="Serial number"
         name="serialNumbers"
         required={index === 0}
         value={value}

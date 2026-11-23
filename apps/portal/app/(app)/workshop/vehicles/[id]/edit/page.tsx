@@ -197,10 +197,10 @@ export default async function VehiclePage({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
+                <label htmlFor="vehicles-edit-year" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
                   Year <span className="text-[var(--ejo-error)]">*</span>
                 </label>
-                <input
+                <input id="vehicles-edit-year"
                   name="year"
                   type="number"
                   required
@@ -209,8 +209,8 @@ export default async function VehiclePage({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Current Mileage (km)</label>
-                <input
+                <label htmlFor="vehicles-edit-mileage" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Current Mileage (km)</label>
+                <input id="vehicles-edit-mileage"
                   name="mileage"
                   type="number"
                   defaultValue={vehicle.mileage ?? undefined}
@@ -224,7 +224,7 @@ export default async function VehiclePage({
                 Plate number <span className="text-[var(--ejo-error)]">*</span>{' '}
                 <span className="text-[var(--ejo-text-muted)] font-normal">(AAA 000 AA)</span>
               </label>
-              <SegmentedCodeInput name="plateNumber" length={8} groups={[3, 3, 2]} defaultValue={vehicle.plateNumber ?? ''} placeholder="LAGXXXAA" />
+              <SegmentedCodeInput label="Plate number" name="plateNumber" length={8} groups={[3, 3, 2]} defaultValue={vehicle.plateNumber ?? ''} placeholder="LAGXXXAA" />
             </div>
 
             <div>
@@ -232,12 +232,12 @@ export default async function VehiclePage({
                 Chassis / VIN <span className="text-[var(--ejo-error)]">*</span>{' '}
                 <span className="text-[var(--ejo-text-muted)] font-normal">(17 characters)</span>
               </label>
-              <SegmentedCodeInput name="chassisNumber" length={17} groups={[9, 8]} defaultValue={vehicle.chassisNumber ?? ''} />
+              <SegmentedCodeInput label="Chassis number" name="chassisNumber" length={17} groups={[9, 8]} defaultValue={vehicle.chassisNumber ?? ''} />
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Engine number</label>
-              <input
+              <label htmlFor="vehicles-edit-engineNumber" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Engine number</label>
+              <input id="vehicles-edit-engineNumber"
                 name="engineNumber"
                 defaultValue={vehicle.engineNumber ?? ''}
                 className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
@@ -252,8 +252,8 @@ export default async function VehiclePage({
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Every (km)</label>
-                  <input
+                  <label htmlFor="vehicles-edit-serviceIntervalKm" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Every (km)</label>
+                  <input id="vehicles-edit-serviceIntervalKm"
                     name="serviceIntervalKm"
                     type="number"
                     min="0"
@@ -263,8 +263,8 @@ export default async function VehiclePage({
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Every (days)</label>
-                  <input
+                  <label htmlFor="vehicles-edit-serviceIntervalDays" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Every (days)</label>
+                  <input id="vehicles-edit-serviceIntervalDays"
                     name="serviceIntervalDays"
                     type="number"
                     min="0"

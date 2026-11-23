@@ -112,10 +112,10 @@ export function TargetMarginEditor({
           </div>
           <div className="flex items-center gap-2">
             <div className="flex-1">
-              <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">
+              <label htmlFor="target-margin-editor-targetValue" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">
                 Target {pricingMethod === 'MARGIN' ? 'Margin' : 'Markup'} (%)
               </label>
-              <input
+              <input id="target-margin-editor-targetValue"
                 name="targetValue"
                 type="number"
                 step="0.1"

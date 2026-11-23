@@ -100,7 +100,7 @@ export function ErrorScreen({ error, reset, title, message, homeHref = '/dashboa
       <div className="ejo-orb pointer-events-none absolute -left-16 top-8 h-56 w-56 rounded-full bg-[var(--ejo-primary)]/10 blur-3xl" aria-hidden="true" />
       <div className="ejo-orb ejo-orb-slow pointer-events-none absolute -right-10 bottom-4 h-64 w-64 rounded-full bg-[var(--ejo-accent)]/10 blur-3xl" aria-hidden="true" />
       <section className="ejo-rise relative w-full max-w-md rounded-[var(--ejo-radius-xl)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6 text-center shadow-sm sm:p-8">
-        <span className={`relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${offline ? 'bg-[var(--ejo-info)]/12 text-[var(--ejo-info)]' : 'bg-[var(--ejo-warning)]/15 text-[#b45309] dark:text-[var(--ejo-warning)]'}`}>
+        <span className={`relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl ${offline ? 'bg-[var(--ejo-info)]/12 text-[var(--ejo-info)]' : 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning-text)]'}`}>
           <span className="absolute inset-0 rounded-2xl bg-current opacity-10 motion-safe:animate-[ejo-glow_3.2s_ease-in-out_infinite]" aria-hidden="true" />
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             {offline

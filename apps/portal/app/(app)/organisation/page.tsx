@@ -57,8 +57,8 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
           <input type="hidden" name="organisationId" value={organisation.id} />
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Organisation Name</label>
-            <input
+            <label htmlFor="app-organisation-name" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Organisation Name</label>
+            <input id="app-organisation-name"
               name="name"
               defaultValue={organisation.name}
               required
@@ -66,8 +66,8 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Legal Name</label>
-            <input
+            <label htmlFor="app-organisation-legalName" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Legal Name</label>
+            <input id="app-organisation-legalName"
               name="legalName"
               defaultValue={organisation.legalName ?? ''}
               placeholder="e.g. Example Holdings Limited"
@@ -76,8 +76,8 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Website</label>
-              <input
+              <label htmlFor="app-organisation-website" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Website</label>
+              <input id="app-organisation-website"
                 name="website"
                 defaultValue={organisation.website ?? ''}
                 placeholder="e.g. www.example.com"
@@ -85,8 +85,8 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Email</label>
-              <input
+              <label htmlFor="app-organisation-email" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Email</label>
+              <input id="app-organisation-email"
                 name="email"
                 type="email"
                 defaultValue={organisation.email ?? ''}
@@ -100,8 +100,8 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
             <HotlineListInput initialValues={organisation.hotlines} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">HQ Address</label>
-            <input
+            <label htmlFor="app-organisation-hqAddress" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">HQ Address</label>
+            <input id="app-organisation-hqAddress"
               name="hqAddress"
               defaultValue={organisation.hqAddress ?? ''}
               placeholder="e.g. 12 Example Road, Ikeja, Lagos"
@@ -110,8 +110,8 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">PO Box</label>
-              <input
+              <label htmlFor="app-organisation-poBox" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">PO Box</label>
+              <input id="app-organisation-poBox"
                 name="poBox"
                 defaultValue={organisation.poBox ?? ''}
                 placeholder="e.g. PO Box 1234"
@@ -119,8 +119,8 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">RC Number</label>
-              <input
+              <label htmlFor="app-organisation-rcNumber" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">RC Number</label>
+              <input id="app-organisation-rcNumber"
                 name="rcNumber"
                 defaultValue={organisation.rcNumber ?? ''}
                 placeholder="e.g. RC 123456"
@@ -145,47 +145,43 @@ export default async function OrganisationPage({ searchParams }: { searchParams:
         </form>
       ) : (
         <div className="max-w-xl rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
-          <dl className="space-y-4">
-            <div>
+          <dl className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
               <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Organisation Name</dt>
               <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.name}</dd>
             </div>
-            <div>
+            <div className="col-span-2">
               <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Legal Name</dt>
               <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.legalName ?? '—'}</dd>
             </div>
-            <div>
+            <div className="col-span-2">
               <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Organisation ID for the website</dt>
               <dd className="mt-0.5 font-mono text-sm text-[var(--ejo-text)]">{organisation.slug}</dd>
               <dd className="mt-0.5 text-xs text-[var(--ejo-text-muted)]">The value for WEBSITE_ORGANISATION_SLUG in the website&apos;s hosting settings.</dd>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Website</dt>
-                <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.website ?? '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Email</dt>
-                <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.email ?? '—'}</dd>
-              </div>
+            <div>
+              <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Website</dt>
+              <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.website ?? '—'}</dd>
             </div>
             <div>
+              <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Email</dt>
+              <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.email ?? '—'}</dd>
+            </div>
+            <div className="col-span-2">
               <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">Hotlines</dt>
               <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.hotlines.length > 0 ? organisation.hotlines.join(', ') : '—'}</dd>
             </div>
-            <div>
+            <div className="col-span-2">
               <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">HQ Address</dt>
               <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.hqAddress ?? '—'}</dd>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">PO Box</dt>
-                <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.poBox ?? '—'}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">RC Number</dt>
-                <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.rcNumber ?? '—'}</dd>
-              </div>
+            <div>
+              <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">PO Box</dt>
+              <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.poBox ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium text-[var(--ejo-text-muted)]">RC Number</dt>
+              <dd className="mt-0.5 text-sm text-[var(--ejo-text)]">{organisation.rcNumber ?? '—'}</dd>
             </div>
           </dl>
 

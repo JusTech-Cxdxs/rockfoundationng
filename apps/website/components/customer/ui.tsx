@@ -146,7 +146,7 @@ export function KeyValue({ label, children, className = '' }: { label: string; c
 /** A big, friendly alert row for the "needs your attention" list. */
 export function AttentionCard({ icon, tone, title, text, href, cta, delay, children }: { icon: IconName; tone: Tone; title: string; text: ReactNode; href?: string; cta?: string; delay?: number; children?: ReactNode }) {
   const ring: Record<Tone, string> = {
-    attention: 'bg-[var(--ejo-warning)]/15 text-[#b45309] dark:text-[var(--ejo-warning)]',
+    attention: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning-text)]',
     success: 'bg-[var(--ejo-success)]/12 text-[var(--ejo-success)]',
     danger: 'bg-[var(--ejo-error)]/10 text-[var(--ejo-error)]',
     info: 'bg-[var(--ejo-info)]/10 text-[var(--ejo-info)]',
@@ -180,7 +180,7 @@ export function Notice({ tone, icon, children }: { tone: 'info' | 'attention' | 
     success: 'border-[var(--ejo-success)]/30 bg-[var(--ejo-success)]/[0.07]',
     danger: 'border-[var(--ejo-error)]/30 bg-[var(--ejo-error)]/[0.06]',
   }[tone];
-  const ic = { info: 'text-[var(--ejo-info)]', attention: 'text-[#b45309] dark:text-[var(--ejo-warning)]', success: 'text-[var(--ejo-success)]', danger: 'text-[var(--ejo-error)]' }[tone];
+  const ic = { info: 'text-[var(--ejo-info)]', attention: 'text-[var(--ejo-warning-text)]', success: 'text-[var(--ejo-success)]', danger: 'text-[var(--ejo-error)]' }[tone];
   return (
     <div className={`flex gap-3 rounded-[var(--ejo-radius-md)] border p-3.5 text-sm text-[var(--ejo-text)] ${cls}`}>
       <span className={`mt-0.5 shrink-0 ${ic}`}><Icon name={icon} size={17} /></span>

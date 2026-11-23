@@ -56,7 +56,7 @@ export function Sidebar({
   const linkBase = 'group relative flex items-center rounded-[var(--ejo-radius-md)] text-sm font-medium transition-colors';
 
   return (
-    <aside className={`flex h-full flex-col bg-[var(--ejo-secondary)] text-white transition-[width] duration-200 ${mini ? 'w-[76px]' : 'w-72 lg:w-64'}`}>
+    <aside aria-label="Sidebar" className={`flex h-full flex-col bg-[var(--ejo-secondary)] text-white transition-[width] duration-200 ${mini ? 'w-[76px]' : 'w-72 lg:w-64'}`}>
       <div className={`flex h-16 shrink-0 items-center border-b border-white/10 ${mini ? 'justify-center px-2' : 'justify-between gap-2 px-4'}`}>
         {mini ? (
           <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white p-1 shadow-sm">

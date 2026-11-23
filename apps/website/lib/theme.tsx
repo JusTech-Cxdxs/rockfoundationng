@@ -23,13 +23,25 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    // Until the customer picks a theme, follow the device as it changes
+    // (a phone switching to dark at sunset), not only on the first load.
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const follow = () => {
+      let chosen: string | null = null;
+      try { chosen = window.localStorage.getItem(STORAGE_KEY); } catch { /* storage blocked */ }
+      if (chosen) return;
+      document.documentElement.classList.toggle('dark', media.matches);
+      setTheme(media.matches ? 'dark' : 'light');
+    };
+    media.addEventListener('change', follow);
+    return () => media.removeEventListener('change', follow);
   }, []);
 
   function toggleTheme() {
     setTheme((prev) => {
       const next = prev === 'dark' ? 'light' : 'dark';
       document.documentElement.classList.toggle('dark', next === 'dark');
-      window.localStorage.setItem(STORAGE_KEY, next);
+      try { window.localStorage.setItem(STORAGE_KEY, next); } catch { /* storage blocked: the choice lasts this visit */ }
       return next;
     });
   }

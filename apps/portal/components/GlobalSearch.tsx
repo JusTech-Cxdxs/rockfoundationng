@@ -136,7 +136,7 @@ export function GlobalSearch() {
         aria-label="Search everything"
         role="combobox"
         aria-expanded={(open || big) && !!q.trim()}
-        aria-controls={listId}
+        aria-controls={(open || big) && q.trim() ? listId : undefined}
         aria-autocomplete="list"
         aria-activedescendant={flat.length ? `${listId}-${active}` : undefined}
         autoComplete="off"

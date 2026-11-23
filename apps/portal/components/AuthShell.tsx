@@ -76,7 +76,7 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
 
         <div className="ejo-rise relative flex items-end justify-between gap-6" style={{ animationDelay: '160ms' }}>
           <PoweredByEjo tone="onDark" size="lg" />
-          <p className="text-xs text-white/40">© {year} {portalConfig.organisationName}</p>
+          <p className="text-xs text-white/60">© {year} {portalConfig.organisationName}</p>
         </div>
       </section>
 

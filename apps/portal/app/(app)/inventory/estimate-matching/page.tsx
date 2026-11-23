@@ -93,7 +93,7 @@ export default async function EstimateMatchingPage({ searchParams }: { searchPar
                 <div className="flex items-center gap-2">
                   {WRENCH_ICON}
                   <span className="text-sm font-semibold text-[var(--ejo-text)]">{group.number}</span>
-                  <span className="rounded-full bg-[var(--ejo-text-muted)]/15 px-2 py-0.5 text-[9px] font-medium uppercase text-[var(--ejo-text-muted)]">
+                  <span className="rounded-full bg-[var(--ejo-text-muted)]/10 px-2 py-0.5 text-[9px] font-medium uppercase text-[var(--ejo-text-muted)]">
                     Job Card
                   </span>
                 </div>

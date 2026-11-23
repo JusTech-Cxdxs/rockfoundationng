@@ -205,7 +205,7 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage }: {
                   {item.phase === 'active' && (m.depositDue ?? 0) > 0 ? <div className="flex justify-between gap-3"><dt className="text-[var(--ejo-text-muted)]">Deposit before work starts ({m.depositPercent}%)</dt><dd className="shrink-0 text-right tabular-nums text-[var(--ejo-text)]">{naira(m.minDeposit ?? 0)}</dd></div> : null}
                   {m.refunded > 0 ? <div className="flex justify-between gap-3"><dt className="text-[var(--ejo-text-muted)]">Refunded</dt><dd className="shrink-0 text-right tabular-nums text-[var(--ejo-text)]">{naira(m.refunded)}</dd></div> : null}
                   {item.creditNotes.map((c) => <div key={c.number} className="flex justify-between gap-3" data-testid="credit-note"><dt className="text-[var(--ejo-text-muted)]">Credit note {c.number}</dt><dd className="shrink-0 text-right tabular-nums text-[var(--ejo-text)]">−{naira(c.amount)}</dd></div>)}
-                  <div className="flex justify-between gap-3 border-t border-[var(--ejo-border)] pt-1.5 font-semibold"><dt className="text-[var(--ejo-text)]">Balance</dt><dd className={owe > 0 ? 'text-[#b45309] dark:text-[var(--ejo-warning)]' : 'text-[var(--ejo-success)]'}>{owe > 0 ? naira(owe) : 'Nothing to pay'}</dd></div>
+                  <div className="flex justify-between gap-3 border-t border-[var(--ejo-border)] pt-1.5 font-semibold"><dt className="text-[var(--ejo-text)]">Balance</dt><dd className={owe > 0 ? 'text-[var(--ejo-warning-text)]' : 'text-[var(--ejo-success)]'}>{owe > 0 ? naira(owe) : 'Nothing to pay'}</dd></div>
                 </dl>
               </>
             ) : (

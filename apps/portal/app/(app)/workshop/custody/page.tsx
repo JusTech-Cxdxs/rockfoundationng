@@ -198,7 +198,7 @@ export default async function WorkshopCustodyPage({
       />
 
       <form className="mb-8 flex gap-2" action="/workshop/custody">
-        <select
+        <select aria-label="Vehicle type"
           name="type"
           defaultValue={vehicleType ?? ''}
           className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
@@ -449,7 +449,7 @@ export default async function WorkshopCustodyPage({
                       className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         entry.isOverdue
                           ? 'bg-[var(--ejo-error)]/15 text-[var(--ejo-error)]'
-                          : 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]'
+                          : 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]'
                       }`}
                     >
                       {entry.isOverdue ? 'Overdue for review' : `${pluralize(entry.daysElapsed, 'working day')} since cancellation`}

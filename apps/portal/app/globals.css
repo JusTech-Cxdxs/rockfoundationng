@@ -26,7 +26,7 @@
   --ejo-error: var(--brand-red-web);
   --ejo-info: #2563eb;
   /* Amber text that is readable on a light background (chips, hints). */
-  --ejo-warning-text: #b45309;
+  --ejo-warning-text: #92400e;
   --ejo-on-primary: #ffffff;
   --ejo-primary-text: var(--brand-blue);
 
@@ -35,7 +35,7 @@
   --ejo-surface: #f9fafb;
   --ejo-border: #e5e7eb;
   --ejo-text: #111827;
-  --ejo-text-muted: #6b7280;
+  --ejo-text-muted: #5b6779;
 
   --ejo-radius-md: 10px;
   --ejo-radius-lg: 16px;
@@ -439,3 +439,16 @@ body { overscroll-behavior-y: none; }
 [class~="hover:text-[var(--ejo-primary)]"]:hover,
 [class~="group-hover:text-[var(--ejo-primary)]"]:is(.group:hover *) { color: var(--ejo-primary-text); }
 .ejo-shimmer-soft { background-image: linear-gradient(90deg, var(--ejo-primary-text) 0%, var(--ejo-text) 50%, var(--ejo-primary-text) 100%); }
+
+/* Status colours as text (WCAG 2.2 AA). Green, blue, red and amber stay the
+   fill colours of buttons and dots; written as text (often on their own pale
+   tint) they take a deeper shade on light screens and a lighter one on dark
+   screens, so every chip and hint reads at 4.5:1 or better. The brand red
+   (#DD3333) is a fill and an accent: as text it is the deeper red below. */
+:root { --ejo-success-text: #166534; --ejo-info-text: #1e40af; --ejo-error-text: #991b1b; --ejo-warning-text: #92400e; }
+[class~="text-[var(--ejo-success)]"], [class~="hover:text-[var(--ejo-success)]"]:hover { color: var(--ejo-success-text); }
+[class~="text-[var(--ejo-info)]"], [class~="hover:text-[var(--ejo-info)]"]:hover { color: var(--ejo-info-text); }
+[class~="text-[var(--ejo-error)]"], [class~="hover:text-[var(--ejo-error)]"]:hover { color: var(--ejo-error-text); }
+[class~="text-[var(--ejo-warning)]"], [class~="hover:text-[var(--ejo-warning)]"]:hover { color: var(--ejo-warning-text); }
+:root[data-theme='dark'] { --ejo-success-text: #4ade80; --ejo-info-text: #60a5fa; --ejo-error-text: #f87171; --ejo-warning-text: #fbbf24; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --ejo-success-text: #4ade80; --ejo-info-text: #60a5fa; --ejo-error-text: #f87171; --ejo-warning-text: #fbbf24; } }

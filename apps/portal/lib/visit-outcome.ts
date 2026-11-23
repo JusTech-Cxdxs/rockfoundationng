@@ -61,6 +61,6 @@ export function outcomeBadge(outcome: VisitOutcome, refund: RefundState): { labe
       ? 'bg-[var(--ejo-error)]/15 text-[var(--ejo-error)]'
       : refund === 'REFUNDED'
         ? 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]'
-        : 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]';
+        : 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]';
   return { label: `${where} · ${money}`, className: tone };
 }

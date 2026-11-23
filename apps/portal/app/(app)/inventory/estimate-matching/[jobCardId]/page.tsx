@@ -99,7 +99,7 @@ export default async function JobCardMatchingPage({
                 {WRENCH_ICON}
                 <span className="text-sm font-medium text-[var(--ejo-text)]">{line.partType?.name ?? line.description}</span>
                 {line.partType ? (
-                  <span className="rounded-full bg-[var(--ejo-text-muted)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--ejo-text-muted)]">
+                  <span className="rounded-full bg-[var(--ejo-text-muted)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--ejo-text-muted)]">
                     {line.partType.category.name}
                   </span>
                 ) : null}
@@ -115,7 +115,7 @@ export default async function JobCardMatchingPage({
                   <FormPendingOverlay />
                   <input type="hidden" name="lineItemId" value={line.id} />
                   <input type="hidden" name="jobCardId" value={jobCard.id} />
-                  <select
+                  <select aria-label="Part"
                     name="partId"
                     required
                     className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"

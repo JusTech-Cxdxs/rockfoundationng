@@ -56,7 +56,8 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label={`Notifications${total ? ` — ${total} new` : ''}`}
+        // The count is said as shown on the badge (99+ past 99), so the two agree.
+        aria-label={`Notifications${total ? ` — ${total > 99 ? '99+' : total} new` : ''}`}
         aria-expanded={open}
         className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-colors hover:bg-[var(--ejo-surface)] ${open ? 'bg-[var(--ejo-surface)] text-[var(--ejo-text)]' : 'text-[var(--ejo-text-muted)] hover:text-[var(--ejo-text)]'}`}
       >

@@ -13,8 +13,11 @@ export function SegmentedCodeInput({
   groups,
   placeholder = '',
   defaultValue = '',
+  label,
 }: {
   name: string;
+  /** What the boxes hold, read out by screen readers (e.g. "Plate number"). */
+  label?: string;
   length: number;
   groups: number[]; // e.g. [3, 3, 2] for a plate — must sum to `length`
   placeholder?: string;
@@ -65,7 +68,7 @@ export function SegmentedCodeInput({
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div role="group" aria-label={label ?? name} className="flex flex-wrap items-center gap-1.5">
       <input type="hidden" name={name} value={joined} />
       {groupRanges.map((range, groupIndex) => (
         <div key={groupIndex} className="flex flex-wrap gap-1">
@@ -76,6 +79,7 @@ export function SegmentedCodeInput({
               type="text"
               inputMode="text"
               maxLength={1}
+              aria-label={`${label ?? name}, character ${i + 1} of ${length}`}
               value={chars[i]}
               placeholder={placeholder[i] ?? ''}
               onChange={(e) => setChar(i, e.target.value)}

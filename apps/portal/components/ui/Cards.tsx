@@ -73,7 +73,7 @@ export function NavCard({ href, icon, title, description, badge, tone = 'brand',
         <span className={`flex h-10 w-10 items-center justify-center rounded-xl ring-1 transition-transform group-hover:scale-105 ${TONE_TILE[tone]}`}><Icon name={icon} size={20} /></span>
         {badge !== undefined && badge !== null ? <span className="rounded-full bg-[var(--ejo-bg)] px-2 py-0.5 text-xs font-semibold text-[var(--ejo-text)] ring-1 ring-[var(--ejo-border)]">{badge}</span> : null}
       </div>
-      <h3 className="mt-4 text-[15px] font-semibold text-[var(--ejo-text)]">{title}</h3>
+      <h2 className="mt-4 text-[15px] font-semibold text-[var(--ejo-text)]">{title}</h2>
       {description ? <p className="mt-1 text-sm leading-relaxed text-[var(--ejo-text-muted)]">{description}</p> : null}
       <span className="mt-auto inline-flex items-center gap-1 pt-4 text-xs font-medium text-[var(--ejo-primary)]">
         Open <span className="transition-transform group-hover:translate-x-1" aria-hidden="true"><Icon name="arrow-right" size={14} /></span>

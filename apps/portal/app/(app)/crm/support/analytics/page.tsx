@@ -102,7 +102,7 @@ export default async function SupportAnalyticsPage({ searchParams }: { searchPar
           </div>
 
           <SectionCard icon="layers" title="Teams" className="mt-6" flush>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Table">
               <table className="w-full min-w-[34rem] text-sm">
                 <thead><tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]"><th className="px-5 py-2 font-medium">Team</th><th className="px-3 py-2 font-medium">Requests</th><th className="px-3 py-2 font-medium">Open</th><th className="px-3 py-2 font-medium">Target met</th><th className="px-3 py-2 font-medium">Satisfied</th></tr></thead>
                 <tbody>{a.queues.map((q) => (
@@ -117,7 +117,7 @@ export default async function SupportAnalyticsPage({ searchParams }: { searchPar
 
           {a.agents.length ? (
             <SectionCard icon="users" title="People" description="For the people who run the centre. Small numbers say little; satisfaction shows from 3 ratings." className="mt-6" flush>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Table">
                 <table className="w-full min-w-[34rem] text-sm">
                   <thead><tr className="border-b border-[var(--ejo-border)] text-left text-xs text-[var(--ejo-text-muted)]"><th className="px-5 py-2 font-medium">Colleague</th><th className="px-3 py-2 font-medium">Requests</th><th className="px-3 py-2 font-medium">Resolved</th><th className="px-3 py-2 font-medium">First answer (median)</th><th className="px-3 py-2 font-medium">Reopened</th><th className="px-3 py-2 font-medium">Satisfied</th></tr></thead>
                   <tbody>{a.agents.map((p) => (

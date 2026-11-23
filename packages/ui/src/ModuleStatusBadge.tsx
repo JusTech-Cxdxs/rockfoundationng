@@ -8,7 +8,7 @@ const LABEL: Record<ModuleStatus, string> = {
 
 const STYLE: Record<ModuleStatus, string> = {
   LIVE: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]',
-  COMING_SOON: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]',
+  COMING_SOON: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]',
   DISABLED: 'bg-[var(--ejo-error)]/15 text-[var(--ejo-error)]',
 };
 

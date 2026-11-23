@@ -493,20 +493,20 @@ function ContactsTab({ data }: { data: Data }) {
   const tel = (p: string) => `tel:${p.replace(/\s+/g, '')}`;
   const AddressFields = ({ a }: { a?: Data['addresses'][number] }) => (
     <div className="grid gap-2 sm:grid-cols-2">
-      <div><label className={labelCls}>Label</label><input name="label" maxLength={40} defaultValue={a?.label ?? ''} placeholder="e.g. Office, Home" className={field} /></div>
-      <div><label className={labelCls}>Address <span className="text-[var(--ejo-error)]">*</span></label><input name="line1" required maxLength={160} defaultValue={a?.line1 ?? ''} className={field} /></div>
-      <div><label className={labelCls}>Address line 2</label><input name="line2" maxLength={160} defaultValue={a?.line2 ?? ''} className={field} /></div>
-      <div><label className={labelCls}>City</label><input name="city" maxLength={80} defaultValue={a?.city ?? ''} className={field} /></div>
-      <div><label className={labelCls}>State</label><input name="state" maxLength={80} defaultValue={a?.state ?? ''} className={field} /></div>
-      <div><label className={labelCls}>Country</label><input name="country" maxLength={80} defaultValue={a?.country ?? 'Nigeria'} className={field} /></div>
+      <div><label htmlFor="crm-customers-label" className={labelCls}>Label</label><input id="crm-customers-label" name="label" maxLength={40} defaultValue={a?.label ?? ''} placeholder="e.g. Office, Home" className={field} /></div>
+      <div><label htmlFor="crm-customers-line1" className={labelCls}>Address <span className="text-[var(--ejo-error)]">*</span></label><input id="crm-customers-line1" name="line1" required maxLength={160} defaultValue={a?.line1 ?? ''} className={field} /></div>
+      <div><label htmlFor="crm-customers-line2" className={labelCls}>Address line 2</label><input id="crm-customers-line2" name="line2" maxLength={160} defaultValue={a?.line2 ?? ''} className={field} /></div>
+      <div><label htmlFor="crm-customers-city" className={labelCls}>City</label><input id="crm-customers-city" name="city" maxLength={80} defaultValue={a?.city ?? ''} className={field} /></div>
+      <div><label htmlFor="crm-customers-state" className={labelCls}>State</label><input id="crm-customers-state" name="state" maxLength={80} defaultValue={a?.state ?? ''} className={field} /></div>
+      <div><label htmlFor="crm-customers-country" className={labelCls}>Country</label><input id="crm-customers-country" name="country" maxLength={80} defaultValue={a?.country ?? 'Nigeria'} className={field} /></div>
     </div>
   );
   const ContactFields = ({ p }: { p?: Data['contacts'][number] }) => (
     <div className="grid gap-2 sm:grid-cols-2">
-      <div><label className={labelCls}>Name <span className="text-[var(--ejo-error)]">*</span></label><input name="name" required maxLength={120} defaultValue={p?.name ?? ''} className={field} /></div>
-      <div><label className={labelCls}>Role</label><input name="role" maxLength={60} defaultValue={p?.role ?? ''} placeholder="e.g. Fleet manager" className={field} /></div>
-      <div><label className={labelCls}>Phone</label><input name="phone" type="tel" maxLength={20} pattern="\+?[0-9 ]{7,20}" title="Digits, spaces and a leading + (7–20 characters)" defaultValue={p?.phone ?? ''} className={field} /></div>
-      <div><label className={labelCls}>Email</label><input name="email" type="email" maxLength={200} defaultValue={p?.email ?? ''} className={field} /></div>
+      <div><label htmlFor="crm-customers-name" className={labelCls}>Name <span className="text-[var(--ejo-error)]">*</span></label><input id="crm-customers-name" name="name" required maxLength={120} defaultValue={p?.name ?? ''} className={field} /></div>
+      <div><label htmlFor="crm-customers-role" className={labelCls}>Role</label><input id="crm-customers-role" name="role" maxLength={60} defaultValue={p?.role ?? ''} placeholder="e.g. Fleet manager" className={field} /></div>
+      <div><label htmlFor="crm-customers-phone" className={labelCls}>Phone</label><input id="crm-customers-phone" name="phone" type="tel" maxLength={20} pattern="\+?[0-9 ]{7,20}" title="Digits, spaces and a leading + (7–20 characters)" defaultValue={p?.phone ?? ''} className={field} /></div>
+      <div><label htmlFor="crm-customers-email" className={labelCls}>Email</label><input id="crm-customers-email" name="email" type="email" maxLength={200} defaultValue={p?.email ?? ''} className={field} /></div>
     </div>
   );
   return (

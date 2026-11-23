@@ -37,10 +37,10 @@ export function VehicleMakeModelPicker({
   return (
     <>
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
+        <label htmlFor="vehicle-make-model-picker-vehicleType" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
           Vehicle type <span className="text-[var(--ejo-error)]">*</span>
         </label>
-        <select
+        <select id="vehicle-make-model-picker-vehicleType"
           name="vehicleType"
           required
           value={category}
@@ -58,10 +58,10 @@ export function VehicleMakeModelPicker({
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
+          <label htmlFor="vehicle-make-model-picker-make" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
             Make <span className="text-[var(--ejo-error)]">*</span>
           </label>
-          <input
+          <input id="vehicle-make-model-picker-make"
             name="make"
             required
             list="vehicle-make-suggestions"
@@ -81,10 +81,10 @@ export function VehicleMakeModelPicker({
           </datalist>
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
+          <label htmlFor="vehicle-make-model-picker-model" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
             Model <span className="text-[var(--ejo-error)]">*</span>
           </label>
-          <input
+          <input id="vehicle-make-model-picker-model"
             name="model"
             required
             list="vehicle-model-suggestions"
@@ -105,8 +105,8 @@ export function VehicleMakeModelPicker({
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Engine</label>
-        <input
+        <label htmlFor="vehicle-make-model-picker-engineType" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Engine</label>
+        <input id="vehicle-make-model-picker-engineType"
           name="engineType"
           list="vehicle-engine-suggestions"
           value={engineType}

@@ -162,8 +162,8 @@ export default async function InventoryPartsPage({
             <FormPendingOverlay />
             <input type="hidden" name="branchId" value={branchId} />
             <div>
-              <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Name</label>
-              <input
+              <label htmlFor="inventory-parts-name" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Name</label>
+              <input id="inventory-parts-name"
                 name="name"
                 required
                 className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
@@ -185,7 +185,7 @@ export default async function InventoryPartsPage({
               </p>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Description</label>
+              <label htmlFor="inventory-parts-text-1" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Description</label>
               <textarea id="inventory-parts-text-1"
                 name="description"
                 rows={2}
@@ -194,8 +194,8 @@ export default async function InventoryPartsPage({
               <RefineTextButton targetId="inventory-parts-text-1" />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Tracking Type</label>
-              <select
+              <label htmlFor="inventory-parts-trackingType" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Tracking Type</label>
+              <select id="inventory-parts-trackingType"
                 name="trackingType"
                 required
                 defaultValue=""
@@ -231,8 +231,8 @@ export default async function InventoryPartsPage({
             </details>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Reorder Point</label>
-                <input
+                <label htmlFor="inventory-parts-reorderPoint" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Reorder Point</label>
+                <input id="inventory-parts-reorderPoint"
                   name="reorderPoint"
                   type="number"
                   step="0.001"
@@ -240,8 +240,8 @@ export default async function InventoryPartsPage({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Safety Stock</label>
-                <input
+                <label htmlFor="inventory-parts-safetyStock" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Safety Stock</label>
+                <input id="inventory-parts-safetyStock"
                   name="safetyStock"
                   type="number"
                   step="0.001"

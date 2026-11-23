@@ -33,7 +33,7 @@ export function ResponsiveTable({
   layout?: 'stack' | 'scroll';
   minWidth?: string;
   fadeBg?: string;
-  /** For the scroll layout: names the scrolling box for keyboard and screen-reader users. */
+  /** Names the box for keyboard and screen-reader users (default "Table"). */
   label?: string;
   flush?: boolean;
   className?: string;
@@ -48,7 +48,11 @@ export function ResponsiveTable({
     <div
       className={`${scrollOnly ? '' : 'ejo-stack '}${flush ? 'ejo-stack-flush ' : ''}ejo-scroll-x ${className}`}
       style={style}
-      {...(scrollOnly && label ? { tabIndex: 0, 'aria-label': label } : {})}
+      // Any box can end up scrolling sideways (a narrow column, zoomed text),
+      // so keyboard users can always focus it and scroll with the arrow keys.
+      tabIndex={0}
+      role="region"
+      aria-label={label ?? 'Table'}
     >
       {children}
     </div>

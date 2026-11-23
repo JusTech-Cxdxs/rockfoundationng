@@ -26,7 +26,7 @@ function groupByDay<T extends { at: Date }>(rows: T[]): [string, T[]][] {
   }
   return [...groups.entries()];
 }
-const KIND_CHIP: Record<string, string> = { Business: 'bg-[var(--ejo-primary)]/15 text-[var(--ejo-primary)]', 'Data change': 'bg-[var(--ejo-info)]/15 text-[var(--ejo-info)]', API: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]', 'System job': 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' };
+const KIND_CHIP: Record<string, string> = { Business: 'bg-[var(--ejo-primary)]/15 text-[var(--ejo-primary)]', 'Data change': 'bg-[var(--ejo-info)]/15 text-[var(--ejo-info)]', API: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]', 'System job': 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' };
 
 export default async function AuditLogsPage({ searchParams }: { searchParams: Promise<{ kind?: string; q?: string; userId?: string; from?: string; to?: string; cursor?: string }> }) {
   await guardPage('audit.view', '/audit-logs');
@@ -67,8 +67,8 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
         {kind !== 'all' ? <input type="hidden" name="kind" value={kind} /> : null}
         <div className="relative z-30 w-full sm:w-72"><label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Who — everyone, or type a name or employee ID</label>
           <SearchableSelect name="userId" search={searchStaffOptions} loadDefaultOptions={loadStaffOptions} defaultOptionsLabel="Staff" placeholder="Everyone" emptyMessage="No staff match." minQueryLength={1} defaultValue={sp.userId} defaultLabel={whoLabel} /></div>
-        <div><label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">From</label><input type="date" name="from" defaultValue={sp.from ?? ''} className={input} /></div>
-        <div><label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">To</label><input type="date" name="to" defaultValue={sp.to ?? ''} className={input} /></div>
+        <div><label htmlFor="app-audit-logs-from" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">From</label><input id="app-audit-logs-from" type="date" name="from" defaultValue={sp.from ?? ''} className={input} /></div>
+        <div><label htmlFor="app-audit-logs-to" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">To</label><input id="app-audit-logs-to" type="date" name="to" defaultValue={sp.to ?? ''} className={input} /></div>
         <div className="min-w-0 flex-1"><label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Search</label><LiveSearchInput name="q" defaultValue={sp.q ?? ''} placeholder="Search a number (JC-2026-000013), a name or an action…" className={`${input} w-full`} /></div>
         <button type="submit" className="rounded-[var(--ejo-radius-md)] bg-[var(--ejo-primary)] px-4 py-1.5 text-sm font-medium text-white">Filter</button>
         <LoadingLink href="/audit-logs" className="px-2 py-1.5 text-sm text-[var(--ejo-text-muted)] hover:underline">Clear</LoadingLink>
@@ -97,7 +97,7 @@ export default async function AuditLogsPage({ searchParams }: { searchParams: Pr
                       {r.changes.length ? (
                         <details className="mt-2">
                           <summary className="cursor-pointer text-xs text-[var(--ejo-primary)]">What changed ({pluralize(r.changes.length, 'field')})</summary>
-                          <div className="mt-2 overflow-x-auto rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)]">
+                          <div className="mt-2 overflow-x-auto rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)]" tabIndex={0} role="region" aria-label="Table">
                             <table className="w-full text-xs">
                               <thead className="bg-[var(--ejo-bg)]"><tr className="text-left text-[var(--ejo-text-muted)]"><th className="px-2 py-1">Field</th><th className="px-2">Before</th><th className="px-2">After</th></tr></thead>
                               <tbody>{r.changes.map((c) => <tr key={c.field} className="border-t border-[var(--ejo-border)] align-top"><td className="px-2 py-1 text-[var(--ejo-text)]">{c.field}</td><td className="break-all px-2 text-[var(--ejo-error)]/80 line-through decoration-1">{c.before}</td><td className="break-all px-2 text-[var(--ejo-success)]">{c.after}</td></tr>)}</tbody>

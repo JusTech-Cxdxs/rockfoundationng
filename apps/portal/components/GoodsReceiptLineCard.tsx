@@ -96,7 +96,7 @@ export function GoodsReceiptLineCard({
           t.issued <= 0
             ? { label: 'Fully in stock', cls: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' }
             : t.remaining <= 0
-              ? { label: 'Fully issued', cls: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]' }
+              ? { label: 'Fully issued', cls: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]' }
               : { label: 'Partly issued', cls: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]' };
         return (
           <div className="mt-2 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2.5 text-xs">

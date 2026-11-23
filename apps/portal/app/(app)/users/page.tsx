@@ -82,9 +82,9 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
 
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="People" value={counts.total} />
-        <Stat label="Active" value={counts.active} tone="var(--ejo-success)" />
+        <Stat label="Active" value={counts.active} tone="var(--ejo-success-text)" />
         <Stat label="Switched off" value={counts.off} tone={counts.off ? 'var(--ejo-text-muted)' : undefined} />
-        <Stat label="Without employee ID" value={counts.withoutId} tone={counts.withoutId ? 'var(--ejo-warning)' : undefined} />
+        <Stat label="Without employee ID" value={counts.withoutId} tone={counts.withoutId ? 'var(--ejo-warning-text)' : undefined} />
       </div>
 
       {/* Find people */}
@@ -142,7 +142,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                   <p className="truncate text-xs text-[var(--ejo-text-muted)]">{u.email}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     {u.employeeId ? <span className={`${chip} bg-[var(--ejo-bg)] font-mono text-[var(--ejo-text)]`} title="Employee ID">{u.employeeId}</span> : <span className={`${chip} bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]`}>No employee ID</span>}
-                    <span className={`${chip} ${u.isActive ? 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' : 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]'}`}>{u.isActive ? 'Active' : 'Switched off'}</span>
+                    <span className={`${chip} ${u.isActive ? 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]' : 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]'}`}>{u.isActive ? 'Active' : 'Switched off'}</span>
                   </div>
                   <p className="mt-1.5 truncate text-xs text-[var(--ejo-text-muted)]">{[u.branch, u.department].filter(Boolean).join(' · ') || 'No branch or department set'}</p>
                 </div>

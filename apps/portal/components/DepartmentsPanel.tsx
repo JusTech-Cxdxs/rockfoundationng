@@ -20,7 +20,7 @@ export function DepartmentsPanel({ branchId, departments, returnTo }: { branchId
               <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--ejo-text)]">
                 {d.name}
                 {d.system ? <span className="rounded-full bg-[var(--ejo-primary)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ejo-primary)]" title={why.get(d.slug)}>System</span> : null}
-                {!d.isActive ? <span className="rounded-full bg-[var(--ejo-text-muted)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">Switched off</span> : null}
+                {!d.isActive ? <span className="rounded-full bg-[var(--ejo-text-muted)]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ejo-text-muted)]">Switched off</span> : null}
               </p>
               <p className="text-xs text-[var(--ejo-text-muted)]">{d.people} {d.people === 1 ? 'person' : 'people'}{d.system ? ` · ${why.get(d.slug) ?? ''}` : ''}</p>
             </div>

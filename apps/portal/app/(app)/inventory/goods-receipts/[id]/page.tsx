@@ -159,8 +159,8 @@ export default async function GoodsReceiptDetailPage({
               <FormPendingOverlay />
               <input type="hidden" name="id" value={receipt.id} />
               <div>
-                <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Supplier</label>
-                <input
+                <label htmlFor="inventory-goods-receipts-supplierName" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Supplier</label>
+                <input id="inventory-goods-receipts-supplierName"
                   name="supplierName"
                   required
                   defaultValue={receipt.supplierName}
@@ -168,7 +168,7 @@ export default async function GoodsReceiptDetailPage({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Notes</label>
+                <label htmlFor="inventory-goods-receipts-id-text-1" className="mb-1 block text-xs text-[var(--ejo-text-muted)]">Notes</label>
                 <textarea id="inventory-goods-receipts-id-text-1"
                   name="notes"
                   rows={2}

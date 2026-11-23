@@ -28,7 +28,7 @@ export function PaymentAmountField({ options }: { options: PaymentAmountOption[]
 
   return (
     <>
-      <select
+      <select aria-label="Amount to pay"
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
         required
@@ -45,7 +45,7 @@ export function PaymentAmountField({ options }: { options: PaymentAmountOption[]
         <option value="OTHER">Other amount</option>
       </select>
       {isOther ? (
-        <input
+        <input aria-label="Amount (₦)"
           type="number"
           step="0.01"
           min="0.01"

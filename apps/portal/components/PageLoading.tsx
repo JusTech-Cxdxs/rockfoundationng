@@ -7,9 +7,10 @@ import { EjoMarkSpinner } from './EjoMarkSpinner';
  */
 export function PageLoading() {
   return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+    // A page heading while the real one loads, announced politely.
+    <div role="status" className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
       <EjoMarkSpinner size={64} />
-      <p className="text-sm text-[var(--ejo-text-muted)]">Loading…</p>
+      <h1 className="text-sm font-normal text-[var(--ejo-text-muted)]">Loading…</h1>
     </div>
   );
 }

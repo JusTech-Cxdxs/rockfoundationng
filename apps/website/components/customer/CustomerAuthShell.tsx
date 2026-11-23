@@ -74,7 +74,7 @@ export function CustomerAuthShell({ title, subtitle, children, footer }: { title
 
         <div className="ejo-rise relative flex items-end justify-between gap-6 border-t border-white/10 pt-6" style={{ animationDelay: '240ms' }}>
           <PoweredByEjo tone="onDark" size="lg" />
-          <p className="text-xs text-white/40">© {year} {siteConfig.companyShortName}</p>
+          <p className="text-xs text-white/60">© {year} {siteConfig.companyShortName}</p>
         </div>
       </section>
 

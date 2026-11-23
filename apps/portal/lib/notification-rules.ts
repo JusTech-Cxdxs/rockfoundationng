@@ -103,7 +103,7 @@ export const BROADCAST_CATEGORY: Record<string, CategoryMeta> = {
   IMPORTANT: { label: 'Important', icon: '⭐', chip: 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning)]', bar: 'border-l-[var(--ejo-warning)]', emailColor: '#D97706', heading: 'Important notice' },
   URGENT: { label: 'Urgent', icon: '⚠️', chip: 'bg-[var(--ejo-error)]/15 text-[var(--ejo-error)]', bar: 'border-l-[var(--ejo-error)]', emailColor: '#DC2626', heading: 'Urgent' },
   SECURITY_ALERT: { label: 'Security alert', icon: '🚨', chip: 'bg-[var(--ejo-error)]/20 text-[var(--ejo-error)]', bar: 'border-l-[var(--ejo-error)]', emailColor: '#B91C1C', heading: 'Security alert' },
-  MAINTENANCE: { label: 'Maintenance', icon: '🛠️', chip: 'bg-[var(--ejo-text-muted)]/15 text-[var(--ejo-text-muted)]', bar: 'border-l-[var(--ejo-text-muted)]', emailColor: '#475569', heading: 'Planned maintenance' },
+  MAINTENANCE: { label: 'Maintenance', icon: '🛠️', chip: 'bg-[var(--ejo-text-muted)]/10 text-[var(--ejo-text-muted)]', bar: 'border-l-[var(--ejo-text-muted)]', emailColor: '#475569', heading: 'Planned maintenance' },
   GREETING: { label: 'Greeting', icon: '🎉', chip: 'bg-[var(--ejo-success)]/15 text-[var(--ejo-success)]', bar: 'border-l-[var(--ejo-success)]', emailColor: '#059669', heading: 'Greetings' },
 };
 export const BROADCAST_CATEGORIES = Object.keys(BROADCAST_CATEGORY);

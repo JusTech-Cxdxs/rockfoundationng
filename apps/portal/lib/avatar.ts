@@ -1,5 +1,6 @@
 /** Initials and a stable colour for a person's avatar (pure — see components/Avatar.tsx). */
-const PALETTE = ['#16a34a', '#2563eb', '#9333ea', '#db2777', '#ea580c', '#0891b2', '#4f46e5', '#65a30d', '#b45309', '#0d9488'];
+// Each shade carries white initials at 4.5:1 or better (WCAG AA).
+const PALETTE = ['#15803d', '#2563eb', '#9333ea', '#be185d', '#c2410c', '#0e7490', '#4f46e5', '#4d7c0f', '#b45309', '#0f766e'];
 
 export function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
