@@ -91,11 +91,10 @@ Set the same values in both projects, then redeploy both (docs/SETUP.md, 5a).
 `QBO_ENVIRONMENT` (`sandbox` or `production`). Off unless all are set; the
 QuickBooks Desktop and CSV exports need none of them (docs/SETUP.md, 5b).
 
-### Planned, not read by the code yet
+### Backups (GitHub, not Vercel)
 
-`R2_*` (nightly backup copy, Phase 9) is listed in
-`.env.example` so the settings can be prepared. Each stays off until its
-phase is released and the Owner switches it on.
+`BACKUP_DATABASE_URL`, `BACKUP_ENCRYPTION_KEY` and `R2_*` are GitHub
+repository secrets read by the nightly backup workflow, never Vercel settings.
 
 ### Never in production
 
@@ -221,8 +220,12 @@ Supabase's own auth settings do not apply.
 - **[Recommended]** **Point-in-Time Recovery** (Project → **Settings →
   Add-ons**): restore to any second, not just the daily copy. Worth it once
   real money and job cards are in the system.
-- **Planned:** a nightly copy to Cloudflare R2 (`R2_*`), kept outside
-  Supabase.
+- **[Before release]** The nightly copy to Cloudflare R2, kept outside
+  Supabase: `.github/workflows/backup.yml` dumps the database at 01:40 Lagos
+  time, encrypts it (AES-256) and uploads it; 30 days of daily copies and 12
+  monthly ones are kept. Set its six repository secrets (`.env.example`,
+  "Nightly backup") and run it once by hand (Actions → Nightly backup to R2 →
+  Run workflow).
 - **[Before release]** Test a restore once, and write down the date
   ([RUNBOOKS.md](RUNBOOKS.md) §2).
 

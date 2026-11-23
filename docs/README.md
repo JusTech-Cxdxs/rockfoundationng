@@ -9,6 +9,7 @@ run it.
 | Document | For | What it covers |
 |---|---|---|
 | [SETUP.md](SETUP.md) | JusTech, the Owner | Supabase, Vercel, environment variables, the first sign-in, business details, email, scheduled jobs, the domain, bringing in records |
+| [DEPLOY.md](DEPLOY.md) | JusTech | What runs where, every setting by name, the first deploy and every later one, the checks after a deploy, the nightly backup to R2 and the restore, rolling back |
 | [DEMO.md](DEMO.md) | Anyone presenting | The demo organisation, who to sign in as, a 15-minute tour for the GMD and the board |
 | [ROLES_AND_ACCESS.md](ROLES_AND_ACCESS.md) | The Owner, administrators | The seven workshop roles (Owner and Front Desk always on, five optional), Front Desk's cover, cost prices, which pages each role sees |
 

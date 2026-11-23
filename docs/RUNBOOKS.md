@@ -44,10 +44,15 @@ published for Realtime.
 2. Agree targets with the GMD: **RPO** (most data you may lose: 24 hours with
    daily backups, a few minutes with point-in-time recovery) and **RTO**
    (time to be working again: suggested 4 hours or less).
-3. Drill: restore the latest backup into a **new** Supabase project → point a
-   Vercel Preview at it → sign in → open a Job Card, record a test payment,
-   run a search, open Audit Logs → note how long it took (your measured RTO)
-   → delete the drill project.
+3. Drill: restore the latest backup into a **new** Supabase project (or a new,
+   empty database) with
+   `RESTORE_DATABASE_URL=… BACKUP_ENCRYPTION_KEY=… R2_…=… scripts/backup/restore-from-r2.sh daily/YYYY-MM-DD.dump.enc`
+   (it checks the file's checksum and refuses the live database or one that
+   already has tables) → point a Vercel Preview at it → sign in → open a Job
+   Card, record a test payment, run a search, open Audit Logs → note how long
+   it took (your measured RTO) → delete the drill project. The same drill was
+   run locally when the backup was built: the restored copy matched the live
+   database table for table.
 4. Never put database dumps in GitHub (artifacts or files): they contain
    customers' details.
 
