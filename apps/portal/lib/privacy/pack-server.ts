@@ -60,6 +60,8 @@ export async function collectPack(db: PrismaClient, organisationId: string, cust
   await read('portal-sign-ins.csv', 'Sign-ins to the customer portal', db.customerSession, { customerId });
   await read('portal-accounts.csv', 'How you sign in to the customer portal', db.customerAccount, { customerId });
   await read('notes.csv', 'Notes kept about you', db.customerNote, { customerId });
+  await read('callbacks.csv', 'Calls and messages we planned to make to you', db.followUp, { customerId, organisationId }, 'dueAt');
+  await read('ratings.csv', 'Your “How did we do?” ratings', db.jobRating, { customerId, organisationId }, 'sentAt');
   await read('history-jobs.csv', 'Workshop history from our previous system', db.historicalJob, { customerId, organisationId });
   await read('history-invoices.csv', 'Invoices from our previous system', db.historicalInvoice, { customerId, organisationId });
 

@@ -25,7 +25,7 @@ export function asPriority(v: unknown): Priority {
   return typeof v === 'string' && (PRIORITIES as readonly string[]).includes(v) ? (v as Priority) : 'NORMAL';
 }
 
-export const CHANNEL_LABEL: Record<string, string> = { EMAIL: 'Email', CUSTOMER_PORTAL: 'Customer portal', WEBSITE: 'Website enquiry', STAFF: 'Opened by a colleague', HELP: 'A colleague’s own request' };
+export const CHANNEL_LABEL: Record<string, string> = { EMAIL: 'Email', CUSTOMER_PORTAL: 'Customer portal', WEBSITE: 'Website enquiry', STAFF: 'Opened by a colleague', HELP: 'A colleague’s own request', WHATSAPP: 'WhatsApp (logged by a colleague)', PHONE: 'Phone call (logged by a colleague)', WALK_IN: 'At the front desk', RATING: 'Low “How did we do?” rating' };
 
 export const QUEUE_KINDS = ['general', 'warranty', 'technical', 'customer_care', 'parts', 'sales', 'internal', 'hr', 'other'] as const;
 export type QueueKind = (typeof QUEUE_KINDS)[number];

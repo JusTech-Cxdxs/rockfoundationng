@@ -27,6 +27,7 @@ import { senderContext } from '@/lib/support/context';
 import { senderView, type SenderView } from '@/lib/support/context-core';
 import { PLATFORM } from '@/lib/brand';
 import { fenceStaffHelp } from '@/lib/support/reach';
+import { complaintCategoryLabel } from '@/lib/customer-care/rules';
 import { after } from 'next/server';
 import { announceRouted, emailAssignee } from '@/lib/support/notify';
 import { emailColleagues } from '@/lib/workflow-notify';
@@ -164,6 +165,8 @@ export type SupportTicketDetail = {
   sender: SenderView | null;
   /** v37: a colleague's own help request. */
   colleagueRequest: boolean;
+  /** A complaint (customer care): its category and the Job Card it is about. */
+  complaint: { category: string; job: { id: string; number: string } | null } | null;
 };
 
 /** One ticket with its thread (replies, notes, Enyo's draft), the customer's context, and the conversation with Enyo — or "not available". */
@@ -213,6 +216,9 @@ export async function getSupportTicket(ticketId: string): Promise<SupportTicketD
   const question = `${t.subject}\n${lastCustomer?.body ?? t.summary}`.slice(0, 600);
   const ctx = await senderContext(t, question).catch(() => null);
   const sender = ctx ? senderView(ctx, { canSeeErrors: await allows('audit.view') }) : null;
+  const complaintJob = t.kind === 'COMPLAINT' && t.jobCardId && jobReach
+    ? await prisma.jobCard.findFirst({ where: { AND: [{ id: t.jobCardId }, jobReach as Prisma.JobCardWhereInput] }, select: { id: true, jobNumber: true } })
+    : null;
   return {
     id: t.id, number: t.number, status: t.status as SupportStatus, statusLabel: SUPPORT_STATUS_LABEL[t.status as SupportStatus] ?? t.status, channel: t.channel,
     contactName: t.contactName, contactPhone: t.contactPhone, contactEmail: t.contactEmail,
@@ -240,6 +246,7 @@ export async function getSupportTicket(ticketId: string): Promise<SupportTicketD
     jobs: jobs.map((j) => ({ id: j.id, number: j.jobNumber, status: String(j.status).replace(/_/g, ' ').toLowerCase(), href: `/workshop/job-cards/${j.id}` })),
     seenAt: (t.replies[t.replies.length - 1]?.createdAt ?? t.createdAt).toISOString(),
     sender, colleagueRequest: Boolean(t.requesterUserId),
+    complaint: t.kind === 'COMPLAINT' ? { category: complaintCategoryLabel(t.complaintCategory), job: complaintJob ? { id: complaintJob.id, number: complaintJob.jobNumber } : null } : null,
   };
 }
 

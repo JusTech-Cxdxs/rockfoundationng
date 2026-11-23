@@ -40,6 +40,7 @@ const STATUS_NOTICE: Record<string, { kind: 'success' | 'warning'; text: string 
   answer_saved: { kind: 'success', text: 'Saved for Enyo to learn. An administrator approves it on the Enyo learning page before Enyo uses it.' },
   answer_skipped: { kind: 'warning', text: 'Not saved: this answer is about one customer’s own records (or names a plate or record), so it would not help others.' },
   created: { kind: 'success', text: 'Request opened. It has a number, a team and a target like any other.' },
+  complaint_logged: { kind: 'success', text: 'Complaint logged. It has an owner and a response target; reply and update the customer from here.' },
 };
 
 const btn = 'min-h-11 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-4 text-sm font-medium text-[var(--ejo-text)] hover:border-[var(--ejo-primary)]/50';
@@ -72,6 +73,8 @@ export default async function SupportTicketPage({ params, searchParams }: { para
         description={t.subject}
         meta={<>
           <StatusChip tone={TONE[t.status]} label={t.statusLabel} />
+          {t.complaint ? <StatusChip tone="error" label={`Complaint · ${t.complaint.category}`} /> : null}
+          {t.complaint?.job ? <Link href={`/workshop/job-cards/${t.complaint.job.id}`} className="text-xs font-medium text-[var(--ejo-primary)] hover:underline">{t.complaint.job.number}</Link> : null}
           {t.priority !== 'NORMAL' ? <StatusChip tone={t.priority === 'URGENT' ? 'error' as Tone : t.priority === 'HIGH' ? 'warning' : 'neutral'} label={`${PRIORITY_LABEL[t.priority]} priority`} /> : null}
           {t.queueName ? <span className="text-xs text-[var(--ejo-text-muted)]">{t.queueName}</span> : null}
           {t.branchName ? <span className="text-xs text-[var(--ejo-text-muted)]">{t.branchName}</span> : null}
