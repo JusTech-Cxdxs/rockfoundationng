@@ -75,7 +75,8 @@ export async function openJobCard(page: Page, opts: { plate: string; customer?: 
     const supervisor = form.locator('select[name="supervisorId"]');
     await expect(supervisor.locator('option', { hasText: (opts.supervisor ?? who('workshop-supervisor')).name })).toHaveCount(1);
     await supervisor.selectOption({ label: (opts.supervisor ?? who('workshop-supervisor')).name });
-    await form.locator('input[name="mileageAtCheckIn"]').fill(String(opts.mileage ?? 50100));
+    // A car wash is a quick check-in: no mileage asked.
+    if (jobType !== 'CAR_WASH') await form.locator('input[name="mileageAtCheckIn"]').fill(String(opts.mileage ?? 50100));
     // A car wash needs no complaint (the reason is written for it); the other visits do.
     if (jobType !== 'CAR_WASH') await form.locator('input[name="complaints"]').first().fill(opts.complaint ?? 'Brakes squeal when stopping');
     if (opts.fill) await opts.fill(form);
