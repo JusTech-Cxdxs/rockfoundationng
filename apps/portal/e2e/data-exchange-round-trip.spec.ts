@@ -21,7 +21,7 @@ const ids: { a: string; b: string } = { a: '', b: '' };
 let url = '';
 
 async function upload(page: Page, body: string) {
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   await open(page, '/data-exchange/new?entity=customers');
   await expect(page.locator('#import-file')).toHaveCount(1);
   await page.locator('#import-file').setInputFiles({ name: `customers-edited-${STAMP}.csv`, mimeType: 'text/csv', buffer: Buffer.from(body) });
@@ -31,7 +31,7 @@ async function upload(page: Page, body: string) {
 }
 
 test('the check: found by the EJO record, every change previewed, the same value written another way is no change, refusals in plain words', async ({ page }) => {
-  const { organisationId } = await db().user.findUniqueOrThrow({ where: { email: who('it-administrator').email }, select: { organisationId: true } });
+  const { organisationId } = await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { organisationId: true } });
   const make = (n: number) => db().customer.create({ data: { organisationId: organisationId!, fullName: `Round Trip ${STAMP} ${n}`, phone: `0803${STAMP.slice(0, 6)}${n}`, address: '3 Old Road, Ikeja', email: `rt${n}.${STAMP}@e2e.test` }, select: { id: true } });
   ids.a = (await make(1)).id;
   ids.b = (await make(2)).id;
@@ -69,7 +69,7 @@ test('the check: found by the EJO record, every change previewed, the same value
 test('approved and loaded: exactly the previewed changes, each in the customerâ€™s history; one changed in EJO after the check is left as it is', async ({ page }) => {
   // Someone changes b's phone at the desk after the check.
   await db().customer.update({ where: { id: ids.b }, data: { phone: '0807 555 0000' } });
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, url);
   await expect(page.getByText(/Approving changes 2 customers \(4 fields\) exactly as previewed/)).toBeVisible();
   await page.getByRole('button', { name: 'Approve' }).click();
@@ -85,7 +85,7 @@ test('approved and loaded: exactly the previewed changes, each in the customerâ€
 
 test('undo: each field still as the file left it goes back; one changed since is kept', async ({ page }) => {
   await db().customer.update({ where: { id: ids.a }, data: { customerSince: new Date('2018-01-01T00:00:00.000Z') } });
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, url);
   page.on('dialog', (d) => void d.accept());
   await page.getByRole('button', { name: 'Undo this import' }).click();

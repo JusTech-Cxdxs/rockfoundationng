@@ -74,7 +74,7 @@ let customersUrl = '';
 let vehiclesUrl = '';
 
 test('customers from an old system’s export: columns match themselves, the check rejects what is wrong, nothing live changes yet', async ({ page }) => {
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   customersUrl = await startImport(page, 'customers', { name: `old-customers-${T}.csv`, mimeType: 'text/csv', buffer: Buffer.from(customersCsv()) });
   // The column names were matched on upload.
   await expect(page.locator('#map-externalId')).toHaveValue('0');
@@ -99,18 +99,18 @@ test('customers from an old system’s export: columns match themselves, the che
   expect(text).not.toContain(MUSA);
   await page.getByRole('button', { name: /Send for approval/ }).click();
   await expect(page.getByRole('heading', { name: 'Approval' })).toBeVisible();
-  // Group IT prepares; it does not approve.
+  // Front Desk prepares; it does not approve.
   await expect(page.getByText(/the person who prepared an import cannot approve it/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
 });
 
-test('the front desk cannot open Data Exchange; the manager approves, it loads, and the report adds up', async ({ page }) => {
-  await as(page, 'receptionist');
+test('Security cannot open Data Exchange; the Owner approves, it loads, and the report adds up', async ({ page }) => {
+  await as(page, 'security');
   await open(page, '/data-exchange');
   await expect(page).toHaveURL(/access-denied/);
   await expect(page.getByRole('link', { name: 'Data Exchange' })).toHaveCount(0);
 
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, customersUrl);
   await page.getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByRole('heading', { name: 'Load' })).toBeVisible();
@@ -128,7 +128,7 @@ test('the front desk cannot open Data Exchange; the manager approves, it loads, 
 });
 
 test('the same file again adds nothing twice', async ({ page }) => {
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   await startImport(page, 'customers', { name: `old-customers-${T}-again.csv`, mimeType: 'text/csv', buffer: Buffer.from(customersCsv()) });
   await expect(page.getByText(/The same file was imported before as IMP-/)).toBeVisible();
   await checkFile(page);
@@ -140,13 +140,13 @@ test('the same file again adds nothing twice', async ({ page }) => {
 });
 
 test('vehicles from an Excel workbook link to their customers; an unknown customer is rejected', async ({ page }) => {
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   vehiclesUrl = await startImport(page, 'vehicles', { name: `vehicles-${T}.xlsx`, mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: vehiclesXlsx() });
   await checkFile(page);
   await expect(page.getByText('The customer was not found. Import the customers file first, or check the customer number, email or phone.')).toBeVisible();
   await page.getByRole('button', { name: /Send for approval/ }).click();
 
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, vehiclesUrl);
   await page.getByRole('button', { name: 'Approve' }).click();
   await loadAndReport(page);
@@ -157,7 +157,7 @@ test('vehicles from an Excel workbook link to their customers; an unknown custom
 });
 
 test('undo moves exactly what each import added to the Recycle bin (vehicles first, then customers)', async ({ page }) => {
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   page.on('dialog', (d) => void d.accept());
   // The vehicles first (their own import), then the customers they belonged to.
   await open(page, vehiclesUrl);
@@ -173,7 +173,7 @@ test('undo moves exactly what each import added to the Recycle bin (vehicles fir
   const items = await db().recycleBinItem.findMany({ where: { reason: `Undo of import ${number}`, restoredAt: null }, select: { reference: true } });
   expect(items.map((i) => i.reference).sort()).toEqual([ADA, `Fleet Co ${T} Logistics Ltd`, MUSA].sort());
   // …and the administrator restores one from the bin, with its old number back.
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, '/recycle-bin');
   const row = page.getByTestId('bin-row').filter({ hasText: MUSA }).first();
   await expect(row).toContainText(`Undo of import ${number}`);
@@ -184,7 +184,7 @@ test('undo moves exactly what each import added to the Recycle bin (vehicles fir
 });
 
 test('templates download as Excel (with instructions) and CSV', async ({ page }) => {
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   const xlsx = await page.request.get('/data-exchange/templates/customers');
   expect(xlsx.status()).toBe(200);
   expect(xlsx.headers()['content-type']).toContain('spreadsheetml');

@@ -43,7 +43,7 @@ test('every demo person exists once, on the right branch and department, with th
     expect(u.fullName).toBe(s.name);
     expect(u.employeeId).toBe(s.employeeId);
     expect(u.isActive && u.emailVerified).toBe(true);
-    expect(u.branch?.type ?? 'HQ', s.email).toBe(s.branch === 'HQ' ? 'HQ' : 'WORKSHOP');
+    expect(u.branch?.type ?? 'BIZ', s.email).toBe(s.branch === 'BIZ' ? 'BIZ' : 'WORKSHOP');
     expect(u.department?.slug ?? null, s.email).toBe(s.dept);
     for (const role of [s.role, ...(s.alsoRoles ?? [])]) expect(u.roles.map((r) => r.role.slug), `${s.email} has ${role}`).toContain(role);
     expect(u.accounts.map((a) => a.providerId)).toEqual(['credential']);
@@ -59,11 +59,11 @@ test('every demo person exists once, on the right branch and department, with th
 });
 
 
-test('they sign in: headquarters and the workshop each land on their own dashboard; a technician is refused the users, a calendar user the job cards', async ({ page }) => {
+test('they sign in: the Owner and the workshop each land on their own dashboard; a technician is refused the staff list, Security the job cards', async ({ page }) => {
   for (const [person, must, mustNot] of [
-    [demoPerson('administrator', 'HQ'), '/users', null],
-    [demoPerson('technician', 'VI'), '/workshop/job-cards', '/users'],
-    [demoPerson('calendar-user', 'HQ'), '/schedule', '/workshop/job-cards'],
+    [demoPerson('owner', 'BIZ'), '/users', null],
+    [demoPerson('technician', 'OTA'), '/workshop/job-cards', '/users'],
+    [demoPerson('security', 'OTA'), '/security', '/workshop/job-cards'],
   ] as const) {
     await signIn(page, person.email, DEMO_E2E_PASSWORD);
     await expect(page.getByRole('button', { name: 'Account menu' })).toContainText(person.name);
@@ -97,7 +97,7 @@ test('a second run changes nothing — no new account, no password touched; with
   // Nothing printed that should not be.
   expect(out).not.toContain(DEMO_E2E_PASSWORD);
   // A signed-in demo person…
-  const tech = demoPerson('technician', 'VI');
+  const tech = demoPerson('technician', 'OTA');
   await signIn(page, tech.email, DEMO_E2E_PASSWORD);
   const reset = run({ DEMO_STAFF_PASSWORD: DEMO_E2E_PASSWORD, RESET_DEMO_PASSWORDS: 'yes' });
   expect(reset).toMatch(new RegExp(`${DEMO_STAFF.length} staff passwords set, 0 customers created, ${DEMO_CUSTOMERS.length} customer-portal passwords set.*RESET_DEMO_PASSWORDS=yes`));

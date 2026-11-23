@@ -43,7 +43,7 @@ test.afterAll(async () => {
 
 test('front desk deletes a Job Card opened by mistake; it disappears from lists and search', async ({ page }) => {
   const { plate } = await freshVehicle('BIN');
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   S.url = await openJobCard(page, { plate, complaint: 'Opened on the wrong car' });
   S.id = await jobCardIdFromUrl(S.url);
   S.number = await jobNumber(page);
@@ -70,11 +70,11 @@ test('another organisation never sees it in its Recycle bin', async ({ page }) =
 });
 
 test('the administrator finds it with its reason and restores it', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, '/recycle-bin');
   const row = binRow(page, S.number);
   await expect(row).toContainText('Opened on the wrong vehicle');
-  await expect(row).toContainText(`Deleted by ${who('receptionist').name}`);
+  await expect(row).toContainText(`Deleted by ${who('front-desk').name}`);
   await expect(row).toContainText(/\d+ days left/);
   page.once('dialog', (d) => d.accept());
   await row.getByRole('button', { name: 'Restore' }).click();
@@ -100,13 +100,13 @@ test('the administrator finds it with its reason and restores it', async ({ page
 
 test('a Job Card with a payment can’t be deleted: the server refuses, and the button goes away', async ({ page }) => {
   const { plate } = await freshVehicle('BIP');
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   S.paidUrl = await openJobCard(page, { plate, complaint: 'Paid already' });
   S.paidId = await jobCardIdFromUrl(S.paidUrl);
   await page.getByText('Delete (created by mistake)').click();
   await page.getByLabel('What was the mistake?').fill('Trying to delete a paid job');
   // Fixture: a payment recorded meanwhile, while this page is still open (Finance's own screen is covered elsewhere).
-  const fd = await db().user.findUniqueOrThrow({ where: { email: who('receptionist').email }, select: { id: true } });
+  const fd = await db().user.findUniqueOrThrow({ where: { email: who('front-desk').email }, select: { id: true } });
   S.paymentId = (await db().payment.create({ data: { jobCardId: S.paidId, amount: 1000, method: 'CASH', recordedById: fd.id, notes: 'e2e recycle-bin fixture' }, select: { id: true } })).id;
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Move to Recycle bin' }).click();
@@ -119,7 +119,7 @@ test('a Job Card with a payment can’t be deleted: the server refuses, and the 
   await expect(page.getByRole('button', { name: 'Move to Recycle bin' })).toHaveCount(0);
 
   // The Manager is told why, and which way to go instead.
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, S.paidUrl);
   await expect(page.getByText('Created by mistake?')).toBeVisible();
   await expect(page.getByText(/has a payment recorded, so it can't be deleted\. Ask for it to be cancelled instead\./)).toBeVisible();
@@ -127,7 +127,7 @@ test('a Job Card with a payment can’t be deleted: the server refuses, and the 
 
 test('the platform team removes an expired item for good', async ({ page }) => {
   const { plate } = await freshVehicle('BPG');
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await openJobCard(page, { plate, complaint: 'Duplicate visit' });
   S.purgeNumber = await jobNumber(page);
   await moveToBin(page, 'Duplicate of another Job Card');
@@ -153,7 +153,7 @@ test('the platform team removes an expired item for good', async ({ page }) => {
   expect(after.snapshot, 'the saved copy is gone').toBeNull();
 
   // The organisation can no longer restore it.
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, `/recycle-bin?state=all&q=${encodeURIComponent(S.purgeNumber)}`);
   const gone = binRow(page, S.purgeNumber);
   await expect(gone).toContainText('Removed for good');

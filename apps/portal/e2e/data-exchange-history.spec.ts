@@ -18,7 +18,7 @@ const vin = `JAANLR85EL${T.replace(/[IOQ]/g, 'X').padEnd(7, 'X').slice(0, 7)}`;
 const csv = (rows: (string | number)[][]) => rows.map((r) => r.map((c) => (/[,"]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(',')).join('\r\n');
 
 async function managerBranch(): Promise<string> {
-  const u = await db().user.findUniqueOrThrow({ where: { email: who('workshop-manager').email }, select: { branchId: true } });
+  const u = await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { branchId: true } });
   return u.branchId!;
 }
 
@@ -35,7 +35,7 @@ async function upload(page: Page, entity: string, name: string, body: string, op
 }
 
 async function approveAndLoad(page: Page, url: string) {
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, url);
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Start loading' }).click();
@@ -46,7 +46,7 @@ let customerId = '';
 let invoicesUrl = '';
 
 test('a customer from the old system: “customer since” comes from the file, years before the import', async ({ page }) => {
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   const url = await upload(page, 'customers', `customers-${T}.csv`, csv([
     ['Customer number', 'Name', 'Phone', 'Address', 'City', 'Customer since'],
     [custNo, `Lekki Haulage ${T}`, `0809 ${T.replace(/\D/g, '5').padEnd(3, '5').slice(0, 3)} 4401`, '12 Idiroko Road', 'Ota', '02/06/2014'],
@@ -64,7 +64,7 @@ test('a customer from the old system: “customer since” comes from the file, 
 
 test('invoices from the old system: totals before approval, read-only history in the customer’s spend, Finance confirms', async ({ page }) => {
   const branchId = await managerBranch();
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   invoicesUrl = await upload(page, 'invoices', `invoices-${T}.csv`, csv([
     ['Invoice number', 'Invoice date', 'Customer number', 'Amount (₦)', 'Tax (₦)', 'Currency', 'Chassis number (VIN)', 'Document type', 'Description'],
     [`009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}01`, '14/03/2023', custNo, '400000.00', '30000.00', 'NGN', vin, 'Invoice', 'Service 40,000 km'],
@@ -84,14 +84,13 @@ test('invoices from the old system: totals before approval, read-only history in
   await expect(page.getByText(/Invoice history now in EJO from this import: ₦660,000\.00 on 3 invoices/)).toBeVisible();
   const linked = await db().historicalInvoice.count({ where: { customerId, vehicleId: { not: null }, voidedAt: null } });
   expect(linked).toBe(2);
-  // Finance confirms the totals (the manager approved, so cannot).
-  await expect(page.getByText('Waiting for Finance to confirm the totals.')).toBeVisible();
-  await as(page, 'finance-officer');
+  // Accounts confirms the totals.
+  await as(page, 'accounts');
   await open(page, invoicesUrl);
   await page.getByRole('button', { name: 'Confirm the totals (Finance)' }).click();
   await expect(page.getByText(/Totals confirmed by .* \(Finance\)/)).toBeVisible();
   // The customer: lifetime spend and visits include the old system's invoices, marked; they are listed read-only.
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, `/crm/customers/${customerId}`);
   await expect(page.getByText('Incl. ₦660,000 from the old system, before EJO')).toBeVisible();
   await open(page, `/crm/customers/${customerId}?tab=jobs`);
@@ -105,7 +104,7 @@ test('old job cards: every row is a job card; “carry out service” starts the
   const invoiceNo = (k: string) => `009${T.replace(/\D/g, '1').padEnd(5, '1').slice(0, 5)}${k}`;
   // The vehicle has its own service interval (the organisation sets none in the test data), so a service anchors its clock.
   await db().customerVehicle.updateMany({ where: { chassisNumber: vin }, data: { serviceIntervalKm: 5000, serviceIntervalDays: 180, mileage: 63000 } });
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   const url = await upload(page, 'jobs', `job-history-${T}.csv`, csv([
     ['Job number', 'Customer number', 'Chassis number (VIN)', 'Opened on', 'Completed on', 'Mileage (km)', 'Complaint / work requested', 'Technician', 'Total (₦)', 'Invoice number', 'Status'],
     [`48${n}1`, custNo, vin, '12/03/2023', '14/03/2023', '40120', 'Carry out service 40,000 km', 'E. Okoro', '430000', invoiceNo('01'), 'Closed'],
@@ -127,7 +126,7 @@ test('old job cards: every row is a job card; “carry out service” starts the
   expect(jobs.every((j) => j.vehicleId)).toBe(true);
   expect(jobs[0]!.mileage).toBe(40120);
   // The customer: two job cards listed (one marked service); the visits count stays 3: the job cards were billed on two of the three old invoices.
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, `/crm/customers/${customerId}?tab=jobs`);
   await expect(page.getByRole('heading', { name: 'Job cards before EJO (2)' })).toBeVisible();
   const past = page.getByTestId('past-jobs');
@@ -153,7 +152,7 @@ test('old job cards: every row is a job card; “carry out service” starts the
 });
 
 test('undo voids the invoice history (spend goes back down); reopening and loading restores it', async ({ page }) => {
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   page.on('dialog', (d) => void d.accept());
   await open(page, invoicesUrl);
   await page.getByRole('button', { name: 'Undo this import' }).click();
@@ -163,7 +162,7 @@ test('undo voids the invoice history (spend goes back down); reopening and loadi
   await open(page, `/crm/customers/${customerId}`);
   await expect(page.getByText(/from the old system, before EJO/)).toHaveCount(0);
   // Reopen, check and load again: the same three rows come back (never a second copy).
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   await open(page, invoicesUrl);
   await page.getByRole('button', { name: /Reopen: check and load this file again/ }).click();
   await page.getByRole('button', { name: 'Save and check the file' }).click();

@@ -8,7 +8,7 @@ import {
 } from './workflows';
 
 /**
- * D'Phoenix phase 4 — the customer's approval of the estimate.
+ * The customer's approval of the estimate.
  *
  *  1. An organisation (company or fleet) customer never pays a deposit: the
  *     front desk records "Customer approved by phone" (who they spoke with)
@@ -46,10 +46,10 @@ async function awaitingApproval(page: import('@playwright/test').Page, plate: st
   await addLine(page, { type: 'LABOUR', description: 'Labour for Service', price: 25000 });
   await submitEstimate(page);
   await supervisorApprovesEstimate(page);
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, url);
   await managerApprovesEstimate(page);
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, url);
   await notifyCustomer(page);
   return url;
@@ -76,7 +76,7 @@ test('the link in the estimate email approves once and refuses a second time', a
   await test.step('opening the link changes nothing', async () => {
     await page.goto(`${WEB}${path}`);
     await expect(page.getByRole('heading', { name: /Your estimate — Job Card/ })).toBeVisible();
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await open(page, url);
     await expectStatus(page, 'Awaiting Customer Approval');
   });
@@ -94,7 +94,7 @@ test('the link in the estimate email approves once and refuses a second time', a
   });
 
   await test.step('staff see who approved, and how', async () => {
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await open(page, url);
     await expect(page.getByTestId('customer-approval')).toContainText('by link');
   });

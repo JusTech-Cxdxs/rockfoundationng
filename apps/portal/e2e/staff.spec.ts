@@ -9,7 +9,7 @@ import { signIn, signOut, latestMail, linkIn } from './helpers';
  */
 test('add a staff member, welcome email, set password, first sign-in', async ({ page, request }) => {
   const email = `new.starter.${Date.now()}@e2e.test`;
-  await signIn(page, who('administrator').email, E2E_PASSWORD);
+  await signIn(page, who('owner').email, E2E_PASSWORD);
   await page.goto('/users/new');
   const form = page.locator('#add-staff');
   await form.getByLabel('Full name').fill('Nkechi Newstarter');
@@ -26,7 +26,7 @@ test('add a staff member, welcome email, set password, first sign-in', async ({ 
   expect(employeeId, 'an employee ID was issued').toMatch(/^[A-Z0-9]+-[A-Z0-9]+-\d{4}$/);
   await expect(page.getByRole('listitem', { name: 'Nkechi Newstarter' })).toContainText(employeeId!);
 
-  const mail = await latestMail(request, email, /Welcome to EJO 100/);
+  const mail = await latestMail(request, email, /Welcome to EJO/);
   expect(mail.html).toContain(employeeId!);
   expect(mail.html).toContain('Technician');
   expect(mail.html).toContain('The rules');
@@ -48,7 +48,7 @@ test('add a staff member, welcome email, set password, first sign-in', async ({ 
 });
 
 test('a duplicate email is refused and what was typed stays', async ({ page }) => {
-  await signIn(page, who('administrator').email, E2E_PASSWORD);
+  await signIn(page, who('owner').email, E2E_PASSWORD);
   await page.goto('/users/new');
   const form = page.locator('#add-staff');
   await form.getByLabel('Full name').fill('Duplicate Person');

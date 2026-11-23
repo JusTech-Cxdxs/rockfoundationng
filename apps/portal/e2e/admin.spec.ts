@@ -17,7 +17,7 @@ const card = (page: Page) => page.getByRole('listitem', { name: SWITCHABLE.name 
 test('an administrator gives a role; the person’s menu follows; the role is taken away again', async ({ page }) => {
   // Fixture: a retry starts without the role even if the first attempt stopped half-way.
   await db().userRole.deleteMany({ where: { user: { email: SWITCHABLE.email }, role: { slug: 'technician' } } });
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await page.goto(`/users?q=${encodeURIComponent(SWITCHABLE.email)}`);
   await expect(card(page)).toBeVisible();
   // The page refreshes itself now and then (the live pulse); a choice made the moment it re-renders is lost, so choose until it stuck.
@@ -35,7 +35,7 @@ test('an administrator gives a role; the person’s menu follows; the role is ta
   await as(page, SWITCHABLE);
   await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Workshop', exact: true })).toBeVisible();
 
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, `/users?q=${encodeURIComponent(SWITCHABLE.email)}`);
   // As with giving it: a click made the moment the live pulse re-renders the card is lost, so click until the action answers.
   const remove = () => card(page).getByRole('button', { name: `Remove the role Technician from ${SWITCHABLE.name}` });
@@ -55,7 +55,7 @@ test('switching an account off signs the person out at once; switching on lets t
   const sola = await other.newPage();
   await signIn(sola, SWITCHABLE.email, E2E_PASSWORD);
 
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, `/users?q=${encodeURIComponent(SWITCHABLE.email)}`);
   await card(page).getByText('More actions…').click();
   await card(page).getByRole('textbox', { name: 'Reason for switching off' }).fill('Left the company (E2E)');
@@ -92,7 +92,7 @@ test('switching an account off signs the person out at once; switching on lets t
 });
 
 test('every administration page opens cleanly', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   for (const url of ['/users', '/roles', '/permissions', '/structure', '/branches', '/organisation', '/settings', '/analytics', '/audit-logs', '/profile']) {
     await visitHealthy(page, url);
   }
@@ -103,7 +103,7 @@ test('every administration page opens cleanly', async ({ page }) => {
 });
 
 test('Audit Logs: kinds, search and dates filter the trail', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await page.goto('/audit-logs');
   for (const kind of ['Business events', 'Data changes', 'API requests', 'Scheduled jobs', 'Everything']) {
     await page.getByRole('link', { name: kind, exact: true }).click();
@@ -115,23 +115,22 @@ test('Audit Logs: kinds, search and dates filter the trail', async ({ page }) =>
   await expect(page.locator('section li').first()).toBeVisible();
   await page.goto('/audit-logs?q=zz-nothing-matches-this-zz');
   await expect(page.getByText('Nothing matches.')).toBeVisible();
-  // Only administrators see the full trail.
-  await as(page, 'workshop-manager');
+  // Only the Owner sees the full trail.
+  await as(page, 'front-desk');
   await page.goto('/audit-logs');
   await expect(page).toHaveURL(/access-denied/);
 });
 
-test('branch fences: a branch administrator manages only their branch; another branch cannot open our Job Cards', async ({ page }) => {
-  await as(page, 'branch-administrator');
-  await page.goto(`/users?q=${encodeURIComponent(OTHER_BRANCH_TECH.email)}`);
-  await expect(page.getByRole('heading', { name: 'Users', level: 1 })).toBeVisible();
-  await expect(page.getByRole('listitem', { name: OTHER_BRANCH_TECH.name })).toHaveCount(0);
-  await as(page, 'administrator');
+test('branch fences: the Owner sees every branch\'s staff; another branch cannot open our Job Cards', async ({ page }) => {
+  await as(page, 'front-desk');
+  await page.goto('/users');
+  await expect(page).toHaveURL(/access-denied/);
+  await as(page, 'owner');
   await page.goto(`/users?q=${encodeURIComponent(OTHER_BRANCH_TECH.email)}`);
   await expect(page.getByRole('listitem', { name: OTHER_BRANCH_TECH.name })).toBeVisible();
 
   const plate = (await freshVehicle('BRF')).plate;
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   const url = await openJobCard(page, { plate, complaint: 'Branch fence check' });
   await as(page, OTHER_BRANCH_TECH);
   await page.goto(url);
@@ -142,7 +141,7 @@ test('branch fences: a branch administrator manages only their branch; another b
 });
 
 test('Audit Logs: each tab shows only its kind of entry', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   const TABS = [['business', 'Business'], ['data', 'Data change'], ['api', 'API'], ['system', 'System job']] as const;
   for (const [kind, chip] of TABS) {
     await page.goto(`/audit-logs?kind=${kind}`);
@@ -154,9 +153,9 @@ test('Audit Logs: each tab shows only its kind of entry', async ({ page }) => {
 });
 
 test('Audit Logs: an organisation administrator sees the data-change journal', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await page.goto('/audit-logs?kind=data');
   await expect(page.getByRole('heading', { name: 'Audit Logs', level: 1 })).toBeVisible();
   const chips = await page.locator('section li span').evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim()).filter((t) => t === 'Data change'));
-  expect(chips.length, `data-change entries shown${chips.length ? '' : ` — ${await journalDiagnosis(who('administrator').email)}`}`).toBeGreaterThan(0);
+  expect(chips.length, `data-change entries shown${chips.length ? '' : ` — ${await journalDiagnosis(who('owner').email)}`}`).toBeGreaterThan(0);
 });

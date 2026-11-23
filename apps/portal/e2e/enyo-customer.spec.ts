@@ -57,7 +57,7 @@ test.describe('a signed-in customer', () => {
   test('asks about their own Job Card by number and gets its status', async ({ page }) => {
     // The front desk opens a Job Card for the customer's vehicle first.
     S.plate = (await freshVehicle('ENY', { customerEmail: PORTAL_CUSTOMER.email, make: 'Honda', model: 'Accord' })).plate;
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await openJobCard(page, { plate: S.plate, customer: PORTAL_CUSTOMER.name, complaint: `Enyo check ${S.tag}` });
     S.number = await jobNumber(page);
 
@@ -73,13 +73,13 @@ test.describe('a signed-in customer', () => {
     test.skip(!S.number, 'needs the Job Card from the previous step');
     await customerSignedIn(page, OTHER_PORTAL_CUSTOMER);
     const answer = await ask(page, `[[tool:job_status {"number":"${S.number}"}]]`);
-    await expect(answer).toContainText('No Job Card or service with that number was found');
+    await expect(answer).toContainText('No Job Card with that number was found');
     await expect(answer).not.toContainText(S.plate);
     await expect(answer).not.toContainText('Checked in');
     await expect(answer).not.toContainText(`Enyo check ${S.tag}`);
     // The same words as for a number that exists nowhere.
     const nowhere = await ask(page, '[[tool:job_status {"number":"JC-2099-999999"}]]');
-    await expect(nowhere).toContainText('No Job Card or service with that number was found');
+    await expect(nowhere).toContainText('No Job Card with that number was found');
   });
 
   test('asks for a person: a SUP ticket opens, the customer gets a confirmation email', async ({ page, request }) => {
@@ -99,7 +99,7 @@ test.describe('a signed-in customer', () => {
 
   test('the front desk sees it in the support inbox and replies; the customer reads it and answers', async ({ page, request }) => {
     test.skip(!S.ticket, 'needs the ticket from the previous step');
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await open(page, '/crm/support?filter=all');
     await expect(page.getByRole('heading', { level: 1, name: 'Support centre' })).toBeVisible();
     // The inbox list, not the scrolling ticker (which also links new tickets).
@@ -141,7 +141,7 @@ test.describe('a website visitor', () => {
     await page.goto(`${WEB}/support`);
     const answer = await ask(page, '[[tool:organisation_info]]');
     await expect(answer).toContainText('Here is what I found');
-    await expect(answer).toContainText("D'Phoenix");
+    await expect(answer).toContainText('Rock Foundation');
     await expect(answer.getByTestId('enyo-error')).toHaveCount(0);
   });
 
@@ -174,7 +174,7 @@ test.describe('a website visitor', () => {
     const ticket = await handoverNumber(answer);
     await expect(answer.getByTestId('enyo-handover')).toContainText('call you');
 
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await open(page, `/crm/support?filter=all&q=${encodeURIComponent(ticket)}`);
     await page.getByRole('main').getByRole('link', { name: new RegExp(ticket) }).first().click();
     await expect(page.getByRole('heading', { level: 1, name: ticket })).toBeVisible();

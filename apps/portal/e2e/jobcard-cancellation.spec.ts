@@ -3,16 +3,14 @@ import { CUSTOMER, SEED_PARTS } from './people';
 import { as, open, expectNoUrlError, latestMail, readStock, waitOutcome } from './helpers';
 import { freshVehicle, idOfPart } from './db';
 import { card, expectStatus, jcForm, jobCardInProgress, openJobCard } from './workflows';
-import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
  * A paid Job Card is cancelled while Store is holding parts for it:
  * the open parts request is withdrawn and the reserved stock goes back,
  * the deposit becomes a refund owed, Finance refunds it (receipt emailed),
  * and only then can the front desk hand the vehicle back. The vehicle can
- * then come in again on a new Job Card.
- * The D'Phoenix edition has no Store (edition.ts): there the oil filter is an
- * outside part, nothing is reserved, and the rest of the story is the same.
+ * then come in again on a new Job Card. The oil filter comes from the Store:
+ * reserved while the job is open, back on the shelf when it is cancelled.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -34,7 +32,7 @@ test(`a Job Card is paid (70%) and Store reserves its parts`, async ({ page }) =
     ],
   });
   Object.assign(S, jc);
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   S.before = await readStock(page, S.partUrl);
 
   await as(page, 'technician');
@@ -45,11 +43,11 @@ test(`a Job Card is paid (70%) and Store reserves its parts`, async ({ page }) =
   await page.waitForURL(/\/workshop\/parts-requests\//);
   S.prsUrl = new URL(page.url()).pathname;
 
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, S.prsUrl);
   await page.getByRole('heading', { name: 'Workshop HOD Approval' }).locator('..').getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByText('Approved — now awaiting Store.')).toBeVisible();
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   await open(page, S.prsUrl);
   await page.getByRole('button', { name: 'Approve & Reserve' }).click();
   await expect(page.getByText('Approved and stock reserved — now ready for release.')).toBeVisible();
@@ -59,7 +57,7 @@ test(`a Job Card is paid (70%) and Store reserves its parts`, async ({ page }) =
 });
 
 test('front desk asks to cancel; the Manager sees the refund it authorises and approves', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, S.url);
   const req = jcForm(page, 'Request cancellation');
   await req.locator('textarea[name="reason"]').fill('Customer decided to repair elsewhere');
@@ -67,7 +65,7 @@ test('front desk asks to cancel; the Manager sees the refund it authorises and a
   await expect(page.getByRole('button', { name: 'Request cancellation' })).toHaveCount(0);
   await expect(card(page, 'Cancellation history')).toContainText('Awaiting Manager Decision');
 
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, S.url);
   const box = page.locator('#cancellation-request');
   await expect(box).toContainText('Customer decided to repair elsewhere');
@@ -79,7 +77,7 @@ test('front desk asks to cancel; the Manager sees the refund it authorises and a
 });
 
 test('the open parts request is withdrawn and the reserved stock is back on the shelf', async ({ page }) => {
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   const after = await readStock(page, S.partUrl);
   expect(after.reserved, 'reserved stock returned').toBe(S.before.reserved);
   expect(after.onHand, 'nothing left the Store').toBe(S.before.onHand);
@@ -89,14 +87,14 @@ test('the open parts request is withdrawn and the reserved stock is back on the 
 });
 
 test('the vehicle cannot be handed back until Finance refunds the deposit', async ({ page, request }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, S.url);
   await expect(page.locator('#status-panel')).toContainText(/must be refunded \(see Refunds\) before the vehicle can be handed back/);
   await expect(page.getByRole('button', { name: 'Hand vehicle back' })).toHaveCount(0);
   // Front desk cannot record the refund itself.
   await expect(page.getByRole('button', { name: 'Record refund' })).toHaveCount(0);
 
-  await as(page, 'finance-officer');
+  await as(page, 'accounts');
   await open(page, S.url);
   const refunds = page.locator('#refunds');
   await expect(refunds).toContainText('Refund due');
@@ -119,7 +117,7 @@ test('the vehicle cannot be handed back until Finance refunds the deposit', asyn
 });
 
 test('front desk hands the vehicle back; it can come in again on a new Job Card', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, S.url);
   const handBack = jcForm(page, 'Hand vehicle back');
   await handBack.locator('input[name="collectedByName"]').fill('Ada Customer (driver)');

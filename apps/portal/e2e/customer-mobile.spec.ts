@@ -6,7 +6,6 @@ import { freshVehicle } from './db';
 import {
   addLine, jobCardReadyForEstimate, jobNumber, managerApprovesEstimate, notifyCustomer, submitEstimate, supervisorApprovesEstimate,
 } from './workflows';
-import { WARRANTY_ENABLED } from './edition';
 
 /**
  * The customer portal on a small phone (360 × 780, a Redmi 13C): the header
@@ -33,21 +32,18 @@ const overlaps = (a: Box, b: Box) => a.x < b.x + b.width - 1 && b.x < a.x + a.wi
 test('phone: the header shows the full brand, and the main pages fit the screen', async ({ page }) => {
   await customerSignedIn(page, PORTAL_CUSTOMER);
 
-  await test.step('brand: logo, first word, green rule and the rest of the name, none of it cut off', async () => {
+  await test.step('brand: the workshop\'s full logo, on screen and not cut off', async () => {
     const mark = page.getByTestId('portal-wordmark');
     await expect(mark).toBeVisible();
     const box = (await mark.boundingBox())!;
-    expect(box.x, 'the wordmark starts on screen').toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width, 'the wordmark ends on screen').toBeLessThanOrEqual(360);
-    await expect(mark.locator('img').filter({ visible: true })).toHaveCount(1);
-    const rule = mark.getByTestId('wordmark-rule').filter({ visible: true });
-    await expect(rule).toHaveCount(1);
-    expect((await rule.boundingBox())!.width, 'the green rule has room to show').toBeGreaterThanOrEqual(6);
-    // Every line of the name is shown in full (no ellipsis).
-    const clipped = await mark.evaluate((el) =>
-      [...el.querySelectorAll('span')].filter((s) => s.offsetParent !== null && s.children.length === 0 && s.textContent?.trim() && s.scrollWidth > s.clientWidth + 1).map((s) => s.textContent),
-    );
-    expect(clipped, 'parts of the name are cut off').toEqual([]);
+    expect(box.x, 'the logo starts on screen').toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, 'the logo ends on screen').toBeLessThanOrEqual(360);
+    // The logo exactly as published (public/brand/logo.png), loaded and drawn in full.
+    const logo = mark.locator('img[src="/brand/logo.png"]').filter({ visible: true });
+    await expect(logo).toHaveCount(1);
+    const drawn = await logo.evaluate((img: HTMLImageElement) => ({ loaded: img.complete && img.naturalWidth > 0, w: img.getBoundingClientRect().width, h: img.getBoundingClientRect().height, nw: img.naturalWidth, nh: img.naturalHeight }));
+    expect(drawn.loaded, 'the logo file loads').toBe(true);
+    expect(Math.abs(drawn.w / drawn.h - drawn.nw / drawn.nh), 'the logo keeps its shape (never squashed)').toBeLessThan(0.05);
   });
 
   for (const path of ['/dashboard', '/dashboard/vehicles', '/dashboard/services', '/dashboard/payments', '/dashboard/notifications', '/dashboard/profile', '/dashboard/support']) {
@@ -76,10 +72,10 @@ test.describe('a Job Card estimate on a phone', () => {
     await addLine(page, { type: 'SUNDRY', description: 'Sundry', price: 7000 });
     await submitEstimate(page);
     await supervisorApprovesEstimate(page);
-    await as(page, 'workshop-manager');
+    await as(page, 'owner');
     await open(page, S.url);
     await managerApprovesEstimate(page);
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await open(page, S.url);
     await notifyCustomer(page);
   });

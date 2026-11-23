@@ -24,19 +24,19 @@ async function main() {
   const front = await u('frontdesk@e2e.test');
   const sup = await u('supervisor@e2e.test');
   const tech = await u('tech@e2e.test');
-  const mgr = await u('manager@e2e.test');
-  const fin = await u('finance@e2e.test');
+  const mgr = await u('owner@e2e.test');
+  const fin = await u('accounts@e2e.test');
   // The Store's records are made by the Store Manager, or the Manager where the edition has no Store (e2e/edition.ts).
   const store = (await prisma.user.findUnique({ where: { email: 'store@e2e.test' } })) ?? mgr;
-  const admin = await u('admin@e2e.test');
+  const admin = await u('owner@e2e.test');
   const master = await u('master@e2e.test');
   const otherAdmin = await u('other-admin@e2e.test');
   const customer = await prisma.customer.findUniqueOrThrow({ where: { email: 'customer@e2e.test' } });
-  const dept = await prisma.department.findUnique({ where: { branchId_slug: { branchId: branch.id, slug: 'workshop-passenger' } } });
+  const dept = await prisma.department.findUnique({ where: { branchId_slug: { branchId: branch.id, slug: 'mechanical' } } });
 
-  // Other organisation's admin: same grants as ours (role slug 'administrator').
-  const ourAdminRole = await prisma.role.findUniqueOrThrow({ where: { organisationId_slug: { organisationId: org.id, slug: 'administrator' } }, include: { permissions: true } });
-  const theirAdminRole = await prisma.role.findUniqueOrThrow({ where: { organisationId_slug: { organisationId: other.id, slug: 'administrator' } } });
+  // Other organisation's admin: same grants as ours (role slug 'owner').
+  const ourAdminRole = await prisma.role.findUniqueOrThrow({ where: { organisationId_slug: { organisationId: org.id, slug: 'owner' } }, include: { permissions: true } });
+  const theirAdminRole = await prisma.role.findUniqueOrThrow({ where: { organisationId_slug: { organisationId: other.id, slug: 'owner' } } });
   for (const rp of ourAdminRole.permissions) {
     await prisma.rolePermission.upsert({ where: { roleId_permissionId: { roleId: theirAdminRole.id, permissionId: rp.permissionId } }, update: {}, create: { roleId: theirAdminRole.id, permissionId: rp.permissionId } });
   }

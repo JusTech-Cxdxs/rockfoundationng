@@ -39,8 +39,8 @@ const evidence: Record<string, unknown> = {};
 let failures = 0;
 
 /** Strings that only the FIRST organisation's data contains. */
-const LEAK = [/JC-SEC-\d/, /SEC-(PAY|SLIP|REF|SAME|NUM|VS|OUT)-\d/, /Ada Customer/, /Secret fixture/, /Fixture Supplier/, /PRS-SEC-/, /GRN-SEC-/, /VS-SEC-/, /WTY-SEC-/, /RF-SEC-/, /BC-SEC-/, /APT-SEC-/,
-  /Hannah Admin/, /Tunde Technician/, /Mary Manager/, /Stella Store/, /Femi Finance/, /Morgan Master/, /Funmi Frontdesk/, /Brake pad \(sec test\)/, /Sec Test Motors/, /customer@e2e\.test/, /(?<![-\w])(admin|tech|finance|store|manager)@e2e\.test/];
+const LEAK = [/JC-SEC-\d/, /SEC-(PAY|SLIP|REF|SAME|NUM|OUT)-\d/, /Ada Customer/, /Secret fixture/, /Fixture Supplier/, /PRS-SEC-/, /GRN-SEC-/, /RF-SEC-/, /BC-SEC-/,
+  /Owner Test/, /Technician Test/, /Front Desk Test/, /Store Keeper Test/, /Accounts Test/, /Supervisor Test/, /Morgan Master/, /Platform Master Test/, /Brake pad \(sec test\)/, /Sec Test Motors/, /customer@e2e\.test/, /(?<![-\w])(owner|tech|accounts|store|frontdesk|supervisor|security)@e2e\.test/];
 const leaks = (raw: string) => LEAK.filter((r) => r.test(raw)).map((r) => r.source);
 
 let xff = 0;
@@ -62,7 +62,7 @@ async function pool<T>(items: T[], n: number, fn: (x: T) => Promise<void>) {
 }
 
 /** Fingerprint of every first-organisation business table (row count + md5). */
-const WATCH = ['job_cards', 'estimates', 'estimate_line_items', 'payments', 'refunds', 'part_stock', 'parts', 'part_request_slips', 'goods_receipts', 'vehicle_services', 'warranties', 'warranty_providers', 'warranty_policies',
+const WATCH = ['job_cards', 'estimates', 'estimate_line_items', 'payments', 'refunds', 'part_stock', 'parts', 'part_request_slips', 'goods_receipts', 'vehicle_inspections',
   'broadcasts', 'customers', 'customer_vehicles', 'users', 'user_roles', 'roles', 'role_permissions', 'branches', 'departments', 'organisations', 'accounts'];
 async function fingerprint(): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
@@ -79,7 +79,7 @@ const diff = (a: Record<string, string>, b: Record<string, string>) => Object.ke
 // ── Cron + pulse ─────────────────────────────────────────────────────────
 async function cron(): Promise<Check[]> {
   const checks: Check[] = [];
-  for (const route of ['pricing-alerts', 'service-reminders']) {
+  for (const route of ['pricing-alerts', 'service-reminders', 'reminders', 'export-schedules', 'support']) {
     const p = `/api/cron/${route}`;
     const none = await fetch(`${BASE}${p}`);
     const wrong = await fetch(`${BASE}${p}`, { headers: { authorization: 'Bearer wrong-secret' } });
@@ -240,7 +240,7 @@ async function idorSweep(theirs: string[], ours: string): Promise<Check[]> {
   const changed = diff(before, after);
   // Positive control: the same calls by the owning organisation's Master Admin do return data.
   let controlHits = 0;
-  for (const c of calls.filter((x) => /^get(JobCard|Part|GoodsReceipt|Warranty|Refund|Broadcast|Appointment|Branch|VehicleService|PartRequestSlip)$/.test(x.name))) {
+  for (const c of calls.filter((x) => /^get(JobCard|Part|GoodsReceipt|Refund|Broadcast|Branch|PartRequestSlip)$/.test(x.name))) {
     const r = await action(c.name, [c.id], { cookie: ours });
     if (leaks(r.raw).length) controlHits += 1;
   }
@@ -388,7 +388,7 @@ async function main() {
   if (run('anon')) failures += report('Access control — signed-out calls to every server action', await anonSweep());
   if (run('priv')) failures += report('Access control — privilege escalation', await privilege(cookies.get('tech@e2e.test')!, theirs[1]!));
   // The Store Manager's session; the Manager's where the edition has no Store (e2e/edition.ts).
-  if (run('mw')) failures += report('Access control — middleware, flood limit, open redirect', await middlewareAndRedirect((cookies.get('store@e2e.test') ?? cookies.get('manager@e2e.test'))!, cookies.get('frontdesk@e2e.test')!));
+  if (run('mw')) failures += report('Access control — middleware, flood limit, open redirect', await middlewareAndRedirect((cookies.get('store@e2e.test') ?? cookies.get('owner@e2e.test'))!, cookies.get('frontdesk@e2e.test')!));
   writeFileSync(process.env.SEC_ACCESS_OUT ?? 'sec-access.json', JSON.stringify(evidence, null, 1));
   await closeDb();
   process.exit(failures ? 1 : 0);

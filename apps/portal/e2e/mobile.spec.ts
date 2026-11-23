@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import { as, expectHealthy, noSidewaysScroll } from './helpers';
-import { INVENTORY_ENABLED } from './edition';
 
 /**
  * Phone (375 × 812) smoke of the pages people use on the move: they render,
@@ -10,11 +9,11 @@ import { INVENTORY_ENABLED } from './edition';
 test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
 
 const PAGES: { role: string; urls: string[] }[] = [
-  { role: 'receptionist', urls: ['/dashboard', '/workshop/job-cards', '/workshop/vehicle-service', '/security/visitors', '/notifications'] },
-  { role: 'technician', urls: ['/dashboard', '/workshop/job-cards', '/security/exit-passes/new'] },
-  { role: 'security-officer', urls: ['/security', '/security/on-premises', '/security/deliveries/new'] },
+  { role: 'front-desk', urls: ['/dashboard', '/workshop/job-cards', '/workshop/customers', '/crm', '/notifications'] },
+  { role: 'technician', urls: ['/dashboard', '/workshop/job-cards', '/inventory/parts'] },
+  { role: 'security', urls: ['/security', '/security/vehicles', '/security/vehicles-inside'] },
   // The Store only where the edition has it (edition.ts).
-  ...([{ role: 'store-manager', urls: ['/inventory', '/inventory/parts'] }]),
+  { role: 'store-keeper', urls: ['/inventory', '/inventory/parts'] },
 ];
 
 for (const { role, urls } of PAGES) {
@@ -30,7 +29,7 @@ for (const { role, urls } of PAGES) {
 }
 
 test('phone: the menu is a drawer — content gets the screen, the menu opens on demand', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await page.goto('/workshop/job-cards');
   await page.locator('main h1').first().waitFor();
   const mainBox = await page.locator('main').boundingBox();

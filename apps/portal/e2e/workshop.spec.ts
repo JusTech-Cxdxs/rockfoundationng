@@ -23,13 +23,13 @@ test.beforeAll(async () => {
 });
 
 test('front desk opens a Job Card', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   S.url = await openJobCard(page, { plate: S.plate, complaint: 'Brakes squeal when stopping' });
   await expect(page.getByText(S.plate).first()).toBeVisible();
 });
 
 test('a second open Job Card for the same vehicle is refused', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await page.goto('/workshop/job-cards');
   const form = jcForm(page, 'Open Job Card');
   await form.getByPlaceholder('Search by name, email, or phone…').fill('Ada Customer');
@@ -61,14 +61,14 @@ test('another organisation can never open this Job Card', async ({ page }) => {
 });
 
 test('cancellation: front desk asks, the Manager approves', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, S.url);
   const req = jcForm(page, 'Request cancellation');
   await req.locator('textarea[name="reason"]').fill('Customer called to cancel');
   await req.getByRole('button', { name: 'Request cancellation' }).click();
   await expect(page.getByRole('button', { name: 'Request cancellation' })).toHaveCount(0);
 
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, S.url);
   const box = page.locator('#cancellation-request');
   await expect(box).toContainText('Customer called to cancel');

@@ -35,13 +35,13 @@ const issuedForAnHour = (expiresAt: Date, requestedAt: number) => {
 };
 
 test('staff: an expired "forgot password" link is refused, with a way forward', async ({ page, request }) => {
-  const person = who('calendar-user');
+  const person = who('accounts');
   const since = Date.now();
   await page.goto('/forgot-password');
   await page.getByLabel('Work email').fill(person.email);
   await page.getByRole('button', { name: 'Send reset link' }).click();
   await expect(page.getByText('If an account exists')).toBeVisible();
-  const link = linkIn(await mailAfter(request, person.email, /Reset your EJO 100 password/, since), /reset-password/);
+  const link = linkIn(await mailAfter(request, person.email, /Reset your EJO password/, since), /reset-password/);
   const token = /reset-password\/([^/?#]+)/.exec(link)?.[1];
   expect(token, `a token in ${link}`).toBeTruthy();
 
