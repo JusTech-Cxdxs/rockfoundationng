@@ -2,7 +2,7 @@
 
 import { prisma, type Prisma } from '@ejo/database';
 import { whatsAppShareUrlFor } from '@ejo/utils/whatsapp';
-import { allows, authorize, getPrincipal, myOrganisationId, reachWhere, NOT_AVAILABLE } from '@/lib/authz/server';
+import { allows, authorize, getPrincipal, jobCardReach, myOrganisationId, orgWhere, reachWhere, NOT_AVAILABLE } from '@/lib/authz/server';
 import { requireUser } from './workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { openTicket, queueById, supportEvent } from '@/lib/support/server';
@@ -328,7 +328,8 @@ export async function getJobCardRating(jobCardId: string): Promise<{ score: numb
   const organisationId = await org();
   if (!isId(jobCardId)) return null;
   const job = await prisma.jobCard.findFirst({
-    where: { id: jobCardId, customer: { organisationId }, status: 'CHECKED_OUT' },
+    // Only a Job Card this person may see (branch, assignment), inside their organisation.
+    where: { AND: [await jobCardReach(), { id: jobCardId, customer: { organisationId }, status: 'CHECKED_OUT' }] },
     select: { id: true, jobNumber: true, customer: { select: { fullName: true, customerType: true, phone: true, altPhone: true, whatsappPhone: true } }, vehicle: { select: { make: true, model: true, plateNumber: true } } },
   });
   if (!job) return null;
@@ -355,7 +356,7 @@ export async function setCustomerCareDetails(customerId: string, input: { prefer
   if (whatsapp && whatsapp.replace(/\D/g, '').length < 10) throw new CareError('That WhatsApp number looks too short.');
   const birthday = parseBirthday(String(input.birthday ?? ''));
   if (typeof birthday === 'string') throw new CareError(birthday);
-  const customer = await prisma.customer.findFirst({ where: { id: customerId, organisationId }, select: { id: true, email: true } });
+  const customer = await prisma.customer.findFirst({ where: { AND: [await orgWhere(), { id: customerId, organisationId }] }, select: { id: true, email: true } });
   if (!customer) throw new CareError(NOT_AVAILABLE);
   if (preferred === 'EMAIL' && !customer.email) throw new CareError('This customer has no email address. Add one first, or choose WhatsApp or phone.');
   await prisma.customer.update({ where: { id: customer.id }, data: { preferredContact: preferred, whatsappPhone: whatsapp, birthDay: birthday?.day ?? null, birthMonth: birthday?.month ?? null } });

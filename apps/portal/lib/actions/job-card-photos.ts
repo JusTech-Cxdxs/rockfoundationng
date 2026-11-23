@@ -15,13 +15,13 @@ import { isPhotoStage, MAX_PHOTO_BYTES, MAX_PHOTOS_PER_JOB, sniffImage } from '@
 
 class PhotoError extends Error {}
 
-/** Who may add photos to this Job Card: front desk, or whoever inspects or works on it. */
-async function mayAddPhotos(jobCardId: string): Promise<boolean> {
+/** Who may add photos: front desk, or whoever inspects or works on the Job Card. */
+const ADD_PHOTOS = ['workshop.job_card.create', 'workshop.inspection.perform', 'workshop.job.work'] as const;
+
+/** The Job Card as a record for the permission check (branch, assignees, creator). */
+async function photoRecord(jobCardId: string) {
   const j = await prisma.jobCard.findUnique({ where: { id: jobCardId }, select: { branchId: true, supervisorId: true, assignedTechnicianId: true, createdById: true } });
-  if (!j) return false;
-  const rec = { branchId: j.branchId, assigneeIds: [j.supervisorId, j.assignedTechnicianId], ownerIds: [j.createdById] };
-  const checks = await Promise.all([allows('workshop.job_card.create', rec), allows('workshop.inspection.perform', rec), allows('workshop.job.work', rec)]);
-  return checks.some(Boolean);
+  return j ? { branchId: j.branchId, assigneeIds: [j.supervisorId, j.assignedTechnicianId], ownerIds: [j.createdById] } : null;
 }
 
 export type JobCardPhotoRow = { id: string; stage: string; caption: string | null; createdAt: Date; takenBy: string | null; takenById: string | null; width: number | null; height: number | null };
@@ -31,7 +31,7 @@ export async function listJobCardPhotos(jobCardId: string): Promise<{ photos: Jo
   await seeJobCard(jobCardId, 'listJobCardPhotos');
   const [rows, canAdd] = await Promise.all([
     prisma.jobCardPhoto.findMany({ where: { jobCardId }, orderBy: { createdAt: 'asc' }, select: { id: true, stage: true, caption: true, createdAt: true, takenById: true, width: true, height: true } }),
-    mayAddPhotos(jobCardId),
+    photoRecord(jobCardId).then(async (rec) => Boolean(rec) && (await Promise.all(ADD_PHOTOS.map((k) => allows(k, rec!)))).some(Boolean)),
   ]);
   const ids = [...new Set(rows.map((r) => r.takenById).filter((x): x is string => Boolean(x)))];
   const people = ids.length ? new Map((await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, fullName: true } })).map((u) => [u.id, u.fullName])) : new Map<string, string>();
@@ -44,7 +44,9 @@ export async function uploadJobCardPhoto(f: FormData): Promise<{ ok: true } | { 
     const user = await requireUser();
     const jobCardId = String(f.get('jobCardId') ?? '');
     await seeJobCard(jobCardId, 'uploadJobCardPhoto');
-    if (!(await mayAddPhotos(jobCardId))) throw new PhotoError('You can look at these photos, but adding them is for front desk and the people working on this job.');
+    const rec = await photoRecord(jobCardId);
+    const may = rec ? (await Promise.all(ADD_PHOTOS.map((k) => allows(k, rec)))).some(Boolean) : false;
+    if (!may) throw new PhotoError('You can look at these photos, but adding them is for front desk and the people working on this job.');
     const stage = String(f.get('stage') ?? 'CHECK_IN');
     if (!isPhotoStage(stage)) throw new PhotoError('Choose when the photo was taken.');
     const file = f.get('photo');

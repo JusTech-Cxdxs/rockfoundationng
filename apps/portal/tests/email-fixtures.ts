@@ -21,6 +21,7 @@ import { renderCustomerJobWorkUpdateEmail } from '../lib/email-templates/custome
 import { renderCustomerJobCompletedEmail } from '../lib/email-templates/customer-job-completed';
 import { renderCustomerReadyForCollectionEmail } from '../lib/email-templates/customer-ready-for-collection';
 import { renderCustomerVehicleCheckedOutEmail } from '../lib/email-templates/customer-vehicle-checked-out';
+import { renderCustomerRatingRequestEmail } from '../lib/email-templates/customer-rating-request';
 import { renderCustomerPaymentReceivedEmail } from '../lib/email-templates/customer-payment-received';
 import { renderCustomerJobCardCancelledEmail } from '../lib/email-templates/customer-job-card-cancelled';
 import { renderCustomerJobCardClosedEmail } from '../lib/email-templates/customer-job-card-closed';
@@ -151,6 +152,7 @@ export function emailSamples(opts: { hostile?: boolean } = {}): EmailSample[] {
     s('customer-ready-for-collection', 'renderCustomerReadyForCollectionEmail', 'customer', `Your vehicle is ready for collection — Job Card ${job}`, () => renderCustomerReadyForCollectionEmail({ customerName: customer, jobNumber: job, vehicleDescription: vehicle, dueDate: 'Tuesday, 20 October 2026', dashboardUrl: jobDash, ...custBase })),
     s('customer-collection-reminder', 'renderCustomerReadyForCollectionEmail', 'customer', `Reminder: your vehicle is ready for collection — Job Card ${job}`, () => renderCustomerReadyForCollectionEmail({ customerName: customer, jobNumber: job, vehicleDescription: vehicle, dueDate: 'Tuesday, 20 October 2026', reminderNumber: 1, dashboardUrl: jobDash, ...custBase })),
     s('customer-collected', 'renderCustomerVehicleCheckedOutEmail', 'customer', `Your vehicle has been collected — Job Card ${job}`, () => renderCustomerVehicleCheckedOutEmail({ customerName: customer, jobNumber: job, vehicleDescription: vehicle, collectedByName: x('Emeka Okafor'), dashboardUrl: jobDash, ...custBase })),
+    s('customer-rating-request', 'renderCustomerRatingRequestEmail', 'customer', `How did we do? ${job}`, () => renderCustomerRatingRequestEmail({ customerName: customer, jobNumber: job, vehicleDescription: vehicle, ratingUrl: `${SAMPLE_WEBSITE}/rate/clx123.abcdef`, ...custBase })),
     s('customer-job-cancelled', 'renderCustomerJobCardCancelledEmail', 'customer', `Your Job Card ${job} has been cancelled`, () => renderCustomerJobCardCancelledEmail({ customerName: customer, jobNumber: job, vehicleDescription: vehicle, dashboardUrl: jobDash, ...custBase })),
     s('customer-collection-overdue', 'renderCustomerCollectionOverdueEmail', 'customer', `Please collect your vehicle — Job Card ${job}`, () => renderCustomerCollectionOverdueEmail({ customerName: customer, jobNumber: job, vehicleDescription: vehicle, daysSinceCancellationLabel: '5 days', reminderNumber: 2, dashboardUrl: jobDash, ...custBase })),
     s('customer-job-closed', 'renderCustomerJobCardClosedEmail', 'customer', `Your Job Card ${job} is closed`, () => renderCustomerJobCardClosedEmail({ customerName: customer, jobNumber: job, vehicleDescription: vehicle, dashboardUrl: jobDash, ...custBase })),
