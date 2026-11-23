@@ -390,6 +390,33 @@ export const GUIDE: GuideEntry[] = [
     ],
   },
   {
+    id: 'bookings', title: 'Confirm a booking, and open the Job Card when the vehicle arrives', page: '/workshop/appointments', needs: ['workshop.appointment.view'], does: ['workshop.appointment.manage'], who: 'Front Desk',
+    keywords: ['booking', 'bookings', 'appointment', 'appointments', 'book', 'reserve', 'slot', 'diary', 'schedule a visit', 'come in'],
+    steps: [
+      'Customers book a day and a time on the website (or you book for a caller under "Book for a caller"). Each booking waits under "To confirm".',
+      'Go to Workshop → Bookings, check the booking and press "Confirm": the customer is told on WhatsApp (if they agreed) and by email. Use "Move or cancel" to change it; the customer is told again.',
+      'The day before, the customer gets a reminder by itself. When the vehicle arrives, press "Vehicle arrived: open the Job Card": the form is filled from the booking, and the booking is marked arrived.',
+      'Days, times and how many vehicles of each kind a day are set by the Owner in Settings → Bookings.',
+    ],
+  },
+  {
+    id: 'fleet-report', title: 'Send a fleet customer their report', page: '/crm', needs: ['money.fleet_report.view'], who: 'Front Desk, Accounts or the Owner',
+    keywords: ['fleet', 'fleet report', 'company report', 'vehicles report', 'account report', 'monthly report'],
+    steps: [
+      'Open the company under Customers. On its overview, under "Fleet report", choose the period (this month, last month, the last 3 months or this year).',
+      'The PDF lists every vehicle: visits, what was charged, what is still owed and the next service due, with comebacks counted. Send it to the fleet manager.',
+      'The fleet contact can also see the same report in their customer portal (Fleet report on their overview) and print it.',
+    ],
+  },
+  {
+    id: 'takings', title: 'See the takings', page: '/money/statements', needs: ['money.takings.view'], who: 'Accounts (or the Owner)',
+    keywords: ['takings', 'money received', 'cash today', 'pos today', 'transfers today', 'collections', 'how much did we take'],
+    steps: [
+      'Ask Enyo "What are today\'s takings?" (or this week, this month): money received on jobs and counter sales by method, refunds paid out, credit notes approved and what customers owe by age.',
+      'Profit and costs are the Owner\'s only and never part of this answer.',
+    ],
+  },
+  {
     id: 'export-list', title: 'Export a list to Excel', page: '/data-exchange/exports', needs: ['dataexchange.export.run'],
     keywords: ['export', 'excel', 'csv', 'download list', 'spreadsheet'],
     steps: ['On any list you can open, press "Export" and choose Excel or CSV. The file has what you see, with your filters.', 'Your exports are listed under Exports; each link works for 24 hours.'],

@@ -22,7 +22,7 @@ export const CORE_TOOLS = ['guide_search', 'my_work', 'search_records', 'organis
 const GROUPS: Group[] = [
   { test: /\b(JC|PRS|GRN|RF|INV|RCT|VX|BC|SUP)-\d|job ?card|vehicle|plate|customer|client|car\b|service|estimate|history|ready|collect/i, tools: ['job_card_details', 'customer_profile', 'vehicle_history'] },
   { test: /brief|today|attention|overview|summary|summari[sz]e|what('?s| is) (on|waiting|left|happening)|to.?do|left to|pending|waiting|status|update|how (is|are) (it|things|we|the)|work (i have|left)/i, tools: ['daily_brief', 'my_pending', 'branch_briefing'] },
-  { test: /revenue|takings|profit|sales|money|naira|₦|margin|business|performance|leaderboard|best (tech|person)|compare|branch|month|week|quarter|year|figures|numbers|kpi/i, tools: ['business_summary', 'technician_leaderboard', 'branch_briefing'] },
+  { test: /revenue|takings|profit|sales|money|naira|₦|margin|business|performance|leaderboard|best (tech|person)|compare|branch|month|week|quarter|year|figures|numbers|kpi/i, tools: ['takings_summary', 'business_summary', 'technician_leaderboard', 'branch_briefing'] },
   { test: /part|stock|inventory|reorder|store|price|goods receipt|supplier/i, tools: ['part_lookup', 'stock_alerts', 'inventory_overview'] },
   { test: /due for (a )?service|service due|next service/i, tools: ['service_due'] },
   { test: /remind/i, tools: ['my_reminders', 'draft_reminder'] },

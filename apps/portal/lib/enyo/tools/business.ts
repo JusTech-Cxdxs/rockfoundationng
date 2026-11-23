@@ -6,6 +6,8 @@
 import { prisma } from '@ejo/database';
 import { allows, reachWhere } from '@/lib/authz/server';
 import { getMasterAnalytics } from '@/lib/actions/master-analytics';
+import { ageingReport } from '@/lib/money/statements-server';
+import { AGEING_LABEL, AGEING_ORDER } from '@/lib/money/rules';
 import { day, lagosDayStart, lagosWeekStart, nothing, ok, r2, refused, text } from '../tool-helpers';
 import type { StaffTool } from '../types';
 
@@ -40,7 +42,65 @@ const LABOUR = new Set(['LABOUR', 'INTERNAL_JOB']);
 const labourOf = (lines: { type: string; amount: unknown; billTo?: string | null }[]) =>
   lines.filter((l) => LABOUR.has(l.type) && l.billTo !== 'GOODWILL' && l.billTo !== 'INTERNAL').reduce((s, l) => s + (l.amount === null || l.amount === undefined ? 0 : Number(l.amount)), 0);
 
+const TAKINGS_WHO = 'takings are for Accounts and the Owner.';
+const METHOD_WORDS: Record<string, string> = { CASH: 'Cash', BANK_TRANSFER: 'Bank transfer', POS: 'POS (card)', CHEQUE: 'Cheque', OTHER: 'Other' };
+
+/** [from, to) for a takings period, Lagos time. */
+function takingsRange(period: string): { from: Date; to: Date; label: string } {
+  if (period === 'today') return { from: lagosDayStart(0), to: lagosDayStart(1), label: 'Today' };
+  if (period === 'yesterday') return { from: lagosDayStart(-1), to: lagosDayStart(0), label: 'Yesterday' };
+  return rankingRange(period);
+}
+
 export const businessTools: StaffTool[] = [
+  {
+    name: 'takings_summary',
+    kind: 'read',
+    status: 'Adding up the money received…',
+    description:
+      'Money received (takings) for today, yesterday, this week, this month, last month or the last 30 days: payments on jobs and counter sales by method (cash, transfer, POS), refunds paid out, credit notes approved, and what customers owe now by how long it has been owed. No revenue, costs or profit (Owner only, business_summary). Needs "See takings" (Accounts, the Owner).',
+    parameters: {
+      type: 'object',
+      properties: { period: { type: 'string', enum: ['today', 'yesterday', 'this_week', 'this_month', 'last_month', 'last_30_days'], description: 'Which period.' } },
+      required: ['period'],
+      additionalProperties: false,
+    },
+    run: async (args) => {
+      if (!(await allows('money.takings.view'))) return refused(TAKINGS_WHO);
+      const { from, to, label } = takingsRange(text(args.period, 20));
+      // The person's reach: their organisation's branches (or the branch they look at), never another organisation's.
+      const reach = await reachWhere('money.takings.view');
+      const jobFence = reach;
+      const [payments, refunds, sales, credits, ageing] = await Promise.all([
+        prisma.payment.groupBy({ by: ['method'], where: { recordedAt: { gte: from, lt: to }, jobCard: jobFence }, _sum: { amount: true }, _count: { _all: true } }),
+        prisma.refund.aggregate({ where: { recordedAt: { gte: from, lt: to }, jobCard: jobFence }, _sum: { amount: true }, _count: { _all: true } }),
+        prisma.counterSale.groupBy({ by: ['paymentMethod'], where: { soldAt: { gte: from, lt: to }, ...reach }, _sum: { total: true }, _count: { _all: true } }),
+        prisma.creditNote.aggregate({ where: { status: 'APPROVED', decidedAt: { gte: from, lt: to }, jobCard: jobFence }, _sum: { amount: true }, _count: { _all: true } }),
+        ageingReport(reach),
+      ]);
+      const byMethod = new Map<string, number>();
+      for (const p of payments) byMethod.set(String(p.method), r2((byMethod.get(String(p.method)) ?? 0) + Number(p._sum.amount ?? 0)));
+      for (const c of sales) byMethod.set(String(c.paymentMethod), r2((byMethod.get(String(c.paymentMethod)) ?? 0) + Number(c._sum.total ?? 0)));
+      const received = r2([...byMethod.values()].reduce((a, b) => a + b, 0));
+      const refunded = r2(Number(refunds._sum.amount ?? 0));
+      return ok({
+        period: label,
+        scope: typeof reach.branchId === 'string' ? 'One branch' : 'Whole organisation',
+        takings: r2(received - refunded),
+        received,
+        byMethod: [...byMethod.entries()].map(([m, amount]) => ({ method: METHOD_WORDS[m] ?? m, amount })),
+        jobPayments: payments.reduce((n, p) => n + p._count._all, 0),
+        counterSales: { count: sales.reduce((n, c) => n + c._count._all, 0), amount: r2(sales.reduce((s, c) => s + Number(c._sum.total ?? 0), 0)) },
+        refundsPaidOut: { count: refunds._count._all, amount: refunded },
+        creditNotesApproved: { count: credits._count._all, amount: r2(Number(credits._sum.amount ?? 0)) },
+        owedNow: { total: ageing.owed, pastDue: ageing.overdue, byAge: AGEING_ORDER.map((b) => ({ age: AGEING_LABEL[b], amount: r2(ageing.totals[b]) })), customers: ageing.customers.length },
+        definitions: {
+          takings: 'Payments received in the period (on jobs and counter sales, VAT included) minus refunds paid out in the period.',
+          owedNow: 'What customers owe on issued invoices today, after payments and approved credit notes, by how long it has been owed.',
+        },
+      }, [{ label: 'What customers owe', href: '/money/statements' }]);
+    },
+  },
   {
     name: 'business_summary',
     kind: 'read',
