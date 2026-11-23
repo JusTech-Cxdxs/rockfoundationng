@@ -191,3 +191,11 @@ test('the files: one IIF with lists first, or one CSV per kind; stored files rea
   assert.deepEqual(downloadHeaders('QBX-2026-000001-items.csv'), { contentType: 'text/csv; charset=utf-8', disposition: 'attachment; filename="QBX-2026-000001-items.csv"' });
   assert.equal(downloadHeaders('../evil"name.iif').disposition, 'attachment; filename=".._evil_name.iif"');
 });
+
+test('audit codes read as words, with product names and short forms written properly', async () => {
+  const { humanizeAction } = await import('../lib/humanize-action');
+  assert.equal(humanizeAction('quickbooks.export_downloaded'), 'QuickBooks export downloaded');
+  assert.equal(humanizeAction('quickbooks.online_connected'), 'QuickBooks online connected');
+  assert.equal(humanizeAction('part.warranty_policy_set'), 'Part warranty policy set');
+  assert.equal(humanizeAction('whatsapp.test_sent'), 'WhatsApp test sent');
+});

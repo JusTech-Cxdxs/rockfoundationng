@@ -12,7 +12,7 @@ export async function MoneyTabs({ active }: { active: 'statements' | 'credit-not
     <Link href={href} aria-current={active === key ? 'page' : undefined} className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium ${active === key ? 'bg-[var(--ejo-primary)] text-white' : 'text-[var(--ejo-text-muted)] hover:text-[var(--ejo-text)]'}`}>{label}</Link>
   );
   return (
-    <nav aria-label="Money" className="mb-6 inline-flex max-w-full gap-1 overflow-x-auto rounded-full border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-1">
+    <nav aria-label="Money" className="mb-6 inline-flex max-w-full flex-wrap gap-1 rounded-[var(--ejo-radius-xl)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-1">
       {statements ? tab('statements', '/money/statements', 'What customers owe') : null}
       {notes ? tab('credit-notes', '/money/credit-notes', 'Credit notes') : null}
       {quickbooks ? tab('quickbooks', '/money/quickbooks', 'QuickBooks') : null}
