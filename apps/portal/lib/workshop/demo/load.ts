@@ -46,7 +46,7 @@ const REMOVE_ORDER = [
   'PartStockOut', 'CounterSaleLine', 'CounterSale', 'StockCountLine', 'StockCount', 'GoodsReceiptLine', 'GoodsReceipt', 'PartStock', 'Part',
   'SupportReply', 'SupportTicket', 'Broadcast', 'Announcement', 'ImportJob', 'ExportJob',
   'VehicleGateExit', 'ServiceReminderLog',
-  'Invoice', 'EstimateApprovalLink', 'Payment', 'Refund', 'CancellationRequest', 'CloseRequest', 'EstimateLineItem', 'Estimate', 'JobCardComplaint',
+  'Invoice', 'EstimateApprovalLink', 'Payment', 'Refund', 'CancellationRequest', 'CloseRequest', 'OutsidePurchase', 'EstimateLineItem', 'Estimate', 'JobCardComplaint',
   'JobCard',
   'CustomerContact', 'CustomerAddress', 'CustomerCompany', 'CustomerVehicle', 'Customer', 'AuditLog',
 ] as const;
@@ -214,7 +214,14 @@ export async function loadWorkshopDemo(organisationId: string, anchor: Date = ne
         customerApprovedAt: a?.at ?? null, customerApprovedVia: a?.via ?? null, customerApprovedByStaffId: a?.byStaffKey ? by(a.byStaffKey) : null, customerApprovalNote: a?.note ?? null,
         customerDeclinedAt: est.declined?.at ?? null, customerDeclineNote: est.declined?.note ?? null,
       } });
-      await prisma.estimateLineItem.createMany({ data: est.lines.map((l) => ({ id: reg('EstimateLineItem', id()), estimateId: eid, type: l.type, description: l.description, quantity: l.quantity, unitPrice: money(l.unitPrice), amount: money(l.amount), discountAmount: l.discount > 0 ? money(l.discount) : null, unitOfMeasure: l.uom, billTo: l.billTo, billToNote: l.billTo === 'WARRANTY' ? 'Comeback: covered by the guarantee on the earlier visit' : null, enteredById: tech, createdAt: est.createdAt })) });
+      const lineIds = est.lines.map(() => reg('EstimateLineItem', id()));
+      await prisma.estimateLineItem.createMany({ data: est.lines.map((l, li) => ({ id: lineIds[li]!, estimateId: eid, type: l.type, description: l.description, quantity: l.quantity, unitPrice: money(l.unitPrice), amount: money(l.amount), discountAmount: l.discount > 0 ? money(l.discount) : null, unitOfMeasure: l.uom, billTo: l.billTo, billToNote: l.billTo === 'WARRANTY' ? 'Comeback: covered by the guarantee on the earlier visit' : null, enteredById: tech, createdAt: est.createdAt })) });
+      // What parts and outside work bought for an approved job cost the workshop (the Owner's figures):
+      // parts about 72% of their price, outside jobs about 65%, so the demo's margins look like a real workshop's.
+      if (est.status === 'MANAGER_APPROVED') {
+        const bought = est.lines.map((l, li) => ({ l, li })).filter(({ l }) => l.type === 'EXTERNAL_PART' || l.type === 'EXTERNAL_JOB');
+        if (bought.length) await prisma.outsidePurchase.createMany({ data: bought.map(({ l, li }) => ({ id: reg('OutsidePurchase', id()), estimateLineItemId: lineIds[li]!, jobCardId: jid, cost: money(Math.round(l.amount * (l.type === 'EXTERNAL_PART' ? 0.72 : 0.65))), supplierName: l.type === 'EXTERNAL_PART' ? 'Ladipo parts market' : 'Outside specialist', recordedById: owner, recordedAt: est.approvedAt ?? est.createdAt })) });
+      }
       if (est.link) {
         // Only the hash of a token nobody holds: the demo's links show as sent, used or replaced; a new one is sent from the Job Card.
         await prisma.estimateApprovalLink.create({ data: { id: reg('EstimateApprovalLink', id()), estimateId: eid, tokenHash: newApprovalToken().tokenHash, expiresAt: est.link.expiresAt, usedAt: est.link.usedAt, revokedAt: est.link.revokedAt, createdById: frontdesk, createdAt: est.link.createdAt } });

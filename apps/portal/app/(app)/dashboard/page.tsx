@@ -152,6 +152,18 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
+      {/* Today's work at a glance (bookings, ready for collection, calls, complaints…) right under the counts. */}
+      {glance.some((t) => inView(t.href)) ? (
+        <div className="mb-6">
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ejo-text-muted)]"><Icon name="globe" size={13} />{overviews.leadership ? 'The whole business at a glance' : seesWorkshop ? 'Your branch at a glance' : 'Your areas at a glance'}</h2>
+          <div className="ejo-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+            {glance.filter((t) => inView(t.href)).map((t) => (
+              <StatTile key={t.label} icon={GLANCE_ICON[t.href] ?? 'grid'} label={t.label} value={t.value} hint={t.hint} href={t.href} tone={GLANCE_TONE[t.tone] ?? 'brand'} emphasis={t.tone === 'warning' || t.tone === 'error'} />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {approver || approvals.length ? (
         <LoadingLink href="/approvals" className={`ejo-lift mb-6 flex items-center gap-3 rounded-[var(--ejo-radius-lg)] border p-4 ${approvals.length ? 'border-[var(--ejo-warning)]/40 bg-[var(--ejo-warning)]/8' : 'border-[var(--ejo-border)] bg-[var(--ejo-surface)]'}`}>
           <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${approvals.length ? 'bg-[var(--ejo-warning)]/15 text-[var(--ejo-warning-text)]' : 'bg-[var(--ejo-success)]/12 text-[var(--ejo-success)]'}`}><Icon name="check-circle" size={20} /></span>
@@ -255,16 +267,6 @@ export default async function DashboardPage() {
         </SectionCard>
       </div>
 
-      {glance.some((t) => inView(t.href)) ? (
-        <div className="mb-6">
-          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ejo-text-muted)]"><Icon name="globe" size={13} />{overviews.leadership ? 'The whole business at a glance' : seesWorkshop ? 'Your branch at a glance' : 'Your areas at a glance'}</h2>
-          <div className="ejo-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            {glance.filter((t) => inView(t.href)).map((t) => (
-              <StatTile key={t.label} icon={GLANCE_ICON[t.href] ?? 'grid'} label={t.label} value={t.value} hint={t.hint} href={t.href} tone={GLANCE_TONE[t.tone] ?? 'brand'} emphasis={t.tone === 'warning' || t.tone === 'error'} />
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         {seesWorkshop && inView('/workshop') ? (
