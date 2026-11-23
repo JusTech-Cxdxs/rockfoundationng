@@ -126,7 +126,7 @@ export default async function DashboardPage() {
         icon="dashboard"
         eyebrow={today}
         title="Dashboard"
-        description={<>{greeting()}{firstName ? `, ${firstName}` : ''} — here is what is happening across <OrgTrail upTo="unit" />.</>}
+        description={<>{greeting()}{firstName ? `, ${firstName}` : ''}<span className="hidden sm:inline"> — here is what is happening across <OrgTrail upTo="unit" /></span>.</>}
         meta={
           notifications.length > 0 ? (
             <a href="#attention" className="inline-flex items-center gap-1.5 rounded-full bg-[var(--ejo-warning)]/15 px-3 py-1 text-xs font-semibold text-[var(--ejo-warning-text)] ring-1 ring-inset ring-[var(--ejo-warning)]/30 hover:bg-[var(--ejo-warning)]/25">
