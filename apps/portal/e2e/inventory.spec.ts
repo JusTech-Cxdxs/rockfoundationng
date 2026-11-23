@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { as, expectHealthy, expectNoUrlError, readStock, uniq, visitHealthy, waitOutcome } from './helpers';
 import { jcForm, pickSearchable, reveal } from './workflows';
+import { db } from './db';
 
 /**
  * The Store's own day: a new category and part type, a new part in the
@@ -78,7 +79,17 @@ test('a goods receipt with its cost puts the stock on the shelf', async ({ page 
 
   const stock = await readStock(page, S.partUrl);
   expect(stock.onHand).toBe(12);
-  // The receipt is traceable from the part.
+  // The Store Keeper opens the receipt: quantities and where the stock went, never what it cost.
+  const receipt = await db().goodsReceipt.findFirstOrThrow({ where: { supplierName: 'E2E Wipers Ltd' }, orderBy: { receivedAt: 'desc' }, select: { id: true } });
+  await page.goto(`/inventory/goods-receipts/${receipt.id}`);
+  await expectHealthy(page);
+  await expect(page.getByText(/Total Bulk Cost/)).toHaveCount(0);
+  await expect(page.getByText('₦3,000')).toHaveCount(0);
+  await expect(page.getByText('₦36,000')).toHaveCount(0);
+
+  // The Owner traces the receipt from the part and sees its cost.
+  await as(page, 'owner');
+  await page.goto(S.partUrl);
   await expect(page.getByRole('link', { name: /^GRN-/ }).first()).toBeVisible();
   await page.getByRole('link', { name: /^GRN-/ }).first().click();
   await page.waitForURL(/\/inventory\/goods-receipts\/[^/?]+/);
