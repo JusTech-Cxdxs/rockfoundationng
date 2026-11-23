@@ -4,7 +4,7 @@ import { db } from './db';
 import { who } from './people';
 
 /**
- * A4c3 — scheduled exports, end to end: the Store Manager repeats an export
+ * A4c3 — scheduled exports, end to end: the Store Keeper repeats an export
  * of theirs every Monday; when it is due the morning job records a fresh
  * export for them (the same list and filters), once however often the job
  * runs, and the file downloads as any export does; paused, it is left alone;
@@ -23,7 +23,7 @@ const params = { q: `No supplier is called ${STAMP}` };
 const OWNER = 'store-keeper';
 const KIND = { key: 'suppliers', label: 'Suppliers' };
 
-test(`the Store Manager repeats an export of theirs every Monday`, async ({ page }) => {
+test(`the Store Keeper repeats an export of theirs every Monday`, async ({ page }) => {
   const u = await db().user.findUniqueOrThrow({ where: { email: who(OWNER).email }, select: { id: true, organisationId: true } });
   ids.owner = u.id; ids.org = u.organisationId!;
   ids.exportId = (await db().exportJob.create({ data: { organisationId: ids.org, number: `EXP-E2E-${STAMP}`, kind: KIND.key, format: 'csv', params, summary: `Search: ${params.q}`, createdById: u.id, expiresAt: new Date(Date.now() + 86_400_000) }, select: { id: true } })).id;

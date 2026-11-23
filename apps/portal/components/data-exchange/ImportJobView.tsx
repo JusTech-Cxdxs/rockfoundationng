@@ -375,10 +375,10 @@ export function ImportJobView({ job }: { job: ImportJobDetail }) {
               {job.totals.receipts?.length ? <p className="text-xs text-[var(--ejo-text-muted)]">Opening-balance receipts: {job.totals.receipts.slice(0, 12).map((r, i) => <span key={r.id}>{i ? ', ' : ''}<a className="font-medium text-[var(--ejo-primary)] hover:underline" href={`/inventory/goods-receipts/${r.id}`}>{r.number}</a></span>)}{job.totals.receipts.length > 12 ? ` and ${job.totals.receipts.length - 12} more` : ''}. They feed stock value, FIFO costs and the <a className="font-medium text-[var(--ejo-primary)] hover:underline" href="/inventory/analytics">inventory analytics</a>.</p> : null}
               <div className="border-t border-[var(--ejo-border)] pt-2">
                 {job.signedOff ? (
-                  <p className="text-xs text-[var(--ejo-success)]"><Icon name="check" size={12} /> {job.entity === 'invoices' || job.entity === 'openJobs' ? 'Totals' : 'Value'} confirmed by {job.signedOff.by} (Finance), {new Date(job.signedOff.at).toLocaleString('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium', timeStyle: 'short' })}.</p>
+                  <p className="text-xs text-[var(--ejo-success)]"><Icon name="check" size={12} /> {job.entity === 'invoices' || job.entity === 'openJobs' ? 'Totals' : 'Value'} confirmed by {job.signedOff.by} (Accounts), {new Date(job.signedOff.at).toLocaleString('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium', timeStyle: 'short' })}.</p>
                 ) : job.status === 'COMPLETED' ? (
                   job.me.canSignOff ? (
-                    <button type="button" className={primary} disabled={pending} onClick={() => act(() => signOffImportTotals(job.id))}><Icon name="check" size={14} /> {job.entity === 'invoices' || job.entity === 'openJobs' ? 'Confirm the totals (Finance)' : 'Confirm the value (Finance)'}</button>
+                    <button type="button" className={primary} disabled={pending} onClick={() => act(() => signOffImportTotals(job.id))}><Icon name="check" size={14} /> {job.entity === 'invoices' || job.entity === 'openJobs' ? 'Confirm the totals (Accounts)' : 'Confirm the value (Accounts)'}</button>
                   ) : <p className="text-xs text-[var(--ejo-warning)]">Waiting for Finance to confirm the {job.entity === 'invoices' || job.entity === 'openJobs' ? 'totals' : 'value'}.</p>
                 ) : null}
               </div>

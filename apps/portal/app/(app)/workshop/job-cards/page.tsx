@@ -56,6 +56,8 @@ export default async function WorkshopJobCardsPage({
   const prefill = enyoPrefill ?? (forService ? await checkServiceVehiclePrefill(sp.vehicle) : null);
   // Customer names link to their Customers (CRM) page for those who may open it.
   const canSeeCustomers = await allows('crm.view');
+  // Opening a Job Card is front desk's (and the Owner's); technicians and others only see their list.
+  const canOpen = await allows('workshop.job_card.create');
   const outcomeFilter = parseOutcomeFilter(rawOutcome);
   const vehicleType = type === 'PASSENGER' || type === 'COMMERCIAL' ? type : undefined;
   const jobCards = await listJobCards(undefined, q, vehicleType);
@@ -98,8 +100,8 @@ export default async function WorkshopJobCardsPage({
         </button>
       </form>
 
-      <FormJumpLink target="open-job-card">New Job Card</FormJumpLink>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      {canOpen ? <FormJumpLink target="open-job-card">New Job Card</FormJumpLink> : null}
+      <div className={canOpen ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]' : 'grid gap-6'}>
         <ResponsiveTable className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)]">
           {shown.length === 0 ? (
             <div className="p-8 text-center text-sm text-[var(--ejo-text-muted)]">
@@ -156,6 +158,7 @@ export default async function WorkshopJobCardsPage({
           )}
         </ResponsiveTable>
 
+        {canOpen ? (
         <div id="open-job-card" className="h-fit rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 xl:sticky xl:top-6 scroll-mt-20">
           <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Open Job Card</h2>
           {enyoPrefill ? (
@@ -174,6 +177,7 @@ export default async function WorkshopJobCardsPage({
             />
           </form>
         </div>
+        ) : null}
       </div>
     </div>
   );

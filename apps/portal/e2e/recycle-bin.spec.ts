@@ -118,7 +118,7 @@ test('a Job Card with a payment can’t be deleted: the server refuses, and the 
   await expect(page.getByText('Delete (created by mistake)')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Move to Recycle bin' })).toHaveCount(0);
 
-  // The Manager is told why, and which way to go instead.
+  // The Owner is told why, and which way to go instead.
   await as(page, 'owner');
   await open(page, S.paidUrl);
   await expect(page.getByText('Created by mistake?')).toBeVisible();

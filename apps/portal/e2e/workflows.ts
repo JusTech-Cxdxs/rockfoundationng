@@ -203,8 +203,8 @@ export async function supervisorApprovesEstimate(page: Page) {
 
 export async function managerApprovesEstimate(page: Page) {
   await test.step('manager gives the final approval', async () => {
-    await page.getByRole('button', { name: 'Approve as Manager' }).click();
-    await expect(page.getByRole('button', { name: 'Approve as Manager' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Approve as Owner' }).click();
+    await expect(page.getByRole('button', { name: 'Approve as Owner' })).toHaveCount(0);
     await expect(card(page, 'Estimate').getByText('Approved', { exact: true })).toBeVisible();
     expectNoUrlError(page);
   });

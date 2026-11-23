@@ -8,7 +8,7 @@ import { assignTechnician, expectStatus, jcForm, openJobCard, supervisorApproves
  * A Job Card across roles, the way the workshop really works:
  * front desk opens it → a second Job Card for the same vehicle is refused →
  * supervisor approves and assigns → technician accepts → front desk asks to
- * cancel → the Manager approves → it is cancelled. And another organisation
+ * cancel → the Owner approves → it is cancelled. And another organisation
  * can never open it.
  *
  * Each run (and each retry) uses its own new vehicle, so a retry never meets
@@ -60,7 +60,7 @@ test('another organisation can never open this Job Card', async ({ page }) => {
   await expect(page.getByText('Brakes squeal')).toHaveCount(0);
 });
 
-test('cancellation: front desk asks, the Manager approves', async ({ page }) => {
+test('cancellation: front desk asks, the Owner approves', async ({ page }) => {
   await as(page, 'front-desk');
   await open(page, S.url);
   const req = jcForm(page, 'Request cancellation');

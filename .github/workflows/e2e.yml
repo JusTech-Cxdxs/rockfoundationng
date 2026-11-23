@@ -78,12 +78,6 @@ jobs:
       MOCK_LLM_KEY: 'e2e-mock-key'
       # Test-only key for encrypting connected mailbox passwords (32 bytes, base64).
       MAILBOX_ENCRYPTION_KEY: 'ZTJlLW9ubHktbWFpbGJveC1rZXktMzItYnl0ZXMhISE='
-      # The test mail server runs without TLS on localhost: allow plain connections, any port and
-      # private addresses for mailboxes (lib/mail/config.ts). NEVER set this in production.
-      MAILBOX_ALLOW_INSECURE: '1'
-      E2E_IMAP_HOST: 'localhost'
-      E2E_IMAP_PORT: '3143'
-      E2E_SMTP_PORT: '3025'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -115,13 +109,6 @@ jobs:
         run: |
           npx tsx apps/portal/scripts/demo-people.ts
           npx tsx apps/portal/scripts/demo-ensure.ts
-      # A real IMAP + SMTP test server for the work-mailbox spec (apps/portal/e2e/mailbox.spec.ts):
-      # plain IMAP on 3143 and SMTP on 3025, one mailbox (wura@mail.e2e.test, password
-      # "wura-mail-pass"); mail sent to it lands in its inbox. Test-only credentials.
-      - name: Start the test mail server (IMAP + SMTP)
-        run: |
-          nohup node apps/portal/e2e/mail-test-server.cjs > mail-test-server.log 2>&1 &
-          for i in $(seq 1 20); do (echo > /dev/tcp/127.0.0.1/3143) 2>/dev/null && break; sleep 1; done
       - name: Start the stand-in model server (Enyo)
         run: |
           nohup node packages/enyo/testing/mock-llm.mjs > mock-llm.log 2>&1 &

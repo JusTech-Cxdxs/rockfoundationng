@@ -16,7 +16,7 @@
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { prisma } from '@ejo/database';
-import { getPrincipal } from '@/lib/authz/server';
+import { allows, getPrincipal } from '@/lib/authz/server';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { lagosDateTime } from './format';
 import { describeParams, partMaxRows, PART_BUDGET_MS, PART_IN_FLIGHT_MS, isExportFormat, type ExportFormat } from './describe';
@@ -120,10 +120,13 @@ export async function partStream(c: ClaimedPart): Promise<{ body: ReadableStream
   function inThisRequest<R>(rows: AsyncGenerator<R>): AsyncIterable<R> {
     return { [Symbol.asyncIterator]: () => ({ next: () => request(() => rows.next()), return: () => request(() => rows.return(undefined)) }) };
   }
+  // Columns some people may not see (cost prices) are left out of their file altogether.
+  const allowed = await Promise.all(c.kind.columns.map(async (col) => !col.needs || (await Promise.all(col.needs.map((k) => allows(k)))).some(Boolean)));
+  const columns = c.kind.columns.filter((_, i) => allowed[i]);
   const body = exportStream({
     format: c.job.format,
     sheetName: c.kind.label,
-    columns: c.kind.columns,
+    columns,
     rows: inThisRequest(limited()),
     about,
     aboutAfter: () => (complete ? [] : [['More to come', `This is part ${c.part}. The list is longer than one download: open ${c.job.number} in EJO (Data Exchange → Exports) and download part ${c.part + 1}, which carries on from here.`]]),

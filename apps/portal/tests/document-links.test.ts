@@ -146,7 +146,7 @@ test('the portal lets /d/<token> through without signing in, and nothing else un
   assert.equal(re.test('/d/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcde'), true);
   for (const p of ['/d', '/d/', '/d/x/y', '/dashboard', '/documents/x', '/api/d/x']) assert.equal(re.test(p), false, p);
   assert.match(mw, /if \(DOCUMENT_LINK\.test\(pathname\)\) \{\s*return tagged\(NextResponse\.next\(\), requestId\);/);
-  assert.match(mw, /ALWAYS_PUBLIC = \['\/api\/auth', '\/api\/cron', '\/api\/health', '\/api\/error-report', '\/api\/ml', '\/signed-out'\]/, 'nothing else became public');
+  assert.match(mw, /ALWAYS_PUBLIC = \['\/api\/auth', '\/api\/cron', '\/api\/health', '\/api\/error-report', '\/signed-out'\]/, 'nothing else became public');
   const config = read('next.config.ts');
   assert.match(config, /'\/d\/\[token\]': \['\.\.\/\.\.\/node_modules\/pdfkit\/js\/standard-fonts\/\*\*', '\.\/lib\/pdf\/fonts\/\*\*'\]/, 'the fonts are traced for the route');
   assert.match(config, /source: '\/d\/:token', headers: \[\{ key: 'Referrer-Policy', value: 'no-referrer' \}/);
