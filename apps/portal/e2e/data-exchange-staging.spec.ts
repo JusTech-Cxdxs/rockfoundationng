@@ -32,7 +32,7 @@ test('the administrator sets how long finished imports keep their file; the hub 
   await expect(space.getByRole('heading', { name: 'Database space' })).toBeVisible();
   await expect(space).toContainText(/of [\d,]+ MB used \(\d+%\)/);
   // Without the Store (the D'Phoenix edition) the estimate is in customers and vehicles, not parts.
-  await expect(space).toContainText(INVENTORY_ENABLED ? /more parts, or [\d,]+ more customers/ : /more customers, or [\d,]+ more vehicles fit/);
+  await expect(space).toContainText(/more parts, or [\d,]+ more customers/, or [\d,]+ more vehicles fit/);
   await expect(space.getByRole('meter', { name: 'Database space used' })).toBeVisible();
   await page.getByLabel('Release a finished import’s file after (days)').fill('45');
   await page.getByRole('button', { name: 'Save' }).click();

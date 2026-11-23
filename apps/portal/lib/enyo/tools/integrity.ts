@@ -3,7 +3,6 @@
  * through the same authorised code as the pages: integrity.review for alerts
  * (never alerts about the person asking), audit.view for the trail.
  */
-import type { ToolResult } from '@ejo/enyo';
 import { allows } from '@/lib/authz/server';
 import { getIntegrityOverview } from '@/lib/actions/integrity';
 import { getAuditLogPage } from '@/lib/actions/audit-logs';

@@ -29,7 +29,7 @@ test('a technician sees only their own exit passes under Security — never the 
   await expect(page.getByRole('link', { name: /^All passes/ })).toHaveCount(0);
 
   // Typing the gate's addresses does not get round it.
-  for (const url of ['/security/register', '/security/visitors', '/security/incidents', '/security/on-premises', ...(INVENTORY_ENABLED ? ['/inventory/pricing', '/inventory/goods-receipts'] : [])]) {
+  for (const url of ['/security/register', '/security/visitors', '/security/incidents', '/security/on-premises', '/inventory/pricing', '/inventory/goods-receipts']) {
     await page.goto(url);
     await expect(page, url).toHaveURL(/\/access-denied/);
   }
@@ -106,15 +106,14 @@ test('an exit pass waits in each approver’s Approvals list until they decide i
 
 // The Store, outside purchases and Warranty only where the edition has them (edition.ts).
 const DASHBOARDS: { role: string; tiles: string[]; jobs?: boolean; approvals?: boolean }[] = [
-  { role: 'technician', tiles: ['My jobs in progress', 'Completed this month', 'Average time per job', ...(INVENTORY_ENABLED ? ['My parts requests open'] : [])], jobs: true },
+  { role: 'technician', tiles: ['My jobs in progress', 'Completed this month', 'Average time per job', 'My parts requests open'], jobs: true },
   { role: 'workshop-supervisor', tiles: ['Jobs I supervise'], jobs: true, approvals: true },
   { role: 'receptionist', tiles: ['Ready for collection', 'Opened by me this month'] },
   { role: 'workshop-manager', tiles: ['Jobs in the workshop', 'Closed this month'], approvals: true },
-  ...(INVENTORY_ENABLED ? [{ role: 'store-officer', tiles: ['Parts requests for the Store', 'Parts at or below reorder point'], approvals: true }] : []),
+  ...([{ role: 'store-officer', tiles: ['Parts requests for the Store', 'Parts at or below reorder point'], approvals: true }]),
   // Finance's only decisions are outside purchases (review and pay-out); payments and refunds are recorded, not approved.
   // With outside purchases off, Finance has no approval step, so no Approvals card.
-  { role: 'finance-officer', tiles: ['Payments I recorded this month', ...(EXTERNAL_PROCUREMENT_ENABLED ? ['Outside purchases with Finance'] : [])], approvals: EXTERNAL_PROCUREMENT_ENABLED },
-  ...(WARRANTY_ENABLED ? [{ role: 'warranty-officer', tiles: ['Warranties awaiting verification', 'Warranty claims open'] }] : []),
+  { role: 'finance-officer', tiles: ['Payments I recorded this month'], approvals: EXTERNAL_PROCUREMENT_ENABLED },
   { role: 'security-officer', tiles: ['Visitors on site', 'Staff out on passes', 'Vehicles on road test'] },
   { role: 'calendar-user', tiles: ['My exit passes this month'] },
 ];

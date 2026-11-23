@@ -127,7 +127,7 @@ export async function checkRoundTripRows(entity: RoundTripEntity, job: RoundTrip
 }
 
 /** A change as the record stores it. */
-function data(entity: RoundTripEntity, cur: Record<string, Plain>, changes: Change[], job: RoundTripJob): Record<string, unknown> {
+function data(entity: RoundTripEntity, cur: Record<string, Plain>, changes: Change[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const c of changes) {
     if (c.field === 'customerSince') out.customerSince = c.to === null ? null : new Date(`${c.to}T00:00:00.000Z`);
@@ -177,7 +177,7 @@ export async function loadRoundTripRows(tx: Tx, entity: RoundTripEntity, job: Ro
     }
     applied.push({ id: r.id, changes: ok });
     if (!ok.length) { results.push({ id: r.id, status: 'SKIPPED', resultId: id, note: notes.join(' ') || 'No change.' }); continue; }
-    await update(tx, entity, id, data(entity, cur, ok, job));
+    await update(tx, entity, id, data(entity, cur, ok));
     for (const c of ok) cur[c.field] = c.to;
     await tx.auditLog.create({
       data: {
@@ -215,7 +215,7 @@ export async function undoRoundTripBatch(tx: Tx, entity: RoundTripEntity, job: R
     const okBack: Change[] = [];
     for (const c of back) { if (c.to !== null && cur && (await taken(tx, entity, job, r.resultId!, cur, c))) kept.push(c.label); else okBack.push(c); }
     if (cur && okBack.length) {
-      await update(tx, entity, r.resultId!, data(entity, cur, okBack, job));
+      await update(tx, entity, r.resultId!, data(entity, cur, okBack));
       await tx.auditLog.create({
         data: {
           organisationId: job.organisationId, userId: actorId, action: AUDIT[entity].action, entityType: AUDIT[entity].type, entityId: r.resultId!,

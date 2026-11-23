@@ -67,16 +67,17 @@ export function CustomerVehiclePicker({
   }, [customerId]);
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
+  const selectedVehicleType = selectedVehicle?.vehicleType ?? null;
 
   useEffect(() => {
-    if (!selectedVehicle || !selectedVehicle.vehicleType) {
+    if (!selectedVehicleType) {
       setSupervisors([]);
       setSupervisorsState('idle');
       return;
     }
     const requestId = ++supervisorsRequestId.current;
     setSupervisorsState('loading');
-    listEligibleSupervisorsForVehicleType(selectedVehicle.vehicleType)
+    listEligibleSupervisorsForVehicleType(selectedVehicleType)
       .then((result) => {
         if (requestId !== supervisorsRequestId.current) return;
         setSupervisors(result.supervisors);
@@ -88,7 +89,7 @@ export function CustomerVehiclePicker({
         setSupervisors([]);
         setSupervisorsState('error');
       });
-  }, [selectedVehicle?.id, selectedVehicle?.vehicleType]);
+  }, [selectedVehicleId, selectedVehicleType]);
 
   return (
     <>

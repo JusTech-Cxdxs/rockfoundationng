@@ -14,7 +14,7 @@ const PAGES: { role: string; urls: string[] }[] = [
   { role: 'technician', urls: ['/dashboard', '/workshop/job-cards', '/security/exit-passes/new'] },
   { role: 'security-officer', urls: ['/security', '/security/on-premises', '/security/deliveries/new'] },
   // The Store only where the edition has it (edition.ts).
-  ...(INVENTORY_ENABLED ? [{ role: 'store-manager', urls: ['/inventory', '/inventory/parts'] }] : []),
+  ...([{ role: 'store-manager', urls: ['/inventory', '/inventory/parts'] }]),
 ];
 
 for (const { role, urls } of PAGES) {

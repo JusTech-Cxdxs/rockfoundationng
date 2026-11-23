@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { provenanceOf } from '@/lib/data-exchange/provenance-server';
 import { ProvenanceCard } from '@/components/ProvenanceCard';
 import { notFound } from 'next/navigation';
-import { allows, guardPage } from '@/lib/authz/server';
+import { guardPage } from '@/lib/authz/server';
 import { getCustomer360, getCustomerActivity } from '@/lib/actions/crm';
 import { getRecycleBinOffer } from '@/lib/actions/recycle-bin';
 import { RecycleBinPanel } from '@/components/RecycleBinPanel';

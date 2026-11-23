@@ -11,7 +11,6 @@ import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
  * Group IT prepares, the Store Manager approves, Finance confirms the value,
  * and the opening stock can be reversed while nothing has been issued.
  */
-test.skip(!INVENTORY_ENABLED, INVENTORY_OFF);
 test.describe.configure({ mode: 'serial' });
 
 const T = uniq().replace(/[^A-Z0-9]/g, '').slice(-6);

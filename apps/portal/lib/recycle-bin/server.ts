@@ -421,7 +421,7 @@ export async function moveManyToBinInTx(tx: Tx, entity: 'Customer' | 'CustomerVe
       const snapshot = orderedSnapshot('Customer', [
         ...plain([c], 'customer'), ...plain(by.company.get(c.id) ?? [], 'customerCompany'), ...plain(by.address.get(c.id) ?? [], 'customerAddress'),
         ...plain(by.contact.get(c.id) ?? [], 'customerContact'), ...plain(by.note.get(c.id) ?? [], 'customerNote'), ...plain(by.read.get(c.id) ?? [], 'customerNotificationRead'),
-        ...plain(by.vehicle.get(c.id) ?? [], 'customerVehicle'), ...plain((by.log.get(c.id) ?? []).map(({ owner: _o, ...l }) => l), 'serviceReminderLog'),
+        ...plain(by.vehicle.get(c.id) ?? [], 'customerVehicle'), ...plain((by.log.get(c.id) ?? []).map((l) => { const copy: Record<string, unknown> = { ...l }; delete copy.owner; return copy; }), 'serviceReminderLog'),
       ]);
       return {
         organisationId: c.organisationId, branchId: null, entityType: 'Customer', entityId: c.id, reference: c.fullName, label: binLabel([c.fullName, c.email]), reason,

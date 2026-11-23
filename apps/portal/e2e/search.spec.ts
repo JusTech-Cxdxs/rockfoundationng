@@ -49,11 +49,10 @@ test('front desk finds the Job Card, the customer, the vehicle; Store finds the 
   await expectHealthy(page);
 
   // The Store's parts only where the edition has it (edition.ts).
-  if (INVENTORY_ENABLED) {
-    await as(page, 'store-manager');
-    panel = await search(page, SEED_PARTS.brakePads.name);
-    await expect(panel.getByRole('option', { name: new RegExp(SEED_PARTS.brakePads.number) }).first()).toBeVisible();
-  }
+  await as(page, 'store-manager');
+  panel = await search(page, SEED_PARTS.brakePads.name);
+  await expect(panel.getByRole('option', { name: new RegExp(SEED_PARTS.brakePads.number) }).first()).toBeVisible();
+  
 });
 
 test('special characters and emoji in the search never break it', async ({ page }) => {

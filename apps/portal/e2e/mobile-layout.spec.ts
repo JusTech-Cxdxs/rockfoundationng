@@ -173,9 +173,8 @@ test('busy pages do not scroll sideways on a phone', async ({ page }) => {
   const visits: { who: string; urls: string[] }[] = [
     { who: 'receptionist', urls: ['/reminders', '/mail', '/workshop/job-cards', '/workshop/vehicle-service', '/workshop/customers', '/workshop/vehicles', '/crm', `/crm/customers/${customer.id}`, `/crm/customers/${customer.id}?tab=jobs`, '/notifications'] },
     // The Store, outside purchases and Warranty only where the edition has them (edition.ts).
-    { who: 'workshop-manager', urls: ['/workshop/refunds', ...(EXTERNAL_PROCUREMENT_ENABLED ? ['/workshop/external-procurement'] : []), ...(INVENTORY_ENABLED ? ['/workshop/parts-requests'] : []), '/analytics'] },
-    ...(INVENTORY_ENABLED ? [{ who: 'store-manager', urls: ['/inventory/parts', '/inventory/goods-receipts'] }] : []),
-    ...(WARRANTY_ENABLED ? [{ who: 'warranty-hod', urls: ['/warranty', '/warranty/claims'] }] : []),
+    { who: 'workshop-manager', urls: ['/workshop/refunds', '/workshop/parts-requests', '/analytics'] },
+    ...([{ who: 'store-manager', urls: ['/inventory/parts', '/inventory/goods-receipts'] }]),
     { who: 'administrator', urls: ['/settings', '/settings/enyo', '/enyo/learning', '/enyo/models', '/users', '/roles', '/structure', '/audit-logs'] },
   ];
   if (S.url) visits[0]!.urls.unshift(S.url);

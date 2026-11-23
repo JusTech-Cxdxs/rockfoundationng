@@ -342,7 +342,6 @@ const PROVEN_LABEL: Record<ProvenHow, string> = {
 };
 
 export function senderView(ctx: SenderContext, o: { canSeeErrors: boolean; now?: Date }): SenderView {
-  const now = o.now ?? new Date();
   const c = ctx.customer;
   const records: SenderView['records'] = [];
   if (c) {

@@ -50,7 +50,7 @@ test('phone: the header shows the full brand, and the main pages fit the screen'
     expect(clipped, 'parts of the name are cut off').toEqual([]);
   });
 
-  for (const path of ['/dashboard', '/dashboard/vehicles', '/dashboard/services', '/dashboard/payments', ...(WARRANTY_ENABLED ? ['/dashboard/warranties'] : []), '/dashboard/notifications', '/dashboard/profile', '/dashboard/support']) {
+  for (const path of ['/dashboard', '/dashboard/vehicles', '/dashboard/services', '/dashboard/payments', '/dashboard/notifications', '/dashboard/profile', '/dashboard/support']) {
     await test.step(path, async () => {
       await open(page, portal(path));
       await page.getByRole('heading', { level: 1 }).first().waitFor();

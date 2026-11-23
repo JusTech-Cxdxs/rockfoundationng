@@ -4,7 +4,6 @@ import { portalBaseUrl } from '@/lib/portal-url';
 
 import { AREA_BRANCH_TYPES, BRANCH_TYPE_WORDS, isBranchType } from '@/lib/branch-types';
 import { SYSTEM_DEPARTMENTS } from '@/lib/structure-rules';
-import { revalidatePath } from 'next/cache';
 import { prisma } from '@ejo/database';
 import { requireUser } from './workshop';
 import { writeAuditLog } from '@/lib/workshop-core';

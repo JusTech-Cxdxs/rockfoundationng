@@ -6,8 +6,6 @@ import { after } from 'next/server';
 import { AREA_BRANCH_TYPES } from '@/lib/branch-types';
 import { prisma, currentAuditActor, type Prisma } from '@ejo/database';
 import { announceChange } from '@/lib/realtime-ping';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
 
 /**
  * Server-only Workshop core: the audit writer and the organisation, branch,

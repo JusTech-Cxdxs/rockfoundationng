@@ -1,7 +1,7 @@
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { PLATFORM } from '../brand';
 import { PDF_FONT, registerPdfFonts } from './fonts';
-import type { EstimatePdfLineItem, EstimatePdfProps } from './document-types';
+import type { EstimatePdfProps } from './document-types';
 export type { EstimatePdfLineItem, EstimatePdfProps } from './document-types';
 
 const styles = StyleSheet.create({
@@ -82,6 +82,7 @@ export function EstimatePdf(props: EstimatePdfProps) {
     <Document>
       <Page size="A4" style={styles.page}>
         {/* The organisation's logo, very faint, behind every page (a watermark, repeated on each page). */}
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer's Image draws into the PDF and takes no alt text */}
         <Image fixed src={logoUrl} style={{ position: 'absolute', top: 250, left: 70, width: 455, opacity: 0.045 }} />
         <View style={styles.headerRow}>
           {/* @react-pdf/renderer's own Image primitive, not an HTML

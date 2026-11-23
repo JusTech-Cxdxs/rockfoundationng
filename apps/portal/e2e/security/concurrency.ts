@@ -51,7 +51,7 @@ async function main() {
   const front = await sessions('frontdesk@e2e.test', 2);
   const sup = await sessions('supervisor@e2e.test', 2);
   // The Store's bursts (CONC-08 to CONC-11) only where the edition has the Store (e2e/edition.ts).
-  const store = INVENTORY_ENABLED ? await sessions('store@e2e.test', 2) : [];
+  const store = await sessions('store@e2e.test', 2);
   const t0 = Date.now();
 
   // CONC-01 — one payment form submitted 30 times at once.
@@ -109,42 +109,38 @@ async function main() {
     checks.push({ id: 'CONC-07', title: 'recordRefund ×10 distinct, Σ requested 120,045 vs 50,000 paid', pass: refunded <= paid, detail: `refunded=${refunded} paid=${paid}; ${tally(rs2)}` });
   }
   // CONC-08 — one goods-receipt form submitted 20 times at once.
-  if (INVENTORY_ENABLED) {
-    const before = await num(`SELECT "quantityOnHand" FROM part_stock WHERE "partId"=$1`, [FIX.parts.receive]);
-    const input = { idempotencyKey: 'conc-08-same-key', branchId: FIX.branchId, supplierName: 'Conc Supplier', lines: [{ partId: FIX.parts.receive, quantityReceivedInUnit: 4, unitUsed: 'piece', totalCost: 40000 }] };
-    const rs = await burst(20, (i) => action('recordGoodsReceipt', [input], { cookie: store[i % store.length] }));
-    const after = await num(`SELECT "quantityOnHand" FROM part_stock WHERE "partId"=$1`, [FIX.parts.receive]);
-    const n = await num(`SELECT count(*) FROM goods_receipts WHERE "idempotencyKey"='conc-08-same-key'`);
-    checks.push({ id: 'CONC-08', title: 'recordGoodsReceipt ×20, same idempotency key', pass: n === 1 && after - before === 4, detail: `receipts with key=${n}, on hand ${before}→${after} (expected +4); ${tally(rs)}` });
-  }
+  const before = await num(`SELECT "quantityOnHand" FROM part_stock WHERE "partId"=$1`, [FIX.parts.receive]);
+  const input = { idempotencyKey: 'conc-08-same-key', branchId: FIX.branchId, supplierName: 'Conc Supplier', lines: [{ partId: FIX.parts.receive, quantityReceivedInUnit: 4, unitUsed: 'piece', totalCost: 40000 }] };
+  const rs = await burst(20, (i) => action('recordGoodsReceipt', [input], { cookie: store[i % store.length] }));
+  const after = await num(`SELECT "quantityOnHand" FROM part_stock WHERE "partId"=$1`, [FIX.parts.receive]);
+  const n = await num(`SELECT count(*) FROM goods_receipts WHERE "idempotencyKey"='conc-08-same-key'`);
+  checks.push({ id: 'CONC-08', title: 'recordGoodsReceipt ×20, same idempotency key', pass: n === 1 && after - before === 4, detail: `receipts with key=${n}, on hand ${before}→${after} (expected +4); ${tally(rs)}` });
+  
   // CONC-09 — ten storekeeper approvals competing for the same 10 units (3 each).
-  if (INVENTORY_ENABLED) {
-    const rs = await burst(10, (i) => action('approvePartRequestSlipByStore', [FIX.pendingSlips[i], 'conc-09'], { cookie: store[i % store.length] }));
-    const s = (await sql<{ onHand: string; reserved: string }>(`SELECT "quantityOnHand" AS "onHand", "quantityReserved" AS reserved FROM part_stock WHERE "partId"=$1`, [FIX.parts.approve]))[0]!;
-    const approved = await num(`SELECT count(*) FROM part_request_slips WHERE id = ANY($1) AND status='APPROVED'`, [FIX.pendingSlips]);
-    const reserved = Number(s.reserved);
-    checks.push({ id: 'CONC-09', title: 'approvePartRequestSlipByStore, 10 slips × 3 vs 10 on hand', pass: reserved <= Number(s.onHand) && reserved >= 0 && reserved === approved * 3, detail: `on hand=${Number(s.onHand)} reserved=${reserved} approved slips=${approved} (expect ≤3 and reserved = 3×approved); ${tally(rs)}` });
-  }
+  const rs = await burst(10, (i) => action('approvePartRequestSlipByStore', [FIX.pendingSlips[i], 'conc-09'], { cookie: store[i % store.length] }));
+  const s = (await sql<{ onHand: string; reserved: string }>(`SELECT "quantityOnHand" AS "onHand", "quantityReserved" AS reserved FROM part_stock WHERE "partId"=$1`, [FIX.parts.approve]))[0]!;
+  const approved = await num(`SELECT count(*) FROM part_request_slips WHERE id = ANY($1) AND status='APPROVED'`, [FIX.pendingSlips]);
+  const reserved = Number(s.reserved);
+  checks.push({ id: 'CONC-09', title: 'approvePartRequestSlipByStore, 10 slips × 3 vs 10 on hand', pass: reserved <= Number(s.onHand) && reserved >= 0 && reserved === approved * 3, detail: `on hand=${Number(s.onHand)} reserved=${reserved} approved slips=${approved} (expect ≤3 and reserved = 3×approved); ${tally(rs)}` });
+  
   // CONC-10 — the same slip approved 10 times at once (reset one slip to pending first).
-  if (INVENTORY_ENABLED) {
-    const slipId = (await sql<{ id: string }>(`SELECT id FROM part_request_slips WHERE id = ANY($1) AND status='PENDING_STORE_APPROVAL' LIMIT 1`, [FIX.pendingSlips]))[0]?.id;
-    if (slipId) {
-      // Make room: give the part enough stock that every approval could fit.
-      await sql(`UPDATE part_stock SET "quantityOnHand" = "quantityOnHand" + 30 WHERE "partId"=$1`, [FIX.parts.approve]);
-      const before = await num(`SELECT "quantityReserved" FROM part_stock WHERE "partId"=$1`, [FIX.parts.approve]);
-      const rs = await burst(10, (i) => action('approvePartRequestSlipByStore', [slipId, 'conc-10'], { cookie: store[i % store.length] }));
-      const after = await num(`SELECT "quantityReserved" FROM part_stock WHERE "partId"=$1`, [FIX.parts.approve]);
-      checks.push({ id: 'CONC-10', title: 'approvePartRequestSlipByStore ×10 on one slip', pass: after - before === 3, detail: `reserved ${before}→${after} (expected +3); ${tally(rs)}` });
-    }
+  const slipId = (await sql<{ id: string }>(`SELECT id FROM part_request_slips WHERE id = ANY($1) AND status='PENDING_STORE_APPROVAL' LIMIT 1`, [FIX.pendingSlips]))[0]?.id;
+  if (slipId) {
+    // Make room: give the part enough stock that every approval could fit.
+    await sql(`UPDATE part_stock SET "quantityOnHand" = "quantityOnHand" + 30 WHERE "partId"=$1`, [FIX.parts.approve]);
+    const before = await num(`SELECT "quantityReserved" FROM part_stock WHERE "partId"=$1`, [FIX.parts.approve]);
+    const rs = await burst(10, (i) => action('approvePartRequestSlipByStore', [slipId, 'conc-10'], { cookie: store[i % store.length] }));
+    const after = await num(`SELECT "quantityReserved" FROM part_stock WHERE "partId"=$1`, [FIX.parts.approve]);
+    checks.push({ id: 'CONC-10', title: 'approvePartRequestSlipByStore ×10 on one slip', pass: after - before === 3, detail: `reserved ${before}→${after} (expected +3); ${tally(rs)}` });
   }
+  
   // CONC-11 — one approved slip released 10 times at once.
-  if (INVENTORY_ENABLED) {
-    const b = (await sql<{ o: string; r: string }>(`SELECT "quantityOnHand" o, "quantityReserved" r FROM part_stock WHERE "partId"=$1`, [FIX.parts.release]))[0]!;
-    const rs = await burst(10, (i) => action('releasePartRequestSlip', [FIX.approvedSlip, { receivedByUserId: FIX.users.tech }], { cookie: store[i % store.length] }));
-    const a = (await sql<{ o: string; r: string }>(`SELECT "quantityOnHand" o, "quantityReserved" r FROM part_stock WHERE "partId"=$1`, [FIX.parts.release]))[0]!;
-    const st = (await sql(`SELECT status FROM part_request_slips WHERE id=$1`, [FIX.approvedSlip]))[0]?.status;
-    checks.push({ id: 'CONC-11', title: 'releasePartRequestSlip ×10 on one slip', pass: Number(b.o) - Number(a.o) === 2 && Number(b.r) - Number(a.r) === 2 && st === 'RELEASED', detail: `on hand ${Number(b.o)}→${Number(a.o)}, reserved ${Number(b.r)}→${Number(a.r)} (expected −2 each), slip=${st}; ${tally(rs)}` });
-  }
+  const b = (await sql<{ o: string; r: string }>(`SELECT "quantityOnHand" o, "quantityReserved" r FROM part_stock WHERE "partId"=$1`, [FIX.parts.release]))[0]!;
+  const rs = await burst(10, (i) => action('releasePartRequestSlip', [FIX.approvedSlip, { receivedByUserId: FIX.users.tech }], { cookie: store[i % store.length] }));
+  const a = (await sql<{ o: string; r: string }>(`SELECT "quantityOnHand" o, "quantityReserved" r FROM part_stock WHERE "partId"=$1`, [FIX.parts.release]))[0]!;
+  const st = (await sql(`SELECT status FROM part_request_slips WHERE id=$1`, [FIX.approvedSlip]))[0]?.status;
+  checks.push({ id: 'CONC-11', title: 'releasePartRequestSlip ×10 on one slip', pass: Number(b.o) - Number(a.o) === 2 && Number(b.r) - Number(a.r) === 2 && st === 'RELEASED', detail: `on hand ${Number(b.o)}→${Number(a.o)}, reserved ${Number(b.r)}→${Number(a.r)} (expected −2 each), slip=${st}; ${tally(rs)}` });
+  
   // CONC-12 — invariants over the whole database.
   {
     const neg = await num(`SELECT count(*) FROM part_stock WHERE "quantityOnHand" < 0 OR "quantityReserved" < 0`);

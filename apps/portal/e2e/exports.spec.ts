@@ -44,7 +44,7 @@ test('set up: a customer and seven suppliers of our own', async () => {
   const adminId = (await db().user.findUniqueOrThrow({ where: { email: who('administrator').email }, select: { id: true } })).id;
   await db().customer.create({ data: { organisationId: orgId, fullName: CUSTOMER, phone: `0803${String(Date.now()).slice(-7)}`, email: `export-${T.toLowerCase()}@example.test` } });
   // The Store's parts only where the edition has it (edition.ts); the D'Phoenix edition puts them on the workshop's branch, unused.
-  const storeBranch = (await db().user.findUniqueOrThrow({ where: { email: who(INVENTORY_ENABLED ? 'store-manager' : 'workshop-manager').email }, select: { branchId: true } })).branchId!;
+  const storeBranch = (await db().user.findUniqueOrThrow({ where: { email: who('store-manager').email }, select: { branchId: true } })).branchId!;
   for (let i = 1; i <= 3; i++) await db().part.create({ data: { branchId: storeBranch, createdById: adminId, name: `Export part ${T} ${i}`, partNumber: `EXP-${T}-${i}`, baseUnitOfMeasure: 'EA', updatedAt: new Date() } });
   for (let i = 1; i <= 7; i++) await db().supplier.create({ data: { organisationId: orgId, createdById: adminId, name: `${SUPPLIER} ${i}`, email: `s${i}-${T.toLowerCase()}@example.test` } });
 });
@@ -87,7 +87,6 @@ test('CSV of lists whose reader checks who is signed in, block by block (Custome
   await open(page, `/crm?q=${encodeURIComponent(CUSTOMER)}`);
   const customers = csvRows((await exportFromButton(page, 'CSV')).file.toString('utf8'));
   expect(customers.filter((l) => !l.startsWith('"#') && l.includes(CUSTOMER))).toHaveLength(1);
-  if (!INVENTORY_ENABLED) return;
   await as(page, 'store-manager');
   await open(page, `/inventory/parts?q=${encodeURIComponent(`EXP-${T}-`)}`);
   const parts = csvRows((await exportFromButton(page, 'CSV')).file.toString('utf8'));
@@ -96,7 +95,6 @@ test('CSV of lists whose reader checks who is signed in, block by block (Custome
 });
 
 test('a long list comes in parts: each a complete file, carrying on exactly where the last stopped', async ({ page }) => {
-  test.skip(!INVENTORY_ENABLED, `${INVENTORY_OFF} (the list in parts is the Store's suppliers)`);
   await as(page, 'store-manager');
   await open(page, `/inventory/suppliers?q=${encodeURIComponent(SUPPLIER)}`);
   const first = await exportFromButton(page, 'CSV');

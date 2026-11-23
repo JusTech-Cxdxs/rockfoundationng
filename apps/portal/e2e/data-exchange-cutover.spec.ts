@@ -16,7 +16,7 @@ import { INVENTORY_ENABLED } from './edition';
 test.describe.configure({ mode: 'serial' });
 
 // The workshop's steps in this edition: the Store's three only while it is on.
-const STEPS = ['staff', 'customers', 'vehicles', ...(INVENTORY_ENABLED ? ['suppliers', 'parts', 'stock'] : []), 'invoices', 'jobs', 'openJobs'];
+const STEPS = ['staff', 'customers', 'vehicles', 'suppliers', 'parts', 'stock', 'invoices', 'jobs', 'openJobs'];
 
 test('the Administrator: the workshop’s checklist in order, a step marked not needed with its reason and needed again, the sign-off waiting', async ({ page }) => {
   const workshop = await db().branch.findFirstOrThrow({ where: { name: WORKSHOP_BRANCH }, select: { id: true } });

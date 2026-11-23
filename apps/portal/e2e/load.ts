@@ -75,7 +75,7 @@ async function main() {
   }));
 
   // The Store only where the edition has it (edition.ts); else the Vehicle Services list.
-  const pages = ['/dashboard', '/workshop/job-cards', INVENTORY_ENABLED ? '/inventory' : '/workshop/vehicle-service', '/analytics', '/users'];
+  const pages = ['/dashboard', '/workshop/job-cards', '/inventory', '/analytics', '/users'];
   results.push(await run('Pages (10 concurrent, Master Admin)', 10, async (i) => {
     const r = await fetch(`${BASE}${pages[i % pages.length]}`, { headers: { cookie: master.cookie }, redirect: 'manual' });
     await r.arrayBuffer();

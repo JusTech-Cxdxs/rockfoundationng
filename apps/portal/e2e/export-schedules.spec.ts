@@ -23,10 +23,10 @@ const yesterday = new Date(Date.now() + 3_600_000 - 86_400_000).toISOString().sl
 const ids = { owner: '', org: '', exportId: '', schedule: '', orphan: '' };
 const params = { q: `No supplier is called ${STAMP}` };
 /** Whose export is repeated, and of which list. */
-const OWNER = INVENTORY_ENABLED ? 'store-manager' : 'workshop-manager';
-const KIND = INVENTORY_ENABLED ? { key: 'suppliers', label: 'Suppliers' } : { key: 'vehicles', label: 'Vehicles' };
+const OWNER = 'store-manager';
+const KIND = { key: 'suppliers', label: 'Suppliers' };
 
-test(`the ${INVENTORY_ENABLED ? 'Store' : 'Workshop'} Manager repeats an export of theirs every Monday`, async ({ page }) => {
+test(`the Store Manager repeats an export of theirs every Monday`, async ({ page }) => {
   const u = await db().user.findUniqueOrThrow({ where: { email: who(OWNER).email }, select: { id: true, organisationId: true } });
   ids.owner = u.id; ids.org = u.organisationId!;
   ids.exportId = (await db().exportJob.create({ data: { organisationId: ids.org, number: `EXP-E2E-${STAMP}`, kind: KIND.key, format: 'csv', params, summary: `Search: ${params.q}`, createdById: u.id, expiresAt: new Date(Date.now() + 86_400_000) }, select: { id: true } })).id;

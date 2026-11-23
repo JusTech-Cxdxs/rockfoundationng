@@ -97,7 +97,7 @@ async function jobLookups(db: Db, job: HistoryJob, checked: { c: ReturnType<type
 }
 
 /** The customer and vehicle a job row points at, by customer number, phone or email, or through the vehicle's owner; and whether its Branch cell names the import's branch (by name or code). */
-function resolveJob(v: JobValues, L: JobLookups, job: HistoryJob): { owner: string | null; vehicle: { id: string; customerId: string } | null; branchProblem: string | null; branchNote: string | null; vehicleNote: string | null } {
+function resolveJob(v: JobValues, L: JobLookups): { owner: string | null; vehicle: { id: string; customerId: string } | null; branchProblem: string | null; branchNote: string | null; vehicleNote: string | null } {
   const vehicle = (v.vinKey && L.byVin.get(v.vinKey)) || (v.plateKey && L.byPlate.get(v.plateKey)) || null;
   const byEmail = v.customer.email ? L.cust.email.get(v.customer.email) : undefined;
   const owner = (v.customer.externalId && L.cust.ext.get(v.customer.externalId.toUpperCase())) || (v.customer.phone && L.cust.phone.get(v.customer.phone.slice(-10))) || (byEmail && byEmail.sameOrg ? byEmail.id : null) || vehicle?.customerId || null;
@@ -174,7 +174,7 @@ export async function checkHistoryRows(entity: HistoryEntity, job: HistoryJob, m
       let matchedBy: string | null = null;
       const v = c.values;
       if (v && status !== 'REJECTED') {
-        const { owner, branchProblem, branchNote, vehicleNote } = resolveJob(v, L, job);
+        const { owner, branchProblem, branchNote, vehicleNote } = resolveJob(v, L);
         if (branchNote) issues.push({ field: 'branch', level: 'warning', message: branchNote });
         if (branchProblem) { issues.push({ field: 'branch', level: 'error', message: branchProblem }); status = 'REJECTED'; }
         else if (!owner) { issues.push({ field: 'customer', level: 'error', message: 'The customer was not found. Import the customers file first (and the vehicles file, when the job names only the vehicle), or check the customer number.' }); status = 'REJECTED'; }
@@ -253,7 +253,7 @@ async function loadJobs(tx: Tx, job: HistoryJob, mapping: Mapping, rows: LoadRow
   for (const { r, c } of checked) {
     const v = c.values;
     if (!v) { results.push({ id: r.id, status: 'SKIPPED', resultId: null, note: 'Could not be read again when loading.' }); continue; }
-    const { owner, vehicle, branchProblem } = resolveJob(v, L, job);
+    const { owner, vehicle, branchProblem } = resolveJob(v, L);
     if (branchProblem) { results.push({ id: r.id, status: 'SKIPPED', resultId: null, note: branchProblem }); continue; }
     if (!owner) { results.push({ id: r.id, status: 'SKIPPED', resultId: null, note: 'The customer is no longer in the system; not loaded.' }); continue; }
     const k = invKey(source, v.jobNumber);

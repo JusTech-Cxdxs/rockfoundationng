@@ -58,12 +58,12 @@ async function main() {
   await prisma.organisation.update({ where: { id: org.id }, data: { depositRequired: true, depositPercent: 70 } });
   const branch = await prisma.branch.findFirstOrThrow({ where: { businessUnit: { organisationId: org.id }, type: 'WORKSHOP' }, orderBy: { createdAt: 'asc' } });
   // The Store team works in the branch's store department (the D'Phoenix seed has none; made here only with E2E_INVENTORY=1).
-  if (INVENTORY_ENABLED) await prisma.department.upsert({ where: { branchId_slug: { branchId: branch.id, slug: 'store' } }, update: {}, create: { branchId: branch.id, name: 'Store', slug: 'store' } });
+  await prisma.department.upsert({ where: { branchId_slug: { branchId: branch.id, slug: 'store' } }, update: {}, create: { branchId: branch.id, name: 'Store', slug: 'store' } });
   for (const p of [...PEOPLE, RESET]) await person(org.id, branch.id, p);
 
   const frontDesk = await prisma.user.findUniqueOrThrow({ where: { email: PEOPLE.find((p) => p.role === 'receptionist')!.email } });
   // Who "created" the Store fixtures: the Store Manager when the Store is on, else the Workshop Manager.
-  const store = await prisma.user.findUniqueOrThrow({ where: { email: PEOPLE.find((p) => p.role === (INVENTORY_ENABLED ? 'store-manager' : 'workshop-manager'))!.email } });
+  const store = await prisma.user.findUniqueOrThrow({ where: { email: PEOPLE.find((p) => p.role === ('store-manager'))!.email } });
 
   // ── Customers ──────────────────────────────────────────────────────
   const customer = await prisma.customer.upsert({
@@ -97,38 +97,37 @@ async function main() {
   }
 
   // ── Store: category, part types, priced parts with real stock layers (E2E_INVENTORY=1) ──
-  if (INVENTORY_ENABLED) {
-    const category = await prisma.partCategory.upsert({
-      where: { branchId_name: { branchId: branch.id, name: SEED_CATEGORY.name } },
+  const category = await prisma.partCategory.upsert({
+    where: { branchId_name: { branchId: branch.id, name: SEED_CATEGORY.name } },
+    update: {},
+    create: { branchId: branch.id, name: SEED_CATEGORY.name, code: SEED_CATEGORY.code, createdById: store.id },
+  });
+  for (const p of Object.values(SEED_PARTS)) {
+    const type = await prisma.partType.upsert({
+      where: { branchId_categoryId_name: { branchId: branch.id, categoryId: category.id, name: p.type } },
       update: {},
-      create: { branchId: branch.id, name: SEED_CATEGORY.name, code: SEED_CATEGORY.code, createdById: store.id },
+      create: { branchId: branch.id, categoryId: category.id, name: p.type, createdById: store.id },
     });
-    for (const p of Object.values(SEED_PARTS)) {
-      const type = await prisma.partType.upsert({
-        where: { branchId_categoryId_name: { branchId: branch.id, categoryId: category.id, name: p.type } },
-        update: {},
-        create: { branchId: branch.id, categoryId: category.id, name: p.type, createdById: store.id },
-      });
-      const part = await prisma.part.upsert({
-        where: { branchId_partNumber: { branchId: branch.id, partNumber: p.number } },
-        update: {},
-        create: {
-          branchId: branch.id, name: p.name, partNumber: p.number, category: SEED_CATEGORY.name, partTypeId: type.id, baseUnitOfMeasure: 'Piece',
-          sellingPrice: p.price, targetMarginPercent: 30, createdById: store.id,
+    const part = await prisma.part.upsert({
+      where: { branchId_partNumber: { branchId: branch.id, partNumber: p.number } },
+      update: {},
+      create: {
+        branchId: branch.id, name: p.name, partNumber: p.number, category: SEED_CATEGORY.name, partTypeId: type.id, baseUnitOfMeasure: 'Piece',
+        sellingPrice: p.price, targetMarginPercent: 30, createdById: store.id,
+      },
+    });
+    const ref = `GRN-E2ESEED-${p.number}`;
+    if (!(await prisma.goodsReceipt.findUnique({ where: { referenceNumber: ref } }))) {
+      await prisma.goodsReceipt.create({
+        data: {
+          branchId: branch.id, referenceNumber: ref, supplierName: 'E2E Opening Stock Ltd', receivedById: store.id, notes: 'Opening stock (test seed)',
+          lines: { create: { partId: part.id, quantityReceivedInUnit: p.stock, unitUsed: 'Piece', quantityInBaseUnit: p.stock, totalCost: p.stock * p.price * 0.6, unitCost: p.price * 0.6 } },
         },
       });
-      const ref = `GRN-E2ESEED-${p.number}`;
-      if (!(await prisma.goodsReceipt.findUnique({ where: { referenceNumber: ref } }))) {
-        await prisma.goodsReceipt.create({
-          data: {
-            branchId: branch.id, referenceNumber: ref, supplierName: 'E2E Opening Stock Ltd', receivedById: store.id, notes: 'Opening stock (test seed)',
-            lines: { create: { partId: part.id, quantityReceivedInUnit: p.stock, unitUsed: 'Piece', quantityInBaseUnit: p.stock, totalCost: p.stock * p.price * 0.6, unitCost: p.price * 0.6 } },
-          },
-        });
-        await prisma.partStock.upsert({ where: { partId: part.id }, update: { quantityOnHand: p.stock }, create: { partId: part.id, quantityOnHand: p.stock } });
-      }
+      await prisma.partStock.upsert({ where: { partId: part.id }, update: { quantityOnHand: p.stock }, create: { partId: part.id, quantityOnHand: p.stock } });
     }
   }
+  
 
   // ── A second branch of THIS organisation, with one technician (branch fences) ──
   const second = (await prisma.branch.findFirst({ where: { businessUnitId: branch.businessUnitId, name: SECOND_BRANCH } }))
@@ -148,7 +147,7 @@ async function main() {
   await prisma.customer.upsert({ where: { email: 'other-customer@e2e.test' }, update: {}, create: { organisationId: other.id, fullName: 'Other Customer', email: 'other-customer@e2e.test', phone: '08000000009', address: 'Garki, Abuja' } });
 
   // eslint-disable-next-line no-console
-  console.log(`E2E seed: ${PEOPLE.length + 1} staff in ${org.name} / ${branch.name}, ${PORTAL_CUSTOMERS.length + 1} customers (${PORTAL_CUSTOMERS.length} with portal passwords), ${INVENTORY_ENABLED ? Object.keys(SEED_PARTS).length : 0} stocked parts, and ${other.name} with its own admin.`);
+  console.log(`E2E seed: ${PEOPLE.length + 1} staff in ${org.name} / ${branch.name}, ${PORTAL_CUSTOMERS.length + 1} customers (${PORTAL_CUSTOMERS.length} with portal passwords), ${Object.keys(SEED_PARTS).length} stocked parts, and ${other.name} with its own admin.`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(() => prisma.$disconnect());

@@ -8,7 +8,6 @@ import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
  * catalog, a goods receipt with its cost (stock goes up), a selling price,
  * and the pricing, matching and analytics pages a store manager watches.
  */
-test.skip(!INVENTORY_ENABLED, INVENTORY_OFF);
 test.describe.configure({ mode: 'serial' });
 
 const tag = uniq();

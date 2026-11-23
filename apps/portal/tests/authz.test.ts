@@ -1,120 +1,174 @@
 /**
- * Authorization Catalogue — allowed AND denied cases for every kind of
- * scope (principle 4: every path is tested, allowed and denied).
+ * Authorization Catalogue: allowed AND denied cases for each of the seven
+ * roles and every kind of scope (every path is tested, allowed and denied).
  * Pure: no database, no network. Run with `npm run test --workspace=apps/portal`.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { decide, scopeFor, PERMISSIONS, ROLE_GRANTS, ROLE_LABELS, PAGE_PERMISSIONS, type Principal, type PermissionKey } from '../lib/authz/catalogue';
+import {
+  decide, scopeFor, effectiveRoles, isOptionalRole, isOwnerRole, PERMISSIONS, ROLE_GRANTS, ROLE_LABELS, ROLE_DESCRIPTIONS, PAGE_PERMISSIONS,
+  CORE_ROLES, OPTIONAL_ROLES, OPTIONAL_ROLE_COVER, STORE_COST_PERMISSIONS, APPROVAL_PERMISSIONS, type Principal, type PermissionKey,
+} from '../lib/authz/catalogue';
 
 const A = 'branch-a';
 const B = 'branch-b';
 const who = (roleSlugs: string[], extra: Partial<Principal> = {}): Principal => ({ userId: 'me', isSuperAdmin: false, roleSlugs, branchId: A, departmentId: 'dept-1', ...extra });
 const yes = (p: Principal, k: PermissionKey, r?: Parameters<typeof decide>[2]) => assert.equal(decide(p, k, r).allowed, true, `${p.roleSlugs.join('+') || 'baseline'} should be allowed ${k}`);
 const no = (p: Principal, k: PermissionKey, r?: Parameters<typeof decide>[2]) => assert.equal(decide(p, k, r).allowed, false, `${p.roleSlugs.join('+') || 'baseline'} should be refused ${k}`);
+const ALL_KEYS = Object.keys(PERMISSIONS) as PermissionKey[];
 
-test('Master Admin (platform team) holds everything, everywhere', () => {
+/** A principal as lib/authz/server.ts builds it: optional roles switched off count for nothing; Front Desk gets the cover. */
+const effective = (roleSlugs: string[], enabledOptional: readonly string[], extra: Partial<Principal> = {}): Principal => {
+  const e = effectiveRoles(roleSlugs, enabledOptional);
+  return who(e.roleSlugs, { extraGrants: e.cover, ...extra });
+};
+
+test('the seven roles: two always on, five optional, each labelled and described', () => {
+  assert.deepEqual([...CORE_ROLES], ['owner', 'front-desk']);
+  assert.deepEqual([...OPTIONAL_ROLES], ['workshop-supervisor', 'technician', 'store-keeper', 'accounts', 'security']);
+  assert.deepEqual(Object.keys(ROLE_GRANTS).sort(), [...CORE_ROLES, ...OPTIONAL_ROLES].sort());
+  for (const slug of Object.keys(ROLE_GRANTS)) {
+    assert.ok(ROLE_LABELS[slug], `${slug} has a label`);
+    assert.ok((ROLE_DESCRIPTIONS[slug] ?? '').length > 40, `${slug} has a plain description`);
+  }
+  assert.equal(isOptionalRole('technician'), true);
+  assert.equal(isOptionalRole('owner'), false);
+  assert.equal(isOptionalRole('front-desk'), false);
+  assert.equal(isOwnerRole(['front-desk', 'owner']), true);
+  assert.equal(isOwnerRole(['front-desk']), false);
+});
+
+test('Platform team holds everything, everywhere', () => {
   const m = who([], { isSuperAdmin: true });
-  for (const k of Object.keys(PERMISSIONS) as PermissionKey[]) yes(m, k, { branchId: B });
+  for (const k of ALL_KEYS) yes(m, k, { branchId: B });
 });
 
-test('Receptionist opens jobs and receives visitors in their branch only', () => {
-  const r = who(['receptionist']);
-  yes(r, 'workshop.job_card.create', { branchId: A });
-  no(r, 'workshop.job_card.create', { branchId: B });
-  yes(r, 'security.reception.operate', { branchId: A });
-  no(r, 'security.gate.operate', { branchId: A });
-  no(r, 'workshop.payment.record', { branchId: A });
+test('Owner / GMD: every permission, organisation-wide, approvals included', () => {
+  const o = who(['owner']);
+  for (const k of ALL_KEYS) yes(o, k, { branchId: B });
+  for (const k of ['workshop.estimate.final_approve', 'workshop.close.approve', 'store.prs.approve_hod', 'store.cost.view', 'analytics.business.view'] as PermissionKey[]) assert.equal(scopeFor(o, k), 'ALL');
 });
 
-test('Supervisors act only on jobs assigned to them (and never open jobs)', () => {
+test('Cost prices, margins and profit: the Owner only', () => {
+  assert.deepEqual(STORE_COST_PERMISSIONS, ['store.cost.view']);
+  yes(who(['owner']), 'store.cost.view', { branchId: A });
+  for (const slug of ['front-desk', 'workshop-supervisor', 'technician', 'store-keeper', 'accounts', 'security']) {
+    no(who([slug]), 'store.cost.view', { branchId: A });
+    no(who([slug]), 'analytics.business.view', { branchId: A });
+  }
+  // Not even through Front Desk's cover for a switched-off Store Keeper.
+  no(effective(['front-desk'], []), 'store.cost.view', { branchId: A });
+});
+
+test('Front Desk: receives vehicles, opens jobs, prepares estimates, takes payments, in their branch only', () => {
+  const f = who(['front-desk']);
+  for (const k of ['workshop.job_card.create', 'workshop.customer.manage', 'workshop.customer.notify', 'workshop.estimate.edit', 'workshop.payment.record', 'crm.manage', 'support.tickets.manage', 'store.view'] as PermissionKey[]) {
+    yes(f, k, { branchId: A });
+    no(f, k, { branchId: B });
+  }
+  for (const k of ['workshop.estimate.final_approve', 'workshop.close.approve', 'workshop.refund.record', 'admin.users.manage', 'admin.roles.manage', 'audit.view', 'store.parts.manage', 'security.gate.operate'] as PermissionKey[]) no(f, k, { branchId: A });
+});
+
+test('Workshop Supervisor: assigns, inspects, checks estimates, never gives final approval or opens jobs', () => {
   const s = who(['workshop-supervisor']);
-  yes(s, 'workshop.estimate.approve', { branchId: A, assigneeIds: ['me'] });
-  no(s, 'workshop.estimate.approve', { branchId: A, assigneeIds: ['someone-else'] });
-  yes(s, 'workshop.technician.assign', { assigneeIds: ['me'] });
-  yes(s, 'workshop.job.supervise', { assigneeIds: ['me'] });
-  no(s, 'workshop.job.supervise', { assigneeIds: ['x'] });
-  no(s, 'workshop.job_card.create');
+  for (const k of ['workshop.technician.assign', 'workshop.job.supervise', 'workshop.estimate.approve', 'workshop.inspection.perform', 'workshop.estimate.edit', 'store.prs.approve_hod'] as PermissionKey[]) {
+    yes(s, k, { branchId: A });
+    no(s, k, { branchId: B });
+  }
+  for (const k of ['workshop.job_card.create', 'workshop.estimate.final_approve', 'workshop.close.approve', 'workshop.payment.record', 'store.prs.release'] as PermissionKey[]) no(s, k, { branchId: A });
 });
 
-test('Technicians work only on their own assigned jobs', () => {
+test('Technician: sees and works only on jobs assigned to them', () => {
   const t = who(['technician']);
+  assert.equal(scopeFor(t, 'workshop.job_card.view'), 'ASSIGNED');
+  yes(t, 'workshop.job_card.view', { branchId: A, assigneeIds: ['me'] });
+  no(t, 'workshop.job_card.view', { branchId: A, assigneeIds: ['someone-else'] });
   yes(t, 'workshop.job.work', { assigneeIds: [null, 'me'] });
   no(t, 'workshop.job.work', { assigneeIds: ['other'] });
-  no(t, 'workshop.estimate.final_approve', { branchId: A });
-  no(t, 'analytics.business.view');
+  yes(t, 'workshop.estimate.edit', { assigneeIds: ['me'] });
+  no(t, 'workshop.estimate.edit', { assigneeIds: ['other'] });
+  for (const k of ['workshop.estimate.approve', 'workshop.technician.assign', 'workshop.job.supervise', 'workshop.job_card.create', 'workshop.payment.record', 'crm.view', 'analytics.inventory.view'] as PermissionKey[]) no(t, k, { branchId: A, assigneeIds: ['me'] });
 });
 
-test('Whoever opened a job may request its close or cancellation', () => {
-  const r = who(['receptionist']);
-  yes(r, 'workshop.close.request', { ownerIds: ['me'] });
-  no(r, 'workshop.close.request', { ownerIds: ['other'], assigneeIds: ['x'] });
-});
-
-test('Workshop Manager approves for their branch, not another', () => {
-  const m = who(['workshop-manager']);
-  for (const k of ['workshop.estimate.final_approve', 'workshop.close.approve', 'store.prs.approve_hod', 'procurement.epr.approve', 'warranty.claim.approve'] as PermissionKey[]) {
-    yes(m, k, { branchId: A });
-    no(m, k, { branchId: B });
+test('Store Keeper: parts, goods received and issuing parts in their branch; selling prices only', () => {
+  const s = who(['store-keeper']);
+  for (const k of ['store.parts.manage', 'store.grn.record', 'store.prs.release', 'store.matching', 'store.view'] as PermissionKey[]) {
+    yes(s, k, { branchId: A });
+    no(s, k, { branchId: B });
   }
-  no(m, 'schedule.manage');
-  no(m, 'admin.users.manage');
+  for (const k of ['store.cost.view', 'store.prs.approve_hod', 'workshop.payment.record', 'workshop.job_card.create', 'analytics.inventory.view'] as PermissionKey[]) no(s, k, { branchId: A });
 });
 
-test('Finance records money; it does not approve purchases', () => {
-  const f = who(['finance-officer']);
-  yes(f, 'workshop.payment.record', { branchId: A });
-  yes(f, 'workshop.refund.record', { branchId: A });
-  yes(f, 'procurement.epr.disburse', { branchId: A });
-  no(f, 'procurement.epr.approve', { branchId: A });
-  no(f, 'workshop.payment.record', { branchId: B });
-});
-
-test('Store staff manage their own branch Store only', () => {
-  for (const slug of ['store-manager', 'store-officer']) {
-    const s = who([slug]);
-    yes(s, 'store.parts.manage', { branchId: A });
-    no(s, 'store.parts.manage', { branchId: B });
-    yes(s, 'store.grn.record', { branchId: A });
-    yes(s, 'store.prs.release', { branchId: A });
-    no(s, 'store.prs.approve_hod', { branchId: A });
+test('Accounts: money and statements, no workshop decisions', () => {
+  const a = who(['accounts']);
+  for (const k of ['workshop.payment.record', 'workshop.refund.record', 'dataexchange.export.sensitive'] as PermissionKey[]) {
+    yes(a, k, { branchId: A });
+    no(a, k, { branchId: B });
   }
+  for (const k of ['workshop.job_card.create', 'workshop.estimate.approve', 'workshop.estimate.final_approve', 'workshop.job.work', 'store.cost.view', 'store.parts.manage', 'security.view'] as PermissionKey[]) no(a, k, { branchId: A, assigneeIds: ['me'] });
+  yes(a, 'workshop.job_card.view', { branchId: A });
 });
 
-test('Warranty officer prepares; HOD approves', () => {
-  yes(who(['warranty-officer']), 'warranty.manage', { branchId: A });
-  no(who(['warranty-officer']), 'warranty.claim.approve', { branchId: A });
-  yes(who(['warranty-hod']), 'warranty.claim.approve', { branchId: A });
+test('Security: the gate only', () => {
+  const s = who(['security']);
+  yes(s, 'security.gate.operate', { branchId: A });
+  no(s, 'security.gate.operate', { branchId: B });
+  yes(s, 'security.view', { branchId: A });
+  for (const k of ['workshop.job_card.view', 'workshop.payment.record', 'workshop.job_card.create', 'store.view', 'crm.view'] as PermissionKey[]) no(s, k, { branchId: A });
 });
 
-test('Administrator runs the organisation but does not approve workshop money', () => {
-  const a = who(['administrator']);
-  for (const k of ['admin.organisation.manage', 'admin.structure.manage', 'admin.users.manage', 'admin.roles.manage', 'audit.view', 'analytics.business.view', 'notifications.broadcast.send'] as PermissionKey[]) yes(a, k, { branchId: B });
-  no(a, 'workshop.close.approve', { branchId: A });
-  no(a, 'workshop.payment.record', { branchId: A });
-  no(a, 'schedule.manage');
+test('Nobody signed in has anything without a role', () => {
+  const p = who([]);
+  for (const k of ALL_KEYS) no(p, k, { branchId: A, assigneeIds: ['me'], ownerIds: ['me'] });
 });
 
-test('Security: gate staff operate the gate; the Chief manages incidents', () => {
-  yes(who(['security-officer']), 'security.gate.operate', { branchId: A });
-  no(who(['security-officer']), 'security.incident.manage', { branchId: A });
-  yes(who(['chief-security-officer']), 'security.incident.manage', { branchId: A });
-  no(who(['chief-security-officer']), 'security.gate.operate', { branchId: B });
+test('Optional roles: a role that is switched off counts for nothing', () => {
+  for (const role of OPTIONAL_ROLES) {
+    const off = effectiveRoles([role], []);
+    assert.deepEqual(off.roleSlugs, [], `${role} off: the role is dropped`);
+    assert.deepEqual(off.cover, {}, `${role} off: its holder gets no cover either`);
+    assert.deepEqual(effectiveRoles([role], [role]).roleSlugs, [role], `${role} on: it counts`);
+  }
+  // The technician whose role is off cannot work on a job, even one assigned to them.
+  no(effective(['technician'], []), 'workshop.job.work', { assigneeIds: ['me'] });
+  yes(effective(['technician'], ['technician']), 'workshop.job.work', { assigneeIds: ['me'] });
+  // Owner and Front Desk are always on.
+  assert.deepEqual(effectiveRoles(['owner', 'front-desk'], []).roleSlugs, ['owner', 'front-desk']);
 });
 
-test('Pass approvals: heads of department for their department; the branch manager for the branch', () => {
-  const h = who(['department-head']);
-  yes(h, 'security.pass.approve', { departmentId: 'dept-1' });
-  no(h, 'security.pass.approve', { departmentId: 'dept-2', branchId: A });
-  yes(who(['workshop-manager']), 'security.pass.approve', { branchId: A });
-  for (const slug of ['technician', 'finance-officer', 'workshop-supervisor', 'receptionist', 'security-officer']) no(who([slug]), 'security.pass.approve', { branchId: A });
+test('Optional roles: Front Desk covers the steps of exactly the roles that are off', () => {
+  // Everything off: Front Desk gets every role's cover.
+  const allOff = effectiveRoles(['front-desk'], []);
+  for (const role of OPTIONAL_ROLES) for (const k of Object.keys(OPTIONAL_ROLE_COVER[role]) as PermissionKey[]) assert.ok(allOff.cover[k], `front desk covers ${k} while ${role} is off`);
+  const fd = effective(['front-desk'], []);
+  for (const k of ['workshop.technician.assign', 'workshop.job.work', 'store.grn.record', 'store.prs.release', 'workshop.refund.record', 'security.gate.operate'] as PermissionKey[]) {
+    yes(fd, k, { branchId: A });
+    no(fd, k, { branchId: B });
+  }
+  // Everything on: no cover at all; the specialists do their own steps.
+  const allOn = effectiveRoles(['front-desk'], [...OPTIONAL_ROLES]);
+  assert.deepEqual(allOn.cover, {});
+  const fdOn = effective(['front-desk'], [...OPTIONAL_ROLES]);
+  for (const k of ['workshop.technician.assign', 'workshop.job.work', 'store.grn.record', 'workshop.refund.record', 'security.gate.operate'] as PermissionKey[]) no(fdOn, k, { branchId: A });
+  // Only the Store Keeper off: store steps covered, the gate is not.
+  const storeOff = effective(['front-desk'], ['workshop-supervisor', 'technician', 'accounts', 'security']);
+  yes(storeOff, 'store.prs.release', { branchId: A });
+  no(storeOff, 'security.gate.operate', { branchId: A });
+  no(storeOff, 'workshop.technician.assign', { branchId: A });
+  // Cover never reaches approvals that belong to the Owner.
+  for (const k of ['workshop.estimate.final_approve', 'workshop.close.approve', 'store.cost.view', 'admin.roles.manage'] as PermissionKey[]) no(fd, k, { branchId: A });
+  // Someone who is not Front Desk never gets the cover.
+  assert.deepEqual(effectiveRoles(['accounts'], ['accounts']).cover, {});
 });
 
-test('Several roles: the widest scope wins', () => {
-  const p = who(['calendar-user', 'broadcaster']);
-  assert.equal(scopeFor(p, 'notifications.broadcast.send'), 'ALL');
-  assert.equal(scopeFor(p, 'schedule.view'), 'OWN');
-  assert.equal(scopeFor(who(['calendar-user', 'scheduling-admin']), 'schedule.view'), 'ALL');
+test('Cover grants only catalogue permissions, and never more than the optional role itself', () => {
+  for (const role of OPTIONAL_ROLES) {
+    for (const [k, scope] of Object.entries(OPTIONAL_ROLE_COVER[role])) {
+      assert.ok(k in PERMISSIONS, `${role} cover: unknown permission ${k}`);
+      assert.notEqual(scope, 'ALL', `${role} cover: ${k} is branch-limited`);
+      assert.notEqual(k, 'store.cost.view');
+    }
+  }
 });
 
 test('A grant added on the Roles page counts, but only for catalogue permissions', () => {
@@ -124,104 +178,54 @@ test('A grant added on the Roles page counts, but only for catalogue permissions
   assert.equal(decide(p, 'not.a.permission' as PermissionKey).allowed, false);
 });
 
-test('Organisation-wide staff (no branch on their profile) are not limited to one branch', () => {
-  yes(who(['finance-officer'], { branchId: null }), 'workshop.payment.record', { branchId: B });
+test('Several roles: the widest scope wins', () => {
+  const p = who(['technician', 'workshop-supervisor']);
+  assert.equal(scopeFor(p, 'workshop.job.work'), 'BRANCH');
+  assert.equal(scopeFor(who(['front-desk', 'owner']), 'workshop.payment.record'), 'ALL');
 });
 
-test('Everyone signed in may only request their own exit pass — nothing else by default', () => {
-  const p = who([]);
-  yes(p, 'security.exit_pass.request', { ownerIds: ['me'] });
-  no(p, 'security.exit_pass.request', { ownerIds: ['someone-else'] });
-  for (const k of ['workshop.view', 'workshop.job_card.view', 'store.view', 'security.view', 'warranty.view', 'sourcing.request', 'schedule.view', 'analytics.business.view', 'workshop.job.work', 'workshop.estimate.approve'] as PermissionKey[]) no(p, k, { branchId: A, assigneeIds: ['me'] });
+test('Staff with no branch on their profile are not limited to one branch for viewing', () => {
+  yes(who(['accounts'], { branchId: null }), 'workshop.payment.record', { branchId: B });
 });
 
-test('Realistic duties: each department does its own work only', () => {
-  // Finance: money — never supervises, works on jobs, opens jobs or books visitors.
-  const f = who(['finance-officer']);
-  for (const k of ['workshop.job.supervise', 'workshop.estimate.approve', 'workshop.technician.assign', 'workshop.job.work', 'workshop.estimate.edit', 'workshop.job_card.create', 'security.view', 'workshop.close.request'] as PermissionKey[]) no(f, k, { branchId: A, assigneeIds: ['me'] });
-  yes(f, 'workshop.job_card.view', { branchId: A });
-  // Security: the gate — no workshop, no money.
-  const s = who(['security-officer']);
-  for (const k of ['workshop.job_card.view', 'workshop.payment.record', 'workshop.job_card.create', 'store.view'] as PermissionKey[]) no(s, k, { branchId: A });
-  yes(s, 'security.gate.operate', { branchId: A });
-  // Manager approves and closes — never opens jobs.
-  const m = who(['workshop-manager']);
-  no(m, 'workshop.job_card.create', { branchId: A });
-  no(m, 'workshop.customer.manage', { branchId: A });
-  yes(m, 'workshop.close.approve', { branchId: A });
-  // Front desk opens jobs and talks to customers — never approves or works on them.
-  const r = who(['receptionist']);
-  yes(r, 'workshop.job_card.create', { branchId: A });
-  yes(r, 'workshop.customer.notify', { branchId: A });
-  for (const k of ['workshop.estimate.approve', 'workshop.job.work', 'workshop.technician.assign', 'workshop.estimate.final_approve', 'workshop.payment.record'] as PermissionKey[]) no(r, k, { branchId: A, assigneeIds: ['me'] });
-  // Technician writes the estimate but cannot approve it, cannot assign technicians, cannot supervise.
-  const t = who(['technician']);
-  yes(t, 'workshop.estimate.edit', { assigneeIds: ['me'] });
-  for (const k of ['workshop.estimate.approve', 'workshop.technician.assign', 'workshop.job.supervise', 'workshop.job_card.create'] as PermissionKey[]) no(t, k, { branchId: A, assigneeIds: ['me'] });
-  // Supervisor can do what the technician does, plus approve and assign.
-  const sup = who(['workshop-supervisor']);
-  for (const k of ['workshop.estimate.edit', 'workshop.job.work', 'workshop.inspection.perform', 'workshop.estimate.approve', 'workshop.technician.assign'] as PermissionKey[]) yes(sup, k, { assigneeIds: ['me'] });
-  no(sup, 'workshop.job_card.create', { branchId: A });
+test('Approvals and money need the person to BELONG to the branch (homeBranch)', () => {
+  no(who(['accounts'], { branchId: null }), 'workshop.payment.record', { branchId: A, homeBranch: true });
+  yes(who(['accounts']), 'workshop.payment.record', { branchId: A, homeBranch: true });
+  no(who(['accounts']), 'workshop.payment.record', { branchId: B, homeBranch: true });
+  no(who(['workshop-supervisor'], { branchId: null }), 'workshop.estimate.approve', { branchId: B, homeBranch: true });
+  // The platform team and organisation-wide (ALL) grants are unaffected.
+  yes(who([], { isSuperAdmin: true, branchId: null }), 'workshop.close.approve', { branchId: B, homeBranch: true });
+  yes(who(['owner'], { branchId: null }), 'workshop.close.approve', { branchId: B, homeBranch: true });
 });
 
-test('Two levels of administration: headquarters (all branches) and branch', () => {
-  const hq = who(['administrator'], { orgBranchIds: [A, B] });
-  yes(hq, 'admin.users.manage', { branchId: B });
-  yes(hq, 'admin.structure.manage', { branchId: B });
-  const ba = who(['branch-administrator']);
-  yes(ba, 'admin.users.manage', { branchId: A });
-  no(ba, 'admin.users.manage', { branchId: B });
-  no(ba, 'admin.roles.manage');
-  no(ba, 'admin.structure.manage');
-  no(ba, 'admin.organisation.manage');
-  // Neither administrator does the departments' transactions.
-  for (const a of [hq, ba]) for (const k of ['workshop.job_card.create', 'workshop.payment.record', 'workshop.close.approve'] as PermissionKey[]) no(a, k, { branchId: A });
+test('Realistic duties: nobody approves their own estimate work by role alone', () => {
+  // The person who prepares the estimate (front desk, technician) cannot give final approval.
+  for (const slug of ['front-desk', 'technician', 'workshop-supervisor', 'accounts', 'store-keeper']) no(who([slug]), 'workshop.estimate.final_approve', { branchId: A, assigneeIds: ['me'] });
+  // Approval permissions are held by the Owner, and the supervisor's first check only.
+  for (const k of APPROVAL_PERMISSIONS) yes(who(['owner']), k, { branchId: A });
+  no(who(['front-desk']), 'workshop.estimate.approve', { branchId: A });
 });
 
 test('The catalogue is internally consistent', () => {
   for (const [slug, grants] of Object.entries(ROLE_GRANTS)) {
-    assert.ok(ROLE_LABELS[slug], `role ${slug} has a label`);
     for (const k of Object.keys(grants)) assert.ok(k in PERMISSIONS, `${slug} grants unknown permission ${k}`);
   }
   for (const k of Object.values(PAGE_PERMISSIONS)) assert.ok(k in PERMISSIONS, `page permission ${k} exists`);
-  for (const [k, v] of Object.entries(PERMISSIONS)) {
-    assert.ok(v.label.length > 5 && !/[_]/.test(v.label), `${k} has a readable label`);
-  }
+  for (const k of APPROVAL_PERMISSIONS) assert.ok(k in PERMISSIONS, `approval permission ${k} exists`);
+  for (const [k, v] of Object.entries(PERMISSIONS)) assert.ok(v.label.length > 5 && !/[_]/.test(v.label), `${k} has a readable label`);
+  // No permission for a module this edition does not have.
+  for (const k of ALL_KEYS) assert.doesNotMatch(k, /^(plant|warranty|procurement|schedule|website|privacy)\.|exit_pass|reception|incident|assist|label\.print/, `${k} belongs to a removed module`);
 });
 
-test('Approvals and money need the person to BELONG to the branch (homeBranch)', () => {
-  const noBranch = who(['workshop-manager'], { branchId: null });
-  // Viewing: organisation-wide staff are not limited to one branch …
-  yes(noBranch, 'workshop.job_card.view', { branchId: B });
-  // … but approving or moving money: someone with no branch is refused.
-  no(noBranch, 'workshop.close.approve', { branchId: B, homeBranch: true });
-  no(who(['finance-officer'], { branchId: null }), 'workshop.payment.record', { branchId: A, homeBranch: true });
-  yes(who(['finance-officer']), 'workshop.payment.record', { branchId: A, homeBranch: true });
-  no(who(['finance-officer']), 'workshop.payment.record', { branchId: B, homeBranch: true });
-  // The platform team and organisation-wide (ALL) grants are unaffected.
-  yes(who([], { isSuperAdmin: true, branchId: null }), 'workshop.close.approve', { branchId: B, homeBranch: true });
-});
-
-test('Analytics: each module’s own people see its analytics; others do not', () => {
-  yes(who(['store-officer']), 'analytics.inventory.view', { branchId: A });
-  yes(who(['warranty-officer']), 'analytics.warranty.view', { branchId: A });
-  no(who(['technician']), 'analytics.inventory.view', { branchId: A });
-  no(who(['receptionist']), 'analytics.warranty.view', { branchId: A });
-  no(who(['store-officer']), 'analytics.business.view', { branchId: A });
-});
-
-test('Tenant fence: no scope — not even ALL — reaches another organisation', () => {
+test('Tenant fence: no scope, not even ALL, reaches another organisation', () => {
   const mine = ['branch-a', 'branch-a2'];
-  const admin = who(['administrator'], { organisationId: 'org-1', orgBranchIds: mine });
-  // Organisation-wide inside their own organisation …
-  yes(admin, 'audit.view', { branchId: 'branch-a2' });
-  yes(admin, 'workshop.job_card.view', { branchId: 'branch-a2' });
-  // … never across into another organisation.
-  no(admin, 'workshop.job_card.view', { branchId: 'org-2-branch' });
-  no(admin, 'analytics.business.view', { branchId: 'org-2-branch' });
+  const owner = who(['owner'], { organisationId: 'org-1', orgBranchIds: mine });
+  yes(owner, 'audit.view', { branchId: 'branch-a2' });
+  yes(owner, 'workshop.job_card.view', { branchId: 'branch-a2' });
+  no(owner, 'workshop.job_card.view', { branchId: 'org-2-branch' });
+  no(owner, 'store.cost.view', { branchId: 'org-2-branch' });
   const tech = who(['technician'], { organisationId: 'org-1', orgBranchIds: mine });
   no(tech, 'workshop.job.work', { branchId: 'org-2-branch', assigneeIds: ['me'] });
-  assert.equal(decide(admin, 'workshop.job_card.view', { branchId: 'org-2-branch' }).reason, 'Outside your organisation');
-  // The platform team is not fenced.
+  assert.equal(decide(owner, 'workshop.job_card.view', { branchId: 'org-2-branch' }).reason, 'Outside your organisation');
   yes(who([], { isSuperAdmin: true, orgBranchIds: mine }), 'workshop.job_card.view', { branchId: 'org-2-branch' });
 });

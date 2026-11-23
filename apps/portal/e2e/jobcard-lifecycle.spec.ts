@@ -30,7 +30,7 @@ const S = { url: '', id: '', number: '', plate: '', partUrl: '', stockBefore: { 
 test.beforeAll(async () => {
   const v = await freshVehicle('JCL');
   S.plate = v.plate;
-  if (INVENTORY_ENABLED) S.partUrl = `/inventory/parts/${await idOfPart(SEED_PARTS.brakePads.number)}`;
+  S.partUrl = `/inventory/parts/${await idOfPart(SEED_PARTS.brakePads.number)}`;
 });
 
 test('front desk opens the Job Card; the supervisor approves and assigns; the technician accepts', async ({ page }) => {
@@ -52,7 +52,7 @@ test('front desk opens the Job Card; the supervisor approves and assigns; the te
   await expect(page.getByText('Accepted', { exact: true })).toBeVisible();
 });
 
-test(`the estimate is drafted by the technician and the supervisor${INVENTORY_ENABLED ? ', and Store prices the part' : ''}`, async ({ page }) => {
+test(`the estimate is drafted by the technician and the supervisor, and Store prices the part`, async ({ page }) => {
   await as(page, 'technician');
   await open(page, S.url);
   await test.step('a technician cannot price labour (the supervisor does)', async () => {
@@ -62,14 +62,12 @@ test(`the estimate is drafted by the technician and the supervisor${INVENTORY_EN
     await expect(form.getByText('Priced by supervisor')).toBeVisible();
   });
   // Without the Store (the D'Phoenix edition) the pads are bought outside, at the same price.
-  if (INVENTORY_ENABLED) await addLine(page, { type: 'STORE_PART', partType: SEED_PARTS.brakePads.type, qty: 2 });
-  else await addLine(page, { type: 'EXTERNAL_PART', description: 'Front brake pad set (outside supplier)', qty: 2, price: SEED_PARTS.brakePads.price });
+  await addLine(page, { type: 'STORE_PART', partType: SEED_PARTS.brakePads.type, qty: 2 });
   await addLine(page, { type: 'EXTERNAL_PART', description: 'Brake disc skimming (outside machine shop)', price: 8000 });
-  if (INVENTORY_ENABLED) {
-    await expect(page.getByText('Awaiting Store match')).toBeVisible();
-    // Submission is held until Store has priced the part.
-    await expect(page.getByRole('button', { name: 'Submit for validation' })).toHaveCount(0);
-  }
+  await expect(page.getByText('Awaiting Store match')).toBeVisible();
+  // Submission is held until Store has priced the part.
+  await expect(page.getByRole('button', { name: 'Submit for validation' })).toHaveCount(0);
+  
 
   await as(page, SUPERMANAGER);
   await open(page, S.url);
@@ -79,14 +77,13 @@ test(`the estimate is drafted by the technician and the supervisor${INVENTORY_EN
     const form = page.locator('form').filter({ has: page.locator('select[name="type"]') });
     await expect(form.locator('select[name="type"] option[value="SUNDRY"]')).toHaveCount(0);
   });
-  if (INVENTORY_ENABLED) {
-    await requestStoreMatching(page);
-    await storeMatchesAll(page, S.id, who('store-officer'));
+  await requestStoreMatching(page);
+  await storeMatchesAll(page, S.id, who('store-officer'));
 
-    await as(page, SUPERMANAGER);
-    await open(page, S.url);
-    await expect(page.getByText(`Matched: ${SEED_PARTS.brakePads.name}`).first()).toBeVisible();
-  }
+  await as(page, SUPERMANAGER);
+  await open(page, S.url);
+  await expect(page.getByText(`Matched: ${SEED_PARTS.brakePads.name}`).first()).toBeVisible();
+  
   // 2 × 15,000 + 8,000 + 20,000 + 1,500 = 59,500
   await expect(page.getByText('Total Estimate').locator('..')).toContainText('₦59,500.00');
 });
@@ -142,7 +139,6 @@ test('Finance records the 70% deposit — a double click records ONE payment —
 });
 
 test('parts: technician requests → supervisor approves → Store reserves → Store releases (stock moves)', async ({ page }) => {
-  test.skip(!INVENTORY_ENABLED, INVENTORY_OFF);
   await as(page, 'store-manager');
   S.stockBefore = await readStock(page, S.partUrl);
 
@@ -250,7 +246,7 @@ test('the whole story is on the audit trail and in the Audit Logs', async ({ pag
   await open(page, S.url);
   const trail = page.getByRole('heading', { name: 'Audit trail' }).locator('..');
   await trail.getByRole('button', { name: /^Show all/ }).click();
-  for (const label of ['Job Card created', 'Job Card approved', 'Technician accepted assignment', 'Estimate submitted for validation', 'Estimate approved by manager', 'Customer notified of approved estimate', 'Payment recorded', ...(INVENTORY_ENABLED ? ['Parts request released'] : []), 'Close requested', 'Left through the gate']) {
+  for (const label of ['Job Card created', 'Job Card approved', 'Technician accepted assignment', 'Estimate submitted for validation', 'Estimate approved by manager', 'Customer notified of approved estimate', 'Payment recorded', 'Parts request released', 'Close requested', 'Left through the gate']) {
     await expect(trail.getByText(label).first(), label).toBeVisible();
   }
   await as(page, 'administrator');

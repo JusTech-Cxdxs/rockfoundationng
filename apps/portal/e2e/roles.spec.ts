@@ -8,7 +8,7 @@ const CASES: { role: string; sees: string[]; hidden: string[]; refused: string[]
   { role: 'technician', sees: ['Dashboard', 'Workshop'], hidden: ['Users', 'Roles', 'Business Analytics', 'Settings'], refused: ['/users', '/roles', '/analytics', '/settings'] },
   { role: 'receptionist', sees: ['Dashboard', 'Workshop'], hidden: ['Users', 'Roles', 'Settings'], refused: ['/users', '/permissions'] },
   // The Store only where the edition has it (edition.ts).
-  ...(INVENTORY_ENABLED ? [{ role: 'store-manager', sees: ['Inventory'], hidden: ['Users', 'Roles'], refused: ['/users'] }] : []),
+  ...([{ role: 'store-manager', sees: ['Inventory'], hidden: ['Users', 'Roles'], refused: ['/users'] }]),
   { role: 'administrator', sees: ['Users', 'Roles', 'Permissions', 'Organisation', 'Branches'], hidden: [], refused: [] },
 ];
 

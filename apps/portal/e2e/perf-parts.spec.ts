@@ -11,7 +11,6 @@ import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
  * Not part of CI: run with PERF_FILE=/path/parts_800000.csv (and
  * PERF_OUT for the timings) against a throwaway database.
  */
-test.skip(!INVENTORY_ENABLED, INVENTORY_OFF);
 test.skip(!process.env.PERF_FILE, 'Speed run only: set PERF_FILE');
 test.setTimeout(4 * 60 * 60 * 1000);
 

@@ -22,7 +22,6 @@ import { getJobCard, getJobCardAuditTrail, getJobCardEstimate, getJobCardPayment
 import { getJobCardSourcingNeeds } from '@/lib/actions/sourcing';
 import { listPartCategories, listPartTypes } from '@/lib/actions/store';
 import { EstimateLineItemForm } from '@/components/EstimateLineItemForm';
-import { Suspense } from 'react';
 import { EstimateLinesTable, EstimateLineEditLink, EstimateLineRemoveButton, EstimateLineEditor, type EstimateLineView } from '@/components/EstimateLinesTable';
 import { requestStoreMatchingFormAction } from '@/lib/actions/store-form-handlers';
 import { COMMON_ESTIMATE_LINE_DESCRIPTIONS } from '@/lib/workshop-constants';
