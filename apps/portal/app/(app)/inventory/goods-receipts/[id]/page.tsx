@@ -108,7 +108,7 @@ export default async function GoodsReceiptDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; status?: string }>;
 }) {
-  await guardAnyPage(STORE_COST_PERMISSIONS, '/inventory/goods-receipts');
+  await guardAnyPage(['store.grn.record', ...STORE_COST_PERMISSIONS], '/inventory/goods-receipts');
   const { id } = await params;
   const { error, status } = await searchParams;
   const [receipt, auditTrail] = await Promise.all([getGoodsReceipt(id), getGoodsReceiptAuditTrail(id)]);
@@ -194,6 +194,7 @@ export default async function GoodsReceiptDetailPage({
                   batchNumber={line.batchNumber}
                   totalCost={line.totalCost !== null ? Number(line.totalCost) : null}
                   unitCost={line.unitCost !== null ? Number(line.unitCost) : null}
+                  canSeeCosts={receipt.canSeeCosts}
                 />
               ))}
             </div>

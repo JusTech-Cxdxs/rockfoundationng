@@ -67,7 +67,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
     <div className="w-full max-w-7xl p-4 sm:p-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <PageTitle icon="users">Users</PageTitle>
+          <PageTitle icon="users">Staff</PageTitle>
           <p className="mt-1 max-w-3xl text-sm text-[var(--ejo-text-muted)]">Everyone in your organisation{placement.branchLocked ? ' branch' : ''}, the branch and department they work in, and the roles that decide what they can see and do. People are emailed whenever their access changes; every change is in the audit trail.{isPlatformTeam ? ' As the platform team you can also grant the Platform Administrator role.' : ''}</p>
         </div>
         <span className="flex flex-wrap items-start gap-2">

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 const KIND: Record<ExchangeEvent['kind'], { label: string; dot: string }> = {
   started: { label: 'Started', dot: 'bg-[var(--ejo-info)]' },
   loaded: { label: 'Loaded', dot: 'bg-[var(--ejo-success)]' },
-  confirmed: { label: 'Totals confirmed (Finance)', dot: 'bg-[var(--ejo-primary)]' },
+  confirmed: { label: 'Totals confirmed (Accounts)', dot: 'bg-[var(--ejo-primary)]' },
   undone: { label: 'Undone', dot: 'bg-[var(--ejo-warning)]' },
   released: { label: 'Staged file released', dot: 'bg-[var(--ejo-text-muted)]' },
   cancelled: { label: 'Cancelled', dot: 'bg-[var(--ejo-error)]' },

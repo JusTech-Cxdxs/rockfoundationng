@@ -1714,6 +1714,17 @@ async function costKey(): Promise<PermissionKey> {
   return STORE_COST_PERMISSIONS[0]!;
 }
 
+/** Goods receipts are open to whoever records them (the Store Keeper) and to
+ * those who see costs; the costs themselves only to the latter. */
+const GRN_VIEW: readonly PermissionKey[] = ['store.grn.record', ...STORE_COST_PERMISSIONS];
+async function grnKey(): Promise<PermissionKey> {
+  for (const k of GRN_VIEW) if (await allows(k)) return k;
+  return GRN_VIEW[0]!;
+}
+async function seesCosts(branchId?: string): Promise<boolean> {
+  return (await Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k, branchId ? { branchId } : undefined)))).some(Boolean);
+}
+
 /** Pricing Command Center summary, computed from currently open alerts. */
 export async function getPricingAlertSummary(branchId: string): Promise<PricingAlertSummary> {
   await requireUser();
@@ -1893,7 +1904,7 @@ export async function syncPartPriceToTargetMargin(alertId: string): Promise<void
 
 export async function listGoodsReceipts(branchId: string) {
   await requireUser();
-  branchId = await branchWithinReach(await costKey(), branchId);
+  branchId = await branchWithinReach(await grnKey(), branchId);
   return prisma.goodsReceipt.findMany({
     take: 500, // newest 500; search reaches older records
     where: { branchId },
@@ -1947,19 +1958,23 @@ export async function getGoodsReceipt(id: string) {
     },
   });
   if (!receipt) return null;
-  if (!(await canSeeRecord(await costKey(), { branchId: receipt.branchId }, `GoodsReceipt:${id}`))) return null;
+  if (!(await canSeeRecord(await grnKey(), { branchId: receipt.branchId }, `GoodsReceipt:${id}`))) return null;
   // Forward trace, QUANTITY parts — the same FIFO engine as releases.
   const quantityTraces = await loadQuantityTraces(
     receipt.lines.filter((l: (typeof receipt.lines)[number]) => l.part.trackingType === 'QUANTITY').map((l: (typeof receipt.lines)[number]) => l.partId),
   );
-  return { ...receipt, quantityTraces };
+  // Costs never leave the server for someone who may not see them (the Store Keeper).
+  const canSeeCosts = await seesCosts(receipt.branchId);
+  const lines = canSeeCosts ? receipt.lines : receipt.lines.map((l: (typeof receipt.lines)[number]) => ({ ...l, unitCost: null, totalCost: null }));
+  return { ...receipt, lines, quantityTraces, canSeeCosts };
 }
 
 export async function getGoodsReceiptAuditTrail(goodsReceiptId: string) {
   await requireUser();
   const owner = await prisma.goodsReceipt.findUnique({ where: { id: goodsReceiptId }, select: { branchId: true } });
   if (!owner) return [];
-  await seeBranch(await costKey(), owner.branchId, 'getGoodsReceiptAuditTrail');
+  await seeBranch(await grnKey(), owner.branchId, 'getGoodsReceiptAuditTrail');
+  const canSeeCosts = await seesCosts(owner.branchId);
   const entries = await prisma.auditLog.findMany({
     where: { entityType: 'GoodsReceipt', entityId: goodsReceiptId },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -1968,7 +1983,8 @@ export async function getGoodsReceiptAuditTrail(goodsReceiptId: string) {
   const userIds = [...new Set(entries.map((e: (typeof entries)[number]) => e.userId).filter((id: string | null): id is string => Boolean(id)))];
   const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, fullName: true } });
   const userById = new Map(users.map((u: (typeof users)[number]) => [u.id, u.fullName]));
-  return entries.map((e: (typeof entries)[number]) => ({ ...e, userName: e.userId ? (userById.get(e.userId) ?? 'Unknown') : 'System' }));
+  // Cost corrections are listed for everyone; the amounts in them only for those who see costs.
+  return entries.map((e: (typeof entries)[number]) => ({ ...e, metadata: canSeeCosts ? e.metadata : null, userName: e.userId ? (userById.get(e.userId) ?? 'Unknown') : 'System' }));
 }
 
 /** Audit entries for a part (same shape as getGoodsReceiptAuditTrail()). */
@@ -2063,6 +2079,8 @@ export async function updateGoodsReceiptLineCost(lineId: string, newUnitCostAsEn
     throw new StoreActionError('Line not found.');
   }
   const user = await requireStoreStaff(line.part.branchId, 'store.grn.record');
+  // Correcting a cost is for those who see costs (the Owner), never the Store Keeper.
+  if (!(await seesCosts(line.part.branchId))) await authorize(STORE_COST_PERMISSIONS[0]!, { branchId: line.part.branchId }, 'updateGoodsReceiptLineCost');
   if (!(newUnitCostAsEntered > 0)) {
     throw new StoreActionError('Unit cost must be greater than zero.');
   }

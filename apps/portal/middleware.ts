@@ -15,8 +15,7 @@ const AUTH_PAGES = ['/login', '/forgot-password', '/reset-password', '/verify-em
 // /signed-out clears a session the server refused (switched-off account).
 // /api/error-report stores the reference a browser-side failure shows, even
 // on the sign-in pages; it checks the origin and limits itself.
-// /api/ml: the trainer's machine door, protected by its own token (lib/enyo/ml/service.ts).
-const ALWAYS_PUBLIC = ['/api/auth', '/api/cron', '/api/health', '/api/error-report', '/api/ml', '/signed-out'];
+const ALWAYS_PUBLIC = ['/api/auth', '/api/cron', '/api/health', '/api/error-report', '/signed-out'];
 // /d/<token>: a customer's document (estimate, invoice, receipt PDF) opened
 // from a WhatsApp message. Only paths under /d/ — the route checks the token
 // itself and refuses anything else (app/d/[token]/route.ts).
