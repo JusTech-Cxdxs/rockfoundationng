@@ -16,7 +16,7 @@ import type { WebCtx, WebTool } from './types';
 
 const SIGNED_OUT = { ok: false as const, refused: true, message: 'The customer is not signed in. Ask them to sign in to the customer portal.' };
 
-const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash' };
+const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash', POS: 'POS (card)' };
 
 function money(n: number | null): { amount: number; text: string } | null {
   return n === null ? null : { amount: n, text: naira(n) };

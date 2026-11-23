@@ -196,7 +196,7 @@ export async function submitEstimate(page: Page) {
 export async function supervisorApprovesEstimate(page: Page) {
   await test.step('supervisor approves the estimate', async () => {
     await page.getByRole('button', { name: 'Approve estimate' }).click();
-    await expect(page.getByText('Awaiting manager review').first()).toBeVisible();
+    await expect(page.getByText('Waiting for the Owner').first()).toBeVisible();
     expectNoUrlError(page);
   });
 }

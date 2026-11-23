@@ -15,7 +15,7 @@ const LINE_GROUP: Record<string, string> = {
   LABOUR: 'Labour', SUNDRY: 'Sundry',
 };
 
-const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash' };
+const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash', POS: 'POS (card)' };
 
 function timelineFor(i: ServiceItem): TimelineEntry[] {
   const e: TimelineEntry[] = [];

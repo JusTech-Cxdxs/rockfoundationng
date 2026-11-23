@@ -9,7 +9,7 @@ import { Icon } from '@/components/customer/Icon';
 
 export const metadata = { title: 'Payments' };
 
-const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash' };
+const METHOD: Record<string, string> = { BANK_TRANSFER: 'Bank transfer', CASH: 'Cash', POS: 'POS (card)' };
 
 /** Every payment and refund across the customer's jobs, what is still owed, and how to pay. */
 export default async function PaymentsPage() {

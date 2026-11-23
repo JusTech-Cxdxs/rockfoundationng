@@ -95,7 +95,7 @@ test('approvals respect segregation of duties; the customer is notified by email
     await page.waitForURL(/error=/);
     expect(urlError(page)).toMatch(/approved this estimate as its supervisor/);
     await expect(page.getByText(/approved this estimate as its supervisor/)).toBeVisible();
-    await expect(page.getByText('Awaiting manager review').first()).toBeVisible();
+    await expect(page.getByText('Waiting for the Owner').first()).toBeVisible();
   });
   await test.step('another Owner gives the final approval', async () => {
     await as(page, 'owner');
@@ -104,7 +104,7 @@ test('approvals respect segregation of duties; the customer is notified by email
     await expect(page.getByRole('button', { name: 'Approve as Owner' })).toHaveCount(0);
     expectNoUrlError(page);
   });
-  const toFrontDesk = await latestMail(request, who('front-desk').email, new RegExp(`${S.number} approved by manager`));
+  const toFrontDesk = await latestMail(request, who('front-desk').email, new RegExp(`${S.number} approved — ready to send`));
   expect(toFrontDesk.subject).toContain(S.number);
 
   await as(page, 'front-desk');

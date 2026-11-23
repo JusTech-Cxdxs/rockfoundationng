@@ -51,7 +51,9 @@ async function main() {
   // The workshop stories take a 70% deposit from an individual customer: the deposit switch is on for them
   // (Organisation → Billing & tax; off by default). An organisation customer never pays one (approval-credit.spec).
   // Every optional role is switched on, so each one can be tested (roles.spec switches one off and on again).
-  await prisma.organisation.update({ where: { id: org.id }, data: { depositRequired: true, depositPercent: 70, optionalRoles: [...OPTIONAL_ROLES] } });
+  // The workflows below exercise the Owner's final approval of every estimate, and a car wash at the list
+  // price is a quick check-in (Settings → Estimates, car wash and warranty; money.spec turns the switch off and on).
+  await prisma.organisation.update({ where: { id: org.id }, data: { depositRequired: true, depositPercent: 70, optionalRoles: [...OPTIONAL_ROLES], ownerApprovesEstimates: true, carWashPrices: { FULL: 5000, EXTERIOR: 3000 } } });
   const branch = await prisma.branch.findFirstOrThrow({ where: { businessUnit: { organisationId: org.id }, type: 'WORKSHOP' }, orderBy: { createdAt: 'asc' } });
   // The workshop's sections (Job Cards are filed by the work: lib/workshop/routing.ts) and the Store team's department.
   // The main seed makes them too; upserting here keeps this seed safe on any base.
