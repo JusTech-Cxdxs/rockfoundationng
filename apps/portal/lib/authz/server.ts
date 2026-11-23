@@ -463,5 +463,5 @@ export const branchOwnedByMyOrganisation = partsOfMyOrganisation;
  * out-of-reach id, before loading its parts (each of which checks again). */
 export async function jobCardVisible(id: string, where: string): Promise<boolean> {
   const j = id ? await jobCardParent(id) : null;
-  return Boolean(j) && canSeeRecord('workshop.job_card.view', { branchId: j!.branchId }, where);
+  return Boolean(j) && canSeeRecord('workshop.job_card.view', { branchId: j!.branchId, assigneeIds: [j!.supervisorId, j!.assignedTechnicianId], ownerIds: [j!.createdById] }, where);
 }

@@ -23,6 +23,8 @@ test('a technician opens a Job Card they are assigned to, and not another', () =
 test('single-record checks pass the job’s assignees', () => {
   const server = read('lib/authz/server.ts');
   assert.match(server, /export async function seeJobCard[\s\S]{0,400}assigneeIds: \[j\.supervisorId, j\.assignedTechnicianId\]/);
+  assert.match(server, /export async function jobCardVisible[\s\S]{0,300}assigneeIds: \[j!\.supervisorId, j!\.assignedTechnicianId\]/);
+  assert.doesNotMatch(server + read('lib/actions/workshop.ts'), /canSeeRecord\('workshop\.job_card\.view', \{ branchId: (?:(?!assigneeIds)[^}])*\}, /, 'every Job Card check passes the assignees');
   assert.match(read('lib/actions/workshop.ts'), /export async function getJobCard\(id: string\)[\s\S]{0,600}assigneeIds: \[r\.supervisorId, r\.assignedTechnicianId\]/);
 });
 
