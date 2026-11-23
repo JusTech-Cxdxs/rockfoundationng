@@ -13,6 +13,10 @@ export function BookingForm({ jobType, days, slots, signedIn, vehicles }: { jobT
   const [state, action, pending] = useActionState<BookingState, FormData>(bookVisitAction, null);
   const firstOpen = useMemo(() => days.find((d) => d.left > 0)?.day ?? '', [days]);
   const [day, setDay] = useState(firstOpen);
+  // Two weeks at first (a long list on a phone); the rest on request.
+  const [allDays, setAllDays] = useState(false);
+  const FIRST_DAYS = 14;
+  const shownDays = allDays ? days : days.slice(0, FIRST_DAYS);
   if (state?.ok && state.number) {
     return (
       <div role="status" data-testid="booking-done" className="rounded-2xl border border-[var(--ejo-success)]/30 bg-[var(--ejo-success)]/10 p-6">
@@ -29,7 +33,7 @@ export function BookingForm({ jobType, days, slots, signedIn, vehicles }: { jobT
       <fieldset>
         <legend className={label}>Choose a day</legend>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {days.map((d) => (
+          {shownDays.map((d) => (
             <label key={d.day} className={`flex cursor-pointer flex-col rounded-xl border px-3 py-2.5 text-sm ${d.left === 0 ? 'cursor-not-allowed opacity-50' : ''} ${day === d.day ? 'border-[var(--ejo-primary)] bg-[var(--ejo-primary)]/10' : 'border-[var(--ejo-border)]'}`}>
               <input type="radio" name="day" value={d.day} disabled={d.left === 0} checked={day === d.day} onChange={() => setDay(d.day)} className="sr-only" />
               <span className="font-semibold text-[var(--ejo-text)]">{d.when}</span>
@@ -37,6 +41,11 @@ export function BookingForm({ jobType, days, slots, signedIn, vehicles }: { jobT
             </label>
           ))}
         </div>
+        {!allDays && days.length > FIRST_DAYS ? (
+          <button type="button" onClick={() => setAllDays(true)} className="mt-3 min-h-11 w-full rounded-xl border border-[var(--ejo-border)] px-4 text-sm font-semibold text-[var(--ejo-primary)] hover:border-[var(--ejo-primary)]">
+            Show more days
+          </button>
+        ) : null}
       </fieldset>
       <label className="block"><span className={label}>Time</span>
         <select name="slot" required className={field} defaultValue={slots[0]}>{slots.map((s) => <option key={s} value={s}>{s}</option>)}</select>
@@ -46,7 +55,7 @@ export function BookingForm({ jobType, days, slots, signedIn, vehicles }: { jobT
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block sm:col-span-2"><span className={label}>Your name</span><input name="name" required minLength={2} maxLength={120} autoComplete="name" className={field} /></label>
-          <label className="block"><span className={label}>Mobile number</span><input name="phone" required inputMode="tel" autoComplete="tel" placeholder="0803 304 9194" maxLength={20} className={field} /></label>
+          <label className="block"><span className={label}>Mobile number</span><input name="phone" required inputMode="tel" autoComplete="tel" placeholder="0803 123 4567" maxLength={20} className={field} /></label>
           <label className="block"><span className={label}>WhatsApp number (if different)</span><input name="whatsapp" inputMode="tel" maxLength={20} className={field} /></label>
           <label className="block sm:col-span-2"><span className={label}>Email (optional)</span><input name="email" type="email" autoComplete="email" maxLength={160} className={field} /></label>
         </div>
