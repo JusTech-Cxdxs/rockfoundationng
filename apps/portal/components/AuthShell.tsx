@@ -46,7 +46,7 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
         <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-white/10 blur-3xl" aria-hidden="true" />
         <div className="ejo-rise relative flex items-center justify-between gap-4">
           <Wordmark name={portalConfig.organisationName} size="lg" tone="onDark" />
-          <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium text-white/70">Staff portal</span>
+          <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium text-white/75">Staff portal</span>
         </div>
 
         <div className="ejo-rise relative max-w-xl" style={{ animationDelay: '80ms' }}>
@@ -60,23 +60,23 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold">{h.title}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-white/60">{h.text}</span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-white/75">{h.text}</span>
                 </span>
               </li>
             ))}
           </ul>
           <div className="mt-7 [@media(max-height:820px)]:hidden">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50">Built for</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75">Built for</p>
             <p className="mt-2 flex flex-wrap gap-1.5">{ROLES.map((r) => <span key={r} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] text-white/75">{r}</span>)}</p>
           </div>
-          <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-white/60">
+          <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-white/75">
             {PROMISES.map((p) => <li key={p} className="flex items-center gap-1.5"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ejo-accent)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>{p}</li>)}
           </ul>
         </div>
 
         <div className="ejo-rise relative flex items-end justify-between gap-6" style={{ animationDelay: '160ms' }}>
           <PoweredByEjo tone="onDark" size="lg" />
-          <p className="text-xs text-white/60">© {year} {portalConfig.organisationName}</p>
+          <p className="text-xs text-white/75">© {year} {portalConfig.organisationName}</p>
         </div>
       </section>
 

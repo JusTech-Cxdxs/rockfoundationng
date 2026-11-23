@@ -17,7 +17,7 @@ export function PoweredByEjo({ tone = 'default', size = 'md' }: { tone?: 'defaul
         <circle className="ejo-core" cx="12" cy="12" r="2.6" fill="var(--ejo-accent)" />
       </svg>
       <div className="leading-tight">
-        <p className={`text-[10px] font-medium uppercase tracking-[0.14em] ${dark ? 'text-white/55' : 'text-[var(--ejo-text-muted)]'}`}>Powered by</p>
+        <p className={`text-[10px] font-medium uppercase tracking-[0.14em] ${dark ? 'text-white/75' : 'text-[var(--ejo-text-muted)]'}`}>Powered by</p>
         <p className={`${dark ? 'ejo-shimmer' : 'ejo-shimmer-soft'} font-bold ${size === 'lg' ? 'text-sm' : 'text-xs'}`}>{PLATFORM.name} · {PLATFORM.makerShort}</p>
       </div>
     </div>

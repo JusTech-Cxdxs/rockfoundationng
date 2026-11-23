@@ -444,11 +444,19 @@ body { overscroll-behavior-y: none; }
    fill colours of buttons and dots; written as text (often on their own pale
    tint) they take a deeper shade on light screens and a lighter one on dark
    screens, so every chip and hint reads at 4.5:1 or better. The brand red
-   (#DD3333) is a fill and an accent: as text it is the deeper red below. */
+   (#DD3333) is a fill and an accent: as text it is the deeper red below. On
+   dark screens the red and blue fills are the deeper shades too, so a white
+   count on a red badge still reads at 4.5:1. */
 :root { --ejo-success-text: #166534; --ejo-info-text: #1e40af; --ejo-error-text: #991b1b; --ejo-warning-text: #92400e; }
 [class~="text-[var(--ejo-success)]"], [class~="hover:text-[var(--ejo-success)]"]:hover { color: var(--ejo-success-text); }
 [class~="text-[var(--ejo-info)]"], [class~="hover:text-[var(--ejo-info)]"]:hover { color: var(--ejo-info-text); }
 [class~="text-[var(--ejo-error)]"], [class~="hover:text-[var(--ejo-error)]"]:hover { color: var(--ejo-error-text); }
 [class~="text-[var(--ejo-warning)]"], [class~="hover:text-[var(--ejo-warning)]"]:hover { color: var(--ejo-warning-text); }
-:root[data-theme='dark'] { --ejo-success-text: #4ade80; --ejo-info-text: #60a5fa; --ejo-error-text: #f87171; --ejo-warning-text: #fbbf24; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --ejo-success-text: #4ade80; --ejo-info-text: #60a5fa; --ejo-error-text: #f87171; --ejo-warning-text: #fbbf24; } }
+:root[data-theme='dark'] { --ejo-success-text: #4ade80; --ejo-info-text: #60a5fa; --ejo-error-text: #f87171; --ejo-warning-text: #fbbf24; --ejo-error: #dc2626; --ejo-info: #2563eb; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { --ejo-success-text: #4ade80; --ejo-info-text: #60a5fa; --ejo-error-text: #f87171; --ejo-warning-text: #fbbf24; --ejo-error: #dc2626; --ejo-info: #2563eb; } }
+
+/* WhatsApp buttons keep WhatsApp's green (#25D366); white on it is only 1.98:1,
+   so what is written on it is near-black green (9:1), and the hover shade stays
+   light enough for that text (6:1). */
+[class~="bg-[var(--whatsapp)]"][class~="text-white"] { color: #052e16; }
+[class~="hover:bg-[var(--whatsapp-dark)]"]:hover { background-color: #1ebe5d; }

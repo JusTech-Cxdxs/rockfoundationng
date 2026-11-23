@@ -242,4 +242,10 @@ html, body { overscroll-behavior-x: none; }
 [class~="text-[var(--ejo-info)]"], [class~="hover:text-[var(--ejo-info)]"]:hover { color: var(--ejo-info-text); }
 [class~="text-[var(--ejo-error)]"], [class~="hover:text-[var(--ejo-error)]"]:hover { color: var(--ejo-error-text); }
 [class~="text-[var(--ejo-warning)]"], [class~="hover:text-[var(--ejo-warning)]"]:hover { color: var(--ejo-warning-text); }
-.dark { --ejo-success-text: #4ade80; --ejo-info-text: #60a5fa; --ejo-error-text: #f87171; --ejo-warning-text: #fbbf24; }
+.dark { --ejo-success-text: #4ade80; --ejo-info-text: #60a5fa; --ejo-error-text: #f87171; --ejo-warning-text: #fbbf24; --ejo-error: #dc2626; --ejo-info: #2563eb; }
+
+/* WhatsApp buttons keep WhatsApp's green (#25D366); white on it is only 1.98:1,
+   so what is written on it is near-black green (9:1), and the hover shade stays
+   light enough for that text (6:1). */
+[class~="bg-[var(--whatsapp)]"][class~="text-white"] { color: #052e16; }
+[class~="hover:bg-[var(--whatsapp-dark)]"]:hover { background-color: #1ebe5d; }

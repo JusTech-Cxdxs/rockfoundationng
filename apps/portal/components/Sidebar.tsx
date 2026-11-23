@@ -67,7 +67,7 @@ export function Sidebar({
           <div className="min-w-0"><Wordmark name={organisationName} tone="onDark" /></div>
         )}
         {variant === 'drawer' ? (
-          <button type="button" onClick={onNavigate} aria-label="Close menu" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={onNavigate} aria-label="Close menu" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/75 hover:bg-white/10 hover:text-white">
             <Icon name="close" size={18} />
           </button>
         ) : null}
@@ -77,7 +77,7 @@ export function Sidebar({
         {grouped(items).map((g) => (
           <div key={g.title} className="mb-3">
             {mini ? <div className="mx-3 mb-2 mt-1 h-px bg-white/15 first:hidden" aria-hidden="true" /> : (
-              <p className="px-3 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/55">{g.title}</p>
+              <p className="px-3 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/75">{g.title}</p>
             )}
             <div className="space-y-0.5">
               {g.items.map((mod) => {
@@ -125,7 +125,7 @@ export function Sidebar({
             onClick={onToggleCollapse}
             aria-label={collapsed ? 'Expand the menu' : 'Collapse the menu'}
             title={collapsed ? 'Expand the menu' : 'Collapse the menu'}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white"
           >
             <span className={`transition-transform ${collapsed ? 'rotate-180' : ''}`}><Icon name="chevron-left" size={16} /></span>
           </button>

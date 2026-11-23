@@ -43,7 +43,7 @@ export default async function CreditNotesPage({ searchParams }: { searchParams: 
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-semibold text-[var(--ejo-text)]">{c.number ?? 'Not numbered yet'} · {naira(c.amount)}{c.vatAmount > 0 ? <span className="ml-1 text-xs font-normal text-[var(--ejo-text-muted)]">(VAT {naira(c.vatAmount)})</span> : null}</p>
-                    <p className="text-sm text-[var(--ejo-text)]">{c.customerName} · invoice {c.invoiceNumber} · <Link href={`/workshop/job-cards/${c.jobCardId}#invoice`} className="text-[var(--ejo-primary)] hover:underline">{c.jobNumber}</Link></p>
+                    <p className="text-sm text-[var(--ejo-text)]">{c.customerName} · invoice {c.invoiceNumber} · <Link href={`/workshop/job-cards/${c.jobCardId}#invoice`} className="font-medium text-[var(--ejo-primary)] underline underline-offset-2 hover:no-underline">{c.jobNumber}</Link></p>
                     <p className="mt-1 text-sm text-[var(--ejo-text-muted)]">“{c.reason}”</p>
                     <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">Asked for by {c.requestedBy}, {formatDateTime(c.requestedAt)}{c.decidedBy ? ` · ${c.status === 'APPROVED' ? 'approved' : 'declined'} by ${c.decidedBy}${c.decidedAt ? `, ${formatDateTime(c.decidedAt)}` : ''}` : ''}{c.declineNote ? ` — “${c.declineNote}”` : ''}</p>
                   </div>

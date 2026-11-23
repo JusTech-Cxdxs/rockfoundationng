@@ -39,7 +39,7 @@ const evidence: Record<string, unknown> = {};
 let failures = 0;
 
 /** Strings that only the FIRST organisation's data contains. */
-const LEAK = [/JC-SEC-\d/, /SEC-(PAY|SLIP|REF|SAME|NUM|OUT)-\d/, /Ada Customer/, /Secret fixture/, /Fixture Supplier/, /PRS-SEC-/, /GRN-SEC-/, /RF-SEC-/, /BC-SEC-/,
+const LEAK = [/JC-SEC-\d/, /(CS|SC|INV|CN|CLM|QBX|APT)-SEC-\d/, /Secret fixture (count|credit|fault)/, /SEC-(PAY|SLIP|REF|SAME|NUM|OUT)-\d/, /Ada Customer/, /Secret fixture/, /Fixture Supplier/, /PRS-SEC-/, /GRN-SEC-/, /RF-SEC-/, /BC-SEC-/,
   /Owner Test/, /Technician Test/, /Front Desk Test/, /Store Keeper Test/, /Accounts Test/, /Supervisor Test/, /Morgan Master/, /Platform Master Test/, /Brake pad \(sec test\)/, /Sec Test Motors/, /customer@e2e\.test/, /(?<![-\w])(owner|tech|accounts|store|frontdesk|supervisor|security)@e2e\.test/];
 const leaks = (raw: string) => LEAK.filter((r) => r.test(raw)).map((r) => r.source);
 
@@ -180,6 +180,10 @@ async function crossOrgPages(theirs: string, ours: string): Promise<Check[]> {
     ['/workshop/job-cards/%/request-parts', FIX.jcSlips], ['/inventory/estimate-matching/', FIX.jcSlips],
     ['/print/job-cards/', FIX.jcOut], ['/print/job-cards/%/estimate', FIX.jcPay],
     ['/print/parts-requests/', FIX.approvedSlip], ['/print/refunds/', FIX.refund],
+    // Phase 4–8: the parts store, money, warranty, QuickBooks, bookings and the customer's documents.
+    ['/inventory/counter-sales/', FIX.counterSale], ['/api/counter-sales/%/pdf', FIX.counterSale], ['/inventory/stock-counts/', FIX.stockCount],
+    ['/api/credit-notes/%/pdf', FIX.creditNote], ['/money/statements/', FIX.customerId], ['/api/customers/%/statement', FIX.customerId], ['/api/customers/%/fleet-report', FIX.customerId],
+    ['/warranty/claims/', FIX.supplierClaim], ['/money/quickbooks/exports/', FIX.qbExport], ['/api/quickbooks/exports/%/customers.iif', FIX.qbExport],
   ];
   const checks: Check[] = [];
   const bad: string[] = [];
@@ -210,7 +214,8 @@ function singleIdActions(): { name: string; param: string }[] {
 }
 function idsFor(param: string): string[] {
   const p = param.toLowerCase();
-  const all = [FIX.jcPay, FIX.jcRefund, FIX.jcSlips, FIX.parts.approve, FIX.goodsReceipt, FIX.pendingSlips[0], FIX.approvedSlip, FIX.refund, FIX.broadcast, FIX.vehicleId, FIX.customerId, FIX.branchId, FIX.orgId, FIX.users.admin, FIX.users.tech];
+  const all = [FIX.jcPay, FIX.jcRefund, FIX.jcSlips, FIX.parts.approve, FIX.goodsReceipt, FIX.pendingSlips[0], FIX.approvedSlip, FIX.refund, FIX.broadcast, FIX.vehicleId, FIX.customerId, FIX.branchId, FIX.orgId, FIX.users.admin, FIX.users.tech,
+    FIX.counterSale, FIX.stockCount, FIX.invoice, FIX.creditNote, FIX.supplierClaim, FIX.qbExport, FIX.appointment];
   if (p.includes('jobcard')) return [FIX.jcPay, FIX.jcSlips, FIX.jcRefund];
   if (p.includes('branch')) return [FIX.branchId];
   if (p.includes('organisation')) return [FIX.orgId];

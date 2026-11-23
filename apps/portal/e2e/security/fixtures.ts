@@ -11,7 +11,7 @@
  */
 import { writeFileSync } from 'node:fs';
 import { PrismaClient, Prisma } from '@prisma/client';
-import { ORGANISATION_SLUG } from '../people';
+import { MASTER, ORGANISATION_SLUG, OTHER_ORG_ADMIN } from '../people';
 
 const prisma = new PrismaClient();
 const D = (n: number) => new Prisma.Decimal(n);
@@ -29,8 +29,8 @@ async function main() {
   // The Store's records are made by the Store Keeper.
   const store = (await prisma.user.findUnique({ where: { email: 'store@e2e.test' } })) ?? mgr;
   const admin = await u('owner@e2e.test');
-  const master = await u('master@e2e.test');
-  const otherAdmin = await u('other-admin@e2e.test');
+  const master = await u(MASTER.email);
+  const otherAdmin = await u(OTHER_ORG_ADMIN.email);
   const customer = await prisma.customer.findUniqueOrThrow({ where: { email: 'customer@e2e.test' } });
   const dept = await prisma.department.findUnique({ where: { branchId_slug: { branchId: branch.id, slug: 'mechanical' } } });
 
@@ -112,6 +112,36 @@ async function main() {
   const refund = await prisma.refund.create({ data: { referenceNumber: 'RF-SEC-000001', jobCardId: jcRefund.id, amount: D(1), method: 'CASH', paidToName: 'Ada Customer', reason: 'fixture', recordedById: fin.id } });
   const broadcast = await prisma.broadcast.create({ data: { broadcastNumber: 'BC-SEC-000001', organisationId: org.id, category: 'NEWS', title: 'Secret fixture broadcast', message: 'Only org one may read this', startsAt: new Date(), createdById: admin.id } });
 
+  // Phase 4–8 records, to probe from the other organisation: a counter sale, a stock count, an invoice with a credit note,
+  // a supplier claim, a QuickBooks export and a booking. Markers: "Ada Customer", "Fixture Supplier Ltd", the SEC numbers.
+  const counterSale = await prisma.counterSale.upsert({ where: { number: 'CS-SEC-000001' }, update: {}, create: {
+    number: 'CS-SEC-000001', organisationId: org.id, branchId: branch.id, customerId: customer.id, buyerName: 'Ada Customer', buyerPhone: '0800 000 0001',
+    subtotal: D(5000), vatRate: D(7.5), vatAmount: D(375), total: D(5375), paymentMethod: 'CASH', soldById: store.id,
+    lines: { create: [{ partId: pApprove.id, description: 'Brake pad (sec test)', partNumber: 'SEC-P-APPROVE', unitOfMeasure: 'piece', quantity: D(1), unitPrice: D(5000), amount: D(5000) }] },
+  } });
+  const stockCount = await prisma.stockCount.upsert({ where: { number: 'SC-SEC-000001' }, update: {}, create: {
+    number: 'SC-SEC-000001', organisationId: org.id, branchId: branch.id, status: 'PENDING_APPROVAL', note: 'Secret fixture count', countedById: store.id,
+    lines: { create: [{ partId: pRelease.id, systemQuantity: D(5), countedQuantity: D(4), difference: D(-1), reason: 'Damaged' }] },
+  } });
+  const invoice = await prisma.invoice.upsert({ where: { invoiceNumber: 'INV-SEC-000001' }, update: {}, create: {
+    invoiceNumber: 'INV-SEC-000001', organisationId: org.id, branchId: branch.id, jobCardId: jcOut.id, customerId: customer.id, subtotal: D(50000), lineDiscounts: D(0), discountAmount: D(0),
+    vatRate: D(7.5), vatAmount: D(3750), total: D(53750), amountPaidAtIssue: D(0), lines: [{ type: 'LABOUR', description: 'Labour (fixture)', quantity: 1, unitPrice: 50000, amount: 50000 }], issuedById: sup.id,
+  } });
+  const creditNote = (await prisma.creditNote.findFirst({ where: { invoiceId: invoice.id } })) ?? await prisma.creditNote.create({ data: {
+    number: 'CN-SEC-000001', organisationId: org.id, branchId: branch.id, invoiceId: invoice.id, jobCardId: jcOut.id, customerId: customer.id, status: 'APPROVED',
+    amount: D(1075), vatAmount: D(75), reason: 'Secret fixture credit', requestedById: fin.id, decidedById: mgr.id, decidedAt: new Date(),
+  } });
+  const supplierClaim = await prisma.supplierClaim.upsert({ where: { number: 'CLM-SEC-000001' }, update: {}, create: {
+    number: 'CLM-SEC-000001', organisationId: org.id, branchId: branch.id, supplierName: 'Fixture Supplier Ltd', partName: 'Brake pad (sec test)', amountClaimed: D(5000), fault: 'Secret fixture fault', createdById: fin.id,
+  } });
+  const qbExport = await prisma.quickBooksExport.upsert({ where: { number: 'QBX-SEC-000001' }, update: {}, create: {
+    organisationId: org.id, number: 'QBX-SEC-000001', fromDay: '2026-01-01', toDay: '2026-01-31', format: 'iif', kinds: ['customers'], counts: { customers: 1 }, totals: {}, files: [{ name: 'customers.iif', kind: 'customers', text: '!CUST\tNAME\nCUST\tAda Customer\n' }], createdById: fin.id,
+  } });
+  const appointment = await prisma.appointment.upsert({ where: { number: 'APT-SEC-000001' }, update: {}, create: {
+    number: 'APT-SEC-000001', organisationId: org.id, branchId: branch.id, customerId: customer.id, vehicleId: sameVehicle.id, jobType: 'SERVICE', day: '2026-12-01', slot: '08:00',
+    name: 'Ada Customer', phone: '0800 000 0001', vehicleText: '2021 Toyota Camry', status: 'CONFIRMED', source: 'STAFF', createdById: front.id,
+  } });
+
   const out = {
     orgId: org.id, otherOrgId: other.id, branchId: branch.id, customerId: customer.id, vehicleId: sameVehicle.id,
     users: { front: front.id, sup: sup.id, tech: tech.id, mgr: mgr.id, fin: fin.id, store: store.id, admin: admin.id, master: master.id, otherAdmin: otherAdmin.id },
@@ -122,6 +152,7 @@ async function main() {
     pendingSlips: pendingSlips.map((x) => x.id), approvedSlip: approvedSlip.id,
     goodsReceipt: gr.id,
     refund: refund.id, broadcast: broadcast.id,
+    counterSale: counterSale.id, stockCount: stockCount.id, invoice: invoice.id, creditNote: creditNote.id, supplierClaim: supplierClaim.id, qbExport: qbExport.id, appointment: appointment.id,
     markers: { jobNumber: jcPay.jobNumber, plate: 'SEC-PAY-01', customer: 'Ada Customer', broadcast: 'Secret fixture broadcast', supplier: 'Fixture Supplier Ltd' },
   };
   writeFileSync(process.env.SEC_FIXTURES ?? 'sec-fixtures.json', JSON.stringify(out, null, 1));

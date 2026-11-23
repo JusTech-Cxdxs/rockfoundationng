@@ -27,7 +27,7 @@ export function Footer() {
       <div className="mx-auto grid max-w-[1480px] gap-10 px-4 py-14 sm:grid-cols-2 sm:px-6 lg:px-10">
         <div>
           <SiteWordmark tone="light" size="footer" />
-          <p className="mt-3 max-w-sm text-sm text-white/70">{WORKSHOP.tagline} {WORKSHOP.summary}</p>
+          <p className="mt-3 max-w-sm text-sm text-white/75">{WORKSHOP.tagline} {WORKSHOP.summary}</p>
           {SOCIALS.length > 0 ? (
             <div className="mt-5 flex gap-3">
               {SOCIALS.map(({ label, icon: Icon, href }) => (
@@ -41,7 +41,7 @@ export function Footer() {
 
         <div>
           <p className="text-sm font-semibold text-white">Contact us</p>
-          <address className="mt-3 space-y-2 text-sm not-italic text-white/60">
+          <address className="mt-3 space-y-2 text-sm not-italic text-white/75">
             {own ? (
               <>
                 {contact.address ? <p>{contact.address}</p> : null}
@@ -62,8 +62,8 @@ export function Footer() {
 
       <div className="border-t border-white/10 px-4 py-6 sm:px-6 lg:px-10">
         <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-4">
-          <p className="text-xs text-white/50">© {new Date().getFullYear()} {siteConfig.legalName}. All rights reserved.</p>
-          <div className="flex flex-wrap items-center gap-5 text-xs text-white/50">
+          <p className="text-xs text-white/75">© {new Date().getFullYear()} {siteConfig.legalName}. All rights reserved.</p>
+          <div className="flex flex-wrap items-center gap-5 text-xs text-white/75">
             <Link href="/support" className="hover:text-white">Customer support</Link>
             <Link href="/privacy" className="hover:text-white">Privacy</Link>
             <Link href="/terms" className="hover:text-white">Terms of use</Link>

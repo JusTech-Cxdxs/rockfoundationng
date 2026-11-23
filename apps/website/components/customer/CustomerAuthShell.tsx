@@ -34,12 +34,12 @@ export function CustomerAuthShell({ title, subtitle, children, footer }: { title
         <div className="ejo-orb-slow pointer-events-none absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-[var(--ejo-accent)]/15 blur-3xl" aria-hidden="true" />
         <div className="ejo-rise relative flex items-center justify-between gap-4">
           <Wordmark name={siteConfig.companyShortName} size="lg" tone="onDark" />
-          <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium text-white/70">Customer portal</span>
+          <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-medium text-white/75">Customer portal</span>
         </div>
 
         <div className="ejo-rise relative max-w-md" style={{ animationDelay: '80ms' }}>
           <h2 className="text-[2rem] font-bold leading-tight xl:text-4xl">Your vehicle, every step of the way.</h2>
-          <p className="mt-3 text-sm leading-relaxed text-white/70">Track your repairs and services, approve estimates, see what you owe and when your car is ready to collect — any time, from any device.</p>
+          <p className="mt-3 text-sm leading-relaxed text-white/75">Track your repairs and services, approve estimates, see what you owe and when your car is ready to collect — any time, from any device.</p>
           <ul className="mt-7 grid grid-cols-2 gap-x-5 gap-y-4">
             {HIGHLIGHTS.map((h, i) => (
               <li key={h.title} className="ejo-rise flex gap-3" style={{ animationDelay: `${160 + i * 50}ms` }}>
@@ -48,24 +48,24 @@ export function CustomerAuthShell({ title, subtitle, children, footer }: { title
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold">{h.title}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-white/60">{h.text}</span>
+                  <span className="mt-0.5 block text-xs leading-relaxed text-white/75">{h.text}</span>
                 </span>
               </li>
             ))}
           </ul>
           {/* How a visit moves along (the same steps the portal shows on each Job Card). */}
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.04] p-4 [@media(max-height:820px)]:hidden" aria-label="How your visit moves along">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/50">Your visit, step by step</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/75">Your visit, step by step</p>
             <ol className="mt-3 flex items-center gap-1.5">
               {STEPS.map((s, i) => (
                 <li key={s} className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-center">
-                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${i < 3 ? 'bg-[var(--ejo-accent)] text-[var(--ejo-secondary)]' : 'border border-white/25 text-white/60'}`}>{i + 1}</span>
-                  <span className="text-[10px] leading-tight text-white/65">{s}</span>
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${i < 3 ? 'bg-[var(--ejo-accent)] text-[var(--ejo-secondary)]' : 'border border-white/25 text-white/75'}`}>{i + 1}</span>
+                  <span className="text-[10px] leading-tight text-white/75">{s}</span>
                 </li>
               ))}
             </ol>
           </div>
-          <p className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/55">
+          <p className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/75">
             <span className="inline-flex items-center gap-1.5"><Icon name="lock" size={12} />Your records are private to you</span>
             <span className="inline-flex items-center gap-1.5"><Icon name="mail" size={12} />Updates by email and WhatsApp</span>
             {siteConfig.contact?.phone ? <span className="inline-flex items-center gap-1.5"><Icon name="phone" size={12} />{siteConfig.contact.phone}</span> : null}
@@ -74,7 +74,7 @@ export function CustomerAuthShell({ title, subtitle, children, footer }: { title
 
         <div className="ejo-rise relative flex items-end justify-between gap-6 border-t border-white/10 pt-6" style={{ animationDelay: '240ms' }}>
           <PoweredByEjo tone="onDark" size="lg" />
-          <p className="text-xs text-white/60">© {year} {siteConfig.companyShortName}</p>
+          <p className="text-xs text-white/75">© {year} {siteConfig.companyShortName}</p>
         </div>
       </section>
 
