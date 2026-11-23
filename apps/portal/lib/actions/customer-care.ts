@@ -23,8 +23,8 @@ import {
 
 class CareError extends Error {}
 
-const CALLBACKS: 'crm.manage' = 'crm.manage';
-const COMPLAINTS: 'support.tickets.manage' = 'support.tickets.manage';
+const CALLBACKS = 'crm.manage' as const;
+const COMPLAINTS = 'support.tickets.manage' as const;
 const isId = (v: unknown): v is string => typeof v === 'string' && /^[a-z0-9]{20,40}$/.test(v);
 const clean = (v: unknown, max: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
