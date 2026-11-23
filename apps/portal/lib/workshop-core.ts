@@ -29,7 +29,7 @@ const departmentBranchShared = unstable_cache(
   async (slug: 'workshop' | 'store', branchId: string | null, organisationId: string | null) => {
     const sel = { branchId: true } as const;
     // Only a branch of a fitting kind anchors the work (lib/branch-types.ts): a
-    // department named "Workshop" on an assembly plant never takes job cards.
+    // department named "Workshop" at a head office never takes job cards.
     const fitting = { type: { in: AREA_BRANCH_TYPES[slug] } } as const;
     if (branchId) {
       const own = await prisma.department.findFirst({ where: { slug, branchId, branch: fitting }, select: sel });
