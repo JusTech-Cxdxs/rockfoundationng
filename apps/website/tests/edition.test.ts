@@ -34,10 +34,11 @@ test('the root opens the customer portal sign-in; no marketing page, store, news
 
 // ------------------------------------------------------------------ no warranty
 
-test('warranties are not part of this edition: no pages, menu entry, cards, notices or Enyo tool', () => {
+test('the dealership warranty is not part of this edition: no pages, menu entry, cards, notices or Enyo tool (the workshop\u2019s own guarantee is shown as a guarantee)', () => {
   assert.equal(existsSync(join(ROOT, 'app', 'customer-portal', 'dashboard', 'warranties')), false);
   for (const f of ['components/customer/PortalShell.tsx', 'app/customer-portal/dashboard/page.tsx', 'app/customer-portal/dashboard/vehicles/[id]/page.tsx', 'components/customer/ServiceDetail.tsx', 'lib/customer-portal/notifications.ts', 'lib/customer-portal/data.ts', 'lib/enyo/customer-tools.ts']) {
-    assert.doesNotMatch(read(f), /warrant/i, f);
+    // The workshop guarantee's database fields keep their names; nothing a customer reads says "warranty".
+    assert.doesNotMatch(read(f).replace(/\bwarrantyUntil(Km)?\b|\bwarrantyMonths\b/g, ''), /warrant/i, f);
   }
 });
 

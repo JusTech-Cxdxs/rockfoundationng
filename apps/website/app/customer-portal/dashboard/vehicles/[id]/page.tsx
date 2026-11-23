@@ -105,7 +105,7 @@ export default async function VehiclePage({ params }: { params: Promise<{ id: st
               const jc = p.estimate.jobCard;
               return (
                 <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-sm">
-                  <span className="min-w-0 text-[var(--ejo-text)]">{p.quantity > 1 ? `${p.quantity} × ` : ''}{p.description}{p.warrantyMonths ? <span className="text-[var(--ejo-text-muted)]"> · {p.warrantyMonths}-month part warranty</span> : null}</span>
+                  <span className="min-w-0 text-[var(--ejo-text)]">{p.quantity > 1 ? `${p.quantity} × ` : ''}{p.description}{p.warrantyMonths ? <span className="text-[var(--ejo-text-muted)]"> · {p.warrantyMonths}-month guarantee on the part</span> : null}</span>
                   <span className="text-xs text-[var(--ejo-text-muted)]">{jc ? <Link href={`/customer-portal/dashboard/services/jc/${jc.id}`} className="underline">{jc.jobNumber}</Link> : null}{jc ? ` · ${fmtDate(jc.checkedOutAt ?? jc.createdAt)}` : ''}{p.amount !== null ? ` · ₦${Number(p.amount).toLocaleString('en-NG', { minimumFractionDigits: 2 })}` : ''}</span>
                 </li>
               );
