@@ -61,15 +61,17 @@ test('the Store Keeper adds a category, a part type and a part', async ({ page }
   expect(stock.onHand).toBe(0);
 });
 
-test('a goods receipt with its cost puts the stock on the shelf', async ({ page }) => {
+test('the Store Keeper receives a delivery without its cost; the Owner enters the cost', async ({ page }) => {
   await as(page, 'store-keeper');
   await page.goto('/inventory/goods-receipts/new');
   const form = jcForm(page, 'Record Goods Receipt');
+  // No cost on the Store Keeper's form: the Owner enters it on the receipt.
+  await expect(form.locator('input[name="totalCost"]')).toHaveCount(0);
+  await expect(form.getByText('The Owner enters what it cost on the receipt.')).toBeVisible();
   await form.locator('input[name="supplierName"]').fill('E2E Wipers Ltd');
   await pickSearchable(form, page, S.part, new RegExp(S.part), 'Search Parts…');
   await form.locator('input[name="quantityReceivedInUnit"]').fill('12');
   await form.locator('input[name="unitUsed"]').fill('Piece');
-  await form.locator('input[name="totalCost"]').fill('36000');
   await form.locator('textarea[name="notes"]').fill('Delivery note DN-E2E-1');
   await form.getByRole('button', { name: 'Record Goods Receipt' }).click();
   await waitOutcome(page, /\/inventory\/goods-receipts\?status=receipt_recorded/);
@@ -78,12 +80,24 @@ test('a goods receipt with its cost puts the stock on the shelf', async ({ page 
 
   const stock = await readStock(page, S.partUrl);
   expect(stock.onHand).toBe(12);
-  // The receipt is traceable from the part.
+  // The receipt is traceable from the part, and shows the Store Keeper no cost.
   await expect(page.getByRole('link', { name: /^GRN-/ }).first()).toBeVisible();
   await page.getByRole('link', { name: /^GRN-/ }).first().click();
   await page.waitForURL(/\/inventory\/goods-receipts\/[^/?]+/);
   await expectHealthy(page);
-  await expect(page.getByText('₦3,000').first()).toBeVisible();
+  S.grn = page.url().split('?')[0]!;
+  await expect(page.getByText('Total Bulk Cost')).toHaveCount(0);
+  await expect(page.getByText('Not entered yet')).toHaveCount(0);
+
+  // The Owner is asked for the cost and enters it.
+  await as(page, 'owner');
+  await page.goto(S.grn);
+  await expect(page.getByText('Not entered yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Enter the cost' }).click();
+  await page.locator('input[name="unitCost"]').fill('3000');
+  await page.getByRole('button', { name: 'Correct', exact: true }).click();
+  await waitOutcome(page, /status=cost_updated/);
+  await expect(page.getByText('₦36,000').first()).toBeVisible();
 });
 
 test('the Store Keeper sets the selling price; only the Owner sees pricing, costs and stock value', async ({ page }) => {

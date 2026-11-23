@@ -66,7 +66,7 @@ export default async function CounterSalePage({ params, searchParams }: { params
           </ResponsiveTable>
           <dl className="ml-auto max-w-xs space-y-1 px-4 py-3 text-sm">
             <div className="flex justify-between"><dt className="text-[var(--ejo-text-muted)]">Subtotal</dt><dd>{naira(sale.subtotal)}</dd></div>
-            {sale.vatRate > 0 ? <div className="flex justify-between"><dt className="text-[var(--ejo-text-muted)]">VAT ({sale.vatRate}%){sale.vatNumber ? ` · TIN ${sale.vatNumber}` : ''}</dt><dd>{naira(sale.vatAmount)}</dd></div> : null}
+            {sale.vatRate > 0 ? <div className="flex justify-between"><dt className="text-[var(--ejo-text-muted)]">VAT ({sale.vatRate}%){sale.vatNumber ? ` · TIN ${sale.vatNumber.replace(/^TIN\s*/i, '')}` : ''}</dt><dd>{naira(sale.vatAmount)}</dd></div> : null}
             <div className="flex justify-between border-t border-[var(--ejo-border)] pt-1 text-base font-bold"><dt>Total paid</dt><dd>{naira(sale.total)}</dd></div>
           </dl>
         </SectionCard>
