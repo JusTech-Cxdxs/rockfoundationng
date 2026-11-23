@@ -78,7 +78,8 @@ test('the Owner approves the count from Approvals and the stock follows', async 
   await as(page, 'owner');
   await page.goto('/approvals');
   await expect(page.getByText(/Approve the stock count — SC-/).first()).toBeVisible();
-  await page.goto(S.countUrl);
+  // Settled first: the decision is clicked once the page is interactive.
+  await page.goto(S.countUrl, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Approve the differences' }).click();
   await waitOutcome(page, /status=approved/);
   await expect(page.getByText('Approved. The stock now matches the count.')).toBeVisible();

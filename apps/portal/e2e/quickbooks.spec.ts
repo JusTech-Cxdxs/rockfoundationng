@@ -89,7 +89,7 @@ test.describe('QuickBooks export', () => {
     // The same days again: what the first export carried is left out.
     await page.goto(`/money/quickbooks?from=${FAR_BACK}&to=${today()}&kind=invoices&kind=payments&kind=creditNotes&kind=refunds&kind=counterSales&format=IIF`);
     await expect(page.getByTestId('qb-already')).toContainText('already exported');
-    await expect(page.getByText('Nothing to export for these days.')).toBeVisible();
+    await expect(page.getByText('Nothing to export for these days.').first()).toBeVisible();
     await expect(page.getByTestId('qb-history').getByRole('link', { name: row.number })).toBeVisible();
   });
 
