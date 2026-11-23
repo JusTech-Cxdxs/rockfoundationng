@@ -29,7 +29,7 @@
 import { readFileSync, readdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { BASE, FORGED_COOKIE, action, actionById, actionMap, closeDb, concretePath, digestMessages, isEmptyValue, redact, report, signIn, sql, type Check } from './lib';
-import { E2E_PASSWORD, MASTER, ORGANISATION_SLUG, OTHER_ORG_ADMIN, PEOPLE } from '../people';
+import { E2E_PASSWORD, MASTER, OTHER_ORG_ADMIN, PEOPLE } from '../people';
 import { decide, PERMISSIONS, type PermissionKey, type Principal } from '../../lib/authz/catalogue';
 
 const FIX = JSON.parse(readFileSync(process.env.SEC_FIXTURES ?? 'sec-fixtures.json', 'utf8'));
@@ -90,14 +90,11 @@ async function cron(): Promise<Check[]> {
     checks.push({ id: 'AC-CRON', title: p, pass: [none, wrong, query, raw].every((r) => r.status === 401) && right.status === 200 && post.status !== 200,
       detail: `none=${none.status} wrong=${wrong.status} ?key=${query.status} no-Bearer=${raw.status} POST=${post.status} correct=${right.status}` });
   }
-  // The Enyo trainer's door: never open without its own token (404 when not set up, 401 otherwise).
-  for (const p of [`/api/ml/datasets/jobs?organisation=${ORGANISATION_SLUG}`, `/api/ml/datasets/parts?organisation=${ORGANISATION_SLUG}`]) {
-    const none = await fetch(`${BASE}${p}`, { redirect: 'manual' });
-    const forged = await fetch(`${BASE}${p}`, { headers: { cookie: FORGED_COOKIE, authorization: 'Bearer forged-token' }, redirect: 'manual' });
-    checks.push({ id: 'AC-ML', title: p.split('?')[0]!, pass: [none, forged].every((r) => r.status === 401 || r.status === 404), detail: `none=${none.status} forged=${forged.status}` });
+  // The old machine-learning door (/api/ml) is gone in this edition: signed out it leads to sign-in, never to data.
+  for (const p of ['/api/ml/datasets/jobs', '/api/ml/models']) {
+    const r = await fetch(`${BASE}${p}`, { headers: { cookie: FORGED_COOKIE, authorization: 'Bearer forged-token' }, redirect: 'manual' });
+    checks.push({ id: 'AC-ML', title: `${p} (removed)`, pass: [307, 401, 404].includes(r.status) && !(r.headers.get('content-type') ?? '').includes('json'), detail: `status=${r.status}` });
   }
-  const upload = await fetch(`${BASE}/api/ml/models`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}', redirect: 'manual' });
-  checks.push({ id: 'AC-ML', title: 'POST /api/ml/models', pass: upload.status === 401 || upload.status === 404, detail: `status=${upload.status}` });
   const pulse = await fetch(`${BASE}/api/live/pulse`, { redirect: 'manual' });
   const pulseForged = await fetch(`${BASE}/api/live/pulse`, { headers: { cookie: FORGED_COOKIE }, redirect: 'manual' });
   const toLogin = pulse.status === 307 && (pulse.headers.get('location') ?? '').includes('/login');

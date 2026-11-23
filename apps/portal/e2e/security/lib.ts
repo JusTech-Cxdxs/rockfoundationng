@@ -168,6 +168,11 @@ export function digestMessages(log = process.env.PORTAL_LOG ?? 'portal.log'): Ma
 /** "Nothing": null, '', false, 0, [], {}, React's "$undefined", or an object of only those. */
 export function isEmptyValue(v: unknown): boolean {
   if (v === null || v === undefined || v === '' || v === false || v === 0 || v === '$undefined') return true;
+  // A refusal with its reason ({ ok: false, message | error: '…' }) carries no record data.
+  if (v && typeof v === 'object' && !Array.isArray(v) && (v as { ok?: unknown }).ok === false) {
+    const rest = Object.entries(v as Record<string, unknown>).filter(([k]) => k !== 'ok' && k !== 'message' && k !== 'error');
+    return rest.every(([, x]) => isEmptyValue(x));
+  }
   if (Array.isArray(v)) return v.length === 0;
   if (typeof v === 'object') return Object.values(v as object).every(isEmptyValue);
   return false;

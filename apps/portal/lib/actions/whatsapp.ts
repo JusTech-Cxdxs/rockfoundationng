@@ -138,6 +138,7 @@ async function receiptWhatsApp(paymentId: string): Promise<string> {
 /** The drafted message for one document, as a wa.me address. */
 export async function makeWhatsAppMessage(input: { kind: DocumentKind; id: string }): Promise<WhatsAppPrepared> {
   try {
+    await requireUser(); // signed in first: nothing is looked up for a stranger
     const id = typeof input?.id === 'string' ? input.id.trim() : '';
     if (!isDocumentKind(input?.kind) || !id) throw new WhatsAppError('Nothing to send.');
     if (input.kind === 'ESTIMATE') {
@@ -158,6 +159,7 @@ export async function makeWhatsAppMessage(input: { kind: DocumentKind; id: strin
  */
 export async function makeWelcomeWhatsAppMessage(input: { customerId: string; kind: 'welcome' | 'access' }): Promise<WhatsAppPrepared> {
   try {
+    await requireUser(); // signed in first: nothing is looked up for a stranger
     const id = typeof input?.customerId === 'string' ? input.customerId.trim() : '';
     if (!id) throw new WhatsAppError('Nothing to send.');
     const made = await sendCustomerAccessOnWhatsApp(id, input.kind === 'welcome' ? 'welcome' : 'access');
@@ -179,6 +181,7 @@ export type WhatsAppSentNow = { ok: true; note: string } | { ok: false; message:
  */
 export async function sendWhatsAppNow(input: { kind: DocumentKind; id: string }): Promise<WhatsAppSentNow> {
   try {
+    await requireUser(); // signed in first: nothing is looked up for a stranger
     const id = typeof input?.id === 'string' ? input.id.trim() : '';
     if (!isDocumentKind(input?.kind) || !id) throw new WhatsAppError('Nothing to send.');
     if (input.kind === 'ESTIMATE') {

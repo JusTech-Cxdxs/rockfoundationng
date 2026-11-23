@@ -26,3 +26,7 @@ packages/ui/src/*.js
 # Playwright output (e2e results and traces), never committed
 apps/portal/e2e/report/
 apps/portal/test-results/
+
+# Security check outputs (apps/portal/e2e/security)
+actions.json
+sec-*.json

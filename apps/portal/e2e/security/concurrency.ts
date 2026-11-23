@@ -72,7 +72,7 @@ async function main() {
   }
   // CONC-03 — 20 front-desk submissions opening a Job Card for the same vehicle.
   {
-    const input = { customerId: FIX.customerId, vehicleId: FIX.sameVehicleId, complaints: ['Concurrency test — same vehicle'], supervisorId: FIX.users.sup, mileageAtCheckIn: 20000 };
+    const input = { jobType: 'REPAIR', customerId: FIX.customerId, vehicleId: FIX.sameVehicleId, complaints: ['Concurrency test — same vehicle'], supervisorId: FIX.users.sup, mileageAtCheckIn: 20000 };
     const rs = await burst(20, (i) => action('createJobCard', [input], { cookie: front[i % front.length] }));
     const open = await num(`SELECT count(*) FROM job_cards WHERE "vehicleId"=$1 AND status NOT IN ('CLOSED','CHECKED_OUT','CANCELLED')`, [FIX.sameVehicleId]);
     evidence.sameVehicleJobCard = (await sql(`SELECT id, "jobNumber" FROM job_cards WHERE "vehicleId"=$1`, [FIX.sameVehicleId]))[0];
@@ -80,7 +80,7 @@ async function main() {
   }
   // CONC-04 — 15 Job Cards for 15 vehicles at once (number generation).
   {
-    const rs = await burst(15, (i) => action('createJobCard', [{ customerId: FIX.customerId, vehicleId: FIX.manyVehicleIds[i], complaints: [`Concurrency test ${i}`], supervisorId: FIX.users.sup, mileageAtCheckIn: 20000 + i }], { cookie: front[i % front.length] }));
+    const rs = await burst(15, (i) => action('createJobCard', [{ jobType: 'REPAIR', customerId: FIX.customerId, vehicleId: FIX.manyVehicleIds[i], complaints: [`Concurrency test ${i}`], supervisorId: FIX.users.sup, mileageAtCheckIn: 20000 + i }], { cookie: front[i % front.length] }));
     const rows = await sql<{ jobNumber: string }>(`SELECT "jobNumber" FROM job_cards WHERE "vehicleId" = ANY($1)`, [FIX.manyVehicleIds]);
     const unique = new Set(rows.map((r) => r.jobNumber)).size;
     // Integrity (unique numbers) is the hard requirement; refusals are a usability finding (CONC-F1).
@@ -149,7 +149,10 @@ async function main() {
     const neg = await num(`SELECT count(*) FROM part_stock WHERE "quantityOnHand" < 0 OR "quantityReserved" < 0`);
     const over = await num(`SELECT count(*) FROM part_stock WHERE "quantityReserved" > "quantityOnHand"`);
     const dupKeys = await num(`SELECT count(*) FROM (SELECT "idempotencyKey" FROM payments WHERE "idempotencyKey" IS NOT NULL GROUP BY 1 HAVING count(*)>1) x`);
-    const overpaid = await num(`SELECT count(*) FROM job_cards j WHERE (SELECT coalesce(sum(amount),0) FROM payments p WHERE p."jobCardId"=j.id) > (SELECT coalesce(sum(li.amount),0) FROM estimate_line_items li JOIN estimates e ON e.id=li."estimateId" WHERE e."jobCardId"=j.id AND li."billTo"='CUSTOMER') AND EXISTS (SELECT 1 FROM estimates e WHERE e."jobCardId"=j.id)`);
+    // What the customer owes: their lines, less the estimate discount, plus VAT; money in is payments less refunds (a kobo of rounding allowed).
+    const overpaid = await num(`SELECT count(*) FROM job_cards j JOIN estimates e ON e."jobCardId"=j.id
+      WHERE (SELECT coalesce(sum(amount),0) FROM payments p WHERE p."jobCardId"=j.id) - (SELECT coalesce(sum(amount),0) FROM refunds r WHERE r."jobCardId"=j.id)
+        > ((SELECT coalesce(sum(li.amount),0) FROM estimate_line_items li WHERE li."estimateId"=e.id AND li."billTo"='CUSTOMER') - coalesce(e."discountAmount",0)) * (1 + coalesce(e."vatRate",0) / 100) + 0.01`);
     const twoOpen = await num(`SELECT count(*) FROM (SELECT "vehicleId" FROM job_cards WHERE status NOT IN ('CLOSED','CHECKED_OUT','CANCELLED') GROUP BY 1 HAVING count(*)>1) x`);
     checks.push({ id: 'CONC-12', title: 'database invariants after all bursts', pass: neg + over + dupKeys + overpaid + twoOpen === 0, detail: `negative stock rows=${neg}, reserved>on-hand rows=${over}, duplicate payment keys=${dupKeys}, overpaid cards=${overpaid}, vehicles with 2+ open cards=${twoOpen}` });
   }
