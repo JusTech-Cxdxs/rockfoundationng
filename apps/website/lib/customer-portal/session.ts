@@ -14,6 +14,8 @@ export type SignedInCustomer = {
   altPhone: string | null;
   address: string | null;
   notifyByEmail: boolean;
+  /** Agreed to receive updates on WhatsApp (they can switch it off and on in their profile). */
+  whatsappOptIn: boolean;
   customerType: string;
   createdAt: Date;
   /** When they became a customer of the business (from QuickBooks or the old system), else createdAt. */
@@ -40,7 +42,7 @@ export const lookupCustomer = cache(async (): Promise<Lookup> => {
     where: { id: session.user.id },
     select: {
       id: true, organisationId: true, fullName: true, email: true, phone: true, altPhone: true, address: true,
-      notifyByEmail: true, customerType: true, createdAt: true, customerSince: true, isActive: true,
+      notifyByEmail: true, whatsappOptIn: true, customerType: true, createdAt: true, customerSince: true, isActive: true,
       customerCompany: { select: { companyName: true } },
     },
   });
@@ -53,7 +55,7 @@ export const lookupCustomer = cache(async (): Promise<Lookup> => {
     state: 'ok',
     customer: {
       id: c.id, organisationId: c.organisationId, fullName: c.fullName, email: c.email, phone: c.phone, altPhone: c.altPhone,
-      address: c.address, notifyByEmail: c.notifyByEmail, customerType: String(c.customerType), createdAt: c.createdAt,
+      address: c.address, notifyByEmail: c.notifyByEmail, whatsappOptIn: c.whatsappOptIn, customerType: String(c.customerType), createdAt: c.createdAt,
       // When they became a customer of the business (from the old system for long-standing customers), else when the account was made.
       customerSince: c.customerSince ?? c.createdAt,
       companyName: c.customerCompany?.companyName ?? null,

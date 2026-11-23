@@ -31,6 +31,7 @@ import { complaintCategoryLabel } from '@/lib/customer-care/rules';
 import { after } from 'next/server';
 import { announceRouted, emailAssignee } from '@/lib/support/notify';
 import { emailColleagues } from '@/lib/workflow-notify';
+import { whatsAppToCustomer } from '@/lib/whatsapp/send';
 
 /**
  * The Support centre for colleagues: customers and visitors handed over by
@@ -331,6 +332,10 @@ export async function replyToSupportTicket(ticketId: string, body: string, then:
   // The customer's email: a portal customer's own address (read inside the organisation), else what they wrote from.
   const customer = t.customerId ? await prisma.customer.findFirst({ where: { id: t.customerId, organisationId: t.organisationId }, select: { fullName: true, email: true } }) : null;
   const to = t.channel === 'EMAIL' ? (t.contactEmail ?? customer?.email ?? null) : (customer?.email ?? t.contactEmail ?? null);
+  // The reply on WhatsApp too, to a customer on record who agreed to WhatsApp (never a colleague's own request).
+  if (t.customerId && !t.requesterUserId) {
+    await whatsAppToCustomer({ customerId: t.customerId, key: 'support_reply', related: { type: 'SupportTicket', id: t.id }, values: { ticketNumber: t.number, subject: t.subject, reply: text.slice(0, 600), link: `${websiteBaseUrl() || portalBaseUrl()}/customer-portal/dashboard/support` } });
+  }
   let emailed = false;
   if (to) {
     try {

@@ -794,6 +794,8 @@ async function loadCustomers(tx: Prisma.TransactionClient, job: JobForLoad, mapp
         address: v.address, tags: v.tags, notifyByEmail: Boolean(email), createdById: job.createdById, importJobId: job.id,
         externalSource: v.externalId ? source : null, externalId: v.externalId,
         customerSince: v.customerSince ? new Date(`${v.customerSince}T00:00:00.000Z`) : null,
+        // WhatsApp only when the file said yes; recorded as given by whoever ran the import.
+        ...(v.whatsappOptIn === true ? { whatsappOptIn: true, whatsappOptInAt: new Date(), whatsappOptInById: job.createdById } : {}),
       })),
     });
     const made = new Set((await tx.customer.findMany({ where: { id: { in: creates.map((x) => x.id) } }, select: { id: true } })).map((c) => c.id));

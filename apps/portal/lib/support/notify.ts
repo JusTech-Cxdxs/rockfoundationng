@@ -8,6 +8,7 @@ import { formatDateTime } from '@/lib/utils/format-date';
 import { renderSupportAssignedEmail, renderSupportLateEmail, renderSupportNobodyFreeEmail } from '@/lib/email-templates/support-staff';
 import { CHANNEL_LABEL, PRIORITY_LABEL, asPriority } from './core';
 import { letterheadFor, supportEvent } from './server';
+import { whatsAppToStaff } from '@/lib/whatsapp/send';
 
 /**
  * Colleagues hear about support requests by email at their own address, as
@@ -18,7 +19,13 @@ import { letterheadFor, supportEvent } from './server';
  *    misses its first-answer target.
  * Each email names the request and links to it; the messages stay behind
  * sign-in. Never throws: a failed email is logged and the work carries on.
+ * Each also goes on WhatsApp to the colleagues who switched it on.
  */
+
+/** A request's WhatsApp notice: the number and subject, the contact (a colleague's own request stays unnamed), the link. */
+function ticketDetails(t: TicketFacts): string {
+  return `${t.number}: ${t.subject}. From ${t.requesterUserId ? 'a colleague (Get help)' : t.contactName}.`;
+}
 
 type TicketFacts = { id: string; organisationId: string; number: string; subject: string; contactName: string; channel: string; priority: string; dueFirstResponseAt: Date | null; branchId: string | null; queueId: string | null; assignedToId: string | null; requesterUserId: string | null };
 
@@ -61,6 +68,7 @@ export async function emailAssignee(ticketId: string, byUserId: string | null = 
       byUserId ? prisma.user.findUnique({ where: { id: byUserId }, select: { fullName: true } }) : null,
     ]);
     if (!who?.email) return false;
+    await whatsAppToStaff({ to: [{ id: t.assignedToId }], key: 'staff_assigned', related: { type: 'SupportTicket', id: t.id }, values: { what: `support request ${t.number}`, details: ticketDetails(t), link: `${portalBaseUrl()}/crm/support/${t.id}` } });
     const m = renderSupportAssignedEmail({ ...(await base(t, who.fullName)), by: by?.fullName ?? null });
     await sendEmail(who.email, m.subject, m.html);
     return true;
@@ -78,6 +86,7 @@ export async function alertNobodyFree(ticketId: string, reason: string): Promise
     const claimed = await prisma.supportTicket.updateMany({ where: { id: t.id, assignedToId: null, NOT: { tags: { has: 'nobody_free_alerted' } } }, data: { tags: { push: 'nobody_free_alerted' } } });
     if (!claimed.count) return 0;
     const people = await leadsFor(t);
+    await whatsAppToStaff({ to: people, key: 'staff_update', related: { type: 'SupportTicket', id: t.id }, values: { what: `Nobody on the team can take support request ${t.number}`, details: `${ticketDetails(t)} Why: ${reason}.`, link: `${portalBaseUrl()}/crm/support/${t.id}` } });
     let sent = 0;
     for (const p of people) {
       const m = renderSupportNobodyFreeEmail({ ...(await base(t, p.fullName)), reason });
@@ -110,6 +119,7 @@ export async function emailLate(ticketId: string): Promise<number> {
       leadsFor(t),
     ]);
     const people = [...(owner ? [owner] : []), ...leads.filter((l) => l.id !== owner?.id)];
+    await whatsAppToStaff({ to: people, key: 'staff_update', related: { type: 'SupportTicket', id: t.id }, values: { what: `Support request ${t.number} is past its first-answer target`, details: ticketDetails(t), link: `${portalBaseUrl()}/crm/support/${t.id}` } });
     let sent = 0;
     for (const p of people) {
       const m = renderSupportLateEmail({ ...(await base(t, p.fullName)), owner: owner && owner.id !== p.id ? owner.fullName : null });

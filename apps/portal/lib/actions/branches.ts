@@ -13,6 +13,7 @@ import { sendEmail } from '@/lib/email';
 import { renderStaffNoticeEmail } from '@/lib/email-templates/staff-notice';
 import { logError } from '@/lib/errors';
 import { PLATFORM } from '@/lib/brand';
+import { whatsAppToStaff } from '@/lib/whatsapp/send';
 
 class BranchActionError extends Error {}
 
@@ -148,6 +149,7 @@ export async function updateBranch(branchId: string, input: UpdateBranchInput): 
             .then(async (w) => orMasterAdmins(w, (await prisma.branch.findUnique({ where: { id: branchId }, select: { businessUnit: { select: { organisationId: true } } } }))?.businessUnit.organisationId ?? null)),
         ]);
         const portal = portalBaseUrl();
+        await whatsAppToStaff({ to: watchers, key: 'staff_update', related: { type: 'Branch', id: branchId }, values: { what: `The bank account for ${trimmedName} was changed`, details: `From: ${from}. To: ${to}. By: ${actor?.fullName ?? 'an administrator'}. If you did not expect this change, report it immediately.`, link: `${portal}/branches/${branchId}` } });
         for (const w of watchers) {
           if (!w.email) continue;
           await sendEmail(

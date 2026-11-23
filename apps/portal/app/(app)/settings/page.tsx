@@ -41,6 +41,12 @@ const GROUPS: Group[] = [
     ],
   },
   {
+    id: 'messages', title: 'Messages', text: 'How the portal reaches customers and colleagues besides email.',
+    areas: [
+      { href: '/settings/whatsapp', icon: 'chat', title: 'WhatsApp', text: 'Automatic WhatsApp messages: the set-up, each template’s approval, what was sent and failed, and a test send.', needs: 'admin.settings.manage' },
+    ],
+  },
+  {
     id: 'support', title: 'Customer support', text: 'The Support centre: teams and their email addresses, hours, targets and how Enyo answers.',
     areas: [
       { href: '/settings/support', icon: 'inbox', title: 'Support centre set-up', text: 'Teams (support@, service@, technical@ …), who works them, opening hours, targets and Enyo’s replies.', needs: 'support.manage' },

@@ -14,6 +14,7 @@ import { renderCustomerInvoiceEmail } from '@/lib/email-templates/customer-invoi
 import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
 import { customerLinks } from '@/lib/customer-links-core';
 import { logFailure } from '@/lib/log';
+import { whatsAppInvoice } from '@/lib/whatsapp/documents';
 
 /**
  * Invoices (server only, not a server action: the guarded actions are in
@@ -176,9 +177,12 @@ export async function invoicePdfBuffer(inv: InvoiceDocument): Promise<Buffer> {
 
 /**
  * Emails the invoice, with its PDF, to the customer when they have an email
- * address. Never throws: a failure is logged and the invoice stands.
+ * address — and sends it on WhatsApp with the same PDF when the customer
+ * agreed to WhatsApp (lib/whatsapp/documents; whether or not they have an
+ * email). Never throws: a failure is logged and the invoice stands.
  */
 export async function sendInvoiceEmail(invoiceId: string): Promise<boolean> {
+  await whatsAppInvoice(invoiceId, null);
   try {
     const inv = await prisma.invoice.findUnique({ where: { id: invoiceId }, select: INVOICE_DOCUMENT_SELECT });
     if (!inv?.customer.email) return false;

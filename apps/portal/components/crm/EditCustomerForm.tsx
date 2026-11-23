@@ -12,7 +12,7 @@ const PHONE_PATTERN = '\\+?[0-9 ]{7,20}';
 
 export type EditableCustomer = {
   id: string; fullName: string; customerType: string; email: string | null; phone: string | null; altPhone: string | null; address: string | null;
-  tags: string[]; notifyByEmail: boolean; companyName: string | null; taxId: string | null;
+  tags: string[]; notifyByEmail: boolean; whatsappOptIn: boolean; companyName: string | null; taxId: string | null;
 };
 
 /** Edit a customer's details. Every changed field goes to the audit trail as before → after. */
@@ -75,6 +75,15 @@ export function EditCustomerForm({ customer, cancelHref }: { customer: EditableC
         <label className="flex items-center gap-2 text-sm text-[var(--ejo-text)]">
           <input type="checkbox" name="notifyByEmail" value="yes" defaultChecked={has ? state.values.notifyByEmail === 'yes' : customer.notifyByEmail} className="h-4 w-4" />
           Also send them updates and broadcasts by email
+        </label>
+      </div>
+      <div className="sm:col-span-2">
+        <label className="flex items-start gap-2 text-sm text-[var(--ejo-text)]">
+          <input type="checkbox" name="whatsappOptIn" value="yes" data-testid="edit-whatsapp-consent" defaultChecked={has ? state.values.whatsappOptIn === 'yes' : customer.whatsappOptIn} className="mt-0.5 h-4 w-4" />
+          <span>
+            The customer agrees to receive updates on WhatsApp
+            <span className="block text-xs text-[var(--ejo-text-muted)]">Only with their agreement: their estimates, invoices, receipts and vehicle updates go to their WhatsApp too. Changing it is recorded with your name.</span>
+          </span>
         </label>
       </div>
       {state.error ? (

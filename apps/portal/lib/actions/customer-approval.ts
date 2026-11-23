@@ -17,6 +17,9 @@ import { customerWhatsAppUrl, estimateMessage } from '@/lib/whatsapp-messages';
 import { issueDocumentLink } from '@/lib/document-links';
 import { workshopContactFor } from '@/lib/workshop-core';
 import { renderCustomerEstimateApprovalLinkEmail } from '@/lib/email-templates/customer-estimate-approval-link';
+import { whatsAppToCustomer, customerWhatsAppRefusal } from '@/lib/whatsapp/send';
+import { whatsAppEstimate } from '@/lib/whatsapp/documents';
+import { jobRecord, vehicleText } from '@/lib/whatsapp/words';
 import { requireUser, currentUserIsMasterAdmin } from './workshop';
 
 /**
@@ -38,7 +41,7 @@ async function waitingJobCard(jobCardId: string) {
   return prisma.jobCard.findUnique({
     where: { id: jobCardId },
     select: {
-      id: true, branchId: true, status: true, jobNumber: true, createdById: true, supervisorId: true, assignedTechnicianId: true,
+      id: true, branchId: true, status: true, jobNumber: true, createdById: true, supervisorId: true, assignedTechnicianId: true, customerId: true,
       branch: { select: { businessUnit: { select: { organisationId: true, organisation: { select: BILLING_SETTINGS_SELECT } } } } },
       customer: { select: { fullName: true, email: true, phone: true, altPhone: true, customerType: true } },
       vehicle: { select: { make: true, model: true, plateNumber: true } },
@@ -145,6 +148,11 @@ export async function sendEstimateApprovalLink(jobCardId: string): Promise<Appro
   const expiresOn = expiresAt.toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Lagos' });
   const orgContext = await getWorkshopOrgContext();
 
+  // On WhatsApp too, when the customer agreed (whether or not they have an email): the same link and date.
+  const sentOnWhatsApp = await whatsAppToCustomer({
+    customerId: jc.customerId, key: 'estimate_approval_link', related: { type: 'JobCard', id: jobCardId },
+    values: { vehicle: vehicleText(jc.vehicle), record: jobRecord(jc.jobNumber), link: url, total: naira(total), expiresOn },
+  });
   let emailed = false;
   if (jc.customer.email) {
     try {
@@ -175,7 +183,7 @@ export async function sendEstimateApprovalLink(jobCardId: string): Promise<Appro
   // The same approval link as the email, with the estimate's PDF (a document link).
   const whatsAppUrl = await estimateWhatsApp(jc, user.id, { url, expiresAt, total, deposit: deposit.amount });
   // Never the link itself in the audit trail.
-  await writeAuditLog({ userId: user.id, action: 'estimate.approval_link_sent', entityType: 'JobCard', entityId: jobCardId, metadata: { emailed, whatsApp: Boolean(whatsAppUrl), expiresAt: expiresAt.toISOString() } });
+  await writeAuditLog({ userId: user.id, action: 'estimate.approval_link_sent', entityType: 'JobCard', entityId: jobCardId, metadata: { emailed, whatsApp: Boolean(whatsAppUrl), whatsAppSent: sentOnWhatsApp.status === 'SENT', expiresAt: expiresAt.toISOString() } });
   return { emailed, whatsAppUrl, expiresAt };
 }
 
@@ -225,4 +233,26 @@ export async function prepareEstimateWhatsApp(jobCardId: string): Promise<{ what
   if (!whatsAppUrl) throw new CustomerApprovalError('There is no mobile number WhatsApp can take on file for this customer.');
   await writeAuditLog({ userId: user.id, action: 'whatsapp.prepared', entityType: 'JobCard', entityId: jobCardId, metadata: { kind: 'ESTIMATE', jobNumber: jc.jobNumber, approvalLinkReplaced: true, expiresAt: expiresAt.toISOString() } });
   return { whatsAppUrl, expiresAt };
+}
+
+/**
+ * "Send now on WhatsApp" for the estimate (automatic sending set up): the
+ * same people as "Send approval link"; the customer must have agreed to
+ * WhatsApp and have a usable number, checked before a new approval link is
+ * made (so the emailed one keeps working otherwise). The server sends the
+ * estimate template with the PDF and a fresh approval link, which replaces
+ * the earlier one. Audited without either link.
+ */
+export async function sendEstimateOnWhatsAppNow(jobCardId: string): Promise<{ sent: boolean; message: string }> {
+  await authorizeOnJobCard('workshop.job_card.view', jobCardId, 'sendEstimateOnWhatsAppNow');
+  const jc = await waitingJobCard(jobCardId);
+  if (!jc) throw new CustomerApprovalError('Job Card not found.');
+  const user = await requireAnswerTaker(jc, 'sendEstimateOnWhatsAppNow');
+  assertAwaitingAnswer(jc);
+  const refusal = await customerWhatsAppRefusal(jc.customerId);
+  if (refusal) throw new CustomerApprovalError(refusal);
+  const { token, expiresAt } = await issueApprovalLink(jc.estimate.id, user.id);
+  const sent = await whatsAppEstimate(jc.id, user.id, approvalLinkUrl(websiteBaseUrl(), token));
+  await writeAuditLog({ userId: user.id, action: sent.status === 'SENT' ? 'whatsapp.sent' : 'whatsapp.failed', entityType: 'JobCard', entityId: jobCardId, metadata: { kind: 'ESTIMATE', jobNumber: jc.jobNumber, approvalLinkReplaced: true, expiresAt: expiresAt.toISOString(), ...(sent.status === 'SENT' ? {} : { reason: sent.message }) } });
+  return { sent: sent.status === 'SENT', message: sent.message };
 }

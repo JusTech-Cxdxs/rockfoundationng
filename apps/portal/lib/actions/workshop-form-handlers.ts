@@ -73,6 +73,7 @@ export async function createCustomerFormAction(formData: FormData) {
       email: str(formData, 'email'),
       phone: str(formData, 'phone'),
       altPhone: str(formData, 'altPhone') || undefined,
+      whatsappOptIn: str(formData, 'whatsappOptIn') === 'yes',
     });
     revalidatePath('/workshop/customers');
     if (wasExisting) {

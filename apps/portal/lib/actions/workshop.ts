@@ -54,6 +54,9 @@ import { estimatePdfFor } from '@/lib/document-pdfs';
 import { jobEstimateTotals, nairaForPdf, vatLabel } from '@/lib/pdf/document-props';
 import { signedInSession } from '@/lib/session';
 import { sendEmail } from '@/lib/email';
+import { whatsAppToCustomer, whatsAppToStaff } from '@/lib/whatsapp/send';
+import { whatsAppPaymentReceipt } from '@/lib/whatsapp/documents';
+import { depositSentence, detailsLine, jobRecord, vehicleText, visitText, waLongDate } from '@/lib/whatsapp/words';
 import { renderSupervisorJobCardAssignedEmail } from '@/lib/email-templates/supervisor-job-card-assigned';
 import { renderCustomerJobCardAcknowledgmentEmail } from '@/lib/email-templates/customer-job-card-acknowledgment';
 import { renderJobCardDecisionEmail } from '@/lib/email-templates/job-card-decision';
@@ -187,7 +190,7 @@ async function notifyJobCardCreatorOfDecision(params: {
       where: { id: params.jobCardId },
       select: {
         customer: { select: { fullName: true } },
-        createdBy: { select: { fullName: true, email: true } },
+        createdBy: { select: { id: true, fullName: true, email: true } },
         department: { select: { name: true } },
       },
     });
@@ -198,6 +201,14 @@ async function notifyJobCardCreatorOfDecision(params: {
     });
     const orgContext = await getWorkshopOrgContext(jobCard.department?.name);
     const portalUrl = portalBaseUrl();
+    await whatsAppToStaff({
+      to: [jobCard.createdBy], key: 'staff_update', related: { type: 'JobCard', id: params.jobCardId },
+      values: {
+        what: params.decision === 'APPROVED' ? `Job Card ${params.jobNumber} approved` : `Job Card ${params.jobNumber} returned for correction`,
+        details: detailsLine([['Customer', jobCard.customer.fullName], ['By', approver?.fullName ?? 'Supervisor'], ['Reason', params.rejectionReason]]),
+        link: `${portalUrl}/workshop/job-cards/${params.jobCardId}`,
+      },
+    });
 
     await sendEmail(
       jobCard.createdBy.email,
@@ -365,6 +376,8 @@ export type CreateCustomerInput = {
   phone: string;
   altPhone?: string;
   tags?: string[];
+  /** The customer agrees to receive updates on WhatsApp (the registration tick box; recorded with who and when). */
+  whatsappOptIn?: boolean;
 };
 
 /** Returns the existing customer with this email, or creates one, so a
@@ -410,6 +423,8 @@ export async function findOrCreateCustomer(input: CreateCustomerInput) {
       altPhone,
       tags,
       createdById: currentUser.id,
+      // WhatsApp agreement, as the colleague recorded it on the form (off unless ticked).
+      ...(input.whatsappOptIn === true ? { whatsappOptIn: true, whatsappOptInAt: new Date(), whatsappOptInById: currentUser.id } : {}),
     },
   });
 
@@ -419,7 +434,7 @@ export async function findOrCreateCustomer(input: CreateCustomerInput) {
     action: 'customer.created',
     entityType: 'Customer',
     entityId: customer.id,
-    metadata: { actor: 'staff', fullName: customer.fullName, email: customer.email, customerType: customer.customerType, phone, address },
+    metadata: { actor: 'staff', fullName: customer.fullName, email: customer.email, customerType: customer.customerType, phone, address, whatsappOptIn: input.whatsappOptIn === true },
   });
 
   const welcome = await sendCustomerAccessEmail(customer.id, 'welcome', currentUser.id);
@@ -892,8 +907,9 @@ export async function createJobCard(input: CreateJobCardInput) {
   }
   // What front desk entered for this kind of visit: checked, and the reason
   // written for a car wash or a service when left blank (lib/workshop/job-types.ts).
-  const visit = checkIn({ ...input, complaints: input.complaints });
-  if (typeof visit === 'string') throw new WorkshopActionError(visit);
+  const checked = checkIn({ ...input, complaints: input.complaints });
+  if (typeof checked === 'string') throw new WorkshopActionError(checked);
+  const visit = checked;
   const complaints = visit.complaints;
 
   // The department follows the work (lib/workshop/routing.ts), never client
@@ -998,6 +1014,10 @@ export async function createJobCard(input: CreateJobCardInput) {
   try {
     const orgContext = await getWorkshopOrgContext(department.name);
     const portalUrl = portalBaseUrl();
+    await whatsAppToStaff({
+      to: [created.supervisor], key: 'staff_assigned', related: { type: 'JobCard', id: created.id },
+      values: { what: `Job Card ${created.jobNumber}, to supervise`, details: detailsLine([['Customer', created.customer.fullName], ['Vehicle', vehicleText(vehicle)]]), link: `${portalUrl}/workshop/job-cards/${created.id}` },
+    });
     await sendEmail(
       created.supervisor!.email,
       `New Job Card ${created.jobNumber} assigned to you`,
@@ -1023,6 +1043,10 @@ export async function createJobCard(input: CreateJobCardInput) {
   try {
     const orgContext = await getWorkshopOrgContext(department.name);
     const websiteUrl = websiteBaseUrl();
+    await whatsAppToCustomer({
+      customerId: input.customerId, key: 'job_checked_in', related: { type: 'JobCard', id: created.id },
+      values: { vehicle: vehicleText(vehicle), visit: visitText(visit.jobType), record: jobRecord(created.jobNumber), link: customerLinks(websiteUrl).jobCard(created.id) },
+    });
     await sendEmail(
       created.customer.email,
       `Your vehicle is checked in — Job Card ${created.jobNumber}`,
@@ -1070,9 +1094,10 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
       createdById: true,
       supervisorId: true,
       assignedTechnicianId: true,
+      customerId: true,
       department: { select: { name: true } },
       customer: { select: { fullName: true, email: true } },
-      vehicle: { select: { make: true, model: true } },
+      vehicle: { select: { make: true, model: true, plateNumber: true } },
       estimate: { select: ESTIMATE_TOTALS_SELECT },
       ...JOB_CARD_BILLING_SELECT,
       payments: { select: { amount: true } },
@@ -1244,20 +1269,27 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
         branchName: orgContext.branchName,
       };
 
+      // The same moment on WhatsApp (when the customer agreed to it): one message per email below.
+      const wa = { customerId: jobCard.customerId, related: { type: 'JobCard', id }, vehicle: vehicleText(jobCard.vehicle), record: jobRecord(jobCard.jobNumber), link: dashboardUrl };
+      const waBase = { customerId: wa.customerId, related: wa.related };
+
       // After a rework, tell the customer it's a rework, not "work has started" again.
       if (status === JobCardStatus.IN_PROGRESS && isReworkTransition) {
+        await whatsAppToCustomer({ ...waBase, key: 'job_work_update', values: { vehicle: wa.vehicle, record: wa.record, link: wa.link, update: 'during our final checks we found something we want to put right before we hand the vehicle back, so it has gone back into the workshop for that work.' } });
         await sendEmail(
           jobCard.customer.email,
           `An update on your vehicle — Job Card ${jobCard.jobNumber}`,
           renderCustomerJobWorkUpdateEmail({ ...shared, kind: 'REWORK' }),
         );
       } else if (status === JobCardStatus.IN_PROGRESS && priorStatus === JobCardStatus.AWAITING_PARTS) {
+        await whatsAppToCustomer({ ...waBase, key: 'job_work_update', values: { vehicle: wa.vehicle, record: wa.record, link: wa.link, update: 'the parts we were waiting for have arrived, and work has started again.' } });
         await sendEmail(
           jobCard.customer.email,
           `Work on your vehicle has resumed — Job Card ${jobCard.jobNumber}`,
           renderCustomerJobWorkUpdateEmail({ ...shared, kind: 'RESUMED' }),
         );
       } else if (status === JobCardStatus.IN_PROGRESS) {
+        await whatsAppToCustomer({ ...waBase, key: 'job_work_started', values: { vehicle: wa.vehicle, record: wa.record, link: wa.link } });
         await sendEmail(
           jobCard.customer.email,
           `Work on your vehicle has started — Job Card ${jobCard.jobNumber}`,
@@ -1267,6 +1299,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
         // After a rework the customer already knows checks are under way; no
         // duplicate quality-check email.
         if (!reworkedBefore) {
+          await whatsAppToCustomer({ ...waBase, key: 'job_quality_check', values: { vehicle: wa.vehicle, record: wa.record, link: wa.link } });
           await sendEmail(
             jobCard.customer.email,
             `Your vehicle is in final quality checks — Job Card ${jobCard.jobNumber}`,
@@ -1274,6 +1307,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
           );
         }
       } else if (status === JobCardStatus.COMPLETED) {
+        await whatsAppToCustomer({ ...waBase, key: 'job_completed', values: { vehicle: wa.vehicle, record: wa.record, link: wa.link } });
         await sendEmail(
           jobCard.customer.email,
           `Your vehicle passed its quality inspection — Job Card ${jobCard.jobNumber}`,
@@ -1281,6 +1315,7 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
         );
       } else {
         const dueDate = addWorkingDays(new Date(), READY_FOR_COLLECTION_GRACE_WORKING_DAYS);
+        await whatsAppToCustomer({ ...waBase, key: 'ready_for_collection', values: { vehicle: wa.vehicle, record: wa.record, branch: orgContext.branchName || 'the branch', collectBy: waLongDate(dueDate) } });
         await sendEmail(
           jobCard.customer.email,
           `Your vehicle is ready for collection — Job Card ${jobCard.jobNumber}`,
@@ -1355,6 +1390,15 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
       const nextService = jobCard.isService && priorStatus !== JobCardStatus.CANCELLED ? await serviceJobCardCycle(id).catch(() => null) : null;
       const longDate = (d: Date) => d.toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Africa/Lagos' });
 
+      const dueKm = nextService?.nextServiceDueOdometer != null ? `${nextService.nextServiceDueOdometer.toLocaleString('en-NG')} km` : null;
+      const dueOn = nextService?.nextServiceDueDate ? longDate(nextService.nextServiceDueDate) : null;
+      await whatsAppToCustomer({
+        customerId: jobCard.customerId, key: 'vehicle_collected', related: { type: 'JobCard', id },
+        values: {
+          vehicle: vehicleText(jobCard.vehicle), record: jobRecord(jobCard.jobNumber), collectedBy: realCollectedByName,
+          nextService: dueKm || dueOn ? `due ${[dueKm ? `at ${dueKm}` : null, dueOn ? `by ${dueOn}` : null].filter(Boolean).join(' or ')}${dueKm && dueOn ? ', whichever comes first' : ''}. We will remind you as it gets close.` : 'we will remind you when it is due.',
+        },
+      });
       await sendEmail(
         jobCard.customer.email,
         `Your vehicle has been collected — Job Card ${jobCard.jobNumber}`,
@@ -1592,6 +1636,10 @@ export async function reassignSupervisor(jobCardId: string, newSupervisorId: str
     });
     const orgContext = await getWorkshopOrgContext(department?.name);
     const portalUrl = portalBaseUrl();
+    await whatsAppToStaff({
+      to: [{ id: newSupervisorId }], key: 'staff_assigned', related: { type: 'JobCard', id: jobCardId },
+      values: { what: `Job Card ${jobCard.jobNumber}, to supervise`, details: detailsLine([['Customer', jobCard.customer.fullName], ['Vehicle', vehicleText(jobCard.vehicle)]]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
+    });
     await sendEmail(
       supervisor.email,
       `New Job Card ${jobCard.jobNumber} assigned to you`,
@@ -1670,6 +1718,10 @@ export async function assignTechnician(jobCardId: string, technicianId: string) 
     if (!technician) return jobCard;
     const orgContext = await getWorkshopOrgContext(jobCard.department?.name);
     const portalUrl = portalBaseUrl();
+    await whatsAppToStaff({
+      to: [{ id: technicianId }], key: 'staff_assigned', related: { type: 'JobCard', id: jobCard.id },
+      values: { what: `Job Card ${jobCard.jobNumber}, to work on`, details: detailsLine([['Customer', jobCard.customer.fullName], ['Vehicle', vehicleText(jobCard.vehicle)], ['Supervisor', jobCard.supervisor?.fullName]]), link: `${portalUrl}/workshop/job-cards/${jobCard.id}` },
+    });
     await sendEmail(
       technician.email,
       `You are assigned to Job Card ${jobCard.jobNumber}`,
@@ -1731,6 +1783,14 @@ async function notifySupervisorOfTechnicianResponse(params: {
     const orgContext = await getWorkshopOrgContext(jobCard.department?.name);
     const portalUrl = portalBaseUrl();
 
+    await whatsAppToStaff({
+      to: [jobCard.supervisor], key: 'staff_update', related: { type: 'JobCard', id: params.jobCardId },
+      values: {
+        what: params.response === 'ACCEPTED' ? `Assignment accepted on Job Card ${params.jobNumber}` : `Assignment declined on Job Card ${params.jobNumber}`,
+        details: detailsLine([['Technician', technician?.fullName ?? 'Technician'], ['Customer', jobCard.customer.fullName], ['Reason', params.rejectionReason]]),
+        link: `${portalUrl}/workshop/job-cards/${params.jobCardId}`,
+      },
+    });
     await sendEmail(
       jobCard.supervisor.email,
       params.response === 'ACCEPTED'
@@ -2343,6 +2403,10 @@ async function sendEstimateNudge(params: {
     if (!toUser) return;
     const orgContext = await getWorkshopOrgContext(jobCard.department?.name);
     const portalUrl = portalBaseUrl();
+    await whatsAppToStaff({
+      to: [{ id: params.toUserId }], key: 'staff_update', related: { type: 'JobCard', id: params.jobCardId },
+      values: { what: `Please look at the estimate on Job Card ${jobCard.jobNumber}`, details: detailsLine([['From', fromUser?.fullName ?? 'A team member'], ['Customer', jobCard.customer.fullName], ['Note', params.note]]), link: `${portalUrl}/workshop/job-cards/${params.jobCardId}` },
+    });
     await sendEmail(
       toUser.email,
       `Please look at the estimate — Job Card ${jobCard.jobNumber}`,
@@ -2496,6 +2560,10 @@ export async function submitEstimateForValidation(jobCardId: string): Promise<vo
     const [submitter, orgContext] = await Promise.all([prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }), getWorkshopOrgContext(estimate.jobCard.department?.name)]);
     const portalUrl = portalBaseUrl();
     const total = (await jobCardTotalsNow(jobCardId)).total;
+    await whatsAppToStaff({
+      to: [estimate.jobCard.supervisor], key: 'staff_approval', related: { type: 'JobCard', id: jobCardId },
+      values: { what: `the estimate on Job Card ${estimate.jobCard.jobNumber}, to validate`, details: detailsLine([['Customer', estimate.jobCard.customer.fullName], ['Total', nairaText(total)], ['Submitted by', submitter?.fullName]]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
+    });
     await sendEmail(
       estimate.jobCard.supervisor.email,
       `Estimate for Job Card ${estimate.jobCard.jobNumber} needs your validation`,
@@ -2624,6 +2692,10 @@ export async function approveEstimate(jobCardId: string): Promise<void> {
     const portalUrl = portalBaseUrl();
     const companyName = estimate.jobCard.branch.businessUnit.organisation.name;
     const branchName = estimate.jobCard.branch.name;
+    await whatsAppToStaff({
+      to: managers.supervisors, key: 'staff_approval', related: { type: 'JobCard', id: jobCardId },
+      values: { what: `the estimate on Job Card ${estimate.jobCard.jobNumber}, for final approval`, details: detailsLine([['Customer', estimate.jobCard.customer.fullName], ['Total', nairaText(total)], ['Validated by', approver?.fullName]]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
+    });
     for (const manager of managers.supervisors) {
       await sendEmail(
         manager.email,
@@ -2731,6 +2803,10 @@ export async function approveEstimateAsManager(jobCardId: string, approveDiscoun
     const manager = await prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } });
     const total = (await jobCardTotalsNow(jobCardId)).total;
     const portalUrl = portalBaseUrl();
+    await whatsAppToStaff({
+      to: [estimate.jobCard.createdBy], key: 'staff_update', related: { type: 'JobCard', id: jobCardId },
+      values: { what: `The estimate on Job Card ${estimate.jobCard.jobNumber} is approved and ready to send to the customer`, details: detailsLine([['Customer', estimate.jobCard.customer.fullName], ['Total', nairaText(total)], ['Approved by', manager?.fullName ?? 'The manager']]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
+    });
     await sendEmail(
       estimate.jobCard.createdBy.email,
       `Estimate for Job Card ${estimate.jobCard.jobNumber} approved by manager — ready to send`,
@@ -2807,6 +2883,7 @@ export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promi
       jobCard: {
         select: {
           createdById: true,
+          customerId: true,
           jobNumber: true,
           vehicle: { select: { make: true, model: true, plateNumber: true, chassisNumber: true } },
           customer: { select: { fullName: true, email: true, address: true, customerType: true } },
@@ -2874,6 +2951,12 @@ export async function notifyCustomerOfApprovedEstimate(jobCardId: string): Promi
 
     const rawLineItems = estimate.lineItems as { description: string; quantity: number; unitOfMeasure: string | null; amount: unknown; billTo?: string | null }[];
 
+    // On WhatsApp too (when the customer agreed): the same figures, the same approval link, and the estimate PDF.
+    await whatsAppToCustomer({
+      customerId: estimate.jobCard.customerId, key: 'estimate_ready', related: { type: 'JobCard', id: jobCardId },
+      values: { vehicle: vehicleText(estimate.jobCard.vehicle), record: jobRecord(estimate.jobCard.jobNumber), total: nairaText(t.total), deposit: depositSentence(t.minimumDeposit), link: approvalUrl ?? customerLinks(websiteUrl).jobCard(jobCardId) },
+      document: { kind: 'ESTIMATE', recordId: jobCardId, number: estimate.jobCard.jobNumber, createdById: user.id },
+    });
     await sendEmail(
       estimate.jobCard.customer.email,
       `Estimate ready for ${estimate.jobCard.jobNumber} — ${[vehicleDescription, estimate.jobCard.vehicle.plateNumber ? `(${estimate.jobCard.vehicle.plateNumber})` : ''].filter(Boolean).join(' ')}`,
@@ -3251,6 +3334,13 @@ export async function recordPayment(
         select: { id: true, fullName: true, email: true },
       });
 
+      // "Deposit paid, work can start" matters on a phone; "paid in full" is a record (email only).
+      if (!justCompletedFull) {
+        await whatsAppToStaff({
+          to: recipients, key: 'staff_update', related: { type: 'JobCard', id: jobCardId },
+          values: { what: `Deposit paid, work can start on Job Card ${jobCard.jobNumber}`, details: detailsLine([['Customer', jobCard.customer.fullName], ['Paid so far', formatNaira(newTotal)], ['Estimate', formatNaira(settled.totalNow)]]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
+        });
+      }
       for (const recipient of recipients) {
         if (justCompletedFull) {
           await sendEmail(
@@ -3296,6 +3386,8 @@ export async function recordPayment(
     const orgContext = await getWorkshopOrgContext(jobCard.department?.name);
     const websiteUrl = websiteBaseUrl();
     const balance = balanceDue(settled.totalNow, newTotal);
+    // On WhatsApp too (when the customer agreed), with the receipt PDF.
+    await whatsAppPaymentReceipt(settled.paymentId, user.id);
     await sendEmail(
       jobCard.customer.email,
       `Payment received — Job Card ${jobCard.jobNumber}`,
@@ -3430,6 +3522,10 @@ export async function requestJobCardCancellation(jobCardId: string, reason: stri
     const [requester, orgContext] = await Promise.all([prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }), getWorkshopOrgContext(jobCard.department?.name)]);
     const portalUrl = portalBaseUrl();
     const managers = await listEligibleManagersForBranch(jobCard.branchId);
+    await whatsAppToStaff({
+      to: managers.supervisors, key: 'staff_approval', related: { type: 'JobCard', id: jobCardId },
+      values: { what: `a request to cancel Job Card ${jobCard.jobNumber}`, details: detailsLine([['Customer', jobCard.customer.fullName], ['Requested by', requester?.fullName], ['Reason', trimmedReason]]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
+    });
     for (const manager of managers.supervisors) {
       await sendEmail(
         manager.email,
@@ -3470,8 +3566,9 @@ export async function approveCancellationRequest(requestId: string, decisionNote
           createdById: true,
           supervisorId: true,
           assignedTechnicianId: true,
+          customerId: true,
           customer: { select: { fullName: true, email: true } },
-          vehicle: { select: { make: true, model: true } },
+          vehicle: { select: { make: true, model: true, plateNumber: true } },
           department: { select: { name: true } },
         },
       },
@@ -3577,6 +3674,7 @@ export async function approveCancellationRequest(requestId: string, decisionNote
   try {
     const orgContext = await getWorkshopOrgContext(request.jobCard.department?.name);
     const websiteUrl = websiteBaseUrl();
+    await whatsAppToCustomer({ customerId: request.jobCard.customerId, key: 'job_cancelled', related: { type: 'JobCard', id: request.jobCardId }, values: { record: jobRecord(request.jobCard.jobNumber), vehicle: vehicleText(request.jobCard.vehicle) } });
     await sendEmail(
       request.jobCard.customer.email,
       `Your Job Card ${request.jobCard.jobNumber} has been cancelled`,
@@ -3648,6 +3746,10 @@ export async function declineCancellationRequest(requestId: string, decisionNote
     if (!requester) return;
     const orgContext = await getWorkshopOrgContext(request.jobCard.department?.name);
     const portalUrl = portalBaseUrl();
+    await whatsAppToStaff({
+      to: [{ id: request.requestedById }], key: 'staff_update', related: { type: 'JobCard', id: request.jobCardId },
+      values: { what: `Your request to cancel Job Card ${request.jobCard.jobNumber} was declined`, details: detailsLine([['Customer', request.jobCard.customer.fullName], ['By', decliner?.fullName ?? 'The manager'], ['Note', decisionNotes?.trim()]]), link: `${portalUrl}/workshop/job-cards/${request.jobCardId}` },
+    });
     await sendEmail(
       requester.email,
       `Cancellation request declined — Job Card ${request.jobCard.jobNumber}`,
@@ -3751,6 +3853,10 @@ export async function requestJobCardClose(jobCardId: string): Promise<void> {
     const [requester, orgContext] = await Promise.all([prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }), getWorkshopOrgContext(jobCard.department?.name)]);
     const portalUrl = portalBaseUrl();
     const managers = await listEligibleManagersForBranch(jobCard.branchId);
+    await whatsAppToStaff({
+      to: managers.supervisors, key: 'staff_approval', related: { type: 'JobCard', id: jobCardId },
+      values: { what: `a request to close Job Card ${jobCard.jobNumber}`, details: detailsLine([['Customer', jobCard.customer.fullName], ['Requested by', requester?.fullName]]), link: `${portalUrl}/workshop/job-cards/${jobCardId}` },
+    });
     for (const manager of managers.supervisors) {
       await sendEmail(
         manager.email,
@@ -3793,8 +3899,9 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
           createdById: true,
           supervisorId: true,
           assignedTechnicianId: true,
+          customerId: true,
           customer: { select: { fullName: true, email: true } },
-          vehicle: { select: { make: true, model: true } },
+          vehicle: { select: { make: true, model: true, plateNumber: true } },
           department: { select: { name: true } },
         },
       },
@@ -3875,6 +3982,7 @@ export async function approveCloseRequest(requestId: string, decisionNotes?: str
     const portalUrl = portalBaseUrl();
     const vehicleDescription = [request.jobCard.vehicle.make, request.jobCard.vehicle.model].filter(Boolean).join(' ') || 'Vehicle';
 
+    await whatsAppToCustomer({ customerId: request.jobCard.customerId, key: 'job_closed', related: { type: 'JobCard', id: request.jobCardId }, values: { record: jobRecord(request.jobCard.jobNumber), vehicle: vehicleText(request.jobCard.vehicle), link: `${websiteUrl}/customer-portal/dashboard` } });
     await sendEmail(
       request.jobCard.customer.email,
       `Your Job Card ${request.jobCard.jobNumber} is closed`,
@@ -3976,6 +4084,10 @@ export async function declineCloseRequest(requestId: string, decisionNotes?: str
     if (!requester) return;
     const orgContext = await getWorkshopOrgContext(request.jobCard.department?.name);
     const portalUrl = portalBaseUrl();
+    await whatsAppToStaff({
+      to: [{ id: request.requestedById }], key: 'staff_update', related: { type: 'JobCard', id: request.jobCardId },
+      values: { what: `Your request to close Job Card ${request.jobCard.jobNumber} was declined`, details: detailsLine([['Customer', request.jobCard.customer.fullName], ['By', decliner?.fullName ?? 'The manager'], ['Note', decisionNotes?.trim()]]), link: `${portalUrl}/workshop/job-cards/${request.jobCardId}` },
+    });
     await sendEmail(
       requester.email,
       `Close request declined — Job Card ${request.jobCard.jobNumber}`,
@@ -4009,6 +4121,8 @@ export type WorkshopCustodyEntry = {
   jobNumber: string;
   /** Opened as a routine service (shown with a Service badge). */
   isService?: boolean;
+  /** What the visit is for (lib/workshop/job-types.ts), shown as a badge. */
+  jobType?: string;
   customerId?: string;
   customerName: string;
   vehicleDescription: string;
@@ -4074,6 +4188,7 @@ export async function getWorkshopCustodySummary(search?: string): Promise<{
       id: true,
       jobNumber: true,
       isService: true,
+      jobType: true,
       status: true,
       readyForCollectionAt: true,
       customer: { select: { id: true, fullName: true, phone: true, altPhone: true, customerType: true } },
@@ -4105,6 +4220,7 @@ export async function getWorkshopCustodySummary(search?: string): Promise<{
     id: string;
     jobNumber: string;
     isService: boolean;
+    jobType: string;
     status: string;
     readyForCollectionAt: Date | null;
     customer: { id: string; fullName: string; phone: string | null; altPhone: string | null; customerType: string };
@@ -4119,6 +4235,7 @@ export async function getWorkshopCustodySummary(search?: string): Promise<{
       vehicleType: jc.vehicle.vehicleType ?? null,
       jobNumber: jc.jobNumber,
       isService: jc.isService,
+      jobType: jc.jobType,
       customerId: jc.customer.id,
       customerName: jc.customer.fullName,
       vehicleDescription,
@@ -4242,8 +4359,9 @@ export async function sendApprovalReminder(jobCardId: string): Promise<void> {
     select: {
       status: true,
       jobNumber: true,
+      customerId: true,
       customer: { select: { fullName: true, email: true, customerType: true } },
-      vehicle: { select: { make: true, model: true } },
+      vehicle: { select: { make: true, model: true, plateNumber: true } },
       estimate: {
         select: {
           id: true,
@@ -4295,6 +4413,10 @@ export async function sendApprovalReminder(jobCardId: string): Promise<void> {
     ? null
     : await issueApprovalLink(jobCard.estimate.id, user.id).then((l) => approvalLinkUrl(websiteUrl, l.token)).catch((err) => { logFailure('Failed to make the estimate approval link', jobCardId, err); return null; });
 
+  await whatsAppToCustomer({
+    customerId: jobCard.customerId, key: 'estimate_reminder', related: { type: 'JobCard', id: jobCardId },
+    values: { vehicle: vehicleText(jobCard.vehicle), record: jobRecord(jobCard.jobNumber), start: deposit.amount > 0 ? `Work starts once you approve it and the deposit of ${formatNaira(deposit.amount)} is received.` : 'Work starts as soon as you approve it.', answerBy: waLongDate(dueDate), link: approvalUrl ?? customerLinks(websiteUrl).jobCard(jobCardId) },
+  });
   await sendEmail(
     jobCard.customer.email,
     `Reminder: your estimate is waiting — Job Card ${jobCard.jobNumber}`,
@@ -4366,8 +4488,9 @@ export async function notifyOverdueCancelledVehicle(jobCardId: string, notes?: s
       status: true,
       branchId: true,
       jobNumber: true,
+      customerId: true,
       customer: { select: { fullName: true, email: true } },
-      vehicle: { select: { make: true, model: true } },
+      vehicle: { select: { make: true, model: true, plateNumber: true } },
       cancellationRequests: {
         where: { status: 'APPROVED' },
         orderBy: { decidedAt: 'desc' },
@@ -4410,6 +4533,7 @@ export async function notifyOverdueCancelledVehicle(jobCardId: string, notes?: s
 
   const websiteUrl = websiteBaseUrl();
   const orgContext = await getWorkshopOrgContext();
+  await whatsAppToCustomer({ customerId: jobCard.customerId, key: 'cancelled_vehicle_waiting', related: { type: 'JobCard', id: jobCardId }, values: { vehicle: vehicleText(jobCard.vehicle), branch: orgContext.branchName || 'the branch', record: jobRecord(jobCard.jobNumber) } });
   await sendEmail(
     jobCard.customer.email,
     `Please collect your vehicle — Job Card ${jobCard.jobNumber}`,
@@ -4440,8 +4564,9 @@ export async function sendReadyForCollectionReminder(jobCardId: string): Promise
       status: true,
       jobNumber: true,
       readyForCollectionAt: true,
+      customerId: true,
       customer: { select: { fullName: true, email: true } },
-      vehicle: { select: { make: true, model: true } },
+      vehicle: { select: { make: true, model: true, plateNumber: true } },
     },
   });
   if (!jobCard || jobCard.status !== JobCardStatus.READY_FOR_COLLECTION || !jobCard.readyForCollectionAt) {
@@ -4474,6 +4599,7 @@ export async function sendReadyForCollectionReminder(jobCardId: string): Promise
     where: { entityId: jobCardId, action: 'collection.ready_reminder_sent' },
   });
 
+  await whatsAppToCustomer({ customerId: jobCard.customerId, key: 'ready_for_collection', related: { type: 'JobCard', id: jobCardId }, values: { vehicle: vehicleText(jobCard.vehicle), branch: orgContext.branchName || 'the branch', record: jobRecord(jobCard.jobNumber), collectBy: waLongDate(dueDate) } });
   await sendEmail(
     jobCard.customer.email,
     `Reminder: your vehicle is ready for collection — Job Card ${jobCard.jobNumber}`,

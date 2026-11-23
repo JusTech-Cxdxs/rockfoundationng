@@ -5,6 +5,7 @@ import { getWorkshopCustodySummary, type WorkshopCustodyEntry, currentUserIsMast
 import { getWorkshopBranchId, workshopContactFor } from '@/lib/workshop-core';
 import { WhatsAppLink } from '@/components/WhatsAppLink';
 import { WhatsAppSendButton } from '@/components/WhatsAppSendButton';
+import { whatsAppConfigured } from '@/lib/whatsapp/send';
 import { customerCanWhatsApp, customerWhatsAppUrl, custodyReminderMessage } from '@/lib/whatsapp-messages';
 import { sendApprovalReminderFormAction, notifyOverdueCancelledVehicleFormAction, sendReadyForCollectionReminderFormAction, requestJobCardCancellationFormAction, approveCancellationRequestFormAction, declineCancellationRequestFormAction } from '@/lib/actions/workshop-form-handlers';
 import { LoadingLink } from '@/components/LoadingLink';
@@ -367,7 +368,7 @@ export default async function WorkshopCustodyPage({
                   <ReminderStatus entry={entry} noun="approval reminder" />
                   <div className="mt-3 flex flex-wrap gap-2">
                     {canNotify && entry.whatsApp && customerCanWhatsApp(entry.whatsApp) ? (
-                      <WhatsAppSendButton prepare={{ document: { kind: 'ESTIMATE', id: entry.id } }} label="Estimate on WhatsApp" testId="custody-estimate-whatsapp" />
+                      <WhatsAppSendButton prepare={{ document: { kind: 'ESTIMATE', id: entry.id } }} label="Estimate on WhatsApp" testId="custody-estimate-whatsapp" sendNow={whatsAppConfigured()} />
                     ) : null}
                     {canNotify && entry.reminder?.dueNow ? (
                       <form action={sendApprovalReminderFormAction}>

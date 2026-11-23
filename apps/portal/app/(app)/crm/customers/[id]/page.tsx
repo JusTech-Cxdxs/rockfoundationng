@@ -149,7 +149,7 @@ export default async function Customer360Page({ params, searchParams }: { params
 
       {editing ? (
         <Section icon="edit" title="Edit details" subtitle="Every change is recorded in the Activity tab — who, when, before and after." className="mt-6">
-          <EditCustomerForm cancelHref={base} customer={{ id: c.id, fullName: c.fullName, customerType: c.customerType, email: c.email, phone: c.phone, altPhone: c.altPhone, address: c.address, tags: c.tags, notifyByEmail: c.notifyByEmail, companyName: c.company?.companyName ?? null, taxId: c.company?.taxId ?? null }} />
+          <EditCustomerForm cancelHref={base} customer={{ id: c.id, fullName: c.fullName, customerType: c.customerType, email: c.email, phone: c.phone, altPhone: c.altPhone, address: c.address, tags: c.tags, notifyByEmail: c.notifyByEmail, whatsappOptIn: c.whatsappOptIn, companyName: c.company?.companyName ?? null, taxId: c.company?.taxId ?? null }} />
         </Section>
       ) : null}
 
@@ -443,6 +443,7 @@ function PortalCard({ data, base }: { data: Data; base: string }) {
         <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Last sign-in</dt><dd className="text-right text-[var(--ejo-text)]">{portal.lastSignIn ? formatDateTimeCompact(portal.lastSignIn) : 'Never'}</dd></div>
         <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Set-password link</dt><dd className="text-right text-[var(--ejo-text)]">{portal.pendingLinkExpiresAt ? `Valid until ${formatDateTimeCompact(portal.pendingLinkExpiresAt)}` : 'None waiting'}</dd></div>
         <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">Email updates</dt><dd className="text-[var(--ejo-text)]">{c.notifyByEmail ? 'Yes' : 'No'}</dd></div>
+        <div className="flex justify-between gap-2"><dt className="text-[var(--ejo-text-muted)]">WhatsApp updates</dt><dd className="text-[var(--ejo-text)]" data-testid="customer-whatsapp-consent">{c.whatsappOptIn ? `Agreed${c.whatsappOptInAt ? ` ${formatDateTime(c.whatsappOptInAt)}` : ''}` : 'Not agreed'}</dd></div>
       </dl>
       {can.manage ? (
         <div className="mt-4 space-y-3 border-t border-[var(--ejo-border)] pt-4">

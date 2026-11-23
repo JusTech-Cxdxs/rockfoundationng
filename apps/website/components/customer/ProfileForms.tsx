@@ -5,7 +5,7 @@ import { Icon } from './Icon';
 import { PasswordField, StrengthMeter } from './PasswordField';
 import { Spinner } from '@/components/Spinner';
 import {
-  addAddress, changePassword, removeAddress, updateAddress, updateContactDetails, updateEmailPreference, type ActionState,
+  addAddress, changePassword, removeAddress, updateAddress, updateContactDetails, updateEmailPreference, updateWhatsAppPreference, type ActionState,
 } from '@/lib/customer-portal/actions';
 import { playChime, setSoundEnabled, soundEnabled } from '@/lib/customer-portal/sound';
 
@@ -184,10 +184,12 @@ function Toggle({ id, checked, onChange, label, description, disabled }: { id: s
   );
 }
 
-export function PreferencesForm({ notifyByEmail }: { notifyByEmail: boolean }) {
+export function PreferencesForm({ notifyByEmail, whatsappOptIn = false }: { notifyByEmail: boolean; whatsappOptIn?: boolean }) {
   const [email, setEmail] = useState(notifyByEmail);
+  const [whatsApp, setWhatsApp] = useState(whatsappOptIn);
   const [sound, setSound] = useState(true);
   const [state, action, pending] = useActionState(updateEmailPreference, initial);
+  const [waState, waAction, waPending] = useActionState(updateWhatsAppPreference, initial);
   useEffect(() => { setSound(soundEnabled()); }, []);
   return (
     <div className="space-y-5">
@@ -209,6 +211,22 @@ export function PreferencesForm({ notifyByEmail }: { notifyByEmail: boolean }) {
           description="News, offers and notices from your branch by email, as well as here. Emails about your own vehicle (estimates, receipts, ready for collection) always come."
         />
       </form>
+      <form action={waAction}>
+        <Toggle
+          id="pref-whatsapp"
+          checked={whatsApp}
+          disabled={waPending}
+          onChange={(v) => {
+            setWhatsApp(v);
+            const fd = new FormData();
+            fd.set('whatsappOptIn', v ? 'on' : 'off');
+            startTransition(() => waAction(fd));
+          }}
+          label="Send me updates on WhatsApp"
+          description="Your estimates, invoices, receipts and vehicle updates on WhatsApp too, at your phone number on file. Switch it off any time."
+        />
+      </form>
+      <Banner key={`wa-${waState.at ?? waState.error ?? ''}`} state={waState} />
       <Toggle
         id="pref-sound"
         checked={sound}

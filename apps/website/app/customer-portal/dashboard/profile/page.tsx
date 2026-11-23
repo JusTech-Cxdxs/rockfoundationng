@@ -43,7 +43,7 @@ export default async function ProfilePage() {
           </Card>
           <Card className="p-5" delay={60}>
             <SectionTitle icon="bell" title="Notifications" />
-            <PreferencesForm notifyByEmail={me.notifyByEmail} />
+            <PreferencesForm notifyByEmail={me.notifyByEmail} whatsappOptIn={me.whatsappOptIn} />
           </Card>
         </aside>
 

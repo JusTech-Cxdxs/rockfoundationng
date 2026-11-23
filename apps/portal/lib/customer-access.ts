@@ -11,6 +11,7 @@ import { writeAuditLog, getWorkshopBranchId, workshopContactFor } from '@/lib/wo
 import { renderCustomerWelcomeEmail } from '@/lib/email-templates/customer-welcome';
 import { customerWhatsAppUrl, welcomeMessage } from '@/lib/whatsapp-messages';
 import { whatsAppShareUrlFor } from '@ejo/utils/whatsapp';
+import { whatsAppToCustomer } from '@/lib/whatsapp/send';
 
 /**
  * Server-only (NOT a 'use server' file): customer portal access — the
@@ -107,6 +108,11 @@ export async function sendCustomerAccessEmail(customerId: string, kind: 'welcome
     });
     subject = rendered.subject;
     await sendEmail(email, rendered.subject, rendered.html, undefined, { observer: false });
+    // The welcome on WhatsApp too (when they agreed), once the email is on its way: without the
+    // set-password link, which stays in the email (lib/whatsapp-templates: password links are email-only).
+    if (kind === 'welcome') {
+      await whatsAppToCustomer({ customerId: customer.id, key: 'welcome', related: { type: 'Customer', id: customer.id }, values: { workshop: companyName, email, link: `${website}/customer-portal` } });
+    }
   } catch (err) {
     error = redact(err instanceof Error ? err.message : String(err)).slice(0, 300);
     logFailure('Customer access email failed', customer.id, kind, error);

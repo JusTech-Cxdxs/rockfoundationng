@@ -27,6 +27,8 @@ import { sendEmail } from '@/lib/email';
 import { renderPartRequestApprovalNeededEmail, renderPartRequestStatusEmail, PART_REQUEST_STATUS } from '@/lib/email-templates/part-request-status';
 import { lagosYear } from '@/lib/utils/format-date';
 import { customerLinks } from '@/lib/customer-links-core';
+import { whatsAppToCustomer } from '@/lib/whatsapp/send';
+import { jobRecord, vehicleText } from '@/lib/whatsapp/words';
 
 /** Like getStoreOrgContext(), but by branch: these emails go to both
  * Workshop and Store staff, so the department name is passed in. */
@@ -187,8 +189,9 @@ async function syncJobCardSourcingStatus(jobCardId: string): Promise<void> {
     select: {
       status: true,
       jobNumber: true,
+      customerId: true,
       customer: { select: { fullName: true, email: true } },
-      vehicle: { select: { make: true, model: true } },
+      vehicle: { select: { make: true, model: true, plateNumber: true } },
       department: { select: { name: true } },
     },
   });
@@ -224,6 +227,7 @@ async function syncJobCardSourcingStatus(jobCardId: string): Promise<void> {
     try {
       const orgContext = await getWorkshopOrgContext(jobCard.department?.name);
       const websiteUrl = websiteBaseUrl();
+      await whatsAppToCustomer({ customerId: jobCard.customerId, key: 'job_work_update', related: { type: 'JobCard', id: jobCardId }, values: { vehicle: vehicleText(jobCard.vehicle), record: jobRecord(jobCard.jobNumber), update: 'the parts we were waiting for have arrived, and work has started again.', link: customerLinks(websiteUrl).jobCard(jobCardId) } });
       await sendEmail(
         jobCard.customer.email,
         `Work has resumed — Job Card ${jobCard.jobNumber}`,

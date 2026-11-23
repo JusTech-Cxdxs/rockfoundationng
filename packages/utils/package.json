@@ -8,7 +8,9 @@
     ".": "./src/index.ts",
     "./billing": "./src/billing.ts",
     "./approval-link": "./src/approval-link.ts",
-    "./whatsapp": "./src/whatsapp.ts"
+    "./whatsapp": "./src/whatsapp.ts",
+    "./whatsapp-cloud": "./src/whatsapp-cloud.ts",
+    "./whatsapp-templates": "./src/whatsapp-templates.ts"
   },
   "typesVersions": {
     "*": {
@@ -20,6 +22,12 @@
       ],
       "whatsapp": [
         "src/whatsapp.ts"
+      ],
+      "whatsapp-cloud": [
+        "src/whatsapp-cloud.ts"
+      ],
+      "whatsapp-templates": [
+        "src/whatsapp-templates.ts"
       ]
     }
   }

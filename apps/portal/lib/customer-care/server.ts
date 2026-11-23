@@ -13,6 +13,8 @@ import { renderCustomerRatingRequestEmail } from '@/lib/email-templates/customer
 import { defaultQueue, openTicket } from '@/lib/support/server';
 import { loadServiceTracking } from '@/lib/vehicle-service-cycle';
 import { afterJobDueAt, dedupe, isBirthdayOn, isLowRating, lagosAt, lagosDay, ratingToken, RATING_LINK_DAYS, RATING_WORDS } from './rules';
+import { whatsAppToCustomer } from '@/lib/whatsapp/send';
+import { jobRecord } from '@/lib/whatsapp/words';
 
 /** The secret the rating links are signed with (shared by the portal and the customer website). */
 export function ratingSecret(): string {
@@ -73,6 +75,10 @@ export async function onJobCheckedOut(jobCardId: string): Promise<void> {
       },
       update: {},
     });
+    // "How did we do?" on WhatsApp too, when the customer agreed to it (whether or not they have an email).
+    if (rating?.link) {
+      await whatsAppToCustomer({ customerId: job.customerId, key: 'rating_request', related: { type: 'JobCard', id: job.id }, values: { vehicle: vehicleText(job.vehicle), record: jobRecord(job.jobNumber), link: rating.link } });
+    }
     if (rating?.link && job.customer.email && job.customer.notifyByEmail) {
       const html = renderCustomerRatingRequestEmail({
         customerName: job.customer.fullName, jobNumber: job.jobNumber, vehicleDescription: vehicleText(job.vehicle), ratingUrl: rating.link,

@@ -350,7 +350,7 @@ export async function getCustomer360(customerId: string) {
   return {
     customer: {
       id: customer.id, fullName: customer.fullName, customerType: customer.customerType, email: customer.email, phone: customer.phone, altPhone: customer.altPhone,
-      address: customer.address, tags: customer.tags ?? [], isActive: customer.isActive, notifyByEmail: customer.notifyByEmail, createdAt: customer.createdAt, updatedAt: customer.updatedAt,
+      address: customer.address, tags: customer.tags ?? [], isActive: customer.isActive, notifyByEmail: customer.notifyByEmail, whatsappOptIn: customer.whatsappOptIn, whatsappOptInAt: customer.whatsappOptInAt, createdAt: customer.createdAt, updatedAt: customer.updatedAt,
       customerSince: customer.customerSince, externalId: customer.externalId, externalSource: customer.externalSource, importJobId: customer.importJobId, organisationId: customer.organisationId,
       createdBy: customer.createdBy?.fullName ?? null, company: company ? { companyName: company.companyName, taxId: company.taxId } : null, gaps: profileGaps(customer),
     },
@@ -420,6 +420,8 @@ export type UpdateCustomerInput = {
   address: string;
   tags: string[] | string;
   notifyByEmail?: boolean;
+  /** The customer agrees to receive updates on WhatsApp (recorded with who changed it and when; audited). */
+  whatsappOptIn?: boolean;
   companyName?: string;
   taxId?: string;
 };
@@ -488,6 +490,7 @@ export async function updateCustomer(input: UpdateCustomerInput): Promise<{ chan
     address: cleanPrimaryAddress(input.address),
     tags: normaliseTags(input.tags),
     ...(typeof input.notifyByEmail === 'boolean' ? { notifyByEmail: input.notifyByEmail } : {}),
+    ...(typeof input.whatsappOptIn === 'boolean' ? { whatsappOptIn: input.whatsappOptIn } : {}),
   };
   if (next.altPhone && next.phone && next.altPhone.replace(/\D/g, '') === next.phone.replace(/\D/g, '')) throw new CrmError('The second phone number is the same as the primary one.');
   if (next.email && next.email !== before.email) {
@@ -507,7 +510,8 @@ export async function updateCustomer(input: UpdateCustomerInput): Promise<{ chan
   if (Object.keys(changes).length === 0) return { changed: 0 };
 
   await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    await tx.customer.update({ where: { id: before.id }, data: next });
+    // A change to the WhatsApp agreement is stamped with who recorded it and when (the change itself is audited below).
+    await tx.customer.update({ where: { id: before.id }, data: { ...next, ...('whatsappOptIn' in changes ? { whatsappOptInAt: new Date(), whatsappOptInById: me.id } : {}) } });
     if (companyName) await tx.customerCompany.upsert({ where: { customerId: before.id }, create: { customerId: before.id, companyName, taxId }, update: { companyName, taxId } });
     else if (company) await tx.customerCompany.delete({ where: { customerId: before.id } });
   });

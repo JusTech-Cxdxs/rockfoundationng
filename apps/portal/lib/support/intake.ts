@@ -36,6 +36,8 @@ import {
 } from './core';
 import { letterheadFor, openTicket, queueById, responseUrl, sendFromSupport, subjectFor, supportConnection, supportEvent, supportSettings } from './server';
 import { announceRouted } from './notify';
+import { whatsAppToCustomer } from '@/lib/whatsapp/send';
+import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
 
 const FOLDER = 'INBOX';
 const FIRST_RUN_HOURS = 24;
@@ -247,6 +249,8 @@ export async function takeIn(box: Mailbox, p: ParsedMail, ownAddresses: string[]
         });
         const sent = await sendFromSupport({ organisationId: box.organisationId, ticketId: created.id, mailboxId: box.id, to: fromAddress, subject: subjectFor(created.number, `Re: ${cleanSubject}`), html: m.html, inReplyTo: messageId, references: refs, automatic: true, timeoutMs: 12_000 });
         await prisma.supportReply.create({ data: { ticketId: created.id, kind: 'SYSTEM', visibility: 'PUBLIC', body: `Acknowledgement sent: reference ${created.number}, answer ${promiseLabel(created.dueFirstResponseAt)}.`, emailMessageId: sent.messageId } });
+        // On WhatsApp too, when the sender is a customer on record who agreed to it.
+        if (customer) await whatsAppToCustomer({ customerId: customer.id, key: 'support_received', related: { type: 'SupportTicket', id: created.id }, values: { workshop: head.companyName, ticketNumber: created.number, subject: cleanSubject, link: `${websiteBaseUrl() || portalBaseUrl()}/customer-portal/dashboard/support` } });
       } catch (err) {
         logFailure('Support acknowledgement failed', err);
       }

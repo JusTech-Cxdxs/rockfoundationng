@@ -26,13 +26,14 @@ export type CustomerFormState = { error: string | null; values: Record<string, s
 
 /** Register a customer — what was typed stays when something is wrong. */
 export async function registerCustomerAction(_prev: CustomerFormState, f: FormData): Promise<CustomerFormState> {
-  const values = { customerType: str(f, 'customerType'), fullName: str(f, 'fullName'), email: str(f, 'email'), phone: str(f, 'phone'), altPhone: str(f, 'altPhone'), address: str(f, 'address'), tags: str(f, 'tags') };
+  const values = { customerType: str(f, 'customerType'), fullName: str(f, 'fullName'), email: str(f, 'email'), phone: str(f, 'phone'), altPhone: str(f, 'altPhone'), address: str(f, 'address'), tags: str(f, 'tags'), whatsappOptIn: str(f, 'whatsappOptIn') };
   let target = '';
   try {
     const r = await findOrCreateCustomer({
       customerType: values.customerType === 'ORGANIZATION' ? 'ORGANIZATION' : 'INDIVIDUAL',
       fullName: values.fullName, email: values.email, phone: values.phone, altPhone: values.altPhone || undefined, address: values.address,
       tags: values.tags ? values.tags.split(',') : [],
+      whatsappOptIn: values.whatsappOptIn === 'yes',
     });
     target = `${page(r.customer.id)}?status=${r.wasExisting ? 'existing' : r.welcomeEmailSent ? 'registered' : 'registered_no_email'}`;
   } catch (err) {
@@ -45,12 +46,13 @@ export async function registerCustomerAction(_prev: CustomerFormState, f: FormDa
 /** Edit a customer — what was typed stays when something is wrong. */
 export async function updateCustomerAction(_prev: CustomerFormState, f: FormData): Promise<CustomerFormState> {
   const id = str(f, 'customerId');
-  const values = { fullName: str(f, 'fullName'), customerType: str(f, 'customerType'), email: str(f, 'email'), phone: str(f, 'phone'), altPhone: str(f, 'altPhone'), address: str(f, 'address'), tags: str(f, 'tags'), notifyByEmail: str(f, 'notifyByEmail'), companyName: str(f, 'companyName'), taxId: str(f, 'taxId') };
+  const values = { fullName: str(f, 'fullName'), customerType: str(f, 'customerType'), email: str(f, 'email'), phone: str(f, 'phone'), altPhone: str(f, 'altPhone'), address: str(f, 'address'), tags: str(f, 'tags'), notifyByEmail: str(f, 'notifyByEmail'), whatsappOptIn: str(f, 'whatsappOptIn'), companyName: str(f, 'companyName'), taxId: str(f, 'taxId') };
   let changed = 0;
   try {
     changed = (await updateCustomer({
       customerId: id, fullName: values.fullName, customerType: values.customerType === 'ORGANIZATION' ? 'ORGANIZATION' : 'INDIVIDUAL', email: values.email,
       phone: values.phone, altPhone: values.altPhone, address: values.address, tags: values.tags, notifyByEmail: values.notifyByEmail === 'yes',
+      whatsappOptIn: values.whatsappOptIn === 'yes',
       companyName: values.companyName, taxId: values.taxId,
     })).changed;
   } catch (err) {

@@ -153,6 +153,7 @@ model Organisation {
   exportJobs ExportJob[]
   invoices      Invoice[]
   documentLinks DocumentLink[]
+  whatsAppMessages WhatsAppMessage[]
 }
 
 model BusinessUnit {
@@ -331,6 +332,12 @@ model User {
   image         String?                     // required by Better Auth (avatar URL)
   phone         String?
   photoUrl      String?
+  // The colleague's own agreement to get work notices (an approval waiting,
+  // a job assigned, an update) on WhatsApp at `phone`, switched on and off on
+  // their profile. Off until they choose it.
+  whatsappOptIn     Boolean   @default(false)
+  whatsappOptInAt   DateTime?
+  whatsappOptInById String?
 
   isActive      Boolean     @default(true)
   lastLoginAt   DateTime?
@@ -551,6 +558,15 @@ model Customer {
   preferredContact ContactChannel @default(WHATSAPP)
   // A WhatsApp number when it differs from the main phone.
   whatsappPhone String?
+  // The customer agreed to receive updates on WhatsApp (messages a business
+  // starts need opt-in: Meta's policy and the Nigeria Data Protection Act).
+  // Off unless recorded: ticked at registration, changed on the customer's
+  // page, or by the customer in the customer portal. whatsappOptInAt: when it
+  // last changed; whatsappOptInById: the colleague who recorded it (null when
+  // the customer changed it themselves).
+  whatsappOptIn     Boolean   @default(false)
+  whatsappOptInAt   DateTime?
+  whatsappOptInById String?
   // Birthday (day and month only, never the year) for a birthday call.
   birthDay      Int?
   birthMonth    Int?
@@ -1175,6 +1191,36 @@ model DocumentLink {
 
   @@index([organisationId, kind, recordId])
   @@map("document_links")
+}
+
+// One row per automatic WhatsApp message (Meta's WhatsApp Business
+// Platform), for Settings → WhatsApp: sent, failed (with the plain reason) or
+// skipped (a customer who has not agreed, or has no number WhatsApp can
+// take). Never the message text, the full number or a link: only the
+// number's last four digits. Kept 90 days (the daily job).
+enum WhatsAppMessageStatus {
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model WhatsAppMessage {
+  id                String                @id @default(cuid())
+  organisationId    String
+  templateKey       String
+  toLast4           String?
+  status            WhatsAppMessageStatus
+  error             String?
+  providerMessageId String?
+  relatedType       String?
+  relatedId         String?
+  createdAt         DateTime              @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, createdAt])
+  @@index([relatedType, relatedId])
+  @@map("whatsapp_messages")
 }
 
 // A cancellation request does not change JobCard.status until a Manager

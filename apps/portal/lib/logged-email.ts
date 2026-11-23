@@ -5,6 +5,7 @@ import { getWorkshopBranchId } from '@/lib/workshop-core';
 import { sendEmail } from '@/lib/email';
 import { renderStaffNoticeEmail } from '@/lib/email-templates/staff-notice';
 import { PLATFORM } from '@/lib/brand';
+import { whatsAppToStaff } from '@/lib/whatsapp/send';
 
 export type Recipient = { fullName: string; email: string };
 
@@ -12,10 +13,17 @@ export type Recipient = { fullName: string; email: string };
  * Send a staff email and ALWAYS record it — recipient, subject, sent or the
  * error — in the email log and the record's audit trail. Server-only (never
  * a callable action). A failed email never throws.
+ *
+ * The same notice goes on WhatsApp (rf_staff_update) to the recipients who
+ * switched WhatsApp on, unless `whatsapp: false` (the day's appointment
+ * digest, read at the desk; an account notice).
  */
-export async function sendLoggedEmail(opts: { entityType: string; entityId: string; recipients: Recipient[]; subject: string; heading: string; lines: string[]; path: string; actorId: string | null; branchId?: string | null }) {
+export async function sendLoggedEmail(opts: { entityType: string; entityId: string; recipients: Recipient[]; subject: string; heading: string; lines: string[]; path: string; actorId: string | null; branchId?: string | null; whatsapp?: boolean }) {
   const unique = opts.recipients.filter((r, i, a) => r.email && a.findIndex((x) => x.email === r.email) === i);
   if (unique.length === 0) return;
+  if (opts.whatsapp !== false) {
+    await whatsAppToStaff({ to: unique, key: 'staff_update', related: { type: opts.entityType, id: opts.entityId }, values: { what: opts.subject, details: opts.lines.slice(0, 4).join(' · '), link: `${portalBaseUrl()}${opts.path}` } });
+  }
   // The record's own branch when known (scheduled jobs pass it); otherwise the
   // operating branch of whoever acted, so each organisation's name is used.
   const branchId = opts.branchId ?? (await getWorkshopBranchId().catch(() => null));

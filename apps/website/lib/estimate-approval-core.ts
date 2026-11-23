@@ -8,6 +8,7 @@ import { portalBaseUrl } from '@/lib/site-urls';
 import { logCustomerError } from '@/lib/error-events';
 import { renderEstimateAnswerStaffEmail } from '@/lib/email-templates/estimate-answer';
 import { naira } from '@/lib/customer-portal/format';
+import { whatsAppToStaff } from '@/lib/whatsapp';
 
 /**
  * The customer's own answer to a Job Card estimate, from the customer
@@ -194,6 +195,15 @@ function tellStaff(jc: JobRow, o: { via: AnswerVia; answer: EstimateAnswer; note
       const people = await prisma.user.findMany({
         where: { id: { in: [jc.createdById, jc.supervisorId].filter((x): x is string => Boolean(x)) }, organisationId: jc.branch.businessUnit.organisationId, isActive: true },
         select: { fullName: true, email: true },
+      });
+      // On WhatsApp too, to those who switched it on: the answer, and whether the work can start.
+      await whatsAppToStaff({
+        to: people, key: 'staff_update', related: { type: 'JobCard', id: jc.id },
+        values: {
+          what: `${jc.customer.fullName} ${o.answer === 'approve' ? 'approved' : 'declined'} the estimate on Job Card ${jc.jobNumber}`,
+          details: o.answer === 'approve' ? (workStarted ? 'The work can start now.' : depositDue > 0 ? `The work starts once the deposit of ${naira(depositDue)} is recorded.` : 'Check the Job Card for the next step.') : (o.note ? `Their note: ${o.note.slice(0, 300)}` : 'Contact the customer about what to do next.'),
+          link: `${portalBaseUrl()}/workshop/job-cards/${jc.id}`,
+        },
       });
       for (const p of people) {
         const m = renderEstimateAnswerStaffEmail({

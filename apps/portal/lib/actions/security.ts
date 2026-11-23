@@ -15,6 +15,7 @@ import { renderStaffNoticeEmail } from '@/lib/email-templates/staff-notice';
 import { billingOf, jobCardTotals, ESTIMATE_TOTALS_SELECT, JOB_CARD_BILLING_SELECT } from '@/lib/estimate-billing';
 import { lagosYear } from '@/lib/utils/format-date';
 import { PLATFORM } from '@/lib/brand';
+import { whatsAppToStaff } from '@/lib/whatsapp/send';
 
 /**
  * The vehicle gate: which vehicles the Workshop has released, which are
@@ -86,6 +87,8 @@ async function sendLogged(entityType: string, entityId: string, recipients: Pers
   if (unique.length === 0) return;
   const org = await getWorkshopOrgContext().catch(() => ({ companyName: PLATFORM.name, branchName: '', departmentName: '' }));
   const portal = portalBaseUrl();
+  // The same notice on WhatsApp to the colleagues who switched it on (lib/whatsapp/send.ts).
+  await whatsAppToStaff({ to: unique, key: 'staff_update', related: { type: entityType, id: entityId }, values: { what: subject, details: lines.join(' · '), link: `${portal}${path}` } });
   for (const r of unique) {
     let sent = true;
     let error: string | null = null;

@@ -26,6 +26,8 @@ import { aiReply, followUrl, letterheadFor, newToken, nextAssignee, personOnlyFr
 import { senderContext } from './context';
 import { contextSnapshot, recordsReadyFor } from './context-core';
 import { announceRouted, emailLate } from './notify';
+import { whatsAppToCustomer } from '@/lib/whatsapp/send';
+import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
 
 export type AutomationResult = { normalised: number; read: number; aiAnswered: number; drafted: number; warned: number; breached: number; nudged: number; resolved: number; closed: number; surveyed: number; assumed: number };
 
@@ -157,6 +159,8 @@ async function enyoReads(deadline: number): Promise<{ read: number; answered: nu
           const m = renderSupportReply({ ...head, queueName: queue.name, number: t.number, subject: t.subject, customerName: t.contactName, responseUrl: followUrl(t), body: ai.reply, by: 'ai', assistantName: assistant, signature: null, statusLabel: SUPPORT_STATUS_FOR_CUSTOMER.WAITING_ON_CUSTOMER, fromRecords: ai.recordsReady, colleague: Boolean(t.requesterUserId) });
           const sent = await sendFromSupport({ organisationId: t.organisationId, ticketId: t.id, mailboxId: t.mailboxId, to: t.contactEmail, subject: subjectFor(t.number, `Re: ${t.subject}`), html: m.html, inReplyTo: t.replies[0]?.emailMessageId ?? t.sourceMessageId, automatic: true, timeoutMs: 15_000 });
           await prisma.supportReply.update({ where: { id: reply.id }, data: { emailMessageId: sent.messageId } });
+          // On WhatsApp too, to a customer on record who agreed to it (never a colleague's own request).
+          if (t.customerId && !t.requesterUserId) await whatsAppToCustomer({ customerId: t.customerId, key: 'support_reply', related: { type: 'SupportTicket', id: t.id }, values: { ticketNumber: t.number, subject: t.subject, reply: ai.reply.slice(0, 600), link: `${websiteBaseUrl() || portalBaseUrl()}/customer-portal/dashboard/support` } });
           await supportEvent({ organisationId: t.organisationId, ticketId: t.id, action: 'support.ai_answered', metadata: { number: t.number, confidence: Math.round(ai.confidence * 100) / 100, used: ai.used.length, model: ai.model, fromRecords: ai.recordsReady, sender: ctx?.kind ?? null } });
           out.answered += 1;
           answered = true;

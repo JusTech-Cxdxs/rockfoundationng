@@ -6,12 +6,17 @@ import { portalBaseUrl } from '@/lib/portal-url';
 import { logFailure } from '@/lib/log';
 import { letterheadFor } from '@/lib/support/server';
 import { renderWorkflowNoticeEmail, type WorkflowNoticeOptions } from '@/lib/email-templates/workflow-notice';
+import { whatsAppToStaff } from '@/lib/whatsapp/send';
 
 /**
  * Emails colleagues at a workflow step: the people who must act next, or who
  * asked and should hear the outcome. Each person once, active accounts of the
  * same organisation only, never the person who just acted. Never throws: a
  * failed email is logged and the work carries on (the bell still shows it).
+ *
+ * A notice that asks the colleague to act (it has `next`) also goes on
+ * WhatsApp to those who switched it on (rf_staff_update); an outcome they
+ * only need to know stays email-only.
  */
 export async function emailColleagues(o: {
   branchId: string | null;
@@ -34,6 +39,9 @@ export async function emailColleagues(o: {
       letterheadFor(organisationId, o.branchId),
     ]);
     const url = `${portalBaseUrl()}${o.path}`;
+    if (o.notice.next) {
+      await whatsAppToStaff({ to: ids.map((id) => ({ id })), key: 'staff_update', related: { type: 'Workflow', id: o.where }, values: { what: o.notice.heading, details: `${o.notice.intro} ${o.notice.next}`, link: url } });
+    }
     let sent = 0;
     for (const p of people) {
       const m = renderWorkflowNoticeEmail({ ...o.notice, companyName: head.companyName, logoUrl: head.logoUrl, recipientName: p.fullName, url, orgContext: o.notice.orgContext ?? [branch?.name] });

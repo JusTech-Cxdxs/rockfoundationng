@@ -49,6 +49,7 @@ import { serviceJobCardCycle } from '@/lib/vehicle-service-cycle';
 import { JobTypeBadge } from '@/components/JobTypeBadge';
 import { WhatsAppLink } from '@/components/WhatsAppLink';
 import { WhatsAppSendButton } from '@/components/WhatsAppSendButton';
+import { whatsAppConfigured } from '@/lib/whatsapp/send';
 import { JOB_CARD_NOTICES, customerCanWhatsApp, customerWhatsAppUrl, jobCardNoticeMessage, readyForCollectionMessage, refundMessage, type JobCardNotice } from '@/lib/whatsapp-messages';
 import { workshopContactFor } from '@/lib/workshop-core';
 import { websiteBaseUrl } from '@/lib/portal-url';
@@ -1239,7 +1240,7 @@ export default async function JobCardDetailPage({
                     <ApprovalLinkPanel jobCardId={jobCard.id} />
                     {canWhatsApp ? (
                       <div className="space-y-1">
-                        <WhatsAppSendButton prepare={{ document: { kind: 'ESTIMATE', id: jobCard.id } }} label="Send estimate on WhatsApp" testId="estimate-whatsapp" />
+                        <WhatsAppSendButton prepare={{ document: { kind: 'ESTIMATE', id: jobCard.id } }} label="Send estimate on WhatsApp" testId="estimate-whatsapp" sendNow={whatsAppConfigured()} />
                         <p className="text-[11px] text-[var(--ejo-text-muted)]">The estimate PDF and a fresh approval link, ready to send from your phone. The new approval link replaces the one we emailed.</p>
                       </div>
                     ) : null}
@@ -1286,7 +1287,7 @@ export default async function JobCardDetailPage({
                         <SubmitButton label="Email invoice" pendingLabel="Sending…" className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-3 py-1.5 text-xs font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]" />
                       </form>
                     ) : null}
-                    {mayInvoice && canWhatsApp ? <WhatsAppSendButton prepare={{ document: { kind: 'INVOICE', id: invoice.id } }} testId="invoice-whatsapp" /> : null}
+                    {mayInvoice && canWhatsApp ? <WhatsAppSendButton prepare={{ document: { kind: 'INVOICE', id: invoice.id } }} testId="invoice-whatsapp" sendNow={whatsAppConfigured()} /> : null}
                   </div>
                 </>
               ) : (
@@ -1342,7 +1343,7 @@ export default async function JobCardDetailPage({
                           <a href={`/print/receipts/${p.id}`} target="_blank" rel="noopener" className="text-xs font-medium text-[var(--ejo-primary)] hover:underline">
                             Print receipt
                           </a>
-                          {isEligibleFinance && canWhatsApp ? <WhatsAppSendButton prepare={{ document: { kind: 'RECEIPT', id: p.id } }} label="Receipt on WhatsApp" testId="receipt-whatsapp" /> : null}
+                          {isEligibleFinance && canWhatsApp ? <WhatsAppSendButton prepare={{ document: { kind: 'RECEIPT', id: p.id } }} label="Receipt on WhatsApp" testId="receipt-whatsapp" sendNow={whatsAppConfigured()} /> : null}
                         </div>
                       ) : null}
                     </div>

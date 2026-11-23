@@ -101,7 +101,7 @@ export function diffChanges<T extends Record<string, unknown>>(before: T, after:
 
 export const FIELD_LABEL: Record<string, string> = {
   fullName: 'Name', customerType: 'Type', email: 'Email', phone: 'Phone', altPhone: 'Second phone', address: 'Primary address',
-  tags: 'Tags', isActive: 'Portal access', notifyByEmail: 'Email updates', companyName: 'Company name', taxId: 'Tax ID',
+  tags: 'Tags', isActive: 'Portal access', notifyByEmail: 'Email updates', whatsappOptIn: 'WhatsApp updates', companyName: 'Company name', taxId: 'Tax ID',
   label: 'Label', line1: 'Address', line2: 'Address line 2', city: 'City', state: 'State', country: 'Country', name: 'Name', role: 'Role',
 };
 

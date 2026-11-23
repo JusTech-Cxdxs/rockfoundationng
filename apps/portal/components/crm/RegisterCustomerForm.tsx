@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { registerCustomerAction, type CustomerFormState } from '@/lib/actions/crm-form-handlers';
 import { SubmitButton } from '@/components/SubmitButton';
 import { FormPendingOverlay } from '@/components/FormPendingOverlay';
+import { WhatsAppConsentField } from '@/components/WhatsAppConsentField';
 
 const field = 'w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)] focus:border-[var(--ejo-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--ejo-primary)]/20';
 const labelCls = 'mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]';
@@ -53,6 +54,9 @@ export function RegisterCustomerForm() {
           <span>One short line — it is printed on Job Cards. More addresses can be added on their page.</span>
           <span className="tabular-nums">{(address || v.address || '').length}/80</span>
         </p>
+      </div>
+      <div className="sm:col-span-2 lg:col-span-3">
+        <WhatsAppConsentField key={`w-${v.whatsappOptIn ?? ''}`} initial={state.error ? v.whatsappOptIn === 'yes' : undefined} />
       </div>
       {state.error ? (
         <p role="alert" className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-error)]/40 bg-[var(--ejo-error)]/[0.07] px-3 py-2 text-sm text-[var(--ejo-text)] sm:col-span-2 lg:col-span-3"><span className="font-semibold text-[var(--ejo-error)]">Not registered: </span>{state.error}</p>

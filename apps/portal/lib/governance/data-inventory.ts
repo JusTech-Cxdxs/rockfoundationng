@@ -116,6 +116,8 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   EstimateApprovalLink: { tenancy: 'VIA_PARENT', owner: 'estimateId', classification: ['SECRET'], lifecycle: 'CASCADE', retention: 'Kept with the estimate (usable once, within 7 days)', ai: 'NEVER' },
   // the link a WhatsApp message carries to a document's PDF — only the token's SHA-256, 30 days.
   DocumentLink: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['SECRET'], lifecycle: 'CASCADE', retention: 'Kept with the organisation (the link works 30 days, or until revoked)', ai: 'NEVER' },
+  // One row per automatic WhatsApp message (sent, failed, skipped); only the number's last four digits, never the text or a link.
+  WhatsAppMessage: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL', 'AUDIT'], lifecycle: 'CASCADE', retention: '90 days (the daily job removes older rows)', ai: 'NEVER' },
   EstimateLineItem: { tenancy: 'VIA_PARENT', owner: 'estimateId', classification: ['FINANCIAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   Payment: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   Refund: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },

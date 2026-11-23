@@ -73,9 +73,20 @@ variable, with an example and a note, is in [.env.example](../.env.example).
 | `ENYO_IP_HASH_KEY` | recommended | A long random secret used only to hash visitors' addresses for rate limits |
 | `ENYO_CUSTOMER_PER_MINUTE`, `ENYO_PUBLIC_PER_MINUTE`, `ENYO_PUBLIC_PER_DAY`, `ENYO_PUBLIC_IP_PER_MINUTE`, `ENYO_PUBLIC_IP_PER_DAY` | optional | Chat limits (defaults 12, 6, 60, 20, 200) |
 
+### Both projects: automatic WhatsApp (optional, off until set)
+
+| Variable | | What it is |
+| --- | --- | --- |
+| `WHATSAPP_ACCESS_TOKEN` | optional | Meta's permanent System User token. Unset: nothing is sent automatically; the Send on WhatsApp buttons still work |
+| `WHATSAPP_PHONE_NUMBER_ID` | with the token | The business phone number's ID (WhatsApp Manager → API setup) |
+| `WHATSAPP_BUSINESS_ACCOUNT_ID` | recommended | Lets Settings → WhatsApp show each template's approval |
+| `WHATSAPP_GRAPH_VERSION`, `WHATSAPP_TEMPLATE_LANGUAGE` | optional | Defaults `v27.0` and `en` |
+
+Set the same values in both projects, then redeploy both (docs/SETUP.md, 5a).
+
 ### Planned, not read by the code yet
 
-`WHATSAPP_*` (automatic WhatsApp, Phase 6), `QUICKBOOKS_*` (QuickBooks
+`QUICKBOOKS_*` (QuickBooks
 Online, Phase 7) and `R2_*` (nightly backup copy, Phase 9) are listed in
 `.env.example` so the settings can be prepared. Each stays off until its
 phase is released and the Owner switches it on.

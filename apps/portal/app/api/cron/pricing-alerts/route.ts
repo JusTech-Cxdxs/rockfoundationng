@@ -6,6 +6,7 @@ import { setAuditActor } from '@ejo/database';
 import { recordJobRun } from '@/lib/job-runs';
 import { purgeOldErrorEvents } from '@/lib/error-events';
 import { purgeExpiredOnSchedule } from '@/lib/recycle-bin/server';
+import { purgeOldWhatsAppMessages } from '@/lib/whatsapp/send';
 import { releaseExpiredStagedRows } from '@/lib/data-exchange/staging-server';
 import { purgeOldEnyoConversations } from '@/lib/enyo/retention';
 import { getOpenPricingAlertsForDigest } from '@/lib/pricing-digest';
@@ -109,6 +110,9 @@ export async function GET(request: NextRequest) {
 
   // Enyo: yesterday's customer and website chats → answers waiting for approval (Enyo learning page).
   let harvested = 0;
+  // The WhatsApp message log is kept 90 days (data inventory: WhatsAppMessage). A database before it simply has none.
+  const whatsAppPurged = await purgeOldWhatsAppMessages(90).catch(() => null);
+  if (whatsAppPurged !== null) await recordJobRun('whatsapp-retention', { messagesRemoved: whatsAppPurged });
   try {
     const orgs = await prisma.organisation.findMany({ where: { isActive: true }, select: { id: true }, take: 500 });
     for (const o of orgs) harvested += await harvestPublicConversations(o.id).catch((err) => { logFailure('Enyo chat learning failed', err); return 0; });

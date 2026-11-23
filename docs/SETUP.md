@@ -90,9 +90,104 @@ Microsoft 365) or a sending service. Set `SMTP_HOST`, `SMTP_PORT`,
 projects. Send yourself a password reset to check it. **Settings** shows
 sent and failed emails for the last 7 days.
 
-Every customer email has a **Send on WhatsApp** button beside it, which
-opens WhatsApp on the person's phone or computer with the same message and a
-secure link to the document. No WhatsApp account set-up is needed for this.
+## 5a. WhatsApp
+
+WhatsApp is how most customers want to hear from the workshop, so it works in
+two ways.
+
+### Send on WhatsApp: works with no set-up
+
+Every customer email has a **Send on WhatsApp** button beside it. Press it,
+then **Open WhatsApp**, and WhatsApp opens on your own phone or computer with
+the same message written; you press send. A document (the estimate, invoice
+or receipt) goes as a secure link to its PDF (`https://<staff portal>/d/…`),
+which works for 30 days and opens nothing else. No WhatsApp account set-up is
+needed for this.
+
+### Automatic WhatsApp: every message, by itself
+
+Once it is set up, every email the two apps send that has a WhatsApp version
+also goes out on WhatsApp by itself, from the business number: the check-in
+(saying what the visit is for: a service, spraying, a car wash…), work
+started, the estimate **with its PDF**, the approval link and its reminders,
+ready for collection, collected, the "How did we do?" rating link, the
+**invoice with its PDF**, each **payment receipt with its PDF**, refunds,
+service reminders, support and complaint replies and announcements. Staff get
+the notices that matter on a phone: something waiting for their approval, a
+job assigned to them, a vehicle released at the gate, a broadcast.
+**docs/WHATSAPP_TEMPLATES.md** lists every message, when it is sent, and the
+few that stay email-only (password and set-password links, for example) with
+the reason. The **Send on WhatsApp** buttons stay; beside the estimate,
+invoice and receipt ones a **Send now on WhatsApp** button appears.
+
+It is **off** until all of these are done:
+
+1. **A Meta Business account.** At business.facebook.com, create the business
+   account for Rock Foundation Automobile Investment Ltd (or use the one you
+   have) and complete **Business verification** with the CAC registration
+   (RC 1772429). Meta limits an unverified business to a few conversations a
+   day.
+2. **Add WhatsApp.** At developers.facebook.com → **My Apps → Create app**
+   (type *Business*), add the **WhatsApp** product and link it to the
+   business account. This creates a **WhatsApp Business Account**.
+3. **Register the business phone number.** WhatsApp Manager → **Phone
+   numbers → Add phone number**: the number customers know (for example
+   0803 304 9194), verified by SMS or a call, with the display name *Rock
+   Foundation Automobile*. A number already on the WhatsApp Business app can
+   be connected too (Meta calls it coexistence); replies then keep arriving in
+   that app. The portal does not read WhatsApp replies, and each customer
+   message ends "Call us on 0803 304 9194".
+4. **A permanent token.** Business settings → **Users → System users → Add**
+   (an *Admin* system user named, say, *EJO WhatsApp*). **Assign assets**: the
+   app and the WhatsApp Business Account (full control). **Generate new
+   token** for the app, expiry *Never*, with the permissions
+   **whatsapp_business_messaging** and **whatsapp_business_management**.
+   Paste it straight into Vercel (step 7), never into an email or chat.
+5. **Note the two IDs.** WhatsApp Manager → **API setup** shows the **Phone
+   number ID** and the **WhatsApp Business Account ID**.
+6. **Create every template.** WhatsApp Manager → **Message templates →
+   Create template**, one for each entry in **docs/WHATSAPP_TEMPLATES.md**,
+   exactly as written there: the name (`rf_…`), the category, English, the
+   header (*Document* where it says so; upload any sample PDF), the body word
+   for word, the footer and the samples. Meta usually approves within minutes
+   to a day; until then its messages fail quietly (the email still goes) and
+   **Settings → WhatsApp** shows the template as pending.
+7. **Set the settings in BOTH Vercel projects** (staff portal and customer
+   portal) → Settings → Environment Variables, for Production:
+
+   | Name | Value |
+   | --- | --- |
+   | `WHATSAPP_ACCESS_TOKEN` | the permanent token (step 4) |
+   | `WHATSAPP_PHONE_NUMBER_ID` | the Phone number ID (step 5) |
+   | `WHATSAPP_BUSINESS_ACCOUNT_ID` | the WhatsApp Business Account ID (step 5) |
+   | `WHATSAPP_GRAPH_VERSION` | `v27.0` (or leave it out: that is the default) |
+   | `WHATSAPP_TEMPLATE_LANGUAGE` | `en` (or leave it out), the language of the templates |
+
+   Then **redeploy** both projects (Deployments → the latest → **Redeploy**).
+8. **Check it.** Settings → **WhatsApp** shows *Automatic sending is on*,
+   each template's approval, and **Send a test template**: send
+   `rf_staff_update` to your own phone. Every message sent, failed or skipped
+   is listed there (the number's last four digits only; kept 90 days).
+
+**Customers must agree.** WhatsApp messages a business starts need the
+customer's agreement (Meta's rules and the Nigeria Data Protection Act).
+When a customer is registered, the box
+**"The customer agrees to receive updates on WhatsApp"** is ticked once a
+phone number is typed: ask them, and untick it if they say no. It is recorded with your name and the time. It can
+be changed on the customer's page (**Edit details**) and by the customer in
+the customer portal (**Profile → Notifications**). Customers brought in from
+a spreadsheet stay off unless the file has a *WhatsApp updates* column saying
+*Yes*. Messages go to the customer's WhatsApp number when one is recorded
+(Customer care details), otherwise to their phone.
+
+**Colleagues choose for themselves** on **My profile → WhatsApp notices**,
+with their mobile number. Off until they do.
+
+**Meta charges per message** it delivers (utility messages cost less than
+marketing ones; the customer announcement is a marketing template). Add a
+payment method in WhatsApp Manager → **Billing**. To stop all automatic
+WhatsApp at once, remove `WHATSAPP_ACCESS_TOKEN` from both projects and
+redeploy: the **Send on WhatsApp** buttons keep working.
 
 ## 6. Scheduled jobs
 

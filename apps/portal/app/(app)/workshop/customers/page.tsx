@@ -12,6 +12,7 @@ import { formatDateTimeCompact } from '@/lib/utils/format-date';
 import { LiveSearchInput } from '@/components/LiveSearchInput';
 import { PageHeader } from '@/components/ui';
 import { WhatsAppSendButton } from '@/components/WhatsAppSendButton';
+import { WhatsAppConsentField } from '@/components/WhatsAppConsentField';
 import { customerCanWhatsApp } from '@/lib/whatsapp-messages';
 import { hasEmail } from '@/lib/customer-email';
 
@@ -180,6 +181,7 @@ export default async function WorkshopCustomersPage({
                 className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
               />
             </div>
+            <WhatsAppConsentField />
             <SubmitButton
               label="Add customer"
               pendingLabel="Adding…"

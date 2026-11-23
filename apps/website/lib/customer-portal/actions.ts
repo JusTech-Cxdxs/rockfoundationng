@@ -164,6 +164,21 @@ export async function updateEmailPreference(_prev: ActionState, fd: FormData): P
   return done(notifyByEmail ? 'You’ll get announcements by email too.' : 'Announcement emails are off. Emails about your own vehicle still come, and you’ll see everything here.');
 }
 
+/**
+ * The customer's own WhatsApp choice: updates about their vehicle, estimates,
+ * invoices and receipts on WhatsApp as well as by email. Recorded with when
+ * (by the customer: no colleague) and audited.
+ */
+export async function updateWhatsAppPreference(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const me = await currentCustomer();
+  if (!me) return SIGNED_OUT;
+  const whatsappOptIn = fd.get('whatsappOptIn') === 'on' || fd.get('whatsappOptIn') === 'true';
+  if (whatsappOptIn === me.whatsappOptIn) return { ok: true, message: 'Saved.', at: Date.now() };
+  await prisma.customer.update({ where: { id: me.id }, data: { whatsappOptIn, whatsappOptInAt: new Date(), whatsappOptInById: null } });
+  await writeCustomerAudit({ customerId: me.id, organisationId: me.organisationId, verb: 'preferences_updated', changes: { whatsappOptIn: { from: me.whatsappOptIn, to: whatsappOptIn } }, ipAddress: await ip() });
+  return done(whatsappOptIn ? 'You’ll get updates on WhatsApp too.' : 'WhatsApp messages are off. Emails still come, and you’ll see everything here.');
+}
+
 // ---------------------------------------------------------------- Password
 
 function strongEnough(pw: string): boolean {

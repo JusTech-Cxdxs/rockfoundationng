@@ -32,6 +32,8 @@ const SELF_SCOPED = new Set(['markNotificationsRead', 'markNotificationsUnread',
   'createReminder', 'updateReminder', 'completeReminder', 'cancelReminder', 'snoozeReminder', 'grantReminderDelegate', 'withdrawReminderDelegate',
   // Get help (lib/actions/help.ts): the signed-in person's own requests only (requesterUserId + organisation).
   'openHelpRequest', 'replyToMyHelpRequest', 'answerMyHelpRequest',
+  // A colleague's own WhatsApp notices and mobile number (My profile).
+  'saveMyWhatsApp',
 ]);
 const WRITE = /\b(?:prisma|tx)\.\w+\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\(/;
 

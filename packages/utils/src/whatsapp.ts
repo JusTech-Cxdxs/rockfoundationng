@@ -2,7 +2,9 @@
  * WhatsApp links, shared by both apps: a colleague clicks "Send on WhatsApp"
  * and WhatsApp opens on their own phone or computer with the message
  * written; the server sends nothing. Pure (no crypto, no database), so a
- * server page or a browser component can use it alike.
+ * server page or a browser component can use it alike. The automatic
+ * messages (whatsapp-cloud.ts) use the same number rules and
+ * whatsAppRecipient below.
  */
 
 /**
@@ -40,4 +42,29 @@ export function whatsAppShareUrlFor(phones: readonly (string | null | undefined)
     if (url) return url;
   }
   return null;
+}
+
+/**
+ * Who an automatic WhatsApp message (the WhatsApp Business Platform) may go
+ * to: only someone who has agreed to WhatsApp messages (Meta's policy and
+ * the Nigeria Data Protection Act need opt-in for messages a business
+ * starts), at the first of their numbers WhatsApp can take. Agreement is
+ * checked first, so a number is never even looked at without it.
+ */
+export type WhatsAppRecipient = { ok: true; number: string } | { ok: false; reason: 'NO_CONSENT' | 'NO_NUMBER' };
+
+export function whatsAppRecipient(p: { optIn: boolean | null | undefined; phones: readonly (string | null | undefined)[] }): WhatsAppRecipient {
+  if (p.optIn !== true) return { ok: false, reason: 'NO_CONSENT' };
+  for (const phone of p.phones) {
+    const number = whatsAppNumber(phone);
+    if (number) return { ok: true, number };
+  }
+  return { ok: false, reason: 'NO_NUMBER' };
+}
+
+/** The greeting name: a person's first name, an organisation's whole name. */
+export function greetingName(fullName: string | null | undefined, organisation: boolean): string {
+  const name = String(fullName ?? '').replace(/\s+/g, ' ').trim();
+  if (!name) return 'there';
+  return organisation ? name : name.split(' ')[0]!;
 }

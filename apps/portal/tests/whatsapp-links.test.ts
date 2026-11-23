@@ -69,8 +69,9 @@ test('the buttons sit next to the emails, and nothing is sent from the server', 
   const jc = read('apps/portal/app/(app)/workshop/job-cards/[id]/page.tsx');
   assert.ok(jc.includes('readyForCollectionMessage('), 'ready for collection');
   // Phase 6A: the invoice and the receipt go with their PDF, prepared on the server (lib/actions/whatsapp.ts).
-  assert.match(jc, /<WhatsAppSendButton prepare=\{\{ document: \{ kind: 'INVOICE', id: invoice\.id \} \}\} testId="invoice-whatsapp" \/>/);
-  assert.match(jc, /<WhatsAppSendButton prepare=\{\{ document: \{ kind: 'RECEIPT', id: p\.id \} \}\} label="Receipt on WhatsApp" testId="receipt-whatsapp" \/>/);
+  // With automatic sending set up, "Send now on WhatsApp" joins "Open WhatsApp" (tests/whatsapp-cloud.test.ts).
+  assert.match(jc, /<WhatsAppSendButton prepare=\{\{ document: \{ kind: 'INVOICE', id: invoice\.id \} \}\} testId="invoice-whatsapp" sendNow=\{whatsAppConfigured\(\)\} \/>/);
+  assert.match(jc, /<WhatsAppSendButton prepare=\{\{ document: \{ kind: 'RECEIPT', id: p\.id \} \}\} label="Receipt on WhatsApp" testId="receipt-whatsapp" sendNow=\{whatsAppConfigured\(\)\} \/>/);
   const prepared = read('apps/portal/lib/actions/whatsapp.ts');
   for (const fn of ['invoiceMessage(', 'receiptMessage(']) assert.ok(prepared.includes(fn), fn);
   const link = read('apps/portal/components/WhatsAppLink.tsx');

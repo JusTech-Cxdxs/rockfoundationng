@@ -16,6 +16,7 @@ import { renderSupportTicketConfirmEmail, renderSupportTicketStaffEmail } from '
 import { logCustomerError } from '@/lib/error-events';
 import { lagosYear, nextTicketNumber, retryOnNumberClash, ticketPrefix, type HandoverContact } from './rules';
 import type { WebCtx } from './types';
+import { whatsAppToCustomer } from '@/lib/whatsapp';
 
 export const OPEN_STATUSES = ['OPEN', 'WAITING_ON_CUSTOMER', 'ON_HOLD'] as const;
 
@@ -182,6 +183,8 @@ export async function openHandover(ctx: WebCtx, contact: HandoverContact, topicR
         });
         await sendEmail(staffTo, m.subject, m.html);
       }
+      // On WhatsApp too, to a signed-in customer who agreed to it.
+      if (customer) await whatsAppToCustomer({ customerId: customer.id, key: 'support_received', related: { type: 'SupportTicket', id: ticket.id }, values: { workshop: companyName, ticketNumber: ticket.number, subject: topic, link: `${site}/customer-portal/dashboard/support` } });
       if (customer?.email) {
         const m = renderSupportTicketConfirmEmail({ companyName, logoUrl, fullName: customer.fullName, ticketNumber: ticket.number, subject: topic, url: `${site}/customer-portal/dashboard/support` });
         await sendEmail(customer.email, m.subject, m.html);

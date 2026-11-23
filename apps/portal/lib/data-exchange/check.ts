@@ -31,6 +31,8 @@ export type CustomerValues = {
   tags: string[];
   /** When they became a customer in the old system, "YYYY-MM-DD". */
   customerSince: string | null;
+  /** Agreed to WhatsApp updates: only a clear Yes in a WhatsApp column; otherwise off. */
+  whatsappOptIn?: boolean;
 };
 
 export type VehicleValues = {
@@ -168,6 +170,9 @@ export function checkCustomerRow(cells: unknown[], mapping: Mapping): Checked<Cu
   if (sinceRaw && !customerSince) warn('customerSince', `“${sinceRaw}” is not a date, so “customer since” was left as the day of the import.`);
   if (customerSince && customerSince > lagosToday()) { warn('customerSince', `“Customer since” ${customerSince} is in the future, so it was left out.`); customerSince = null; }
 
+  // WhatsApp agreement: only a clear yes switches it on (an import never assumes it).
+  const whatsappOptIn = ['yes', 'y', 'true', '1', 'agreed', 'opted in'].includes(get(cells, mapping, 'whatsappOptIn').trim().toLowerCase());
+
   const externalId = get(cells, mapping, 'externalId').replace(/^0+(?=\d)/, '') || null;
   if (externalId && externalId.length > 60) fail('externalId', 'The customer number is longer than 60 characters.');
   if (!externalId && !email && !phone) warn('externalId', 'No customer number, email or phone: a later file cannot recognise this customer, so it may be added twice.');
@@ -178,7 +183,7 @@ export function checkCustomerRow(cells: unknown[], mapping: Mapping): Checked<Cu
     status: failed ? 'REJECTED' : issues.length ? 'WARNING' : 'GOOD',
     issues,
     keys,
-    values: failed ? null : { externalId, fullName, customerType, companyName: customerType === 'ORGANIZATION' ? companyName : null, email, phone, altPhone, address: addr.address, fullAddress: addr.full, taxId: customerType === 'ORGANIZATION' ? taxId : null, tags, customerSince },
+    values: failed ? null : { externalId, fullName, customerType, companyName: customerType === 'ORGANIZATION' ? companyName : null, email, phone, altPhone, address: addr.address, fullAddress: addr.full, taxId: customerType === 'ORGANIZATION' ? taxId : null, tags, customerSince, whatsappOptIn },
   };
 }
 

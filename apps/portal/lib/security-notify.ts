@@ -7,6 +7,7 @@ import { prisma } from '@ejo/database';
 import { sendEmail } from '@/lib/email';
 import { renderStaffNoticeEmail } from '@/lib/email-templates/staff-notice';
 import { PLATFORM } from '@/lib/brand';
+import { whatsAppToStaff } from '@/lib/whatsapp/send';
 
 /**
  * Tells Security (everyone on the gate)
@@ -38,6 +39,8 @@ export async function notifyGateOfRelease(jobCardId: string, actorId: string | n
       'Check the plate and VIN against the release page, then confirm the exit at the gate.',
     ];
     const entityType = 'JobCard';
+    // The same notice on WhatsApp to the gate colleagues who switched it on.
+    await whatsAppToStaff({ to: gate, key: 'staff_update', related: { type: entityType, id: jobCardId }, values: { what: subject, details: lines.join(' · '), link: `${portal}/security/vehicles/release/${jobCardId}` } });
     for (const g of gate) {
       let sent = true;
       let error: string | null = null;

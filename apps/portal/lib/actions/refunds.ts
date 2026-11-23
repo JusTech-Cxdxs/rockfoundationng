@@ -10,6 +10,8 @@ import { retryOnNumberClash, toMinor } from '@/lib/integrity-core';
 import { requireUser, requireEligibleFinanceOfficer } from './workshop';
 import { writeAuditLog, getWorkshopOrgContext } from '@/lib/workshop-core';
 import { sendEmail } from '@/lib/email';
+import { whatsAppToCustomer } from '@/lib/whatsapp/send';
+import { nairaText, waDate } from '@/lib/whatsapp/words';
 import { renderCustomerRefundReceiptEmail } from '@/lib/email-templates/customer-refund-receipt';
 import { billingOf, jobCardTotals, ESTIMATE_TOTALS_SELECT, JOB_CARD_BILLING_SELECT } from '@/lib/estimate-billing';
 import { lagosYear } from '@/lib/utils/format-date';
@@ -33,6 +35,7 @@ async function loadTarget(target: RefundTarget) {
       jobNumber: true,
       status: true,
       branchId: true,
+      customerId: true,
       customer: { select: { fullName: true, email: true } },
       vehicle: { select: { make: true, model: true, plateNumber: true } },
       department: { select: { name: true } },
@@ -52,6 +55,7 @@ async function loadTarget(target: RefundTarget) {
     status: jc.status,
     branchId: jc.branchId,
     customer: jc.customer,
+    customerId: jc.customerId,
     vehicle: jc.vehicle,
     departmentName: jc.department?.name,
     payments: jc.payments,
@@ -277,6 +281,10 @@ export async function recordRefund(input: RecordRefundInput): Promise<{ id: stri
   try {
     const orgContext = await getWorkshopOrgContext(t.departmentName);
     const websiteUrl = websiteBaseUrl();
+    await whatsAppToCustomer({
+      customerId: t.customerId, key: 'refund', related: { type: t.entityType, id: t.id },
+      values: { amount: nairaText(amount), refundedOn: waDate(new Date()), method: input.method === 'CASH' ? 'cash' : 'bank transfer', record: `${t.label} ${t.number}`, referenceNumber, remaining: after.remaining > 0 ? `${nairaText(after.remaining)}. You will get a receipt for each payment.` : 'nothing, your refund is complete.' },
+    });
     await sendEmail(
       t.customer.email,
       `Refund receipt ${referenceNumber} — ${t.label} ${t.number}`,

@@ -20,6 +20,7 @@
     "demo:ensure": "npx tsx apps/portal/scripts/demo-ensure.ts",
     "demo:pulse": "npx tsx apps/portal/scripts/demo-pulse.ts",
     "demo:tour-doc": "npx tsx apps/portal/scripts/demo-tour-doc.ts",
+    "whatsapp:templates-doc": "npx tsx apps/portal/scripts/whatsapp-templates-doc.ts",
     "brand:sync": "cp packages/enyo/src/brand.ts apps/portal/lib/brand.ts && cp packages/enyo/src/brand.ts apps/website/lib/brand.ts",
     "vercel:portal": "npm install --include=dev --no-audit --no-fund && npx prisma generate --schema=packages/database/prisma/schema.prisma && npm run build --workspace=packages/database && node scripts/db-push-if-vercel.js && node scripts/seed-if-vercel.js && npm run build --workspace=apps/portal",
     "vercel:website": "npm install --include=dev --no-audit --no-fund && npx prisma generate --schema=packages/database/prisma/schema.prisma && npm run build --workspace=packages/database && npm run build --workspace=apps/website"

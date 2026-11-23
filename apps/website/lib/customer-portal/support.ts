@@ -14,6 +14,7 @@ import { randomBytes } from 'node:crypto';
 import { lagosYear, nextTicketNumber, retryOnNumberClash, ticketPrefix } from '@/lib/enyo/rules';
 import { currentCustomer } from './session';
 import type { ActionState } from './actions';
+import { whatsAppToCustomer, whatsAppToStaff } from '@/lib/whatsapp';
 
 /**
  * The customer's answer on one of their own support requests (Help &
@@ -88,6 +89,8 @@ async function notifyTeam(ticket: { id: string; number: string; assignedToId: st
     ticket.branchId ? prisma.branch.findUnique({ where: { id: ticket.branchId }, select: { email: true } }) : null,
     prisma.organisation.findUnique({ where: { id: ticket.organisationId }, select: { name: true, email: true } }),
   ]);
+  // The colleague handling it hears on WhatsApp too, when they switched it on (a shared inbox has no phone).
+  if (ticket.assignedToId) await whatsAppToStaff({ to: [{ id: ticket.assignedToId }], key: 'staff_update', related: { type: 'SupportTicket', id: ticket.id }, values: { what: `${contactName} replied on support request ${ticket.number}`, details: body.replace(/\s+/g, ' ').slice(0, 300), link: `${portalBaseUrl()}/crm/support/${ticket.id}` } });
   const to = assignee?.email || branch?.email || org?.email || siteConfig.contact.email;
   if (!to) return;
   const m = renderSupportCustomerReplyEmail({
@@ -173,6 +176,8 @@ export async function openSupportRequest(_prev: ActionState, fd: FormData): Prom
     const org = await prisma.organisation.findUnique({ where: { id: me.organisationId }, select: { name: true, email: true } });
     const companyName = org?.name || siteConfig.organisationName;
     const logoUrl = `${websiteBaseUrl()}/brand/emblem.png`;
+    // On WhatsApp too, when the customer agreed to it (whether or not they have an email).
+    await whatsAppToCustomer({ customerId: me.id, key: 'support_received', related: { type: 'SupportTicket', id: ticket.id }, values: { ticketNumber: ticket.number, subject, link: `${websiteBaseUrl()}/customer-portal/dashboard/support` } });
     if (me.email) {
       const c = renderSupportTicketConfirmEmail({ companyName, logoUrl, fullName: me.fullName, ticketNumber: ticket.number, subject, url: `${websiteBaseUrl()}/customer-portal/dashboard/support` });
       await sendEmail(me.email, c.subject, c.html);
