@@ -55,12 +55,17 @@ export async function getMasterAnalytics(periodKey?: string, custom?: { from?: s
   const storeOn = moduleIsOn('inventory');
   const partsCostNote = storeOn ? null : 'Parts cost not tracked';
 
-  const [jcs, grn] = await Promise.all([
+  const [jcs, grn, counter] = await Promise.all([
     prisma.jobCard.findMany({
       where: { ...reach, OR: [{ createdAt: { gte: since } }, { status: { notIn: ['CHECKED_OUT', 'CANCELLED', 'CLOSED'] } }, { checkedOutAt: { gte: since } }, { completedAt: { gte: since } }, { closedAt: { gte: since } }, { payments: { some: { recordedAt: { gte: since } } } }, { refunds: { some: { recordedAt: { gte: since } } } }] },
-      select: { id: true, jobNumber: true, status: true, createdAt: true, completedAt: true, checkedOutAt: true, closedAt: true, customerId: true, cancellationRequests: { where: { status: 'APPROVED' }, orderBy: { decidedAt: 'desc' }, take: 1, select: { decidedAt: true } }, customer: { select: { fullName: true, customerType: true } }, invoice: { select: { dueDate: true } }, estimate: { select: { lineItems: { select: { type: true, amount: true, billTo: true } } } }, payments: { select: { amount: true, recordedAt: true } }, refunds: { select: { amount: true, recordedAt: true } } },
+      select: { id: true, jobNumber: true, status: true, createdAt: true, completedAt: true, checkedOutAt: true, closedAt: true, customerId: true, cancellationRequests: { where: { status: 'APPROVED' }, orderBy: { decidedAt: 'desc' }, take: 1, select: { decidedAt: true } }, customer: { select: { fullName: true, customerType: true } }, invoice: { select: { dueDate: true, total: true } }, creditNotes: { where: { status: 'APPROVED' }, select: { amount: true } }, estimate: { select: { lineItems: { select: { type: true, amount: true, billTo: true } } } }, payments: { select: { amount: true, recordedAt: true } }, refunds: { select: { amount: true, recordedAt: true } } },
     }),
     storeOn ? prisma.goodsReceiptLine.findMany({ where: { goodsReceipt: { ...reach, receivedAt: { gte: since } } }, select: { totalCost: true, goodsReceipt: { select: { receivedAt: true } } } }) : [],
+    // Counter sales (parts sold over the counter): their sales without VAT, what was paid, and the cost of the stock they took.
+    storeOn ? prisma.counterSale.findMany({
+      where: { ...reach, soldAt: { gte: since } },
+      select: { id: true, number: true, buyerName: true, customerId: true, subtotal: true, total: true, soldAt: true, lines: { select: { stockOuts: { select: { quantityTaken: true, goodsReceiptLine: { select: { unitCost: true } }, batch: { select: { goodsReceiptLine: { select: { unitCost: true } } } } } } } } },
+    }) : [],
   ]);
 
   // Parts cost of EXACTLY the jobs loaded above — whenever the parts were
@@ -114,7 +119,21 @@ export async function getMasterAnalytics(periodKey?: string, custom?: { from?: s
       partsCost: (cost.get(`JC:${j.id}`) ?? 0) + (outsideParts.get(j.id) ?? 0), partsIssuedWithoutCost: uncosted.get(`JC:${j.id}`) ?? 0, subletCost: sublet.get(j.id) ?? 0,
       payments: pay(j.payments), refunds: pay(j.refunds),
       organisation: j.customer.customerType === 'ORGANIZATION', dueDate: j.invoice?.dueDate ?? null,
+      billed: j.invoice ? num(j.invoice.total) : null, credited: j.creditNotes.reduce((s: number, c: { amount: unknown }) => s + num(c.amount), 0),
     })),
+    ...counter.map((c: (typeof counter)[number]) => {
+      let partsCost = 0;
+      let uncostedQty = 0;
+      for (const l of c.lines) for (const o of l.stockOuts) {
+        const unit = o.goodsReceiptLine?.unitCost ?? o.batch?.goodsReceiptLine?.unitCost ?? null;
+        if (unit === null) uncostedQty += num(o.quantityTaken); else partsCost += num(unit) * num(o.quantityTaken);
+      }
+      return {
+        kind: 'CS' as const, id: c.id, number: c.number, customer: c.buyerName, customerId: c.customerId ?? undefined, status: 'SOLD', openedAt: c.soldAt, finishedAt: c.soldAt, cancelled: false,
+        lines: [{ type: 'STORE_PART', amount: num(c.subtotal), billTo: 'CUSTOMER' }], partsCost: Math.round(partsCost * 100) / 100, partsIssuedWithoutCost: uncostedQty, subletCost: 0,
+        payments: [{ at: c.soldAt, amount: num(c.total) }], refunds: [], billed: num(c.total), credited: 0,
+      };
+    }),
   ];
   const analytics = computeMasterAnalytics({
     jobs,

@@ -14,7 +14,7 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 
 /** Settings → Bookings (the Owner): days open, time slots, vehicles a day per kind of visit, how far ahead and how much notice. */
 export default async function AppointmentSettingsPage({ searchParams }: { searchParams: Promise<{ status?: string; error?: string }> }) {
-  await guardPage('admin.organisation.manage', '/settings/appointments');
+  await guardPage('admin.organisation.manage', '/settings/bookings');
   const sp = await searchParams;
   const s = await getAppointmentSettings();
   return (

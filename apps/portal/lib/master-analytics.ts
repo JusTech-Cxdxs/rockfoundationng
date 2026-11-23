@@ -16,13 +16,18 @@ import { pluralize } from './utils/pluralize';
  *  • COST OF SALES = issued parts at their actual goods-receipt cost +
  *    sublet (outside work) cost.
  *  • GROSS PROFIT = sales − cost of sales.
- *  • CASH: collections = payments − refunds in the period; receivables =
- *    what customers still owe on finished jobs.
+ *  • CASH: collections = payments − refunds in the period (VAT included);
+ *    receivables = what customers still owe on finished jobs: the invoice
+ *    total (VAT included, else the customer lines) less payments, refunds
+ *    and credit notes approved.
+ *  • Sales are without VAT (VAT is the government's, not revenue). Counter
+ *    sales count in sales, cost and collections, but not as jobs.
  */
 
 export type Line = { type: string; amount: number; billTo: string };
 export type Job = {
-  kind: 'JC';
+  /** A Job Card, or a counter sale (parts sold over the counter, no job). */
+  kind: 'JC' | 'CS';
   id: string;
   number: string;
   customer: string;
@@ -42,6 +47,10 @@ export type Job = {
   organisation?: boolean;
   /** Its invoice's due date (an organisation on credit); null = due before collection. */
   dueDate?: Date | null;
+  /** The invoice total, VAT included (null before an invoice): what is owed is measured against it. */
+  billed?: number | null;
+  /** Credit notes approved on it. */
+  credited?: number;
 };
 export type Purchase = { at: Date; cost: number };
 
@@ -68,7 +77,9 @@ export function jobMoney(j: Job) {
   const sales = customer;
   const cost = j.partsCost + j.subletCost;
   const paid = sum(j.payments.map((p) => p.amount)) - sum(j.refunds.map((p) => p.amount));
-  return { ...g, customer: r2(customer), warranty: r2(warranty), givenAway: r2(givenAway), sales: r2(sales), cost: r2(cost), grossProfit: r2(sales - cost), paid: r2(paid), owed: r2(customer - paid) };
+  // Owed against what the customer is billed (the invoice, VAT included), less credit notes; before an invoice, the customer lines.
+  const billed = j.billed ?? customer;
+  return { ...g, customer: r2(customer), warranty: r2(warranty), givenAway: r2(givenAway), sales: r2(sales), cost: r2(cost), grossProfit: r2(sales - cost), paid: r2(paid), owed: r2(billed - paid - (j.credited ?? 0)) };
 }
 
 function inRange(d: Date | null, from: Date, to: Date) {
@@ -94,10 +105,14 @@ function periodTotals(jobs: Job[], purchases: Purchase[], from: Date, to: Date) 
   }
   const refundsInPeriod = r2(sum(jobs.flatMap((j) => j.refunds.filter((p) => inRange(p.at, from, to)).map((p) => p.amount))));
   const collections = r2(sum(jobs.flatMap((j) => j.payments.filter((p) => inRange(p.at, from, to)).map((p) => p.amount))) - sum(jobs.flatMap((j) => j.refunds.filter((p) => inRange(p.at, from, to)).map((p) => p.amount))));
+  const doneJobs = done.filter((j) => j.kind === 'JC');
+  const sales_ = done.filter((j) => j.kind === 'CS');
   return {
-    jobsCompleted: done.length,
-    jobCardsCompleted: done.filter((j) => j.kind === 'JC').length,
-    jobsOpened: jobs.filter((j) => inRange(j.openedAt, from, to)).length,
+    jobsCompleted: doneJobs.length,
+    jobCardsCompleted: doneJobs.length,
+    jobsOpened: jobs.filter((j) => j.kind === 'JC' && inRange(j.openedAt, from, to)).length,
+    counterSales: sales_.length,
+    counterSalesAmount: r2(sum(sales_.map((j) => jobMoney(j).sales))),
     cancelled: jobs.filter((j) => j.cancelled && inRange(j.openedAt, from, to)).length,
     labour: t('labour'), parts: t('parts'), sublet: t('sublet'), sundry: t('sundry'),
     customerSales: t('customer'), warrantySales: t('warranty'), givenAway: t('givenAway'),
@@ -106,7 +121,7 @@ function periodTotals(jobs: Job[], purchases: Purchase[], from: Date, to: Date) 
     grossMargin: pct(sales - cost, sales),
     partsMargin: pct(t('parts') - partsCost, t('parts')),
     labourShare: pct(t('labour'), sales),
-    averageJob: done.length ? r2(sales / done.length) : null,
+    averageJob: doneJobs.length ? r2(sum(doneJobs.map((j) => jobMoney(j).sales)) / doneJobs.length) : null,
     collections,
     refunds: refundsInPeriod,
     earnings: { labour: r2(byType.LABOUR!), internalJobs: r2(byType.INTERNAL_JOB!), storeParts: r2(byType.STORE_PART!), outsideParts: r2(byType.EXTERNAL_PART!), outsideJobs: r2(byType.EXTERNAL_JOB!), sundry: r2(byType.SUNDRY!) },
@@ -257,11 +272,11 @@ export function computeMasterAnalytics(input: { jobs: Job[]; purchases: Purchase
 
   // ── Prescriptive
   type Action = { priority: 1 | 2 | 3; title: string; detail: string; href: string; items: { label: string; href: string }[] };
-  const item = (j: Job, extra?: string) => ({ label: `${j.number}${extra ? ` (${extra})` : ''}`, href: j.kind === 'JC' ? `/workshop/job-cards/${j.id}` : `/workshop/vehicle-service/${j.id}` });
+  const item = (j: Job, extra?: string) => ({ label: `${j.number}${extra ? ` (${extra})` : ''}`, href: j.kind === 'JC' ? `/workshop/job-cards/${j.id}` : `/inventory/counter-sales/${j.id}` });
   const actions: Action[] = [];
   const money = (n: number) => `₦${n.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
   const plural = pluralize;
-  const href = (j: Job) => (j.kind === 'JC' ? `/workshop/job-cards/${j.id}` : `/workshop/vehicle-service/${j.id}`);
+  const href = (j: Job) => (j.kind === 'JC' ? `/workshop/job-cards/${j.id}` : `/inventory/counter-sales/${j.id}`);
   const chase = finishedOwing.sort((a, b) => b.m.owed - a.m.owed);
   if (chase.length) actions.push({ priority: 1, title: `${money(position.receivables)} owed on ${plural(chase.length, 'finished job')}`, detail: 'Collect the balance from each customer.', href: chase.length === 1 ? href(chase[0]!.j) : '/workshop/custody', items: chase.slice(0, 12).map((x) => item(x.j, money(x.m.owed))) });
   if (overpaid.length) actions.push({ priority: 1, title: `${money(position.overpaidTotal)} to refund on ${plural(overpaid.length, 'job')}`, detail: 'Customers paid more than they owe — Accounts can refund from the job.', href: href(overpaid[0]!.j), items: overpaid.slice(0, 12).map((x) => item(x.j, money(-x.m.owed))) });

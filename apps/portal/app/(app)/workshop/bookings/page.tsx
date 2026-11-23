@@ -73,10 +73,10 @@ function Booking({ a, returnTo, canManage }: { a: AppointmentRow; returnTo: stri
 
 /** Workshop bookings: the day's list by time, what is waiting to be confirmed, booking for a caller, and the next days at a glance. */
 export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ day?: string; status?: string; error?: string }> }) {
-  await guardPage('workshop.appointment.view', '/workshop/appointments');
+  await guardPage('workshop.appointment.view', '/workshop/bookings');
   const sp = await searchParams;
   const [d, waiting, week] = await Promise.all([getAppointmentDay(sp.day), listWaitingAppointments(), upcomingCounts(7)]);
-  const returnTo = `/workshop/appointments?day=${d.day}`;
+  const returnTo = `/workshop/bookings?day=${d.day}`;
   const booked = sp.status?.startsWith('booked:') ? sp.status.slice(7) : null;
   const live = d.rows.filter((a) => a.status !== 'CANCELLED');
   return (
@@ -95,7 +95,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
 
       <nav aria-label="Days" className="mb-6 flex gap-2 overflow-x-auto pb-1" data-testid="booking-days">
         {week.map((w) => (
-          <Link key={w.day} href={`/workshop/appointments?day=${w.day}`} aria-current={w.day === d.day ? 'page' : undefined}
+          <Link key={w.day} href={`/workshop/bookings?day=${w.day}`} aria-current={w.day === d.day ? 'page' : undefined}
             className={`shrink-0 rounded-[var(--ejo-radius-lg)] border px-3 py-2 text-center text-sm ${w.day === d.day ? 'border-[var(--ejo-primary)] bg-[var(--ejo-primary)]/10' : 'border-[var(--ejo-border)] bg-[var(--ejo-surface)]'}`}>
             <span className="block font-semibold">{w.when.split(' ')[0]}</span>
             <span className="block text-xs text-[var(--ejo-text-muted)]">{w.when.split(' ')[1]}</span>
@@ -138,7 +138,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               <ul className="divide-y divide-[var(--ejo-border)]">
                 {waiting.map((a) => (
                   <li key={a.id} className="py-2.5 text-sm">
-                    <Link href={`/workshop/appointments?day=${a.day}`} className="font-medium hover:underline">{a.when}</Link>
+                    <Link href={`/workshop/bookings?day=${a.day}`} className="font-medium hover:underline">{a.when}</Link>
                     <span className="block text-[var(--ejo-text-muted)]">{a.name} · {a.visit}</span>
                   </li>
                 ))}
@@ -151,7 +151,7 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
                 <li key={t} className="flex justify-between"><span>{JOB_TYPE_WORDS[t]}</span><span className="font-semibold">{d.booked[t]} of {d.settings.capacity[t]}</span></li>
               ))}
             </ul>
-            <p className="mt-3 text-xs text-[var(--ejo-text-muted)]">Days, times and places are set in <Link href="/settings/appointments" className="underline">Settings → Bookings</Link>.</p>
+            <p className="mt-3 text-xs text-[var(--ejo-text-muted)]">Days, times and places are set in <Link href="/settings/bookings" className="underline">Settings → Bookings</Link>.</p>
           </SectionCard>
         </div>
       </div>

@@ -390,7 +390,7 @@ export const GUIDE: GuideEntry[] = [
     ],
   },
   {
-    id: 'bookings', title: 'Confirm a booking, and open the Job Card when the vehicle arrives', page: '/workshop/appointments', needs: ['workshop.appointment.view'], does: ['workshop.appointment.manage'], who: 'Front Desk',
+    id: 'bookings', title: 'Confirm a booking, and open the Job Card when the vehicle arrives', page: '/workshop/bookings', needs: ['workshop.view', 'workshop.appointment.view'], does: ['workshop.appointment.manage'], who: 'Front Desk',
     keywords: ['booking', 'bookings', 'appointment', 'appointments', 'book', 'reserve', 'slot', 'diary', 'schedule a visit', 'come in'],
     steps: [
       'Customers book a day and a time on the website (or you book for a caller under "Book for a caller"). Each booking waits under "To confirm".',
@@ -400,7 +400,7 @@ export const GUIDE: GuideEntry[] = [
     ],
   },
   {
-    id: 'fleet-report', title: 'Send a fleet customer their report', page: '/crm', needs: ['money.fleet_report.view'], who: 'Front Desk, Accounts or the Owner',
+    id: 'fleet-report', title: 'Send a fleet customer their report', page: '/crm', needs: ['crm.view', 'money.fleet_report.view'], who: 'Front Desk, Accounts or the Owner',
     keywords: ['fleet', 'fleet report', 'company report', 'vehicles report', 'account report', 'monthly report'],
     steps: [
       'Open the company under Customers. On its overview, under "Fleet report", choose the period (this month, last month, the last 3 months or this year).',

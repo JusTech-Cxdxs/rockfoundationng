@@ -3,6 +3,7 @@ import { getDataExchangeDashboardItems } from '@/lib/actions/data-exchange';
 import { logFailure } from '@/lib/log';
 
 import { countOpenIntegrityAlerts } from './integrity';
+import { ageingReport } from '@/lib/money/statements-server';
 import { prisma } from '@ejo/database';
 import { jobCardActive } from '@/lib/custody';
 import { allows, getPrincipal, myOrganisationId, reachWhere, jobCardReach } from '@/lib/authz/server';
@@ -312,15 +313,28 @@ export async function getPlatformGlance(): Promise<GlanceTile[]> {
   ]);
   const p = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
   // Each tile only for the people whose work it is (same rule as its page).
-  const [cw, cs, ccost, cgrn, ccare, ccomplaints] = await Promise.all([allows('workshop.view'), allows('store.view'), Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k))).then((xs) => xs.some(Boolean)), allows('store.grn.record'), allows('crm.manage'), allows('support.tickets.manage')]);
+  const [cw, cs, ccost, cgrn, ccare, ccomplaints, cbook, cdesk, ctakings] = await Promise.all([allows('workshop.view'), allows('store.view'), Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k))).then((xs) => xs.some(Boolean)), allows('store.grn.record'), allows('crm.manage'), allows('support.tickets.manage'), allows('workshop.appointment.view'), allows('workshop.job_card.create'), allows('money.takings.view')]);
   // Customer care: calls due today or overdue, and complaints still open (what the Callbacks and Complaints pages list).
   const careFence = ccare ? await reachWhere('crm.manage', { lens: false }) : null;
   const [callsDue, complaintsOpen] = await Promise.all([
     careFence && me?.organisationId ? n(prisma.followUp.count({ where: { organisationId: me.organisationId, status: 'OPEN', dueAt: { lt: dayEnd }, ...(careFence.branchId ? { OR: [{ branchId: careFence.branchId }, { branchId: null }] } : {}) } })) : off,
     ccomplaints && me?.organisationId ? n(prisma.supportTicket.count({ where: { organisationId: me.organisationId, kind: 'COMPLAINT', status: { in: ['OPEN', 'WAITING_ON_CUSTOMER', 'ON_HOLD'] } } })) : off,
   ]);
-  const NEED: Record<string, boolean> = { '/workshop/custody': cw, '/workshop/parts-requests': cs && storeOn, '/inventory/goods-receipts': (ccost || cgrn) && storeOn, '/notifications?tab=broadcasts': true, '/crm/callbacks': ccare, '/crm/complaints': ccomplaints };
+  // Front desk: today's bookings (and how many still to confirm), vehicles ready to hand back. Accounts: money in today, invoices past their due date.
+  const today = new Date(dayStart.getTime() + 3_600_000).toISOString().slice(0, 10);
+  const [bookedToday, toConfirm, readyNow, paidToday, pastDue] = await Promise.all([
+    cbook && me?.organisationId ? n(prisma.appointment.count({ where: { organisationId: me.organisationId, day: today, status: { in: ['REQUESTED', 'CONFIRMED', 'ARRIVED'] } } })) : off,
+    cbook && me?.organisationId ? n(prisma.appointment.count({ where: { organisationId: me.organisationId, status: 'REQUESTED', day: { gte: today } } })) : off,
+    cdesk ? n(prisma.jobCard.count({ where: { ...work, status: 'READY_FOR_COLLECTION', checkedOutAt: null } })) : off,
+    ctakings ? n(prisma.payment.count({ where: { recordedAt: { gte: dayStart, lt: dayEnd }, jobCard: work } })) : off,
+    // Customers with money past its due date (the statement's own rule: invoice less payments and credit notes).
+    ctakings && me?.organisationId ? n(ageingReport({ organisationId: me.organisationId }).then((r) => r.customers.filter((c) => c.overdue > 0.004).length)) : off,
+  ]);
+  const NEED: Record<string, boolean> = { '/workshop/bookings': cbook, '/workshop/custody?filter=ready_for_collection': cdesk, '/money/statements': ctakings, '/workshop/custody': cw, '/workshop/parts-requests': cs && storeOn, '/inventory/goods-receipts': (ccost || cgrn) && storeOn, '/notifications?tab=broadcasts': true, '/crm/callbacks': ccare, '/crm/complaints': ccomplaints };
   const tiles: GlanceTile[] = [
+    { label: 'Bookings today', value: bookedToday, hint: toConfirm ? `${toConfirm} to confirm` : 'All confirmed', href: '/workshop/bookings', tone: toConfirm ? 'warning' : 'info' },
+    { label: 'Ready for collection', value: readyNow, hint: 'Call the customer to collect', href: '/workshop/custody?filter=ready_for_collection', tone: readyNow ? 'success' : 'muted' },
+    { label: 'Payments today', value: paidToday, hint: pastDue ? `${pastDue} customer${pastDue === 1 ? '' : 's'} past due` : 'Nobody past due', href: '/money/statements', tone: pastDue ? 'warning' : 'success' },
     { label: 'Calls due today', value: callsDue, hint: 'Callbacks, overdue included', href: '/crm/callbacks', tone: callsDue ? 'warning' : 'muted' },
     { label: 'Open complaints', value: complaintsOpen, hint: 'Being put right', href: '/crm/complaints', tone: complaintsOpen ? 'error' : 'muted' },
     { label: 'Job Cards in progress', value: jcActive, hint: 'Open, not yet checked out', href: '/workshop/custody', tone: 'primary' },
