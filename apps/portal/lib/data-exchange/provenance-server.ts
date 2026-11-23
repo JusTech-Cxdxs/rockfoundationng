@@ -9,7 +9,7 @@ import { prisma } from '@ejo/database';
 import { allows } from '@/lib/authz/server';
 
 export type Provenance = {
-  /** ejo: made in EJO; legacy: brought in from Zoho, an old system or a spreadsheet. */
+  /** ejo: made in EJO; legacy: brought in from QuickBooks, an old system or a spreadsheet. */
   source: 'ejo' | 'legacy';
   enteredAt: Date;
   enteredBy: string | null;

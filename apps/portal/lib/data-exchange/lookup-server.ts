@@ -17,7 +17,7 @@ export async function findCustomers(db: Prisma.TransactionClient | typeof prisma
            WHERE "organisationId" = ${organisationId}
              AND right(regexp_replace(coalesce(phone, ''), '\\D', '', 'g'), 10) = ANY(${keys.phone.map((p) => p.slice(-10))}::text[])`
       : [],
-    // By name (an invoice file that gives only the customer's name, as Zoho's does): the person's name or the company's.
+    // By name (an invoice file that gives only the customer's name, as QuickBooks' does): the person's name or the company's.
     names.length
       ? db.customer.findMany({ where: { organisationId, OR: [{ fullName: { in: names, mode: 'insensitive' } }, { customerCompany: { companyName: { in: names, mode: 'insensitive' } } }] }, select: { id: true, fullName: true, customerCompany: { select: { companyName: true } } } })
       : [],

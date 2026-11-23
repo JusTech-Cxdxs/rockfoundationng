@@ -4,9 +4,10 @@
  * server actions, the templates and the tests.
  *
  * Every field lists the column names it is recognised by: plain English as
- * people type them in Excel, and the column headers Zoho Books, Zoho Invoice
- * and Zoho CRM write in their exports ("Display Name", "EmailID", "Billing
- * City", "Invoice Number", "Account Name"…), so those files map themselves.
+ * people type them in Excel, and the column headers QuickBooks Desktop and
+ * QuickBooks Online write in their exports ("Main Phone", "Bill to 1",
+ * "Account No.", "Num", "Open Balance", "Reorder Pt (Min)"…), so those files
+ * map themselves (tests/data-exchange-quickbooks.test.ts).
  * Matching ignores case, spaces, dots, dashes and underscores.
  */
 import { moduleIsOn } from '../modules';
@@ -18,7 +19,7 @@ export type FieldDef = {
   label: string;
   /** What to put in the column (shown on the mapping screen and in the template). */
   help: string;
-  /** Column names this field is recognised by (plain names and Zoho's). */
+  /** Column names this field is recognised by (plain names and QuickBooks'). */
   aliases: string[];
   /** An example value for the template. */
   example: string;
@@ -62,12 +63,12 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
     label: 'Staff',
     noun: 'staff member',
     plural: 'staff',
-    description: 'The organisation’s people, from a staff list or an HR export (Zoho People and the like): each becomes an EJO account in their branch and department, with their roles, switched off until an administrator of the whole organisation sends them their invitation to set a password. Load staff first: open job cards and services find their technicians and supervisors by employee ID. Administrators are never brought in by a file.',
+    description: 'The organisation’s people, from a staff list or an HR export: each becomes an EJO account in their branch and department, with their roles, switched off until an administrator of the whole organisation sends them their invitation to set a password. Load staff first: open job cards and services find their technicians and supervisors by employee ID. Administrators are never brought in by a file.',
     needs: 'admin.users.manage',
     approver: 'an Organisation Administrator',
     matchOrder: ['work email', 'employee ID'],
     fields: [
-      { key: 'fullName', label: 'Full name', help: 'As it should appear in EJO (first and last name together). A file with first and last names in two columns (Zoho People) needs no full-name column.', aliases: ['full name', 'name', 'employee name', 'staff name', 'employee', 'display name'], example: 'Adaeze Obi', required: true },
+      { key: 'fullName', label: 'Full name', help: 'As it should appear in EJO (first and last name together). A file with first and last names in two columns needs no full-name column.', aliases: ['full name', 'name', 'employee name', 'staff name', 'employee', 'display name'], example: 'Adaeze Obi', required: true },
       { key: 'firstName', label: 'First name', help: 'Optional: when the file has first and last names in their own columns, they make the full name.', aliases: ['first name', 'firstname', 'given name', 'forename'], example: '' },
       { key: 'lastName', label: 'Last name', help: 'Optional: see First name.', aliases: ['last name', 'lastname', 'surname', 'family name'], example: '' },
       { key: 'email', label: 'Work email', help: 'The person’s own work address: they sign in with it and their invitation goes to it. Never a shared mailbox.', aliases: ['work email', 'email', 'e-mail', 'email address', 'email id', 'emailid', 'official email'], example: 'adaeze.obi@example.com', required: true },
@@ -84,30 +85,30 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
     label: 'Customers',
     noun: 'customer',
     plural: 'customers',
-    description: 'People and organisations you serve: names, phone numbers, emails, addresses, customer numbers — from Zoho Books or Zoho Invoice (Contacts → Export), Zoho CRM (Contacts or Accounts → Export), an old system or your own spreadsheet.',
+    description: 'People and organisations you serve: names, phone numbers, emails, addresses, customer numbers — from QuickBooks Desktop (Customer Center → Excel → Export Customer List), QuickBooks Online (Customers → Export to Excel), an old system or your own spreadsheet.',
     needs: 'crm.manage',
     approver: 'the Owner',
     matchOrder: ['customer number', 'email', 'phone'],
     fields: [
       { key: 'ejoRecord', label: 'EJO record', help: 'Only to update records from an edited export: the record’s EJO number, as the export writes it (“EJO record”, ZZ_EJO_ID). Leave it out to add new records.', aliases: ['EJO record', 'EJO ID', 'EJO record id', 'EJO number'], example: '', roundTrip: true },
-      { key: 'externalId', label: 'Customer number', help: 'The customer’s number in Zoho (Customer ID, Contact ID) or your old system. Used to recognise the customer again in later files.', aliases: ['customer number', 'customer no', 'customer id', 'customer code', 'contact id', 'account id', 'record id', 'account number', 'account no', 'debtor', 'debtor number', 'bp number', 'business partner'], example: '1000123' },
-      { key: 'fullName', label: 'Name', help: 'The person’s full name, or the organisation’s name (Zoho: Display Name). A file with first and last names in two columns, or only a company name, needs no name column.', aliases: ['name', 'full name', 'display name', 'contact name', 'customer name', 'customer', 'client name', 'client'], example: 'Ada Okafor', required: true },
-      { key: 'firstName', label: 'First name', help: 'Optional (Zoho First Name): with Last name, makes the name when there is no name column.', aliases: ['first name', 'firstname', 'contact first name', 'given name'], example: '' },
-      { key: 'lastName', label: 'Last name', help: 'Optional (Zoho Last Name).', aliases: ['last name', 'lastname', 'contact last name', 'surname'], example: '' },
+      { key: 'externalId', label: 'Customer number', help: 'The customer’s number in QuickBooks (Account No.) or your old system. Used to recognise the customer again in later files.', aliases: ['customer number', 'customer no', 'customer id', 'customer code', 'contact id', 'account id', 'record id', 'account number', 'account no', 'debtor', 'debtor number', 'bp number', 'business partner'], example: '1000123' },
+      { key: 'fullName', label: 'Name', help: 'The person’s full name, or the organisation’s name (QuickBooks: Customer). A file with first and last names in two columns, or only a company name, needs no name column.', aliases: ['name', 'full name', 'display name', 'contact name', 'customer name', 'customer', 'client name', 'client'], example: 'Ada Okafor', required: true },
+      { key: 'firstName', label: 'First name', help: 'Optional (QuickBooks First Name): with Last name, makes the name when there is no name column.', aliases: ['first name', 'firstname', 'contact first name', 'given name'], example: '' },
+      { key: 'lastName', label: 'Last name', help: 'Optional (QuickBooks Last Name).', aliases: ['last name', 'lastname', 'contact last name', 'surname'], example: '' },
       { key: 'name2', label: 'Name, second line', help: 'Optional: added after the name (e.g. a branch or "Attn" line).', aliases: ['name 2', 'second name', 'name line 2'], example: '' },
       { key: 'customerType', label: 'Type', help: 'Individual or Organisation. Left empty: Organisation when a company name is given, otherwise Individual.', aliases: ['customer type', 'customer sub type', 'customer subtype', 'type', 'category', 'customer category'], example: 'Individual', choices: ['Individual', 'Organisation'] },
       { key: 'companyName', label: 'Company name', help: 'For organisations: the registered company name, if different from the name.', aliases: ['company', 'company name', 'account name', 'organisation', 'organization', 'organisation name', 'business name', 'employer'], example: '' },
-      { key: 'email', label: 'Email', help: 'Optional. Only the customer’s own address: it is how they sign in to the customer portal. Leave empty if there is none — never a made-up one.', aliases: ['email', 'e-mail', 'email address', 'email id', 'emailid', 'mail', 'e mail'], example: 'ada.okafor@example.com' },
-      { key: 'phone', label: 'Phone', help: 'The main number, e.g. 0803 123 4567 or +234 803 123 4567.', aliases: ['phone', 'phone number', 'telephone', 'tel', 'mobile', 'mobile number', 'gsm', 'cell', 'contact number'], example: '0803 123 4567' },
+      { key: 'email', label: 'Email', help: 'Optional. Only the customer’s own address: it is how they sign in to the customer portal. Leave empty if there is none — never a made-up one.', aliases: ['email', 'e-mail', 'email address', 'main email', 'email id', 'emailid', 'mail', 'e mail'], example: 'ada.okafor@example.com' },
+      { key: 'phone', label: 'Phone', help: 'The main number, e.g. 0803 123 4567 or +234 803 123 4567.', aliases: ['phone', 'main phone', 'phone number', 'telephone', 'tel', 'mobile', 'mobile number', 'gsm', 'cell', 'contact number'], example: '0803 123 4567' },
       { key: 'altPhone', label: 'Second phone', help: 'Optional second number.', aliases: ['second phone', 'alt phone', 'alternative phone', 'phone 2', 'mobile 2', 'other phone', 'mobile phone', 'mobilephone'], example: '' },
       { key: 'whatsappOptIn', label: 'WhatsApp updates', help: 'Optional: Yes only when the customer has agreed to receive updates on WhatsApp. Anything else (or no column) leaves it off; it can be switched on later on their page or by the customer.', aliases: ['whatsapp', 'whatsapp updates', 'whatsapp opt in', 'whatsapp optin', 'whatsapp consent', 'agrees to whatsapp', 'whatsapp ok'], example: 'Yes', choices: ['Yes', 'No'] },
-      { key: 'address', label: 'Address', help: 'Street and area, one line (e.g. "Plot 3, Cheesebrough"). Long addresses are kept in full as an extra address.', aliases: ['STREET', 'address', 'address line 1', 'street', 'street address', 'address 1', 'billing address', 'billing street', 'billing address line 1', 'mailing street', 'mailing address'], example: 'Plot 3, Adeola Odeku Street' },
-      { key: 'city', label: 'City', help: 'Optional.', aliases: ['city', 'town', 'billing city', 'mailing city'], example: 'Lagos' },
-      { key: 'state', label: 'State', help: 'Optional.', aliases: ['REGION', 'state', 'region', 'province', 'billing state', 'mailing state'], example: 'Lagos' },
+      { key: 'address', label: 'Address', help: 'Street and area, one line (e.g. "Plot 3, Cheesebrough"). Long addresses are kept in full as an extra address.', aliases: ['STREET', 'address', 'address line 1', 'street', 'street address', 'address 1', 'billing address', 'billing street', 'billing address line 1', 'mailing street', 'mailing address', 'bill to 2', 'billing street'], example: 'Plot 3, Adeola Odeku Street' },
+      { key: 'city', label: 'City', help: 'Optional.', aliases: ['city', 'town', 'billing city', 'mailing city', 'bill to 3'], example: 'Lagos' },
+      { key: 'state', label: 'State', help: 'Optional.', aliases: ['REGION', 'state', 'region', 'province', 'billing state', 'mailing state', 'bill to 4'], example: 'Lagos' },
       { key: 'taxId', label: 'Tax ID', help: 'Optional, for organisations (TIN / VAT number).', aliases: ['tin', 'tax id', 'tax number', 'vat', 'vat number', 'tax registration number', 'tax reg no'], example: '' },
       { key: 'paymentTerms', label: 'Payment terms', help: 'Optional (QuickBooks Terms, e.g. "Net 30"). Kept on the customer as a tag; credit terms themselves are set in EJO by Finance or the Manager (Customers → the organisation’s page).', aliases: ['payment terms', 'payment terms label', 'terms', 'credit terms'], example: '' },
       { key: 'tags', label: 'Tags', help: 'Optional labels separated by commas, e.g. "Fleet, VIP".', aliases: ['tags', 'labels', 'group', 'segment', 'customer group'], example: 'Fleet' },
-      { key: 'customerSince', label: 'Customer since', help: 'Optional: when they became a customer (Zoho Created Time, or the date the old system opened the account), e.g. 14.03.2019. Used for “customer since” and the analytics instead of the day of the import.', aliases: ['customer since', 'created on', 'creation date', 'date created', 'created', 'created time', 'opened on', 'account opened', 'first purchase', 'since'], example: '14.03.2019' },
+      { key: 'customerSince', label: 'Customer since', help: 'Optional: when they became a customer (the date QuickBooks or the old system opened the account), e.g. 14.03.2019. Used for “customer since” and the analytics instead of the day of the import.', aliases: ['customer since', 'created on', 'creation date', 'date created', 'created', 'created time', 'opened on', 'account opened', 'first purchase', 'since'], example: '14.03.2019' },
     ],
   },
   vehicles: {
@@ -171,14 +172,14 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
     matchOrder: ['old system number', 'part number'],
     fields: [
       { key: 'ejoRecord', label: 'EJO record', help: 'Only to update records from an edited export: the record’s EJO number, as the export writes it (“EJO record”, ZZ_EJO_ID). Leave it out to add new records.', aliases: ['EJO record', 'EJO ID', 'EJO record id', 'EJO number'], example: '', roundTrip: true },
-      { key: 'partNumber', label: 'Part number', help: 'The part number. Unique in the branch.', aliases: ['material', 'material number', 'part number', 'part no', 'part code', 'item code', 'item number', 'sku', 'article number'], example: '04465-02220', required: true },
-      { key: 'name', label: 'Description', help: 'What the part is called.', aliases: ['material description', 'description', 'part name', 'name', 'item description', 'short text'], example: 'Brake pad set, front (Toyota Corolla)', required: true },
+      { key: 'partNumber', label: 'Part number', help: 'The part number. Unique in the branch.', aliases: ['material', 'material number', 'part number', 'part no', 'part code', 'item code', 'item number', 'sku', 'article number', 'item', 'item name', 'product/service name', 'product/service'], example: '04465-02220', required: true },
+      { key: 'name', label: 'Description', help: 'What the part is called.', aliases: ['material description', 'description', 'part name', 'name', 'item description', 'short text', 'sales description', 'purchase description'], example: 'Brake pad set, front (Toyota Corolla)', required: true },
       { key: 'category', label: 'Category', help: 'Optional: the part’s group or category.', aliases: ['material group', 'category', 'product group', 'group'], example: 'BRAKES' },
       { key: 'baseUnit', label: 'Base unit', help: 'The unit stock is counted in (Piece, Litre, Set, or a code such as EA, PC, L, KG). Empty: Piece.', aliases: ['base unit', 'unit', 'uom', 'unit of measure', 'bun'], example: 'ST' },
       { key: 'trackingType', label: 'Tracking', help: 'Quantity, Batch or Serial. Empty: Quantity.', aliases: ['tracking', 'tracking type', 'batch managed', 'serial profile'], example: 'Quantity', choices: ['Quantity', 'Batch', 'Serial'] },
       { key: 'barcode', label: 'Barcode', help: 'Optional: the barcode on the pack.', aliases: ['barcode', 'ean', 'gtin', 'upc'], example: '' },
-      { key: 'sellingPrice', label: 'Selling price (₦)', help: 'Optional: the price per base unit.', aliases: ['selling price', 'price', 'list price', 'sales price', 'retail price'], example: '45000' },
-      { key: 'reorderPoint', label: 'Reorder point', help: 'Optional: reorder when stock falls to this.', aliases: ['reorder point', 'reorder level', 'min stock', 'minimum stock'], example: '4' },
+      { key: 'sellingPrice', label: 'Selling price (₦)', help: 'Optional: the price per base unit.', aliases: ['selling price', 'price', 'list price', 'sales price', 'retail price', 'sales price / rate', 'rate'], example: '45000' },
+      { key: 'reorderPoint', label: 'Reorder point', help: 'Optional: reorder when stock falls to this.', aliases: ['reorder point', 'reorder level', 'min stock', 'minimum stock', 'reorder pt (min)', 'reorder pt'], example: '4' },
       { key: 'safetyStock', label: 'Safety stock', help: 'Optional: stock kept back for emergencies.', aliases: ['safety stock', 'buffer stock'], example: '2' },
       { key: 'altUnit', label: 'Alternative unit', help: 'Optional: a unit it also comes in, e.g. Carton, Drum.', aliases: ['alternative unit', 'alt unit', 'pack unit', 'purchase unit'], example: '' },
       { key: 'altFactor', label: 'Base units in the alternative unit', help: 'How many base units one alternative unit holds, e.g. 12.', aliases: ['conversion', 'conversion factor', 'pack size', 'units per pack'], example: '' },
@@ -198,11 +199,11 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
     matchOrder: ['part number'],
     after: 'parts',
     fields: [
-      { key: 'partNumber', label: 'Part number', help: 'The part number. The part must be in the branch’s catalogue already.', aliases: ['material', 'material number', 'part number', 'part no', 'item code', 'sku'], example: '04465-02220', required: true },
+      { key: 'partNumber', label: 'Part number', help: 'The part number. The part must be in the branch’s catalogue already.', aliases: ['material', 'material number', 'part number', 'part no', 'item code', 'sku', 'item', 'item name', 'product/service name'], example: '04465-02220', required: true },
       { key: 'quantity', label: 'Quantity on hand', help: 'Stock on hand, in the unit below.', aliases: ['unrestricted', 'unrestricted stock', 'quantity', 'qty', 'on hand', 'stock', 'quantity on hand', 'closing stock'], example: '12', required: true },
       { key: 'unit', label: 'Unit', help: 'Optional: the unit of the quantity. Empty: the part’s base unit.', aliases: ['unit', 'uom', 'bun'], example: 'ST' },
       { key: 'totalValue', label: 'Stock value (₦)', help: 'The value of this stock. Give this or the unit cost.', aliases: ['stock value', 'total value', 'value', 'valuation', 'amount'], example: '540000' },
-      { key: 'unitCost', label: 'Unit cost (₦)', help: 'The cost of one unit (average or standard cost). Used when no stock value is given.', aliases: ['unit cost', 'cost price', 'cost', 'moving average price', 'standard price', 'price'], example: '45000' },
+      { key: 'unitCost', label: 'Unit cost (₦)', help: 'The cost of one unit (average or standard cost). Used when no stock value is given.', aliases: ['unit cost', 'cost price', 'cost', 'purchase cost', 'moving average price', 'standard price', 'price'], example: '45000' },
       { key: 'priceUnit', label: 'Price unit', help: 'The number of units the unit cost is for (a cost per 100 has 100 here). Empty: 1.', aliases: ['price unit', 'per'], example: '' },
       { key: 'batch', label: 'Batch', help: 'The batch or lot number. Needed for batch-tracked parts.', aliases: ['batch', 'batch number', 'lot', 'lot number'], example: '' },
       { key: 'serials', label: 'Serial numbers', help: 'For serial-tracked parts: one per unit, separated by commas or semicolons.', aliases: ['serial', 'serials', 'serial numbers', 'serial number'], example: '' },
@@ -214,7 +215,7 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
     label: 'Invoice history',
     noun: 'invoice',
     plural: 'invoices',
-    description: 'Invoices from before EJO: Zoho Books or Zoho Invoice (Invoices → Export), QuickBooks, an old system or your own spreadsheet: date, number, customer, vehicle, amount. Read-only history that counts in each customer’s spend, last visit and the analytics. A Zoho export with one row per item is understood: the first row of each invoice is loaded with the invoice total; its other rows are reported as the same invoice.',
+    description: 'Invoices from before EJO: QuickBooks Desktop (Customer Center → Transactions → Invoices → Export), QuickBooks Online (Sales → Invoices → Export), an old system or your own spreadsheet: date, number, customer, vehicle, amount. Read-only history that counts in each customer’s spend, last visit and the analytics. An export with one row per item is understood: the first row of each invoice is loaded with the invoice total; its other rows are reported as the same invoice.',
     needs: 'crm.manage',
     approver: 'the Owner, then Accounts confirm the totals',
     branch: true,
@@ -223,22 +224,22 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
     matchOrder: ['invoice number'],
     after: 'customers',
     fields: [
-      { key: 'invoiceNumber', label: 'Invoice number', help: 'The invoice’s number in Zoho or the old system. Each invoice is loaded once.', aliases: ['invoice number', 'invoice no', 'invoice#', 'invoice', 'billing document', 'document number', 'doc no', 'document no', 'reference'], example: 'INV-000123', required: true },
-      { key: 'invoiceDate', label: 'Invoice date', help: 'The date on the invoice, e.g. 14.03.2023.', aliases: ['invoice date', 'billing date', 'posting date', 'document date', 'date'], example: '14.03.2023', required: true },
-      { key: 'customerExternalId', label: 'Customer number', help: 'The customer the invoice is for, by the number in the customers file (Zoho Customer ID). The customer must be imported first.', aliases: ['customer number', 'customer no', 'customer id', 'contact id', 'customer', 'sold-to', 'sold to party', 'payer', 'account number', 'bp number'], example: '1000123' },
+      { key: 'invoiceNumber', label: 'Invoice number', help: 'The invoice’s number in QuickBooks (Num) or the old system. Each invoice is loaded once.', aliases: ['invoice number', 'invoice no', 'invoice#', 'invoice', 'num', 'no', 'billing document', 'document number', 'doc no', 'document no', 'reference'], example: 'INV-000123', required: true },
+      { key: 'invoiceDate', label: 'Invoice date', help: 'The date on the invoice, e.g. 14.03.2023.', aliases: ['invoice date', 'billing date', 'posting date', 'document date', 'date', 'transaction date', 'txn date'], example: '14.03.2023', required: true },
+      { key: 'customerExternalId', label: 'Customer number', help: 'The customer the invoice is for, by the number in the customers file (QuickBooks Account No.). The customer must be imported first.', aliases: ['customer number', 'customer no', 'customer id', 'contact id', 'sold-to', 'sold to party', 'payer', 'account number', 'bp number'], example: '1000123' },
       { key: 'customerPhone', label: 'Customer phone', help: 'Alternative way to find the customer.', aliases: ['customer phone', 'phone', 'telephone', 'mobile'], example: '' },
-      { key: 'customerName', label: 'Customer name', help: 'Optional (Zoho Customer Name): finds the customer when there is no number or phone, if exactly one customer has that name.', aliases: ['customer name', 'contact name', 'client name', 'display name', 'bill to'], example: '' },
-      { key: 'amount', label: 'Amount (₦)', help: 'The invoice amount in naira (Zoho Total). A net amount: add the tax column below to make it gross. Negative for a credit note (100- is understood).', aliases: ['amount (incl. tax)', 'amount', 'total', 'invoice total', 'invoice amount', 'grand total', 'gross amount', 'net value', 'value'], example: '485000.00', required: true },
-      { key: 'balance', label: 'Balance (₦)', help: 'Optional (Zoho Balance): what was still owed when the file was made. Shown with the invoice.', aliases: ['balance', 'balance due', 'amount due', 'outstanding', 'open amount'], example: '' },
-      { key: 'dueDate', label: 'Due date', help: 'Optional (Zoho Due Date). Shown with the invoice.', aliases: ['due date', 'payment due date', 'due on'], example: '' },
-      { key: 'invoiceStatus', label: 'Status', help: 'Optional (Zoho Invoice Status: Paid, Overdue, Sent, Partially Paid, Void). Shown with the invoice; a void invoice is reported, never loaded.', aliases: ['invoice status', 'status', 'payment status'], example: '' },
+      { key: 'customerName', label: 'Customer name', help: 'Optional (QuickBooks Name or Customer): finds the customer when there is no number or phone, if exactly one customer has that name.', aliases: ['customer name', 'contact name', 'client name', 'display name', 'bill to', 'customer', 'name', 'customer:job'], example: '' },
+      { key: 'amount', label: 'Amount (₦)', help: 'The invoice amount in naira (QuickBooks Amount or Total). A net amount: add the tax column below to make it gross. Negative for a credit note (100- is understood).', aliases: ['amount (incl. tax)', 'amount', 'total', 'invoice total', 'invoice amount', 'grand total', 'gross amount', 'net value', 'value'], example: '485000.00', required: true },
+      { key: 'balance', label: 'Balance (₦)', help: 'Optional (QuickBooks Open Balance): what was still owed when the file was made. Shown with the invoice.', aliases: ['balance', 'open balance', 'balance due', 'amount due', 'outstanding', 'open amount'], example: '' },
+      { key: 'dueDate', label: 'Due date', help: 'Optional (QuickBooks Due Date). Shown with the invoice.', aliases: ['due date', 'payment due date', 'due on'], example: '' },
+      { key: 'invoiceStatus', label: 'Status', help: 'Optional (Paid, Overdue, Open, Partially Paid, Void). Shown with the invoice; a void invoice is reported, never loaded.', aliases: ['invoice status', 'status', 'payment status'], example: '' },
       { key: 'tax', label: 'Tax (₦)', help: 'Optional: the tax amount, added to a net amount.', aliases: ['tax', 'tax amount', 'vat', 'vat amount'], example: '36375.00' },
       { key: 'currency', label: 'Currency', help: 'Optional: the currency code. Only naira (NGN) is loaded.', aliases: ['currency', 'currency code', 'curr'], example: 'NGN' },
       { key: 'vin', label: 'Chassis number (VIN)', help: 'Optional: the vehicle the work was on. Links the invoice to the vehicle when it is in the system.', aliases: ['VIN', 'chassis', 'chassis number', 'chassis no', 'vehicle', 'frame number'], example: 'AHTGB3CD401234567' },
       { key: 'documentType', label: 'Document type', help: 'Optional: the kind of document, e.g. Invoice or Credit note.', aliases: ['document type', 'billing type', 'doc type', 'type'], example: 'F2' },
-      { key: 'description', label: 'Description', help: 'Optional: what the invoice was for (Zoho Item Name or Item Desc).', aliases: ['description', 'item name', 'item desc', 'item description', 'text', 'item text', 'narration', 'details'], example: 'Routine service and brake pads' },
-      { key: 'itemQuantity', label: 'Quantity', help: 'Optional (Zoho Quantity): added to the description.', aliases: ['quantity', 'qty', 'item quantity'], example: '' },
-      { key: 'itemPrice', label: 'Item price (₦)', help: 'Optional (Zoho Item Price or Rate): added to the description.', aliases: ['item price', 'rate', 'unit price', 'price'], example: '' },
+      { key: 'description', label: 'Description', help: 'Optional: what the invoice was for (QuickBooks Memo or Item).', aliases: ['description', 'item name', 'item desc', 'item description', 'text', 'item text', 'narration', 'details', 'memo', 'memo/description'], example: 'Routine service and brake pads' },
+      { key: 'itemQuantity', label: 'Quantity', help: 'Optional (Quantity): added to the description.', aliases: ['quantity', 'qty', 'item quantity'], example: '' },
+      { key: 'itemPrice', label: 'Item price (₦)', help: 'Optional (Rate or price): added to the description.', aliases: ['item price', 'rate', 'unit price', 'price'], example: '' },
     ],
   },
   jobs: {
@@ -246,7 +247,7 @@ export const ENTITIES: Record<EntityKey, EntityDef> = {
     label: 'Job card history',
     noun: 'past job card',
     plural: 'past job cards',
-    description: 'Job cards closed before EJO: from Zoho, an old system or your own spreadsheet: the vehicle, the customer, when it was opened and finished, the mileage, the work and the amount. Read-only history: shown on the customer and the vehicle, counted as a visit; a job card whose work was a service also starts the vehicle’s next-service clock.',
+    description: 'Job cards closed before EJO: from QuickBooks, an old system or your own spreadsheet: the vehicle, the customer, when it was opened and finished, the mileage, the work and the amount. Read-only history: shown on the customer and the vehicle, counted as a visit; a job card whose work was a service also starts the vehicle’s next-service clock.',
     needs: 'workshop.close.approve',
     approver: 'the Owner',
     branch: true,
@@ -339,7 +340,7 @@ export const EDITION_ENTITY_KEYS: EntityKey[] = ENTITY_KEYS.filter((k) => entity
 
 /**
  * Where imported records came from, stamped on each one (externalSource):
- * Zoho, an old system or a spreadsheet. Numbers in the file are kept under
+ * QuickBooks, an old system or a spreadsheet. Numbers in the file are kept under
  * it, so a later file from the same place recognises them.
  */
 export const IMPORT_SOURCE = 'LEGACY' as const;
@@ -347,7 +348,7 @@ export type ImportSource = typeof IMPORT_SOURCE;
 
 /** Where an import's file came from, in words. */
 export function sourceWords(sourceSystem: string): string {
-  return sourceSystem === 'LEGACY' ? 'Zoho, an old system or a spreadsheet' : 'an old system or a spreadsheet';
+  return sourceSystem === 'LEGACY' ? 'QuickBooks, an old system or a spreadsheet' : 'an old system or a spreadsheet';
 }
 
 /** Common unit codes → the words the Store uses. Anything else is kept as written. */
@@ -432,7 +433,7 @@ export function cleanMapping(entity: EntityKey, raw: unknown, columnCount: numbe
 /** What is missing before checking can start (a required field, or no way to find a vehicle's customer). */
 export function mappingProblems(entity: EntityKey, mapping: Mapping): string[] {
   const out: string[] = [];
-  // A name from first and last name (Zoho, staff lists), or a company's name alone, stands in for the name column.
+  // A name from first and last name (QuickBooks, staff lists), or a company's name alone, stands in for the name column.
   const nameFromParts = (entity === 'customers' || entity === 'staff') && (mapping.firstName != null || mapping.lastName != null || (entity === 'customers' && mapping.companyName != null));
   for (const f of ENTITIES[entity].fields) if (f.required && mapping[f.key] == null && !(f.key === 'fullName' && nameFromParts)) out.push(`Choose the column for “${f.label}”.`);
   if (entity === 'stock' && mapping.totalValue == null && mapping.unitCost == null) out.push('Choose the column for the stock value or the unit cost: stock is valued at what it cost.');

@@ -110,7 +110,7 @@ export function checkCustomerRow(cells: unknown[], mapping: Mapping): Checked<Cu
   let fullName = '';
   try {
     const n2 = get(cells, mapping, 'name2');
-    // The name column; else first and last name (Zoho Contacts, CRM); else the company's name (an organisation alone, CRM Accounts).
+    // The name column; else first and last name (QuickBooks customer lists); else the company's name (an organisation alone, CRM Accounts).
     const named = get(cells, mapping, 'fullName') || [get(cells, mapping, 'firstName'), get(cells, mapping, 'lastName')].filter(Boolean).join(' ') || get(cells, mapping, 'companyName');
     fullName = cleanName([named, n2].filter(Boolean).join(' '), 'Name');
   } catch (e) {

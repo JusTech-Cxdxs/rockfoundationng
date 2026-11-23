@@ -14,7 +14,7 @@ export default async function CutoverPage() {
   return (
     <div className="w-full space-y-6 p-4 sm:p-8">
       <PageHeader icon="check-circle" back={{ href: '/data-exchange', label: 'Back to Data Exchange' }} title="Cut-over checklist"
-        description={`For each branch, every file it needs from Zoho, the old system or your spreadsheets, in the order they load, and where each stands — worked out from the imports themselves. A step a branch has nothing for is marked not needed, with a reason. When every step is settled, the branch is signed off as cut over; the sign-off keeps the checklist as it stood.`} />
+        description={`For each branch, every file it needs from QuickBooks, the old system or your spreadsheets, in the order they load, and where each stands — worked out from the imports themselves. A step a branch has nothing for is marked not needed, with a reason. When every step is settled, the branch is signed off as cut over; the sign-off keeps the checklist as it stood.`} />
       <SectionCard icon="layers" title="Branches" flush>
         {branches.length === 0 ? <div className="p-4"><EmptyState compact icon="inbox" title={moduleIsOn('inventory') ? 'No workshop or warehouse yet.' : 'No workshop yet.'} /></div> : (
           <ul className="divide-y divide-[var(--ejo-border)]">

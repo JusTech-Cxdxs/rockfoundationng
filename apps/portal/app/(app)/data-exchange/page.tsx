@@ -45,7 +45,7 @@ export default async function DataExchangePage({ searchParams }: { searchParams:
         icon="layers"
         eyebrow="Data Exchange"
         title="Excel in, Excel out"
-        description={`Bring records in from an Excel or CSV file — from Zoho, an old system or your own spreadsheet — and take any list out to Excel. Every file is checked first, approved by the department that owns the records, and can be undone.`}
+        description={`Bring records in from an Excel or CSV file — from QuickBooks, an old system or your own spreadsheet — and take any list out to Excel. Every file is checked first, approved by the department that owns the records, and can be undone.`}
       />
 
       <SectionCard icon="plus" title="Import" description="Choose what to bring in. Load customers before their vehicles, and vehicles before job cards."
@@ -93,7 +93,7 @@ export default async function DataExchangePage({ searchParams }: { searchParams:
       <SectionCard icon="history" title="History of imports" description="Newest first. Open one to see its check, approval, load and report." flush
         actions={<span className="flex flex-wrap items-center gap-3"><ExportAction kind="imports" label="Export the list" /><Link href="/data-exchange/timeline" className="text-xs font-medium text-[var(--ejo-primary)] hover:underline">Day by day →</Link></span>}>
         {jobs.length === 0 ? (
-          <div className="p-4"><EmptyState icon="inbox" title="No imports yet" compact>Download a template above, or start with your Zoho export or spreadsheet: common column names are matched automatically.</EmptyState></div>
+          <div className="p-4"><EmptyState icon="inbox" title="No imports yet" compact>Download a template above, or start with your QuickBooks export or spreadsheet: common column names are matched automatically.</EmptyState></div>
         ) : (
           <ResponsiveTable>
             <table className="w-full text-sm">

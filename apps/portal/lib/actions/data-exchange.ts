@@ -1,12 +1,12 @@
 'use server';
 
 /**
- * Data Exchange: bringing existing records in from Zoho, an old system and spreadsheets.
+ * Data Exchange: bringing existing records in from QuickBooks, an old system and spreadsheets.
  *
  * The flow, for every kind of record (lib/data-exchange/fields.ts):
  *   1. upload   the browser reads the file and sends its rows in blocks
  *               (UPLOADING → UPLOADED); nothing live is touched;
- *   2. match    which column feeds which field (auto-matched, Zoho's names
+ *   2. match    which column feeds which field (auto-matched, QuickBooks' names
  *               included; saved as reusable profiles);
  *   3. check    every row checked and matched to existing records, in
  *               batches (VALIDATING → VALIDATED); still nothing live;

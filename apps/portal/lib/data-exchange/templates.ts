@@ -25,7 +25,7 @@ export function templateSheets(entity: EntityKey, organisationName: string): She
       ...def.fields.map((f) => [f.label, f.required ? 'Yes' : '', f.help + (f.choices ? ` Choose: ${f.choices.join(' or ')}.` : ''), f.aliases.join(', ')]),
       [],
       [`How to bring ${def.plural} into ${organisationName}`],
-      ['1. Fill one row per ' + def.noun + ' on the first sheet (delete the example row). Your own column names and order are fine: they are matched on upload, and Zoho exports match themselves.'],
+      ['1. Fill one row per ' + def.noun + ' on the first sheet (delete the example row). Your own column names and order are fine: they are matched on upload, and QuickBooks exports match themselves.'],
       ['2. In Data Exchange, choose the file. Nothing changes in the system until the file has been checked and a second person has approved it.'],
       ['3. Rows with a problem are listed and can be downloaded as a file to fix in Excel and upload again.'],
       [`4. ${def.label} are recognised by: ${def.matchOrder.join(', then ')}. A ${def.noun} already in the system is never duplicated or overwritten.`],

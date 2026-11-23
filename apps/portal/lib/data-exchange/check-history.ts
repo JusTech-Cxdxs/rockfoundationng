@@ -63,9 +63,9 @@ export function checkInvoiceRow(cells: unknown[], mapping: Mapping, today = lago
   const custExt = get(cells, mapping, 'customerExternalId').replace(/^0+(?=\d)/, '') || null;
   const custPhone = phoneKey(get(cells, mapping, 'customerPhone'));
   const custName = get(cells, mapping, 'customerName').slice(0, 160) || null;
-  if (!custExt && !custPhone && !custName) fail('customer', 'Whose invoice is it? Give the customer number (Zoho Customer ID), the customer’s phone or their name.');
+  if (!custExt && !custPhone && !custName) fail('customer', 'Whose invoice is it? Give the customer number (QuickBooks Account No.), the customer’s phone or their name.');
 
-  // Zoho's status: a void or draft invoice was never owed, so it is not loaded.
+  // The file's status: a void or draft invoice was never owed, so it is not loaded.
   const status = get(cells, mapping, 'invoiceStatus');
   if (/^(void|voided|draft)$/i.test(status)) fail('invoiceStatus', `The invoice is “${status}” in the file: it was never owed, so it is not loaded.`);
 
@@ -75,7 +75,7 @@ export function checkInvoiceRow(cells: unknown[], mapping: Mapping, today = lago
   const goodVin = vk && vk.length >= 6 && vk.length <= 25 ? vk : null;
 
   const documentType = get(cells, mapping, 'documentType').slice(0, 20) || null;
-  // What it was for, with Zoho's item quantity and price, its balance, due date and status when the file gives them.
+  // What it was for, with the item quantity and price, its balance, due date and status when the file gives them.
   const qtyRaw = get(cells, mapping, 'itemQuantity');
   const priceRaw = get(cells, mapping, 'itemPrice');
   const price = priceRaw ? parseAmount(priceRaw) : null;
