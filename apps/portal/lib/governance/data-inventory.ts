@@ -162,11 +162,14 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   EnyoMemory: { tenancy: 'USER', owner: 'userId', classification: ['PERSONAL'], lifecycle: 'EDITABLE', retention: 'Until the person deletes it or leaves the organisation', ai: 'AUTHORISED_USER' },
   EnyoLearnedAnswer: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Kept while useful; administrators remove entries on the Enyo learning page', ai: 'AUTHORISED_USER' },
   SupportTicket: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '3 years after it is closed', ai: 'AUTHORISED_USER' },
+  // Customer care: the callback list and "How did we do?" after every job.
+  FollowUp: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: '2 years after it is done; with the customer if the customer is removed', ai: 'AUTHORISED_USER' },
+  JobRating: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the Job Card (the customer’s own words about the work)', ai: 'AUTHORISED_USER' },
   SupportReply: { tenancy: 'VIA_PARENT', owner: 'ticketId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'With its ticket', ai: 'AUTHORISED_USER' },
   SupportQueue: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'While the organisation uses it; switched off rather than deleted while tickets point at it', ai: 'AUTHORISED_USER' },
   SupportQueueMember: { tenancy: 'VIA_PARENT', owner: 'queueId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: 'Until the person is taken off the queue', ai: 'NEVER' },
   SupportMailbox: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['SECRET'], lifecycle: 'EDITABLE', retention: 'Until an administrator removes it; the encrypted password goes with it', ai: 'NEVER' },
-  // Data Exchange: imports from QuickBooks, Zoho and spreadsheets. The staged rows are the file as uploaded (often personal data):
+  // Data Exchange: imports from QuickBooks and spreadsheets. The staged rows are the file as uploaded (often personal data):
   // never given to AI, removed with their import, and gone when an import is cancelled.
   ImportJob: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: 'Life of the contract (the record of what was brought in)', ai: 'AGGREGATE_ONLY' },
   ImportRow: { tenancy: 'VIA_PARENT', owner: 'jobId', classification: ['PERSONAL'], lifecycle: 'CASCADE', retention: 'With its import; deleted at once if the import is cancelled. The file’s cells are released 30 days after it finished (the organisation’s setting), keeping outcomes, rejected rows and what undo needs', ai: 'NEVER' },

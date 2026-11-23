@@ -122,13 +122,15 @@ export function responseUrl(token: string | null | undefined): string | null {
 // ─────────────────────────────────────────────────────────── opening a ticket
 
 export type NewTicket = {
-  organisationId: string; channel: 'EMAIL' | 'STAFF' | 'CUSTOMER_PORTAL' | 'WEBSITE'; queue: QueueRow; mailboxId?: string | null; branchId?: string | null;
+  organisationId: string; channel: 'EMAIL' | 'STAFF' | 'CUSTOMER_PORTAL' | 'WEBSITE' | 'WHATSAPP' | 'PHONE' | 'WALK_IN' | 'RATING'; queue: QueueRow; mailboxId?: string | null; branchId?: string | null;
   customerId?: string | null; contactName: string; contactEmail?: string | null; contactPhone?: string | null; subject: string; summary: string;
   priority: Priority; triage?: Triage | null; entities?: unknown; verified?: boolean; authenticatedSender?: boolean; sourceMessageId?: string | null; openedAt?: Date;
   /** Enyo should read it on the next run (email tickets). */
   aiPending?: boolean; handoverReason?: string | null;
   /** v37: a colleague's own help request (private from the first moment), who is writing, and tags. */
   requesterUserId?: string | null; senderKind?: string | null; senderUserId?: string | null; tags?: string[];
+  /** A complaint (customer care) rather than a request, with its category and the job and vehicle it is about. */
+  kind?: 'REQUEST' | 'COMPLAINT'; complaintCategory?: string | null; jobCardId?: string | null; vehicleId?: string | null;
 };
 
 /** Creates the ticket with its targets and owner (load-balanced in the queue). */
@@ -148,6 +150,7 @@ export async function openTicket(t: NewTicket, tx: Prisma.TransactionClient = pr
       aiPendingAt: t.aiPending ? new Date() : null, handoverReason: t.handoverReason ?? null,
       requesterUserId: t.requesterUserId ?? null, senderKind: t.senderKind ?? null, senderUserId: t.senderUserId ?? null, ...(t.tags?.length ? { tags: t.tags.slice(0, 10) } : {}),
       dueFirstResponseAt: due.first, dueResolutionAt: due.resolve, lastCustomerAt: opened, assignedToId: assignee, sourceMessageId: t.sourceMessageId ?? null,
+      kind: t.kind ?? 'REQUEST', complaintCategory: t.complaintCategory ?? null, jobCardId: t.jobCardId ?? null, vehicleId: t.vehicleId ?? null,
       createdAt: opened,
     },
     select: { id: true, number: true, token: true, assignedToId: true, dueFirstResponseAt: true },

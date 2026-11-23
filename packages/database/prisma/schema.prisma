@@ -408,6 +408,7 @@ model User {
   importJobsApproved ImportJob[] @relation("ImportJobApprovedBy")
   importMappingProfilesCreated ImportMappingProfile[] @relation("ImportMappingProfileCreatedBy")
   suppliersCreated  Supplier[] @relation("SupplierCreatedBy")
+  followUpsAssigned FollowUp[] @relation("FollowUpAssignee")
 }
 
 // One-to-one HR extension of User, keeping the identity table small.
@@ -546,6 +547,13 @@ model Customer {
   tags          String[] @default([])
   // The customer's own choice: also receive updates by email.
   notifyByEmail Boolean  @default(true)
+  // How the customer prefers to be reached; WhatsApp first.
+  preferredContact ContactChannel @default(WHATSAPP)
+  // A WhatsApp number when it differs from the main phone.
+  whatsappPhone String?
+  // Birthday (day and month only, never the year) for a birthday call.
+  birthDay      Int?
+  birthMonth    Int?
 
   isActive      Boolean  @default(true)
   lastLoginAt   DateTime?
@@ -593,6 +601,8 @@ model Customer {
   @@map("customers")
   notes           CustomerNote[]
   notificationReads CustomerNotificationRead[]
+  followUps       FollowUp[]
+  jobRatings      JobRating[]
 }
 
 // Optional company details when the customer is a business (fleet account).
@@ -799,6 +809,8 @@ model JobCard {
   supervisor         User?               @relation("JobCardSupervisor", fields: [supervisorId], references: [id])
   approvedBy         User?               @relation("JobCardApprovedBy", fields: [approvedById], references: [id])
   createdBy          User                @relation("JobCardCreatedBy", fields: [createdById], references: [id])
+  rating             JobRating?
+  followUps          FollowUp[]
   inspection         VehicleInspection?
   complaints         JobCardComplaint[]
   estimate           Estimate?
@@ -2350,6 +2362,12 @@ enum SupportChannel {
   EMAIL
   // Opened by a colleague (a phone call, a walk-in).
   STAFF
+  // Logged by a colleague from a WhatsApp message, a call or a visit.
+  WHATSAPP
+  PHONE
+  WALK_IN
+  // Opened by a low "How did we do?" rating.
+  RATING
 }
 
 /// A customer or website visitor handed over from Enyo to the company's people.
@@ -2424,6 +2442,12 @@ model SupportTicket {
   csatRequestedAt  DateTime?
   // The email that opened it (Message-ID), for threading replies.
   sourceMessageId  String?
+  // REQUEST (a question or request) or COMPLAINT (something went wrong): a
+  // complaint carries its category and, when known, the job and vehicle.
+  kind             String    @default("REQUEST")
+  complaintCategory String?
+  jobCardId        String?
+  vehicleId        String?
   // Who is writing, as the Support centre recognised them from their
   // address or session: customer | staff | both (a colleague who is also a
   // customer) | unknown. And the colleague, when it is one.
@@ -2440,6 +2464,8 @@ model SupportTicket {
   @@index([status, dueFirstResponseAt])
   @@index([sourceMessageId])
   @@index([aiPendingAt])
+  @@index([organisationId, kind, status])
+  @@index([jobCardId])
   @@map("support_tickets")
 }
 
@@ -3092,4 +3118,97 @@ model ExportSchedule {
   @@index([status, nextRunOn])
   @@index([organisationId, ownerId])
   @@map("export_schedules")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CUSTOMER CARE: the callback list and "How did we do?" after every job.
+// Complaints are support tickets of kind COMPLAINT (above).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ContactChannel {
+  WHATSAPP
+  PHONE
+  EMAIL
+}
+
+enum FollowUpReason {
+  // Two days after a vehicle is collected: is everything all right?
+  AFTER_JOB
+  // The customer asked to be called back.
+  CALLBACK
+  SERVICE_DUE
+  BIRTHDAY
+  COMPLAINT
+  LOW_RATING
+  OTHER
+}
+
+enum FollowUpStatus {
+  OPEN
+  DONE
+  NO_ANSWER
+  CANCELLED
+}
+
+/// One call or message front desk owes a customer: the callback list.
+model FollowUp {
+  id             String         @id @default(cuid())
+  organisationId String
+  branchId       String?
+  customerId     String
+  vehicleId      String?
+  jobCardId      String?
+  ticketId       String?
+  reason         FollowUpReason
+  note           String?
+  dueAt          DateTime
+  assignedToId   String?
+  status         FollowUpStatus @default(OPEN)
+  // What came of it ("Happy with the work", "Booked for Tuesday").
+  outcome        String?
+  attempts       Int            @default(0)
+  doneAt         DateTime?
+  doneById       String?
+  // Made by the daily run (birthday, service due, after a job): one per
+  // reason and occasion, so a second run never adds the same call twice.
+  dedupeKey      String?        @unique
+  createdById    String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  jobCard    JobCard? @relation(fields: [jobCardId], references: [id], onDelete: SetNull)
+  assignedTo User?    @relation("FollowUpAssignee", fields: [assignedToId], references: [id])
+
+  @@index([organisationId, status, dueAt])
+  @@index([customerId, createdAt])
+  @@index([assignedToId, status])
+  @@map("follow_ups")
+}
+
+/// "How did we do?" after a job: one per Job Card, answered from a signed
+/// link (the rating's id and an HMAC of it, so nothing secret is stored and
+/// the same link can be sent again by WhatsApp or email). A score of 3 or
+/// less opens a complaint and a callback.
+model JobRating {
+  id             String    @id @default(cuid())
+  organisationId String
+  jobCardId      String    @unique
+  customerId     String
+  sentAt         DateTime  @default(now())
+  expiresAt      DateTime
+  // 1 (poor) to 5 (excellent).
+  score          Int?
+  comment        String?
+  wouldRecommend Boolean?
+  respondedAt    DateTime?
+  // The complaint a low score opened.
+  ticketId       String?
+  createdAt      DateTime  @default(now())
+
+  jobCard  JobCard  @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, respondedAt])
+  @@map("job_ratings")
 }

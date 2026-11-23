@@ -17,6 +17,7 @@ import { prisma } from '@ejo/database';
 import { runDemoPulseForAll } from '@/lib/demo/pulse';
 import { runDueExportSchedules } from '@/lib/exports/schedule-server';
 import { moduleIsOn } from '@/lib/modules';
+import { fillCallbackList } from '@/lib/customer-care/server';
 
 /**
  * Pricing alert digest (scheduled in vercel.json). Reads the alerts that are
@@ -37,6 +38,11 @@ export async function GET(request: NextRequest) {
   if (!isCronRequest(authHeader)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  // Customer care first, so the callback list is ready when front desk opens:
+  // birthdays today and services due within a week (each call made once).
+  const care = await fillCallbackList().catch((err) => { logFailure('Callback list run failed', err); return null; });
+  if (care) await recordJobRun('callback-list', { birthdayCalls: care.birthdays, serviceDueCalls: care.serviceDue });
 
   const groups = moduleIsOn('inventory') ? await getOpenPricingAlertsForDigest() : [];
   const portalUrl = portalBaseUrl();

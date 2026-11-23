@@ -16,6 +16,8 @@ import { jobCardActive, jobCardInside } from '@/lib/custody';
 
 
 import { bankDetailsFor } from '@/lib/workshop-core';
+import { after } from 'next/server';
+import { onJobCheckedOut } from '@/lib/customer-care/server';
 import { writeAuditLog, getWorkshopOrgContext, getWorkshopDepartmentForVehicleType, isEligibleSupervisor, getWorkshopBranchId, branchInMyOrganisationOrSystem } from '@/lib/workshop-core';
 
 import { cache } from 'react';
@@ -1202,6 +1204,11 @@ export async function updateJobCardStatus(id: string, status: JobCardStatus, col
   // Security expects the vehicle at the gate: checkout or hand-back.
   if (status === JobCardStatus.CHECKED_OUT && priorStatus !== JobCardStatus.CHECKED_OUT) {
     await notifyGateOfRelease(id, user.id);
+    // Customer care: "How did we do?" and the after-the-job call (once the response has gone).
+    if (priorStatus !== JobCardStatus.CANCELLED) {
+      const care = () => onJobCheckedOut(id);
+      try { after(care); } catch { void care(); }
+    }
   }
 
   // Customer emails on an actual transition into these statuses only.

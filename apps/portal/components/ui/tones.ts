@@ -1,4 +1,4 @@
-/** Tone → classes for icon tiles and chips. Green (brand) is the default;
+/** Tone → classes for icon tiles and chips. The brand blue is the default;
  * the others are for meaning only (warning, problem, information, closed). */
 export type Tone = 'brand' | 'success' | 'warning' | 'error' | 'info' | 'neutral';
 

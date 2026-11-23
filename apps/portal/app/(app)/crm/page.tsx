@@ -14,6 +14,7 @@ import { CrmIcon } from '@/components/crm/CrmIcon';
 import { Chip, Empty, Kpi, NoticeBox, Section, type Notice } from '@/components/crm/ui';
 import { RegisterCustomerForm } from '@/components/crm/RegisterCustomerForm';
 import { ExportAction } from '@/components/ExportAction';
+import { CareTabs } from '@/components/crm/CareTabs';
 
 export const metadata = { title: 'Customers' };
 
@@ -76,6 +77,7 @@ export default async function CrmHubPage({ searchParams }: { searchParams: Promi
         </div>
       </section>
 
+      <div className="mt-6"><CareTabs active="/crm" /></div>
       {notice ? <NoticeBox n={notice} /> : null}
       {sp.binned ? <div className="mt-4"><BinnedNotice reference={sp.binned} /></div> : null}
 

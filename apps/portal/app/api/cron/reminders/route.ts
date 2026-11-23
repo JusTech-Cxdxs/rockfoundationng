@@ -6,6 +6,7 @@ import { setAuditActor } from '@ejo/database';
 import { isCronRequest } from '@/lib/cron-auth';
 import { deliverRoleAccessNotices } from '@/lib/access-notices';
 import { deliverDueReminders } from '@/lib/reminders';
+import { handleLowRatings } from '@/lib/customer-care/server';
 
 // Room for a batch of access-changed emails (a role with many holders).
 export const maxDuration = 60;
@@ -15,7 +16,8 @@ export const maxDuration = 60;
  * cron route): scheduled notices go out by email at their start time, role
  * permission changes become one access-changed email per holder, and
  * personal reminders that are due reach the person's bell (and email when
- * they asked). Each part is recorded on the scheduler log page.
+ * they asked), and low "How did we do?" ratings become a complaint and a
+ * callback. Each part is recorded on the scheduler log page.
  */
 export async function GET(request: NextRequest) {
   if (!isCronRequest(request.headers.get('authorization'))) {
@@ -28,5 +30,7 @@ export async function GET(request: NextRequest) {
   if (notices) await recordJobRun('access-notices', { rolesChanged: notices.roles, upTo: notices.upTo });
   const personal = await deliverDueReminders().catch((err) => { logFailure('Reminder delivery failed', err); return null; });
   if (personal) await recordJobRun('reminders', { remindersDelivered: personal.delivered, remindersEmailed: personal.emailed });
-  return NextResponse.json({ ok: true, broadcastEmailsSent: broadcastEmails ?? 0, personalRemindersDelivered: personal?.delivered ?? 0 });
+  const lowRatings = await handleLowRatings().catch((err) => { logFailure('Low ratings run failed', err); return null; });
+  if (lowRatings !== null) await recordJobRun('low-ratings', { complaintsOpened: lowRatings });
+  return NextResponse.json({ ok: true, lowRatingsHandled: lowRatings ?? 0, broadcastEmailsSent: broadcastEmails ?? 0, personalRemindersDelivered: personal?.delivered ?? 0 });
 }

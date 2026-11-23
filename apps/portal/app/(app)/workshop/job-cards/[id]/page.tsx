@@ -1,4 +1,5 @@
 import { jobCardVisible, guardAnyPage, can, allows } from '@/lib/authz/server';
+import { JobCardRatingCard } from '@/components/JobCardRatingCard';
 import { LoadingLink } from '@/components/LoadingLink';
 import { depositDueOn, vatIsFixed, discountNeedsManager, discountPercent, isCustomerLine, jobCardTotals, paidInFull } from '@/lib/estimate-billing';
 import { creditStanding } from '@/lib/credit';
@@ -1912,6 +1913,8 @@ export default async function JobCardDetailPage({
               </form>
             </div>
           ) : null}
+
+          {jobCard.status === 'CHECKED_OUT' ? <JobCardRatingCard jobCardId={jobCard.id} /> : null}
 
           {jobCard.status === 'CHECKED_OUT' ? (
             <div className="h-fit rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-5 print:hidden">

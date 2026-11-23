@@ -26,6 +26,7 @@ import { bookServiceHref, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
 import { WhatsAppSendButton } from '@/components/WhatsAppSendButton';
 import { customerCanWhatsApp } from '@/lib/whatsapp-messages';
 import { hasEmail } from '@/lib/customer-email';
+import { CustomerCarePanel } from '@/components/crm/CustomerCarePanel';
 
 /** Where records from before EJO came from, in this edition's words. */
 const OLD_SYSTEM = 'the old system';
@@ -190,6 +191,7 @@ export default async function Customer360Page({ params, searchParams }: { params
               </Section>
             </div>
             <div className="min-w-0 space-y-6">
+              <CustomerCarePanel customerId={c.id} customerName={c.fullName} />
               {data.account ? <AccountCard data={data} /> : null}
               <PortalCard data={data} base={base} />
               <ProvenanceCard p={origin} />
