@@ -11,7 +11,7 @@
  * seen here is "not found" — never a hint about another organisation's vehicles.
  */
 import { prisma } from '@ejo/database';
-import { allows, authorize, orgWhere, reachWhere } from '@/lib/authz/server';
+import { allows, authorize, orgWhere, reachWhere, jobCardReach } from '@/lib/authz/server';
 import { requireUser } from '@/lib/actions/workshop';
 import { isChassisLike, normaliseVin, vinCheckDigitOk } from '@/lib/vin';
 
@@ -54,7 +54,7 @@ export async function getVehiclePassport(raw: string): Promise<VehiclePassport |
   ]);
   const vid = vehicle?.id ?? '__none__';
   const [jobCards, beforeEjo, gateExits] = await Promise.all([
-    canJobs ? prisma.jobCard.findMany({ where: { ...(await reachWhere('workshop.job_card.view')), vehicleId: vid }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, jobNumber: true, status: true, createdAt: true, complaint: true, branch: { select: { name: true } } } }) : null,
+    canJobs ? prisma.jobCard.findMany({ where: { ...(await jobCardReach()), vehicleId: vid }, orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, jobNumber: true, status: true, createdAt: true, complaint: true, branch: { select: { name: true } } } }) : null,
     canJobs ? prisma.historicalJob.findMany({ where: { ...fence, voidedAt: null, OR: [{ vehicleId: vid }, { vinKey: vin }] }, orderBy: { openedAt: 'desc' }, take: 200, select: { id: true, jobNumber: true, kind: true, status: true, openedAt: true, completedAt: true, mileage: true, description: true, workDone: true, totalAmount: true } }) : null,
     canSecurity || canJobs ? prisma.vehicleGateExit.findMany({ where: { ...(await reachWhere(canSecurity ? 'security.view' : 'workshop.job_card.view')), vehicleId: vid }, orderBy: { exitedAt: 'desc' }, take: 200, select: { id: true, exitNumber: true, exitedAt: true, branch: { select: { name: true } } } }) : null,
   ]);

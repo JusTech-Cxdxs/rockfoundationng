@@ -1,6 +1,6 @@
 'use server';
 
-import { reachWhere } from '@/lib/authz/server';
+import { reachWhere, jobCardReach } from '@/lib/authz/server';
 import { prisma } from '@ejo/database';
 import { requireUser, currentUserIsMasterAdmin, listEligibleManagersForBranch } from './workshop';
 import { listEligibleStoreManagersForBranch, listEligibleStoreOfficersForBranch } from './store';
@@ -22,7 +22,9 @@ export async function getWorkflowActionItems(): Promise<WorkflowAction[]> {
   // Queried for this person (their jobs, their organisation's branches), not
   // "the newest N platform-wide, then filtered", which drops items on a busy day.
   const T = 300;
-  const reach = await reachWhere('workshop.job_card.view', { lens: false });
+  const reach = await jobCardReach({ lens: false });
+  // Parts requests belong to a branch (no assignment fields): the branch reach.
+  const reachOfBranch = await reachWhere('workshop.job_card.view', { lens: false });
   const me = (field: 'supervisorId' | 'createdById') => (isMaster ? {} : { [field]: user.id });
   const jc = { select: { id: true, jobNumber: true, branchId: true, supervisorId: true, createdById: true } } as const;
   // Store matching and parts requests only where the Store is on (lib/modules.ts).
@@ -32,7 +34,7 @@ export async function getWorkflowActionItems(): Promise<WorkflowAction[]> {
     prisma.estimate.findMany({ where: { status: 'APPROVED', jobCard: reach }, take: T, select: { updatedAt: true, jobCard: jc } }),
     prisma.estimate.findMany({ where: { status: 'MANAGER_APPROVED', customerNotifiedAt: null, jobCard: { status: { notIn: ['CHECKED_OUT', 'CANCELLED'] }, ...reach, ...me('createdById') } }, take: T, select: { managerApprovedAt: true, jobCard: jc } }),
     storeOn ? prisma.estimate.findMany({ where: { matchingRequestedAt: { not: null }, lineItems: { some: { type: 'STORE_PART', matchedPartId: null } }, jobCard: { status: { notIn: ['CHECKED_OUT', 'CANCELLED'] }, ...reach } }, take: T, select: { matchingRequestedAt: true, jobCard: jc } }) : [],
-    storeOn ? prisma.partRequestSlip.findMany({ where: { status: { in: ['PENDING_HOD_APPROVAL', 'PENDING_STORE_APPROVAL', 'APPROVED'] }, ...reach }, take: T, select: { id: true, referenceNumber: true, status: true, branchId: true, updatedAt: true } }) : [],
+    storeOn ? prisma.partRequestSlip.findMany({ where: { status: { in: ['PENDING_HOD_APPROVAL', 'PENDING_STORE_APPROVAL', 'APPROVED'] }, ...reachOfBranch }, take: T, select: { id: true, referenceNumber: true, status: true, branchId: true, updatedAt: true } }) : [],
     prisma.jobCard.findMany({ where: { status: 'CLOSED', ...reach, ...me('createdById') }, take: T, select: { id: true, jobNumber: true, createdById: true, updatedAt: true } }),
     prisma.jobCard.findMany({ where: { status: 'COMPLETED', ...reach, ...me('supervisorId') }, take: T, select: { id: true, jobNumber: true, supervisorId: true, updatedAt: true } }),
   ]);

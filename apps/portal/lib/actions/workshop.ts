@@ -9,7 +9,7 @@ import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
 import { logFailure } from '@/lib/log';
 import { emailColleaguesLater } from '@/lib/workflow-notify';
 
-import { allows, authorize, authorizeOnJobCard, getPrincipal, canSeeRecord, inMyOrganisation, myOrganisationId, orgWhere, reachWhere, refuse, seeJobCard, seeVehicle, seePart, NOT_AVAILABLE } from '@/lib/authz/server';
+import { allows, authorize, authorizeOnJobCard, getPrincipal, canSeeRecord, inMyOrganisation, myOrganisationId, orgWhere, refuse, seeJobCard, seeVehicle, seePart, NOT_AVAILABLE, jobCardReach } from '@/lib/authz/server';
 import { cleanEmail, cleanName, cleanPhone, cleanPrimaryAddress, normaliseTags } from '@/lib/crm';
 import { sendCustomerAccessEmail } from '@/lib/customer-access';
 import { withdrawOpenSourcing } from '@/lib/sourcing-lifecycle';
@@ -754,7 +754,7 @@ async function generateJobNumber(): Promise<string> {
 export async function listJobCards(status?: JobCardStatus, search?: string, vehicleType?: 'PASSENGER' | 'COMMERCIAL') {
   await requireUser();
   const q = search?.trim();
-  const reach = await reachWhere('workshop.job_card.view');
+  const reach = await jobCardReach();
 
   return prisma.jobCard.findMany({
     where: {
@@ -1856,7 +1856,7 @@ export async function getWorkshopDashboardCounts() {
   // Uses the shared definitions in lib/custody.ts (the same "active" and
   // "still inside" as the custody pages and Security dashboard) and the same
   // reach (a branch-scoped person counts their branch).
-  const reach = await reachWhere('workshop.job_card.view');
+  const reach = await jobCardReach();
   const [activeJobCards, totalCustomers, totalVehicles, inWorkshop] = await Promise.all([
     prisma.jobCard.count({ where: { ...reach, ...jobCardActive() } }),
     prisma.customer.count({ where: await orgWhere() }),
@@ -4047,7 +4047,7 @@ export async function getWorkshopCustodySummary(search?: string): Promise<{
       // Only CHECKED_OUT means the vehicle has left. CLOSED is an administrative
       // sign-off and the vehicle may still be in the yard.
       status: { not: JobCardStatus.CHECKED_OUT },
-      ...(await reachWhere('workshop.job_card.view')),
+      ...(await jobCardReach()),
       ...(trimmedSearch
         ? {
             OR: [
@@ -4499,6 +4499,8 @@ export async function listEligibleManagersForBranch(branchId: string): Promise<E
 export async function getJobCard(id: string) {
   const rec = await getJobCardUnscoped(id);
   if (!rec) return rec;
-  const allowed = await canSeeRecord('workshop.job_card.view', { branchId: (rec as { branchId?: string | null }).branchId ?? null }, `JobCard:${id}`);
+  const r = rec as { branchId?: string | null; supervisorId?: string | null; assignedTechnicianId?: string | null; createdById?: string | null };
+  // Assignment-aware: a technician opens the jobs given to them (and ones they opened), nothing else.
+  const allowed = await canSeeRecord('workshop.job_card.view', { branchId: r.branchId ?? null, assigneeIds: [r.supervisorId, r.assignedTechnicianId], ownerIds: [r.createdById] }, `JobCard:${id}`);
   return allowed ? rec : null;
 }

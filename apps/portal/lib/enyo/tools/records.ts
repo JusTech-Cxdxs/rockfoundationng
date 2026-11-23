@@ -6,7 +6,7 @@
  * person may not see is reported as "not found", never as "exists".
  */
 import { prisma } from '@ejo/database';
-import { allows, getPrincipal, orgWhere, reachWhere } from '@/lib/authz/server';
+import { allows, getPrincipal, orgWhere, jobCardReach } from '@/lib/authz/server';
 import { globalSearch, type SearchGroup } from '@/lib/actions/search';
 import { getJobCard } from '@/lib/actions/workshop';
 import { getCustomer360, searchCrmCustomers } from '@/lib/actions/crm';
@@ -191,7 +191,7 @@ export const recordTools: StaffTool[] = [
         select: { id: true, plateNumber: true, chassisNumber: true, make: true, model: true, year: true, mileage: true, engineType: true, customer: { select: { fullName: true } } },
       });
       if (!vehicle) return nothing('No vehicle of this organisation has that plate or VIN.');
-      const reach = await reachWhere('workshop.job_card.view', { lens: false });
+      const reach = await jobCardReach({ lens: false });
       const [jcs, fitted] = await Promise.all([
         prisma.jobCard.findMany({
           where: { vehicleId: vehicle.id, ...reach },

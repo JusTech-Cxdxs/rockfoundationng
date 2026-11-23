@@ -11,7 +11,7 @@
  * and a link back to the record.
  */
 import { prisma, type Prisma } from '@ejo/database';
-import { allows, branchWithinReach, myOrganisationId, orgWhere, reachWhere } from '@/lib/authz/server';
+import { allows, branchWithinReach, myOrganisationId, orgWhere, reachWhere, jobCardReach } from '@/lib/authz/server';
 import type { PermissionKey } from '@/lib/authz/catalogue';
 import { portalBaseUrl } from '@/lib/portal-url';
 import { getCrmHub, type CrmHubParams } from '@/lib/actions/crm';
@@ -308,7 +308,7 @@ const jobCards: ExportKind = {
     { header: 'Link', type: 'link', width: 40, get: (r) => link(`/workshop/job-cards/${r.id}`) },
   ],
   async *rows(_ctx, p, from) {
-    const reach = await reachWhere('workshop.job_card.view');
+    const reach = await jobCardReach();
     const type = p.type === 'PASSENGER' || p.type === 'COMMERCIAL' ? p.type : undefined;
     const outcome = parseOutcomeFilter(p.outcome);
     const where: Prisma.JobCardWhereInput = { AND: [reach as Prisma.JobCardWhereInput, jobSearch(p.q?.trim()), type ? { vehicle: { vehicleType: type } } : {}] };

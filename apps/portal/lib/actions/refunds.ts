@@ -2,7 +2,7 @@
 import { websiteBaseUrl } from '@/lib/portal-url';
 import { logFailure } from '@/lib/log';
 
-import { authorize, reachWhere, seeJobCard } from '@/lib/authz/server';
+import { authorize, seeJobCard, jobCardReach } from '@/lib/authz/server';
 
 import { prisma } from '@ejo/database';
 import { lockExisting } from '@/lib/integrity';
@@ -309,7 +309,7 @@ export async function listAllRefunds(search?: string) {
   await requireUser();
   const q = search?.trim();
   // The register shows only refunds on Job Cards within reach.
-  const reach = { jobCard: await reachWhere('workshop.job_card.view') };
+  const reach = { jobCard: await jobCardReach() };
   return prisma.refund.findMany({
     where: {
       AND: [

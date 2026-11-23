@@ -41,7 +41,7 @@ function actions(): Fn[] {
 
 /** Anything that checks the record (or scopes the query) counts as a fence. */
 const READ_FENCES = [
-  'seeJobCard', 'seeBranch', 'seeVehicle', 'seePart', 'seeTarget', 'myOrganisationBranches', 'reachWhere', 'canSeeRecord', 'authorizeOn',
+  'seeJobCard', 'seeBranch', 'seeVehicle', 'seePart', 'seeTarget', 'myOrganisationBranches', 'reachWhere', 'jobCardReach', 'canSeeRecord', 'authorizeOn',
   'orgWhere', 'inMyOrganisation', 'visibleOrNull', 'branchWithinReach', 'firstReach', 'requireJobCardApprover', 'me()', 'requireStoreStaff',
   // Organisation structure (lib/actions/structure.ts): fenced to the person's organisation + authorize with the branch.
   'branchInMyOrg(', 'departmentInMyOrg(', 'orgFence(o)',
@@ -180,8 +180,8 @@ test('adding a staff member never emails a password and stays inside the organis
 });
 
 test('lists that used to read platform-wide are fenced', () => {
-  assert.match(read('lib/actions/refunds.ts'), /export async function listAllRefunds[\s\S]{0,300}const reach = \{ jobCard: await reachWhere\('workshop\.job_card\.view'\) \}/);
-  assert.match(read('lib/actions/workshop.ts'), /export async function getWorkshopCustodySummary[\s\S]{0,1600}reachWhere\('workshop\.job_card\.view'\)/);
+  assert.match(read('lib/actions/refunds.ts'), /export async function listAllRefunds[\s\S]{0,300}const reach = \{ jobCard: await jobCardReach\(\) \}/);
+  assert.match(read('lib/actions/workshop.ts'), /export async function getWorkshopCustodySummary[\s\S]{0,1600}jobCardReach\(\)/);
   const wf = read('lib/actions/workflow-actions.ts');
   assert.doesNotMatch(wf, /const T = 40;/, 'never "the newest 40 platform-wide, then filtered"');
   for (const m of wf.matchAll(/prisma\.(\w+)\.findMany\(\{ where: \{([^]*?)\}, take: T/g)) {
