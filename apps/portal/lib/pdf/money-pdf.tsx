@@ -1,3 +1,4 @@
+import { registrationLine } from '../utils/registration-line';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { PLATFORM } from '../brand';
 import { PDF_FONT, registerPdfFonts } from './fonts';
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
 
 function Head({ lh, title, reference, date }: { lh: MoneyLetterhead; title: string; reference: string | null; date: string }) {
   const { organisation: o, branch } = lh;
-  const reg = [o.poBox ? `P.O. Box ${o.poBox}` : null, o.rcNumber ? `RC Number: ${o.rcNumber}` : null].filter(Boolean).join('   ·   ');
+  const reg = registrationLine(o);
   return (
     <>
       <View style={styles.headerRow}>

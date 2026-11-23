@@ -1,3 +1,4 @@
+import { registrationLine as registrationLineOf } from '../../lib/utils/registration-line';
 import { LOGO, PLATFORM } from '@/lib/brand';
 type OrganisationInfo = {
   name: string;
@@ -56,7 +57,7 @@ export function DocumentHeader({
 }) {
   const orgHotlinesText = hotlinesText(organisation.hotlines);
   const branchHotlinesText = hotlinesText(branch.hotlines);
-  const registrationLine = [organisation.poBox ? `P.O. Box ${organisation.poBox}` : null, organisation.rcNumber ? `RC Number: ${organisation.rcNumber}` : null].filter(Boolean).join('   ·   ');
+  const registrationLine = registrationLineOf(organisation);
   const nameWords = organisation.name.trim().split(/\s+/);
   const wordmarkTop = nameWords[0] ?? organisation.name;
   const wordmarkBottom = nameWords.slice(1).join(' ');

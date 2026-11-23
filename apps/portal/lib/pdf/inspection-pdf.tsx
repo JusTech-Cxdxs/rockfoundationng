@@ -1,3 +1,4 @@
+import { registrationLine as registrationLineOf } from '../utils/registration-line';
 import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer';
 import { PLATFORM } from '../brand';
 import { PDF_FONT, registerPdfFonts } from './fonts';
@@ -71,7 +72,7 @@ export function InspectionPdf(props: InspectionPdfProps) {
   const nameWords = organisation.name.trim().split(/\s+/);
   const wordmarkTop = nameWords[0] ?? organisation.name;
   const wordmarkBottom = nameWords.slice(1).join(' ');
-  const registrationLine = [organisation.poBox ? `P.O. Box ${organisation.poBox}` : null, organisation.rcNumber ? `RC Number: ${organisation.rcNumber}` : null].filter(Boolean).join('   ·   ');
+  const registrationLine = registrationLineOf(organisation);
 
   const bySection = new Map<string, InspectionPdfItem[]>();
   for (const item of reviewedItems) {

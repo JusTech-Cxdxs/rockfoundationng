@@ -86,3 +86,11 @@ test('the Owner\'s receivables: against the invoice (VAT included) less credit n
   assert.doesNotMatch(src, /vehicle-service/, 'no route of a removed module');
   assert.match(read('lib/actions/master-analytics.ts'), /kind: 'CS' as const/);
 });
+
+test('the letterhead never prints a prefix twice', async () => {
+  const { registrationLine } = await import('../lib/utils/registration-line');
+  assert.equal(registrationLine({ poBox: 'P.O. Box 257, Ota, Ogun State', rcNumber: 'RC 1772429' }), 'P.O. Box 257, Ota, Ogun State   ·   RC Number: 1772429');
+  assert.equal(registrationLine({ poBox: '257, Ota', rcNumber: '1772429' }), 'P.O. Box 257, Ota   ·   RC Number: 1772429');
+  assert.equal(registrationLine({ poBox: null, rcNumber: 'RC Number: 1772429' }), 'RC Number: 1772429');
+  assert.equal(registrationLine({}), '');
+});
