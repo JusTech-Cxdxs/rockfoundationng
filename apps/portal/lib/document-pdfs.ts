@@ -1,8 +1,9 @@
 import { renderToBuffer } from '@react-pdf/renderer';
 import { prisma } from '@ejo/database';
 import { EstimatePdf } from '@/lib/pdf/estimate-pdf';
+import { InspectionPdf } from '@/lib/pdf/inspection-pdf';
 import { ReceiptPdf } from '@/lib/pdf/receipt-pdf';
-import { jobEstimatePdfProps, letterhead, receiptPdfProps } from '@/lib/pdf/document-props';
+import { inspectionPdfProps, jobEstimatePdfProps, letterhead, receiptPdfProps } from '@/lib/pdf/document-props';
 import { BILLING_SETTINGS_SELECT, ESTIMATE_TOTALS_SELECT, billingOf, depositFractionFor, jobCardTotals, vatSettingFor } from '@/lib/estimate-billing';
 import { INVOICE_DOCUMENT_SELECT, invoicePdfBuffer } from '@/lib/invoices';
 import { bankDetailsFor } from '@/lib/workshop-core';
@@ -41,7 +42,7 @@ const ESTIMATE_PDF_SELECT = {
   estimate: {
     select: {
       status: true, discountAmount: true, vatRate: true,
-      lineItems: { orderBy: { createdAt: 'asc' as const }, select: { type: true, description: true, quantity: true, amount: true, unitOfMeasure: true, billTo: true, discountAmount: true, coveringWarranty: { select: { warrantyNumber: true } } } },
+      lineItems: { orderBy: { createdAt: 'asc' as const }, select: { type: true, description: true, quantity: true, amount: true, unitOfMeasure: true, billTo: true, discountAmount: true } },
     },
   },
 } as const;
@@ -70,6 +71,39 @@ export async function estimatePdfFor(jobCardId: string, organisationId?: string)
     })),
   );
   return { pdf, fileName: documentPdfFileName('ESTIMATE', jc.jobNumber), number: jc.jobNumber };
+}
+
+/**
+ * The customer's vehicle inspection report: the items the technician
+ * reviewed at check-in (never the ones not checked), on the letterhead. Only
+ * once the inspection is completed.
+ */
+export async function inspectionPdfFor(jobCardId: string, organisationId?: string): Promise<DocumentPdf | null> {
+  const jc = await prisma.jobCard.findUnique({
+    where: { id: jobCardId },
+    select: {
+      jobNumber: true,
+      customer: { select: { fullName: true } },
+      vehicle: { select: { make: true, model: true, year: true, plateNumber: true, chassisNumber: true } },
+      branch: { select: ESTIMATE_PDF_SELECT.branch.select },
+      inspection: { select: { status: true, completedAt: true, inspectedBy: { select: { fullName: true } }, items: { select: { section: true, name: true, condition: true, severity: true, action: true } } } },
+    },
+  });
+  if (!jc?.inspection || jc.inspection.status !== 'COMPLETED') return null;
+  const org = jc.branch.businessUnit.organisation;
+  if (organisationId && jc.branch.businessUnit.organisationId !== organisationId) return null;
+  const pdf = await renderToBuffer(
+    InspectionPdf(inspectionPdfProps({
+      letterhead: letterhead(org, jc.branch, portalBaseUrl()),
+      jobNumber: jc.jobNumber,
+      customerName: jc.customer.fullName,
+      vehicle: jc.vehicle,
+      inspectedByName: jc.inspection.inspectedBy.fullName,
+      completedOnLabel: jc.inspection.completedAt ? formatDateTime(jc.inspection.completedAt) : '',
+      items: jc.inspection.items,
+    })),
+  );
+  return { pdf, fileName: `Inspection-${jc.jobNumber}.pdf`, number: jc.jobNumber };
 }
 
 /** The invoice PDF, as attached to the invoice email (lib/invoices invoicePdfBuffer). */

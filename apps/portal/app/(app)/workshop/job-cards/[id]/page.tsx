@@ -834,6 +834,11 @@ export default async function JobCardDetailPage({
                   Print the report
                 </a>
               ) : null}
+              {inspection?.status === 'COMPLETED' ? (
+                <a href={`/api/job-cards/${jobCard.id}/inspection-pdf`} className="inline-flex min-h-10 items-center rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-4 py-2 font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]" data-testid="inspection-pdf">
+                  Download the report (PDF)
+                </a>
+              ) : null}
             </div>
           </div>
 
