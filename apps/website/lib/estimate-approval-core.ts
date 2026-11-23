@@ -15,7 +15,7 @@ import { naira } from '@/lib/customer-portal/format';
  * or signed in to the customer portal. Server only — the actions are in
  * lib/estimate-approval.ts.
  *
- *  - Only an estimate the Manager approved and the customer has been told
+ *  - Only an estimate the Owner approved and the customer has been told
  *    about, on a Job Card still Awaiting Customer Approval, can be answered.
  *  - A link is used once: claimed with one atomic update (unused, not
  *    revoked, not expired) inside the same transaction as the answer.
@@ -74,7 +74,7 @@ export function estimateFigures(jc: JobRow) {
   return { totals: t, lines, deposit, depositPercent: Math.round(fraction * 100), depositDue: Math.max(0, Math.round((deposit - paid) * 100) / 100), paid };
 }
 
-/** Waiting for the customer: the Manager approved it, they were told, the Job Card waits on them. */
+/** Waiting for the customer: the Owner approved it, they were told, the Job Card waits on them. */
 export function awaitingAnswer(jc: Pick<JobRow, 'status' | 'estimate'>): boolean {
   return String(jc.status) === 'AWAITING_CUSTOMER_APPROVAL' && jc.estimate?.status === 'MANAGER_APPROVED' && Boolean(jc.estimate.customerNotifiedAt);
 }

@@ -64,7 +64,7 @@ export async function getDemoConsoleState(): Promise<DemoConsoleState> {
   return { orgs: out, passwordSet: (process.env.DEMO_STAFF_PASSWORD ?? '').trim().length >= 8, pulseOn: pulseEnabled(), demoSlug, demoName: DEMO_ORG_NAME, demoExists: orgs.some((o) => o.slug === demoSlug) };
 }
 
-/** Makes the demo organisation (its own Victoria Island workshop and departments; marked as the demo). Typed: its slug. */
+/** Makes the demo organisation (its own Ota workshop and departments; marked as the demo). Typed: its slug. */
 export async function createDemoOrganisationNow(confirm: string): Promise<Done<{ summary: string }>> {
   const userId = await platformTeam('createDemoOrganisationNow');
   const slug = demoOrgSlug();

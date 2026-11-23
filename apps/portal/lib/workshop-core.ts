@@ -107,7 +107,7 @@ export async function writeAuditLog(params: {
 }
 
 /** Organisation, branch and department names for the email header line,
- * e.g. "D'Phoenix Autocare · Victoria Island Workshop · Workshop".
+ * e.g. "Rock Foundation Automobile · Ota Workshop · Workshop".
  * `departmentNameOverride` shows the routed department (e.g. "Passenger
  * Vehicle Workshop") instead of "Workshop". */
 export async function getWorkshopOrgContext(departmentNameOverride?: string): Promise<{

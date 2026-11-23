@@ -156,11 +156,11 @@ export function checkCustomerRow(cells: unknown[], mapping: Mapping): Checked<Cu
   })();
   let tags: string[] = [];
   try { tags = normaliseTags(get(cells, mapping, 'tags')); } catch (e) { warn('tags', `${msg(e)} Tags were left out.`); }
-  // Payment terms from Zoho ("Net 30"): kept as a tag; credit itself is approved in EJO by Finance or the Manager.
+  // Payment terms from QuickBooks ("Net 30"): kept as a tag; credit itself is approved in EJO by the Owner.
   const terms = get(cells, mapping, 'paymentTerms').replace(/[^A-Za-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
   if (terms && !/^(due on receipt|0|net 0)$/i.test(terms)) {
     try { tags = normaliseTags([...tags, `Terms ${terms}`].join(', ')); } catch { /* the tags as they were */ }
-    warn('paymentTerms', `Payment terms “${terms}” are kept as a tag. To give this customer credit, Finance or the Manager sets the terms on the customer’s page.`);
+    warn('paymentTerms', `Payment terms “${terms}” are kept as a tag. To give this customer credit, the Owner sets the terms on the customer’s page.`);
   }
 
   const sinceRaw = get(cells, mapping, 'customerSince');

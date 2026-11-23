@@ -12,7 +12,7 @@ function get(cells: unknown[], mapping: Mapping, key: string): string {
 }
 
 /** Roles a file never gives: the organisation's administrators are added by hand (and the platform team never by an organisation). */
-export const ROLES_NEVER_IMPORTED = ['administrator', 'branch-administrator'];
+export const ROLES_NEVER_IMPORTED = ['owner'];
 
 /** Colleagues a staff import brought in who have not been invited yet (switched off until then): the cut-over's open job
  * cards and services may still name them as technician or supervisor (P7, loaded first). */
@@ -59,7 +59,7 @@ export function checkStaffRow(cells: unknown[], mapping: Mapping): Checked<Staff
   if (!branch) fail('branch', 'Branch is required: the branch they work at (its name or code).');
   const department = get(cells, mapping, 'department').trim().slice(0, 80) || null;
   const roles = splitRoles(get(cells, mapping, 'roles'));
-  for (const r of roles) if (ROLES_NEVER_IMPORTED.includes(r.toLowerCase().replace(/\s+/g, '-')) || /^(organisation |branch )?administrator$/i.test(r)) fail('roles', `“${r}”: the organisation’s administrators are added by hand on the Users page, never by a file.`);
+  for (const r of roles) if (ROLES_NEVER_IMPORTED.includes(r.toLowerCase().replace(/\s+/g, '-')) || /^(owner|gmd|owner \/ gmd)$/i.test(r)) fail('roles', `“${r}”: the Owner is added by hand on the Staff page, never by a file.`);
   if (!roles.length && fullName && email) warn('roles', 'No role: the person will see only their own account until an administrator gives them a role.');
 
   const failed = issues.some((i) => i.level === 'error');

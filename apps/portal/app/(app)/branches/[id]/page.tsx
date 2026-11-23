@@ -86,7 +86,7 @@ export default async function BranchEditPage({
               name="address"
               defaultValue={branch.address ?? ''}
               rows={2}
-              placeholder="e.g. Plot 1 Muri Okunola Street, Victoria Island, Lagos, Nigeria"
+              placeholder="e.g. 1, Heal The World Avenue, Opp. Gateway Hotel, Ota, Ogun State"
               className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
             />
             <RefineTextButton targetId="branches-id-text-1" />

@@ -85,7 +85,7 @@ function resolve(v: StaffValues, L: Lookups): Resolved {
     // By its name, its slug, or the name EJO shows it under ("Front Desk" for receptionist, "Manager" for workshop-manager).
     const role = L.roles.find((x) => norm(x.name) === k || norm(x.slug) === k) ?? L.roles.find((x) => ROLE_LABELS[x.slug] && (norm(ROLE_LABELS[x.slug]!) === k || norm(ROLE_LABELS[x.slug]!.replace(/\s*\(.*\)\s*$/, '')) === k));
     if (!role) errors.push(`There is no role “${r}” in this organisation. Use the role’s name as on the Roles page.`);
-    else if (ROLES_NEVER_IMPORTED.includes(role.slug)) errors.push(`“${role.name}”: the organisation’s administrators are added by hand on the Users page, never by a file.`);
+    else if (ROLES_NEVER_IMPORTED.includes(role.slug)) errors.push(`“${role.name}”: the Owner is added by hand on the Staff page, never by a file.`);
     else if (!roles.some((x) => x.id === role.id)) roles.push(role);
   }
   if (v.employeeId) {
