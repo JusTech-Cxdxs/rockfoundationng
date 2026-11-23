@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { CUSTOMER, SEED_PARTS, SUPERMANAGER, who } from './people';
-import { as, open, eventually, bellText, countMail, expectAuditEntry, expectNoUrlError, latestMail, readStock, urlError, waitOutcome } from './helpers';
+import { as, open, eventually, bellText, countMail, expectAuditEntry, expectNoUrlError, latestMail, readStock, waitOutcome } from './helpers';
 import { db, freshVehicle, idOfPart, journalDiagnosis, paymentsOn } from './db';
 import {
   addLine, assignTechnician, expectStatus, jobNumber, jcForm, nextStep, notifyCustomer, openJobCard, recordPayment,
@@ -85,24 +85,19 @@ test(`the estimate is drafted by the technician and the supervisor, and Store pr
   await expect(page.getByText('Total Estimate').locator('..')).toContainText('₦59,500.00');
 });
 
-test('approvals respect segregation of duties; the customer is notified by email', async ({ page, request }) => {
+test('the Owner checking the estimate gives the final approval in the same step; the customer is notified by email', async ({ page, request }) => {
+  // The supervisor here also holds the Owner role: their check is the Owner's approval
+  // (lib/money/rules.ts ownerMustApprove; a discount above the limit still needs the Owner's explicit tick).
   await as(page, SUPERMANAGER);
   await open(page, S.url);
   await submitEstimate(page);
-  await supervisorApprovesEstimate(page);
-  await test.step('the supervisor who approved may not also give the Owner’s final approval', async () => {
-    await page.getByRole('button', { name: 'Approve as Owner' }).click();
-    await page.waitForURL(/error=/);
-    expect(urlError(page)).toMatch(/approved this estimate as its supervisor/);
-    await expect(page.getByText(/approved this estimate as its supervisor/)).toBeVisible();
-    await expect(page.getByText('Waiting for the Owner').first()).toBeVisible();
-  });
-  await test.step('another Owner gives the final approval', async () => {
-    await as(page, 'owner');
-    await open(page, S.url);
-    await page.getByRole('button', { name: 'Approve as Owner' }).click();
+  await test.step('the Owner, checking it as its supervisor, approves it once and for all', async () => {
+    await page.getByRole('button', { name: 'Approve estimate' }).click();
+    await expect.poll(async () => (await db().estimate.findUniqueOrThrow({ where: { jobCardId: S.id }, select: { status: true } })).status).toBe('MANAGER_APPROVED');
     await expect(page.getByRole('button', { name: 'Approve as Owner' })).toHaveCount(0);
     expectNoUrlError(page);
+    const audit = await db().auditLog.findMany({ where: { entityType: 'JobCard', entityId: S.id, action: { in: ['estimate.approved', 'estimate.manager_approved'] } }, select: { action: true } });
+    expect(audit.map((a) => a.action).sort()).toEqual(['estimate.approved', 'estimate.manager_approved']);
   });
   const toFrontDesk = await latestMail(request, who('front-desk').email, new RegExp(`${S.number} approved — ready to send`));
   expect(toFrontDesk.subject).toContain(S.number);
