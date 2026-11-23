@@ -22,7 +22,7 @@ const ROOT = join(__dirname, '..', '..', '..', '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 
 /** The demo's departments at the Ota Workshop (lib/demo/organisation.ts). */
-const DEMO_DEPARTMENTS = ['workshop', 'mechanical', 'electrical', 'body-spray', 'car-wash'];
+const DEMO_DEPARTMENTS = ['workshop', 'mechanical', 'electrical', 'body-spray', 'car-wash', 'store'];
 
 test('every role has a demo sign-in: the Owner for the whole business, the rest at the Ota Workshop; three technicians', () => {
   for (const role of Object.keys(ROLE_GRANTS)) assert.ok(DEMO_STAFF.some((s) => s.role === role), `${role} has a demo person`);

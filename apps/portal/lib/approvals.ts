@@ -17,6 +17,7 @@ const PREFIXES: [string, ApprovalArea][] = [
   ['est-mgr-', 'Workshop'],
   ['prs-hod-', 'Store'],
   ['prs-store-', 'Store'],
+  ['stk-cnt-', 'Store'],
 ];
 
 /** The area of an approval item, or null when the item is not a decision. */

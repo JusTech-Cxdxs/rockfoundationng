@@ -19,6 +19,7 @@ import { retryOnNumberClash } from '@/lib/integrity-core';
 import { pluralize } from '@/lib/utils/pluralize';
 import { replayQuantityFifo, planQuantityRelease } from '@/lib/inventory/quantity-fifo';
 import { loadQuantityTraces, sourcesForReleases } from '@/lib/inventory/quantity-trace';
+import { quantityDraws } from '@/lib/inventory/stock-out-server';
 import { requireUser, requireEligibleManager, listEligibleManagersForBranch } from './workshop';
 import { writeAuditLog, getWorkshopOrgContext } from '@/lib/workshop-core';
 import { renderCustomerJobWorkUpdateEmail } from '@/lib/email-templates/customer-job-work-update';
@@ -794,15 +795,14 @@ export async function releasePartRequestSlip(
         // receipts and releases to get what each delivery still holds, then draw
         // oldest-first and record one row per delivery touched, so the part is
         // traceable to its GRN. See lib/inventory/quantity-fifo.ts.
+        // Earlier releases and the stock that left over the counter or on a
+        // stock count (lib/inventory/stock-out-server.ts) all draw on the layers.
         const [receiptLines, priorConsumptions] = await Promise.all([
           tx.goodsReceiptLine.findMany({
             where: { partId: line.partId },
             select: { id: true, quantityInBaseUnit: true, goodsReceipt: { select: { receivedAt: true } } },
           }),
-          tx.partQuantityConsumption.findMany({
-            where: { partId: line.partId },
-            select: { id: true, consumedAt: true, quantityTaken: true, goodsReceiptLineId: true },
-          }),
+          quantityDraws(tx, [line.partId]),
         ]);
         const layers = receiptLines.map((r: (typeof receiptLines)[number]) => ({
           id: r.id,
@@ -811,12 +811,7 @@ export async function releasePartRequestSlip(
         }));
         const current = replayQuantityFifo(
           layers,
-          priorConsumptions.map((c: (typeof priorConsumptions)[number]) => ({
-            id: c.id,
-            consumedAt: c.consumedAt,
-            quantity: Number(c.quantityTaken),
-            goodsReceiptLineId: c.goodsReceiptLineId,
-          })),
+          priorConsumptions,
         );
         const plan = planQuantityRelease(layers, current.layers, qty);
         for (const portion of plan) {

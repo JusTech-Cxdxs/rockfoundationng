@@ -30,6 +30,8 @@ export type GoodsReceiptLineStockTrace = {
     quantity: number;
     /** e.g. "Serial SN-0042" for a serialized unit. */
     detail: string | null;
+    /** A counter sale or stock count, instead of a parts request. */
+    href?: string;
   }[];
 };
 
@@ -122,7 +124,7 @@ export function GoodsReceiptLineCard({
                       {d.detail ? `${d.detail} — ` : `${unit(d.quantity)} — `}
                       {d.customerName ? <CustomerLink id={d.customerId} name={d.customerName} canView={canSeeCustomers} /> : '—'}
                     </span>
-                    <Link href={`/workshop/parts-requests/${d.slipId}`} className="shrink-0 text-[var(--ejo-primary)] hover:underline">
+                    <Link href={d.href ?? `/workshop/parts-requests/${d.slipId}`} className="shrink-0 text-[var(--ejo-primary)] hover:underline">
                       {d.referenceNumber}
                       {d.sourceNumber ? ` · ${d.sourceNumber}` : ''}
                     </Link>
@@ -138,9 +140,9 @@ export function GoodsReceiptLineCard({
         <div className="mt-2 flex items-center justify-between rounded-[var(--ejo-radius-md)] border border-[var(--ejo-success)]/30 bg-[var(--ejo-success)]/5 px-3 py-2.5">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--ejo-success)]">Total Bulk Cost — Current</p>
-            <p className="text-base font-bold text-[var(--ejo-text)]">{formatNaira(totalCost)}</p>
+            <p className="text-base font-bold text-[var(--ejo-text)]">{totalCost === null ? 'Not entered yet' : formatNaira(totalCost)}</p>
             <p className="mt-0.5 text-[11px] text-[var(--ejo-text-muted)]">
-              System notes: cost is {formatNaira(unitCost)} per {baseUnitOfMeasure}.
+              {totalCost === null ? 'Recorded without its cost: enter what this delivery cost, for stock value and margins.' : <>System notes: cost is {formatNaira(unitCost)} per {baseUnitOfMeasure}.</>}
             </p>
           </div>
           <button
@@ -148,7 +150,7 @@ export function GoodsReceiptLineCard({
             onClick={() => setIsEditing(true)}
             className="shrink-0 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] px-3 py-1.5 text-xs font-medium text-[var(--ejo-text)] hover:bg-[var(--ejo-bg)]"
           >
-            Correct
+            {totalCost === null ? 'Enter the cost' : 'Correct'}
           </button>
         </div>
       ) : (

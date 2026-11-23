@@ -3,19 +3,27 @@
 import { useMemo, useState } from 'react';
 import { LoadingLink } from '@/components/LoadingLink';
 import { pluralize, pluralizeWord } from '@/lib/utils/pluralize';
+import { naira } from '@/lib/crm';
 
 export type PartFittedRow = {
   id: string;
   date: string | null;
   dateLabel: string;
-  partId: string;
+  /** Null for a part bought outside (not in the catalogue). */
+  partId: string | null;
   partName: string;
   partNumber: string | null;
   unit: string;
   quantity: number;
   serials: string[];
-  slipId: string;
-  slipNumber: string;
+  /** The selling price charged for one (null when not priced; 0 under warranty or goodwill). */
+  unitPrice: number | null;
+  /** Covered, not charged: "Warranty", "Goodwill", "Internal". */
+  covered: string | null;
+  /** From the store (a parts request), or bought outside for the job. */
+  source: 'STORE' | 'OUTSIDE';
+  slipId: string | null;
+  slipNumber: string | null;
   jobCard: { id: string; number: string } | null;
   customer: string | null;
 };
@@ -51,7 +59,7 @@ export function VehiclePartsFitted({ rows }: { rows: PartFittedRow[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Parts fitted</h2>
-          <p className="text-xs text-[var(--ejo-text-muted)]">{pluralize(rows.length, 'release')} to this vehicle, newest first.</p>
+          <p className="text-xs text-[var(--ejo-text-muted)]">{pluralize(rows.length, 'part')} fitted to this vehicle (from the store and bought outside), newest first, at the price charged.</p>
         </div>
         {rows.length > 0 ? (
           <input
@@ -65,7 +73,7 @@ export function VehiclePartsFitted({ rows }: { rows: PartFittedRow[] }) {
       </div>
 
       {rows.length === 0 ? (
-        <p className="mt-3 text-sm text-[var(--ejo-text-muted)]">No parts have been released to this vehicle yet.</p>
+        <p className="mt-3 text-sm text-[var(--ejo-text-muted)]">No parts have been fitted to this vehicle yet.</p>
       ) : filtered.length === 0 ? (
         <p className="mt-3 text-sm text-[var(--ejo-text-muted)]">Nothing matches &ldquo;{q}&rdquo;.</p>
       ) : (
@@ -74,16 +82,17 @@ export function VehiclePartsFitted({ rows }: { rows: PartFittedRow[] }) {
             <li key={r.id} className="grid gap-x-6 gap-y-1 py-3 text-sm sm:grid-cols-[110px_minmax(0,2fr)_minmax(0,1.5fr)]">
               <span className="text-xs text-[var(--ejo-text-muted)]">{r.dateLabel}</span>
               <span className="min-w-0 break-words">
-                <LoadingLink href={`/inventory/parts/${r.partId}`} className={`font-medium ${link}`}>{r.partName}</LoadingLink>
+                {r.partId ? <LoadingLink href={`/inventory/parts/${r.partId}`} className={`font-medium ${link}`}>{r.partName}</LoadingLink> : <span className="font-medium text-[var(--ejo-text)]">{r.partName}</span>}
                 <span className="block text-xs text-[var(--ejo-text-muted)]">
                   {r.partNumber ? `${r.partNumber} · ` : ''}
                   {r.quantity.toLocaleString('en-NG', { maximumFractionDigits: 3 })} {pluralizeWord(r.quantity, r.unit)}
                   {r.serials.length ? ` · ${pluralizeWord(r.serials.length, 'serial')} ${r.serials.join(', ')}` : ''}
+                  {r.covered ? ` · ${r.covered}, not charged` : r.unitPrice !== null ? ` · ${naira(r.unitPrice)} each` : ''}
+                  {r.source === 'OUTSIDE' ? ' · bought outside' : ''}
                 </span>
               </span>
               <span className="min-w-0 break-words text-xs">
-                <LoadingLink href={`/workshop/parts-requests/${r.slipId}`} className={link}>{r.slipNumber}</LoadingLink>
-                {' · '}
+                {r.slipId ? <><LoadingLink href={`/workshop/parts-requests/${r.slipId}`} className={link}>{r.slipNumber}</LoadingLink>{' · '}</> : null}
                 {r.jobCard ? <LoadingLink href={`/workshop/job-cards/${r.jobCard.id}`} className={link}>{r.jobCard.number}</LoadingLink> : null}
                 {r.customer ? <span className="block text-[var(--ejo-text-muted)]">{r.customer}</span> : null}
               </span>

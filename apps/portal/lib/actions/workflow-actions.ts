@@ -1,6 +1,7 @@
 'use server';
 
-import { reachWhere, jobCardReach } from '@/lib/authz/server';
+import { allows, reachWhere, jobCardReach } from '@/lib/authz/server';
+import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
 import { prisma } from '@ejo/database';
 import { requireUser, currentUserIsMasterAdmin, listEligibleManagersForBranch } from './workshop';
 import { listEligibleStoreManagersForBranch, listEligibleStoreOfficersForBranch } from './store';
@@ -67,6 +68,19 @@ export async function getWorkflowActionItems(): Promise<WorkflowAction[]> {
     if (p.status === 'PENDING_HOD_APPROVAL' && can(p.branchId, 'manager')) out.push({ id: `prs-hod-${p.id}`, title: `Approve the parts request — ${p.referenceNumber}`, detail: 'Waiting on the Workshop Supervisor.', url, createdAt: at(p.updatedAt) });
     if (p.status === 'PENDING_STORE_APPROVAL' && can(p.branchId, 'store')) out.push({ id: `prs-store-${p.id}`, title: `Approve and reserve — ${p.referenceNumber}`, detail: 'Supervisor approved — the Store can approve and reserve the parts.', url, createdAt: at(p.updatedAt) });
     if (p.status === 'APPROVED' && can(p.branchId, 'store')) out.push({ id: `prs-rel-${p.id}`, title: `Release the parts — ${p.referenceNumber}`, detail: 'Approved and reserved — hand the parts over.', url, createdAt: at(p.updatedAt) });
+  }
+  // Stock counts waiting on the Owner (never on the person who counted), and
+  // deliveries received without their cost (the Store Keeper does not enter it).
+  if (storeOn) {
+    const [counts, uncosted] = await Promise.all([
+      prisma.stockCount.findMany({ where: { status: 'PENDING_APPROVAL', countedById: { not: user.id }, ...reachOfBranch }, take: T, select: { id: true, number: true, branchId: true, countedAt: true, countedBy: { select: { fullName: true } } } }),
+      prisma.goodsReceipt.findMany({ where: { lines: { some: { totalCost: null } }, ...reachOfBranch }, take: T, select: { id: true, referenceNumber: true, branchId: true, receivedAt: true } }),
+    ]);
+    for (const c of counts) if (await allows('store.stock.approve', { branchId: c.branchId })) out.push({ id: `stk-cnt-${c.id}`, title: `Approve the stock count — ${c.number}`, detail: `${c.countedBy.fullName} found differences on the shelf.`, url: `/inventory/stock-counts/${c.id}`, createdAt: at(c.countedAt) });
+    for (const g of uncosted) {
+      const seesCost = (await Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k, { branchId: g.branchId })))).some(Boolean);
+      if (seesCost) out.push({ id: `grn-cost-${g.id}`, title: `Enter the costs — ${g.referenceNumber}`, detail: 'Received without a cost: stock value and margins need it.', url: `/inventory/goods-receipts/${g.id}`, createdAt: at(g.receivedAt) });
+    }
   }
   for (const j of jcCompleted) if (j.supervisorId === user.id || isMaster) out.push({ id: `jc-ready-${j.id}`, title: `Mark ready for collection — ${j.jobNumber}`, detail: 'The work is completed.', url: jcUrl(j.id, 'status'), createdAt: at(j.updatedAt) });
   for (const j of jcClosed) if (mine(j.createdById)) out.push({ id: `jc-out-${j.id}`, title: `Check the vehicle out — ${j.jobNumber}`, detail: 'Closed by the Owner — release the vehicle to the customer.', url: jcUrl(j.id, 'status'), createdAt: at(j.updatedAt) });

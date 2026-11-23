@@ -69,7 +69,8 @@ export async function recordGoodsReceiptFormAction(formData: FormData) {
           partId,
           quantityReceivedInUnit: num(formData, 'quantityReceivedInUnit') ?? 0,
           unitUsed: str(formData, 'unitUsed'),
-          totalCost: num(formData, 'totalCost') ?? 0,
+          // Blank for the Store Keeper (no cost field): the server ignores costs from anyone who may not see them.
+          totalCost: num(formData, 'totalCost') ?? null,
           batchNumber: str(formData, 'batchNumber') || undefined,
           serialNumbers: serialNumbers.length > 0 ? serialNumbers : undefined,
         },

@@ -31,6 +31,9 @@ export const AREAS: { url: string; needs: PermissionKey[] }[] = [
   // Goods received: the person who records deliveries, and whoever sees costs.
   { url: '/inventory/goods-receipts', needs: ['store.grn.record', ...STORE_COST_PERMISSIONS] },
   { url: '/inventory/pricing', needs: STORE_COST_PERMISSIONS },
+  { url: '/inventory/reports', needs: ['store.view'] },
+  { url: '/inventory/counter-sales', needs: ['store.counter.sell', 'workshop.payment.record'] },
+  { url: '/inventory/stock-counts', needs: ['store.stock.count', 'store.stock.approve'] },
   { url: '/inventory/estimate-matching', needs: ['store.view'] },
   { url: '/inventory/analytics', needs: ['analytics.inventory.view'] },
   { url: '/security', needs: ['security.view'] },

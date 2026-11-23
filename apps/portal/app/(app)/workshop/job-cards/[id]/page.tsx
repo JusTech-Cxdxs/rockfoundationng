@@ -1,6 +1,8 @@
 import { jobCardVisible, guardAnyPage, can, allows } from '@/lib/authz/server';
 import { JobCardPhotos } from '@/components/JobCardPhotos';
 import { listJobCardPhotos } from '@/lib/actions/job-card-photos';
+import { listOutsideCosts } from '@/lib/actions/outside-purchases';
+import { OutsideCostsCard } from '@/components/OutsideCostsCard';
 import { fuelLevelLabel, sprayPanelLabels, washPackageLabel } from '@/lib/workshop/job-types';
 import { JobCardRatingCard } from '@/components/JobCardRatingCard';
 import { LoadingLink } from '@/components/LoadingLink';
@@ -335,6 +337,8 @@ export default async function JobCardDetailPage({
   // round trip crosses regions). An id the viewer can't see is a 404.
   if (!(await jobCardVisible(id, 'page'))) notFound();
   const photoData = await listJobCardPhotos(id).catch(() => ({ photos: [], canAdd: false }));
+  // What outside parts and jobs cost: the Owner only (null for everyone else).
+  const outsideCosts = await listOutsideCosts(id).catch(() => null);
   const [jobCard, technicians, isMasterAdmin, viewerId, auditTrail, eligibleSupervisors, estimate, payments, cancellationRequests, closeRequests, sourcingFound, refunds, billing, binOffer, inspection] = await Promise.all([
     getJobCard(id),
     listTechnicianCandidates(),
@@ -536,6 +540,11 @@ export default async function JobCardDetailPage({
       {status === 'refund_recorded' ? (
         <div className="mb-6 max-w-xl">
           <FormFeedbackBanner kind="success" message="Refund recorded — the customer has been emailed their receipt." />
+        </div>
+      ) : null}
+      {status === 'outside_cost_saved' ? (
+        <div className="mb-6 max-w-xl">
+          <FormFeedbackBanner kind="success" message="Outside cost saved." />
         </div>
       ) : null}
       {status === 'job_card_created' ? (
@@ -804,6 +813,8 @@ export default async function JobCardDetailPage({
           </div>
 
           <JobCardPhotos jobCardId={jobCard.id} photos={photoData.photos} canAdd={photoData.canAdd} myUserId={viewerId} />
+
+          {outsideCosts ? <OutsideCostsCard jobCardId={jobCard.id} rows={outsideCosts} /> : null}
 
           {/* The check-in inspection: one per Job Card, started, skipped or completed on its own page. */}
           <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6" data-testid="job-card-inspection">

@@ -1,5 +1,6 @@
 import { prisma } from '@ejo/database';
 import { replayQuantityFifo, type QuantityFifoResult } from './quantity-fifo';
+import { stockOutPlace } from './stock-out-place';
 
 /**
  * Loads every delivery (goods receipt line) and release for the given
@@ -22,6 +23,8 @@ export type QuantityTraceRelease = {
     customerName: string | null;
     customerId?: string | null;
   };
+  /** Where it went when it was not a parts request (a counter sale or a stock count). */
+  href?: string;
 };
 
 export type QuantityTraceDelivery = {
@@ -42,7 +45,7 @@ export async function loadQuantityTraces(partIds: string[]): Promise<Map<string,
   const out = new Map<string, QuantityTrace>();
   if (unique.length === 0) return out;
 
-  const [receiptLines, consumptions] = await Promise.all([
+  const [receiptLines, consumptions, stockOuts] = await Promise.all([
     prisma.goodsReceiptLine.findMany({
       where: { partId: { in: unique } },
       select: {
@@ -73,14 +76,23 @@ export async function loadQuantityTraces(partIds: string[]): Promise<Map<string,
         },
       },
     }),
+    // Counter sales and stock count shortfalls draw on the same deliveries.
+    prisma.partStockOut.findMany({
+      where: { partId: { in: unique }, batchId: null, serialId: null },
+      select: { id: true, partId: true, kind: true, takenAt: true, quantityTaken: true, goodsReceiptLineId: true, counterSaleLine: { select: { counterSale: { select: { id: true, number: true, buyerName: true, customerId: true } } } }, stockCountLine: { select: { stockCount: { select: { id: true, number: true } } } } },
+    }),
   ]);
 
   for (const partId of unique) {
     const lines = receiptLines.filter((r: (typeof receiptLines)[number]) => r.partId === partId);
     const cons = consumptions.filter((c: (typeof consumptions)[number]) => c.partId === partId);
+    const outs = stockOuts.filter((o: (typeof stockOuts)[number]) => o.partId === partId);
     const fifo = replayQuantityFifo(
       lines.map((r: (typeof lines)[number]) => ({ id: r.id, receivedAt: r.goodsReceipt.receivedAt, quantity: Number(r.quantityInBaseUnit) })),
-      cons.map((c: (typeof cons)[number]) => ({ id: c.id, consumedAt: c.consumedAt, quantity: Number(c.quantityTaken), goodsReceiptLineId: c.goodsReceiptLineId })),
+      [
+        ...cons.map((c: (typeof cons)[number]) => ({ id: c.id, consumedAt: c.consumedAt, quantity: Number(c.quantityTaken), goodsReceiptLineId: c.goodsReceiptLineId })),
+        ...outs.map((o: (typeof outs)[number]) => ({ id: o.id, consumedAt: o.takenAt, quantity: Number(o.quantityTaken), goodsReceiptLineId: o.goodsReceiptLineId })),
+      ],
     );
     const deliveries = new Map<string, QuantityTraceDelivery>();
     for (const r of lines) {
@@ -107,6 +119,17 @@ export async function loadQuantityTraces(partIds: string[]): Promise<Map<string,
         },
       };
     });
+    for (const o of outs) {
+      const place = stockOutPlace(o);
+      releases.push({
+        id: o.id,
+        partId,
+        consumedAt: o.takenAt,
+        quantity: Number(o.quantityTaken),
+        slip: { id: place.id, referenceNumber: place.number, sourceNumber: place.label, customerName: place.customerName, customerId: place.customerId },
+        href: place.href,
+      });
+    }
     out.set(partId, { fifo, releases, deliveries });
   }
   return out;

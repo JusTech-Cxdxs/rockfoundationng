@@ -137,13 +137,13 @@ async function partFacts(db: Db, id: string) {
     where: { id },
     select: {
       stock: { select: { quantityOnHand: true, quantityReserved: true } },
-      _count: { select: { goodsReceiptLines: true, batches: true, serials: true, quantityConsumptions: true, requestSlipLines: true, matchedOnEstimateLines: true, pricingAlerts: true } },
+      _count: { select: { goodsReceiptLines: true, batches: true, serials: true, quantityConsumptions: true, requestSlipLines: true, matchedOnEstimateLines: true, pricingAlerts: true, stockOuts: true, counterSaleLines: true, stockCountLines: true } },
     },
   });
   if (!p) return null;
   const c = p._count;
   return partEligibility({
-    goodsReceiptLines: c.goodsReceiptLines, batches: c.batches, serials: c.serials, consumptions: c.quantityConsumptions, requestLines: c.requestSlipLines,
+    goodsReceiptLines: c.goodsReceiptLines, batches: c.batches, serials: c.serials, consumptions: c.quantityConsumptions + c.stockOuts + c.counterSaleLines + c.stockCountLines, requestLines: c.requestSlipLines,
     estimateMatches: c.matchedOnEstimateLines, pricingAlerts: c.pricingAlerts,
     stockOnHand: Number(p.stock?.quantityOnHand ?? 0), stockReserved: Number(p.stock?.quantityReserved ?? 0),
   });
@@ -351,7 +351,7 @@ export async function moveManyToBinInTx(tx: Tx, entity: 'Customer' | 'CustomerVe
   if (entity === 'Part') {
     // The same rules as deleting one part: never received, never issued, matched or priced; no stock.
     const parts = await tx.part.findMany({
-      where: { id: { in: ids }, goodsReceiptLines: { none: {} }, batches: { none: {} }, serials: { none: {} }, quantityConsumptions: { none: {} }, requestSlipLines: { none: {} }, matchedOnEstimateLines: { none: {} }, pricingAlerts: { none: {} }, OR: [{ stock: null }, { stock: { quantityOnHand: 0, quantityReserved: 0 } }] },
+      where: { id: { in: ids }, goodsReceiptLines: { none: {} }, batches: { none: {} }, serials: { none: {} }, quantityConsumptions: { none: {} }, stockOuts: { none: {} }, counterSaleLines: { none: {} }, stockCountLines: { none: {} }, requestSlipLines: { none: {} }, matchedOnEstimateLines: { none: {} }, pricingAlerts: { none: {} }, OR: [{ stock: null }, { stock: { quantityOnHand: 0, quantityReserved: 0 } }] },
       include: { branch: { select: { name: true, businessUnit: { select: { organisationId: true } } } } },
     });
     if (!parts.length) return [];

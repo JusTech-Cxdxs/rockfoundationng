@@ -328,6 +328,8 @@ export async function stockReversalBlockers(jobId: string): Promise<{ label: str
       goodsReceipt: { importJobId: jobId },
       OR: [
         { quantityConsumptions: { some: {} } },
+        // Sold over the counter or counted short since.
+        { stockOuts: { some: {} } },
         { batches: { some: { consumptions: { some: {} } } } },
         { serials: { some: { status: { not: 'IN_STOCK' } } } },
         { part: { stock: { quantityReserved: { not: 0 } } } },
@@ -351,7 +353,7 @@ export async function reverseStockBatch(tx: Tx, jobId: string): Promise<number> 
   if (!receipt) return 0;
   const partIds = [...new Set(receipt.lines.map((l) => l.partId))];
   await tx.$executeRaw`SELECT 1 FROM part_stock WHERE "partId" = ANY(${partIds}::text[]) FOR UPDATE`;
-  const blocked = await tx.goodsReceiptLine.count({ where: { goodsReceiptId: receipt.id, OR: [{ quantityConsumptions: { some: {} } }, { batches: { some: { consumptions: { some: {} } } } }, { serials: { some: { status: { not: 'IN_STOCK' } } } }, { part: { stock: { quantityReserved: { not: 0 } } } }] } });
+  const blocked = await tx.goodsReceiptLine.count({ where: { goodsReceiptId: receipt.id, OR: [{ quantityConsumptions: { some: {} } }, { stockOuts: { some: {} } }, { batches: { some: { consumptions: { some: {} } } } }, { serials: { some: { status: { not: 'IN_STOCK' } } } }, { part: { stock: { quantityReserved: { not: 0 } } } }] } });
   if (blocked) throw new Error('Stock from this opening balance has been issued or reserved since, so it cannot be reversed.');
   const perPart = new Map<string, number>();
   for (const l of receipt.lines) perPart.set(l.partId, (perPart.get(l.partId) ?? 0) + Number(l.quantityInBaseUnit));
