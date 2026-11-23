@@ -19,11 +19,12 @@ async function enabledOptional(organisationId: string): Promise<Set<string>> {
 }
 
 /**
- * Who may supervise a Job Card: the Owner always; Workshop Supervisors of the
- * job's department while that role is on, otherwise Front Desk (which covers
- * the supervisor's steps). As a Prisma user filter.
+ * Who may supervise a Job Card: the Owner always; the Workshop Supervisors of
+ * the job's branch (any of its departments, or none) while that role is on,
+ * otherwise Front Desk (which covers the supervisor's steps). As a Prisma
+ * user filter.
  */
-export async function supervisorWhere(organisationId: string, departmentId: string | null) {
+export async function supervisorWhere(organisationId: string, branchId: string | null) {
   const on = await enabledOptional(organisationId);
   const roleIs = (slugs: string[]) => ({ roles: { some: { role: { slug: { in: slugs } } } } });
   return {
@@ -32,7 +33,7 @@ export async function supervisorWhere(organisationId: string, departmentId: stri
     OR: [
       roleIs(['owner']),
       on.has('workshop-supervisor')
-        ? { ...roleIs(['workshop-supervisor']), ...(departmentId ? { departmentId } : {}) }
+        ? { ...roleIs(['workshop-supervisor']), ...(branchId ? { OR: [{ departmentId: null }, { department: { branchId } }] } : {}) }
         : roleIs(['front-desk']),
     ],
   };

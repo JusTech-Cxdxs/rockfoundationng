@@ -17,7 +17,7 @@ import { jobCardActive, jobCardInside } from '@/lib/custody';
 
 
 import { bankDetailsFor } from '@/lib/workshop-core';
-import { writeAuditLog, getWorkshopOrgContext, getWorkshopDepartmentForVehicleType, isEligibleSupervisor, getWorkshopBranchId, branchInMyOrganisationOrSystem } from '@/lib/workshop-core';
+import { writeAuditLog, getWorkshopOrgContext, getWorkshopDepartmentFor, isEligibleSupervisor, getWorkshopBranchId, branchInMyOrganisationOrSystem } from '@/lib/workshop-core';
 
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
@@ -233,20 +233,16 @@ export type EligibleSupervisorResult = {
   usingFallback: boolean;
 };
 
-/** Users eligible to supervise a Job Card for the given vehicle type: members
- * of that type's Workshop department holding the "Workshop Supervisor" role,
- * so a Passenger job can never be given a Commercial supervisor.
- * Falls back to Platform Administrators when the department has nobody yet,
- * flagged with `usingFallback: true`. */
-/** The eligibility query shared by the creation picker (by vehicle type) and
- * the reassignment picker (by Job Card), so the rule and its fallback live
- * in one place. */
+/** Who the pickers offer as a Job Card's supervisor: the Owner and the
+ * branch's Workshop Supervisors (or Front Desk while that role is off), as
+ * lib/duty-roles.ts decides. With nobody yet, the platform administrators,
+ * flagged with `usingFallback: true`. Shared by the opening picker and the
+ * reassignment picker so the rule lives in one place. */
 async function listEligibleSupervisorsForDepartmentId(departmentId: string): Promise<EligibleSupervisorResult> {
-  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { branch: { select: { businessUnit: { select: { organisationId: true } } } } } });
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { branchId: true, branch: { select: { businessUnit: { select: { organisationId: true } } } } } });
   const organisationId = dept?.branch.businessUnit.organisationId;
-  // The Owner, the department's Workshop Supervisors (or Front Desk while that role is off): lib/duty-roles.ts.
   const departmentSupervisors = organisationId ? await prisma.user.findMany({
-    where: await supervisorWhere(organisationId, departmentId),
+    where: await supervisorWhere(organisationId, dept?.branchId ?? null),
     orderBy: { fullName: 'asc' },
     select: { id: true, fullName: true, email: true },
   }) : [];
@@ -264,11 +260,10 @@ async function listEligibleSupervisorsForDepartmentId(departmentId: string): Pro
   return { supervisors: masterAdmins, usingFallback: true };
 }
 
-export async function listEligibleSupervisorsForVehicleType(
-  vehicleType: 'PASSENGER' | 'COMMERCIAL',
-): Promise<EligibleSupervisorResult> {
+/** Opening picker: the supervisors for a new Job Card of this kind of work. */
+export async function listEligibleSupervisors(kind?: string | null): Promise<EligibleSupervisorResult> {
   await requireUser();
-  const department = await getWorkshopDepartmentForVehicleType(vehicleType);
+  const department = await getWorkshopDepartmentFor(kind);
   return listEligibleSupervisorsForDepartmentId(department.id);
 }
 
@@ -892,8 +887,8 @@ export async function createJobCard(input: CreateJobCardInput) {
     throw new WorkshopActionError('Enter the mileage at check-in: the next service is worked out from it.');
   }
 
-  // The department is derived from the vehicle's recorded type, never from
-  // client input. The vehicle must belong to this organisation.
+  // The department follows the work (lib/workshop/routing.ts), never client
+  // input. The vehicle must belong to this organisation.
   const vehicle = await prisma.customerVehicle.findFirst({
     where: { id: input.vehicleId, customer: await orgWhere() },
     select: { vehicleType: true, make: true, model: true, plateNumber: true, customerId: true },
@@ -905,15 +900,10 @@ export async function createJobCard(input: CreateJobCardInput) {
   if (vehicle.customerId !== input.customerId) {
     throw new WorkshopActionError('That vehicle belongs to a different customer — choose the customer again.');
   }
-  if (!vehicle.vehicleType) {
-    throw new WorkshopActionError(
-      'This vehicle has no Passenger/Commercial type on file yet — set it on the Vehicles page before opening a Job Card for it.',
-    );
-  }
-  const department = await getWorkshopDepartmentForVehicleType(vehicle.vehicleType);
+  const department = await getWorkshopDepartmentFor(input.isService === true ? 'SERVICE' : 'REPAIR');
 
   if (!(await isEligibleSupervisor(input.supervisorId, department.id))) {
-    throw new WorkshopActionError('The selected supervisor is not eligible for this vehicle\'s Workshop department.');
+    throw new WorkshopActionError('The selected person cannot supervise Job Cards in this workshop.');
   }
 
   const branchId = await getWorkshopBranchId();

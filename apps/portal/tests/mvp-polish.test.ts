@@ -102,7 +102,7 @@ test('the menu: only live modules; the organisation structure for the Owner', ()
 });
 
 test('organisation structure: workflow departments are protected', () => {
-  for (const slug of ['workshop', 'workshop-passenger', 'workshop-commercial', 'store']) assert.ok(SYSTEM_DEPARTMENT_SLUGS.has(slug), `${slug} is a system department`);
+  for (const slug of ['workshop', 'mechanical', 'electrical', 'body-spray', 'car-wash', 'store']) assert.ok(SYSTEM_DEPARTMENT_SLUGS.has(slug), `${slug} is a system department`);
   const src = read('lib/actions/structure.ts');
   assert.match(src, /cannot be switched off/, 'system departments are never switched off');
   assert.match(src, /move them to another department first/, 'a department with people is never switched off');

@@ -26,8 +26,9 @@ export default async function VehicleInspectionPage({
   ]);
   if (!jobCard) notFound();
 
-  const vehicleType = jobCard.vehicle.vehicleType;
-  const template = vehicleType ? getApplicableTemplate(vehicleType) : [];
+  // A vehicle with no type on file is checked as a car (the passenger checklist).
+  const vehicleType = jobCard.vehicle.vehicleType ?? 'PASSENGER';
+  const template = getApplicableTemplate(vehicleType);
 
   return (
     <div className="p-4 sm:p-8">
@@ -59,13 +60,7 @@ export default async function VehicleInspectionPage({
         </div>
       ) : null}
 
-      {!vehicleType ? (
-        <div className="max-w-md rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-warning)]/30 bg-[var(--ejo-warning)]/5 p-6 text-sm text-[var(--ejo-text)]">
-          This vehicle has no Passenger/Commercial type on file yet — set it on the Vehicles page before
-          starting an inspection.
-        </div>
-      ) : (
-        <InspectionWorkspace
+      <InspectionWorkspace
           jobCardId={jobCardId}
           vehicleId={jobCard.vehicle.id}
           jobNumber={jobCard.jobNumber}
@@ -74,7 +69,6 @@ export default async function VehicleInspectionPage({
           template={template}
           inspection={inspection}
         />
-      )}
     </div>
   );
 }

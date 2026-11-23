@@ -1,5 +1,6 @@
 import { signedInSession } from '@/lib/session';
 import { supervisorWhere } from '@/lib/duty-roles';
+import { departmentSlugFor, WORKSHOP_SLUG } from '@/lib/workshop/routing';
 import { logFailure } from '@/lib/log';
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
@@ -134,38 +135,34 @@ export async function getWorkshopOrgContext(departmentNameOverride?: string): Pr
   };
 }
 
-/** The Workshop department (Passenger / Commercial) for a vehicle type.
- * Always derived from CustomerVehicle.vehicleType, never chosen. */
-export async function getWorkshopDepartmentForVehicleType(
-  vehicleType: 'PASSENGER' | 'COMMERCIAL',
-): Promise<{ id: string; name: string }> {
+/** The department a Job Card for this kind of work is filed under
+ * (lib/workshop/routing.ts), in the operating branch; the branch's Workshop
+ * when it has no such department. Never chosen by the client. */
+export async function getWorkshopDepartmentFor(kind?: string | null): Promise<{ id: string; name: string }> {
   const branchId = await getWorkshopBranchId();
-  const slug = vehicleType === 'PASSENGER' ? 'workshop-passenger' : 'workshop-commercial';
-  const department = await prisma.department.findUnique({
-    where: { branchId_slug: { branchId, slug } },
-    select: { id: true, name: true },
+  const found = await prisma.department.findMany({
+    where: { branchId, slug: { in: [departmentSlugFor(kind), WORKSHOP_SLUG] }, isActive: true },
+    select: { id: true, name: true, slug: true },
   });
+  const department = found.find((d) => d.slug !== WORKSHOP_SLUG) ?? found[0];
   if (!department) {
-    const label = vehicleType === 'PASSENGER' ? 'Passenger' : 'Commercial';
-    throw new WorkshopActionError(
-      `No ${label} Vehicle Workshop department exists yet — run the seed script, or create one under Departments.`,
-    );
+    throw new WorkshopActionError('This branch has no Workshop department yet — create one under Branches.');
   }
-  return department;
+  return { id: department.id, name: department.name };
 }
 
-/** Re-checks a chosen supervisor server-side: a supervisor in the
- * department, or a Master Administrator standing in while the department
- * has none (the same two cases the picker offers). */
+/** Re-checks a chosen supervisor server-side: someone who may supervise work
+ * in the department's branch (lib/duty-roles.ts), or a platform administrator
+ * standing in while there is nobody (the same two cases the picker offers). */
 export async function isEligibleSupervisor(userId: string, departmentId: string): Promise<boolean> {
-  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { branch: { select: { businessUnit: { select: { organisationId: true } } } } } });
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { branchId: true, branch: { select: { businessUnit: { select: { organisationId: true } } } } } });
   const organisationId = dept?.branch.businessUnit.organisationId;
   const match = await prisma.user.findFirst({
     where: {
       id: userId,
       OR: [
-        // The Owner, Workshop Supervisors of the department (or Front Desk while that role is off): lib/duty-roles.ts.
-        ...(organisationId ? [await supervisorWhere(organisationId, departmentId)] : []),
+        // The Owner, the branch's Workshop Supervisors (or Front Desk while that role is off): lib/duty-roles.ts.
+        ...(organisationId ? [await supervisorWhere(organisationId, dept?.branchId ?? null)] : []),
         { isActive: true, roles: { some: { role: { isSuperAdmin: true } } } },
       ],
     },

@@ -65,7 +65,6 @@ export const draftTools: StaffTool[] = [
         vehicle ? `Vehicle: ${label(vehicle)}` : vehicles.length ? `Vehicle: choose one of ${vehicles.length} on the form` : 'Vehicle: none registered yet — register it first under Workshop → Vehicles',
         complaints.length ? `Complaints: ${complaints.map((c, i) => `${i + 1}. ${c}`).join(' ')}` : 'Complaints: add them on the form',
         ...(mileage !== undefined ? [`Mileage at check-in: ${mileage.toLocaleString('en-NG')} km`] : []),
-        ...(vehicle && !vehicle.vehicleType ? ['This vehicle has no Passenger/Commercial type yet — set it on the vehicle page first.'] : []),
         'You choose the supervisor, check the details and press "Open Job Card". Nothing is saved until then.',
       ];
       return draftResult({

@@ -5,7 +5,7 @@ import { LoadingLink } from './LoadingLink';
 import { CustomerSearchField } from './CustomerSearchField';
 import {
   listVehiclesForCustomer,
-  listEligibleSupervisorsForVehicleType,
+  listEligibleSupervisors,
   type VehicleSearchResult,
   type EligibleSupervisor,
 } from '@/lib/actions/workshop';
@@ -14,8 +14,8 @@ type AsyncState = 'idle' | 'loading' | 'success' | 'error';
 
 /**
  * Customer → Vehicle → Supervisor picker for new Job Cards and Vehicle
- * Services. The vehicle's Passenger/Commercial type decides which
- * department's supervisors are listed.
+ * Services. Once a vehicle is chosen, the people who may supervise the
+ * job are listed (lib/duty-roles.ts).
  */
 export function CustomerVehiclePicker({
   initialCustomer,
@@ -66,18 +66,15 @@ export function CustomerVehiclePicker({
       });
   }, [customerId]);
 
-  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
-  const selectedVehicleType = selectedVehicle?.vehicleType ?? null;
-
   useEffect(() => {
-    if (!selectedVehicleType) {
+    if (!selectedVehicleId) {
       setSupervisors([]);
       setSupervisorsState('idle');
       return;
     }
     const requestId = ++supervisorsRequestId.current;
     setSupervisorsState('loading');
-    listEligibleSupervisorsForVehicleType(selectedVehicleType)
+    listEligibleSupervisors()
       .then((result) => {
         if (requestId !== supervisorsRequestId.current) return;
         setSupervisors(result.supervisors);
@@ -89,7 +86,7 @@ export function CustomerVehiclePicker({
         setSupervisors([]);
         setSupervisorsState('error');
       });
-  }, [selectedVehicleId, selectedVehicleType]);
+  }, [selectedVehicleId]);
 
   return (
     <>
@@ -141,18 +138,12 @@ export function CustomerVehiclePicker({
         </p>
       </div>
 
-      {selectedVehicle ? (
+      {selectedVehicleId ? (
         <div>
           <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
             Assign to supervisor <span className="text-[var(--ejo-error)]">*</span>
           </label>
-          {!selectedVehicle.vehicleType ? (
-            <p className="rounded-[var(--ejo-radius-md)] border border-[var(--ejo-warning)]/30 bg-[var(--ejo-warning)]/5 px-3 py-2 text-xs text-[var(--ejo-warning)]">
-              This vehicle has no Passenger/Commercial type on file — set it on the{' '}
-              <LoadingLink href="/workshop/vehicles" className="underline">Vehicles page</LoadingLink> before opening a Job Card
-              for it.
-            </p>
-          ) : supervisorsState === 'loading' ? (
+          {supervisorsState === 'loading' ? (
             <p className="flex items-center gap-2 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-xs text-[var(--ejo-text-muted)]">
               <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
               Loading eligible supervisors…
@@ -181,8 +172,8 @@ export function CustomerVehiclePicker({
           )}
           {supervisorsState === 'success' && usingFallbackSupervisors ? (
             <p className="mt-1 text-[11px] text-[var(--ejo-warning)]">
-              No supervisor is set up for this vehicle&apos;s workshop department yet, so Platform Administrators
-              are listed instead.
+              Nobody who can supervise Job Cards is set up yet, so the platform administrators are listed
+              instead. Add an Owner or Front Desk colleague under People.
             </p>
           ) : (
             <p className="mt-1 text-[11px] text-[var(--ejo-text-muted)]">
