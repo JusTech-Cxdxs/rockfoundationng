@@ -242,6 +242,37 @@ live in `packages/enyo/src/brand.ts` (`npm run brand:sync` copies it to both
 apps). The workshop's name, address and phones come from the organisation
 record inside the portal.
 
+## Money and the workshop warranty
+
+- **Who approves an estimate** is one pure rule, `lib/money/rules.ts`
+  `ownerMustApprove`: the supervisor's check is final unless the Owner's
+  setting, an amount, a discount above the limit, a line not charged to the
+  customer or a comeback says otherwise. When the Owner does the check, it is
+  the Owner's approval in the same step.
+- **Credit notes** (`lib/actions/credit-notes.ts`) are asked for against an
+  issued invoice and approved by the Owner (CN-YYYY-NNNNNN). A pending note
+  holds its amount; the Job Card row is locked while it is decided, so two
+  requests can never credit the same money. Approved notes count as settled
+  wherever a balance is worked out: checkout, close requests, recording a
+  payment, credit limits (`lib/credit.ts`), statements and the Job Card page.
+- **Statements and ageing** (`lib/money/statements-server.ts`): balance =
+  invoice total − (payments − refunds) − approved credit notes, aged from the
+  invoice date in Lagos days: 0–30, 31–60, 61–90, over 90.
+- **POS** is a payment method with the terminal's transaction reference.
+- **The quick car wash** (`lib/workshop/car-wash.ts`): a priced package opens
+  with its estimate already approved (`customerApprovedVia: COUNTER`) and the
+  work started; it moves in-progress → completed (invoice) → checked out once
+  paid, with no close request.
+- **The workshop guarantee** (`lib/money/warranty.ts`): terms per job type in
+  Settings, frozen on the invoice at issue (`Invoice.guarantee`) and fixed on
+  the Job Card at checkout (`warrantyUntil`, `warrantyUntilKm`, whichever
+  comes first). A comeback (`JobCard.comebackOfId`) is only allowed on the
+  vehicle's own checked-out job whose guarantee still runs; its lines bill to
+  WARRANTY and the Owner approves. Faulty parts are claimed back from
+  suppliers (`SupplierClaim`, SC-YYYY-NNNNNN). The warranty report shows the
+  comeback rate by job type and technician, warranty and goodwill cost, and
+  open claims.
+
 ## System design and scale
 
 - **Stateless app servers.** Both apps run as serverless functions on

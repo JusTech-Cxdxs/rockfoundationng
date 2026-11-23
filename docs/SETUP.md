@@ -80,6 +80,21 @@ and `https://<customer portal>/api/health` both answer `ok`.
    people for (Workshop Supervisor, Technician, Store Keeper, Accounts,
    Security). While one is off, Front Desk covers its steps
    ([ROLES_AND_ACCESS.md](ROLES_AND_ACCESS.md)).
+7. **Settings → Estimates, car wash and warranty** (`/settings/money`):
+   - **Estimate approval.** Front desk prepares an estimate and the
+     supervisor checks it. That check is the final approval unless you tick
+     "The Owner approves every estimate" or set an amount above which you
+     approve. You always approve an estimate with a discount above the limit,
+     lines not charged to the customer (warranty, goodwill, internal) and a
+     comeback on earlier work.
+   - **Car wash prices.** A package with a price is a quick check-in: priced,
+     started at once, then finished, paid and checked out without a close
+     request. A package without a price goes through the normal steps.
+   - **Workshop guarantee.** Days and/or kilometres per job type, whichever
+     comes first (defaults: service 30 days or 1,000 km; repair 90 days or
+     5,000 km; spraying 12 months; diagnostics and car wash none). It prints
+     on the invoice and is fixed on the Job Card when the vehicle is checked
+     out. A vehicle back within it can be opened as a comeback.
 
 ## 5. Email
 

@@ -21,12 +21,12 @@ Three things hold for everyone:
 
 | Role | Always on? | Scope | What they do |
 |---|---|---|---|
-| **Owner / GMD** | Yes | Whole business | Sees and does everything. Gives final approval to estimates (when the workshop sets it), discounts above the limit, closing and cancelling jobs, credit and stock adjustments. The only role that sees **cost prices, margins, stock value and profit** (`store.cost.view`). Manages staff, roles, settings, the Recycle bin, imports and the audit trail. |
-| **Front Desk / Customer Care** | Yes | The workshop | Receives vehicles and customers, registers customers and vehicles, opens Job Cards, prepares estimates, sends estimates and updates (email and WhatsApp), records payments, asks for a job to be closed or cancelled, works the Support centre (requests and complaints), sees parts at selling price, brings in Excel files and exports lists. |
+| **Owner / GMD** | Yes | Whole business | Sees and does everything. Gives final approval to estimates (when the workshop sets it), discounts above the limit, closing and cancelling jobs, credit notes, credit and stock adjustments; sees the warranty report. The only role that sees **cost prices, margins, stock value and profit** (`store.cost.view`). Manages staff, roles, settings, the Recycle bin, imports and the audit trail. |
+| **Front Desk / Customer Care** | Yes | The workshop | Receives vehicles and customers, registers customers and vehicles, opens Job Cards, prepares estimates, sends estimates and updates (email and WhatsApp), records payments, asks for credit notes, sees what customers owe (statements and ageing), asks for a job to be closed or cancelled, works the Support centre (requests and complaints), sees parts at selling price, brings in Excel files and exports lists. |
 | **Workshop Supervisor / Service Advisor** | Optional | The workshop | Accepts supervising a job, assigns technicians, inspects, writes and checks estimates before the Owner, works on jobs, raises parts requests and gives them first approval. |
 | **Technician** | Optional | Their own jobs | Sees only the jobs assigned to them; inspects, records the work, writes estimate lines and raises parts requests on those jobs. |
 | **Store Keeper** | Optional | The workshop | Parts and their selling prices, stock and reorder levels, goods received from suppliers, matching estimate parts to stock, approving and issuing parts requests. Sees selling prices, not cost prices or margins. |
-| **Accounts** | Optional | The workshop | Records payments and refunds, sees customers and Job Cards, exports lists including customers' contact details and payments. |
+| **Accounts** | Optional | The workshop | Records payments (cash, transfer, POS) and refunds, asks for credit notes, sees what customers owe (statements and ageing), records and follows warranty claims to suppliers, sees customers and Job Cards, exports lists including customers' contact details and payments. |
 | **Security** | Optional | The workshop | The gate: vehicles in the compound, vehicles leaving, gate passes. |
 
 The platform administrator (JusTech) is separate from these roles. It is
@@ -51,7 +51,7 @@ While a role is **off**:
 | Workshop Supervisor | Supervise jobs, assign technicians, inspect, approve estimates before the Owner, raise parts requests |
 | Technician | Carry out the work, inspect, raise parts requests |
 | Store Keeper | Manage parts and stock, record goods received, match estimate parts, issue parts to jobs |
-| Accounts | Record refunds, export files with contact details or payments |
+| Accounts | Record refunds, follow warranty claims to suppliers, export files with contact details or payments |
 | Security | Run the gate |
 
 A small workshop can run on the Owner and Front Desk alone; each optional
@@ -94,6 +94,9 @@ on the Permissions page) can never be granted to the organisation's roles.
 | Goods received | ✓ | | | | ✓ | | |
 | Pricing, margins, stock value | ✓ | | | | | | |
 | Gate | ✓ | | | | | | ✓ |
+| Money: what customers owe, credit notes | ✓ | ✓ | | | | ✓ | |
+| Warranty: report | ✓ | | | | | | |
+| Warranty: claims to suppliers | ✓ | | | | | ✓ | |
 | Business Analytics | ✓ | | | | | | |
 | Data Exchange (imports) | ✓ | ✓ | | | | | |
 | Exports | ✓ | ✓ | | | ✓ | ✓ | |

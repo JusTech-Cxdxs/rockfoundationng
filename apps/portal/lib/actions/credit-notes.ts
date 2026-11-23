@@ -20,7 +20,7 @@ import { checkCreditAmount, creditable, naira, vatInside } from '@/lib/money/rul
  * lowers what is owed everywhere a balance is worked out.
  */
 
-export class CreditNoteError extends Error {}
+class CreditNoteError extends Error {}
 
 const ID = /^[a-z0-9]{20,40}$/;
 const clean = (v: unknown, max: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);

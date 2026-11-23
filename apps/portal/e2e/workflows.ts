@@ -30,7 +30,7 @@ export const card = (page: Page, heading: string): Locator =>
   page.getByRole('heading', { name: heading, exact: true }).locator('xpath=ancestor::div[contains(@class,"p-6") or contains(@class,"p-5")][1]');
 
 const estimateRows = (page: Page) => card(page, 'Estimate').locator('table tbody tr');
-const paymentRows = (page: Page) => card(page, 'Payments').getByText(/— (Bank Transfer|Cash)$/);
+const paymentRows = (page: Page) => card(page, 'Payments').getByText(/— (Bank Transfer|Cash|POS \(card\)( · ref \S+)?)$/);
 
 /** Pick from a SearchableSelect (role=combobox + role=option buttons). */
 export async function pickSearchable(scope: Locator | Page, page: Page, text: string, option: RegExp | string, placeholder?: string) {
@@ -75,7 +75,9 @@ export async function openJobCard(page: Page, opts: { plate: string; customer?: 
     const supervisor = form.locator('select[name="supervisorId"]');
     await expect(supervisor.locator('option', { hasText: (opts.supervisor ?? who('workshop-supervisor')).name })).toHaveCount(1);
     await supervisor.selectOption({ label: (opts.supervisor ?? who('workshop-supervisor')).name });
-    await form.locator('input[name="mileageAtCheckIn"]').fill(String(opts.mileage ?? 50100));
+    // A car wash asks no mileage (the field is not shown).
+    const mileage = form.locator('input[name="mileageAtCheckIn"]');
+    if (await mileage.isVisible()) await mileage.fill(String(opts.mileage ?? 50100));
     // A car wash needs no complaint (the reason is written for it); the other visits do.
     if (jobType !== 'CAR_WASH') await form.locator('input[name="complaints"]').first().fill(opts.complaint ?? 'Brakes squeal when stopping');
     if (opts.fill) await opts.fill(form);
@@ -224,7 +226,7 @@ export async function notifyCustomer(page: Page) {
 }
 
 /** Finance records a payment using the amount picker (an option key or a typed amount). */
-export async function recordPayment(page: Page, amount: 'DEPOSIT' | 'FULL' | 'REMAINING' | number, method: 'BANK_TRANSFER' | 'CASH' = 'BANK_TRANSFER', notes?: string) {
+export async function recordPayment(page: Page, amount: 'DEPOSIT' | 'FULL' | 'REMAINING' | number, method: 'BANK_TRANSFER' | 'CASH' | 'POS' = 'BANK_TRANSFER', notes?: string, posReference?: string) {
   await test.step(`finance records a payment (${amount})`, async () => {
     const form = jcForm(page, 'Record payment');
     const picker = form.locator('select').first();
@@ -236,6 +238,7 @@ export async function recordPayment(page: Page, amount: 'DEPOSIT' | 'FULL' | 'RE
     }
     await form.locator('select[name="method"]').selectOption(method);
     if (notes) await form.locator('input[name="notes"]').fill(notes);
+    if (posReference) await form.locator('input[name="posReference"]').fill(posReference);
     const rowsBefore = await paymentRows(page).count();
     await form.getByRole('button', { name: 'Record payment' }).click();
     await expect(paymentRows(page)).toHaveCount(rowsBefore + 1);

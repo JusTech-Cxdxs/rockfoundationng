@@ -316,6 +316,8 @@ const NEXT_STEP_LABEL: Record<string, string> = {
   'AWAITING_PARTS>IN_PROGRESS': 'Parts arrived — resume work',
   'QUALITY_CHECK>COMPLETED': 'Passed quality check — mark Completed',
   'COMPLETED>READY_FOR_COLLECTION': 'Mark Ready for Collection',
+  // A quick car wash (lib/workshop/car-wash.ts).
+  'IN_PROGRESS>COMPLETED': 'Wash done — mark Completed',
 };
 
 /** Who takes the next step, for viewers who can't. */
@@ -434,7 +436,7 @@ export default async function JobCardDetailPage({
         : 'REFUND_DUE'
       : paymentsTotal <= 0
       ? 'AWAITING_PAYMENT'
-      : estimateTotal > 0 && paidInFull(paymentsTotal, estimateTotal)
+      : estimateTotal > 0 && paidInFull(paymentsTotal + creditedTotal, estimateTotal)
         ? 'PAID_IN_FULL'
         : estimateTotal > 0 && minimumDeposit > 0 && paidInFull(paymentsTotal, minimumDeposit)
           ? 'DEPOSIT_MET'
@@ -1342,7 +1344,8 @@ export default async function JobCardDetailPage({
             />
           ) : null}
 
-          {payments.length > 0 || jobCard.status === 'AWAITING_CUSTOMER_APPROVAL' || (credit?.onCredit && Boolean(invoice)) ? (
+          {/* Also once the customer has approved the estimate with nothing paid yet (no deposit asked, or a quick car wash). */}
+          {payments.length > 0 || jobCard.status === 'AWAITING_CUSTOMER_APPROVAL' || (credit?.onCredit && Boolean(invoice)) || (Boolean(estimate?.customerApprovedAt) && estimateTotal > 0 && !isCancelled) ? (
             <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-[var(--ejo-text)]">Payments</h2>
@@ -1408,7 +1411,7 @@ export default async function JobCardDetailPage({
                     <FormPendingOverlay />
                     <PaymentAmountField
                       options={
-                        paymentsTotal > 0
+                        paymentsTotal > 0 || creditedTotal > 0
                           ? [{ key: 'REMAINING', label: `Remaining balance (${formatNaira(outstanding)})`, value: outstanding.toFixed(2) }]
                           : [
                               ...(minimumDeposit > 0 ? [{ key: 'DEPOSIT', label: `${depositPct}% deposit (${formatNaira(minimumDeposit)})`, value: minimumDeposit.toFixed(2) }] : []),

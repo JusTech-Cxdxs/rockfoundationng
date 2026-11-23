@@ -16,7 +16,7 @@ import { jobTypeLabel } from '@/lib/workshop/job-types';
  * the warranty report (the Owner).
  */
 
-export class WarrantyError extends Error {}
+class WarrantyError extends Error {}
 const ID = /^[a-z0-9]{20,40}$/;
 
 export type ComebackOption = { id: string; jobNumber: string; jobType: string; checkedOutAt: Date | null; guarantee: string };
