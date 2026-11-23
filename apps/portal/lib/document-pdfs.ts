@@ -41,7 +41,7 @@ const ESTIMATE_PDF_SELECT = {
   estimate: {
     select: {
       status: true, discountAmount: true, vatRate: true,
-      lineItems: { orderBy: { createdAt: 'asc' as const }, select: { type: true, description: true, quantity: true, amount: true, unitOfMeasure: true, billTo: true, discountAmount: true, coveringWarranty: { select: { warrantyNumber: true } } } },
+      lineItems: { orderBy: { createdAt: 'asc' as const }, select: { type: true, description: true, quantity: true, amount: true, unitOfMeasure: true, billTo: true, discountAmount: true } },
     },
   },
 } as const;
