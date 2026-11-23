@@ -387,7 +387,7 @@ async function main() {
   if (run('idor')) failures += report('Access control — cross-organisation server actions (IDOR sweep)', await idorSweep(theirs, master));
   if (run('anon')) failures += report('Access control — signed-out calls to every server action', await anonSweep());
   if (run('priv')) failures += report('Access control — privilege escalation', await privilege(cookies.get('tech@e2e.test')!, theirs[1]!));
-  // The Store Manager's session; the Manager's where the edition has no Store (e2e/edition.ts).
+  // The Store Keeper's session.
   if (run('mw')) failures += report('Access control — middleware, flood limit, open redirect', await middlewareAndRedirect((cookies.get('store@e2e.test') ?? cookies.get('owner@e2e.test'))!, cookies.get('frontdesk@e2e.test')!));
   writeFileSync(process.env.SEC_ACCESS_OUT ?? 'sec-access.json', JSON.stringify(evidence, null, 1));
   await closeDb();

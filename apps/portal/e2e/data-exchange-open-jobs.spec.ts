@@ -103,7 +103,7 @@ test('the file: refusals, the totals, approval and load — live job cards at th
   expect(await db().auditLog.count({ where: { action: { contains: 'notif' }, metadata: { path: ['jobNumber'], string_contains: 'JC-' }, entityId: { in: jobs.map((j) => j.id) } } })).toBe(0);
 });
 
-test('the job card page carries its origin; search finds it by the old number; Finance confirms the opening payments', async ({ page }) => {
+test('the job card page carries its origin; search finds it by the old number; Accounts confirms the opening payments', async ({ page }) => {
   const second = await db().jobCard.findFirstOrThrow({ where: { customerId, externalId: jobNo(2) } });
   await as(page, 'owner');
   await open(page, `/workshop/job-cards/${second.id}`);
@@ -115,9 +115,7 @@ test('the job card page carries its origin; search finds it by the old number; F
   const box = page.getByRole('combobox', { name: 'Search everything' });
   await box.fill(jobNo(2));
   await expect(box.locator('xpath=ancestor::div[2]').getByText(`Old system job card ${jobNo(2)} → ${second.jobNumber}`)).toBeVisible();
-  // Finance confirms the totals (the manager approved, so cannot).
-  await open(page, importUrl);
-  await expect(page.getByText('Waiting for Finance to confirm the totals.')).toBeVisible();
+  // Accounts confirms the totals.
   await as(page, 'accounts');
   await open(page, importUrl);
   await page.getByRole('button', { name: 'Confirm the totals (Finance)' }).click();

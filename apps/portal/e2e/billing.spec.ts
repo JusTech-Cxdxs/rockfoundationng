@@ -19,7 +19,7 @@ test.describe('Invoices and receipts', () => {
     const jc = await jobCardInProgress(page, {
       plate: v.plate,
       complaint: 'Brake noise',
-      // 3 × ₦333.33: an awkward figure, rounded once to the kobo.
+      // 3 × ₦333.33: an awkward figure, rounded once to the kobo; VAT at 7.5% (the workshop charges VAT).
       lines: [{ type: 'LABOUR', description: 'Brake service labour', qty: 3, price: 333.33 }, { type: 'SUNDRY', description: 'Brake cleaner', price: 1500 }],
     });
     Object.assign(S, jc);
@@ -46,7 +46,8 @@ test.describe('Invoices and receipts', () => {
     S.invoiceId = invoices[0]!.id;
     S.invoiceNumber = invoices[0]!.invoiceNumber;
     expect(S.invoiceNumber).toMatch(/^INV-\d{4}-\d{6}$/);
-    expect(Number(invoices[0]!.total)).toBe(2499.99);
+    // ₦2,499.99 of work + 7.5% VAT (₦187.50) = ₦2,687.49.
+    expect(Number(invoices[0]!.total)).toBe(2687.49);
     await expect(page.getByTestId('invoice-number')).toHaveText(S.invoiceNumber);
     await expect(page.getByRole('link', { name: 'Print invoice' })).toBeVisible();
     expectNoUrlError(page);
@@ -62,7 +63,8 @@ test.describe('Invoices and receipts', () => {
     await expect(page.getByRole('img', { name: organisation.name }).first()).toBeVisible();
     await expect(page.getByText(S.invoiceNumber).first()).toBeVisible();
     await expect(page.getByText(S.number).first()).toBeVisible();
-    await expect(page.getByText('₦2,499.99').first()).toBeVisible();
+    await expect(page.getByText('₦2,687.49').first()).toBeVisible();
+    await expect(page.getByText(/VAT/).first()).toBeVisible();
     await expect(page.getByText(/Balance due/).first()).toBeVisible();
     await expect(page.getByText(`Thank you for choosing ${organisation.name}.`)).toBeVisible();
   });

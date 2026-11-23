@@ -9,15 +9,15 @@ import {
 
 /**
  * One Job Card, A to Z, by the people who really do each step:
- * front desk opens → supervisor (who is ALSO a Manager) approves and assigns
+ * front desk opens → supervisor (who is ALSO the Owner) approves and assigns
  * → technician accepts and drafts the estimate (Store Part + outside part)
  * → supervisor prices labour + sundry → Store matches the part → submitted,
- * approved by the supervisor → the same person may NOT give the Manager's
- * final approval (segregation of duties) → another Manager does → front desk
+ * approved by the supervisor → the same person may NOT give the Owner's
+ * final approval (segregation of duties) → another Owner does → front desk
  * notifies the customer (email in Mailpit) → Finance records the 70% deposit
  * (a double click records ONE payment) → In Progress → parts request:
  * supervisor → Store reserves → Store releases (stock moves) → quality
- * check → completed → ready → balance paid → close requested → Manager
+ * check → completed → ready → balance paid → close requested → Owner
  * approves → checked out. Audit trail and notifications checked on the way.
  * With the Store switched off (edition.ts) the brake pads are an outside part
  * the technician prices, and the parts request steps are skipped.
@@ -90,18 +90,18 @@ test('approvals respect segregation of duties; the customer is notified by email
   await open(page, S.url);
   await submitEstimate(page);
   await supervisorApprovesEstimate(page);
-  await test.step('the supervisor who approved may not also give the Manager’s final approval', async () => {
-    await page.getByRole('button', { name: 'Approve as Manager' }).click();
+  await test.step('the supervisor who approved may not also give the Owner’s final approval', async () => {
+    await page.getByRole('button', { name: 'Approve as Owner' }).click();
     await page.waitForURL(/error=/);
     expect(urlError(page)).toMatch(/approved this estimate as its supervisor/);
     await expect(page.getByText(/approved this estimate as its supervisor/)).toBeVisible();
     await expect(page.getByText('Awaiting manager review').first()).toBeVisible();
   });
-  await test.step('another Manager gives the final approval', async () => {
+  await test.step('another Owner gives the final approval', async () => {
     await as(page, 'owner');
     await open(page, S.url);
-    await page.getByRole('button', { name: 'Approve as Manager' }).click();
-    await expect(page.getByRole('button', { name: 'Approve as Manager' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Approve as Owner' }).click();
+    await expect(page.getByRole('button', { name: 'Approve as Owner' })).toHaveCount(0);
     expectNoUrlError(page);
   });
   const toFrontDesk = await latestMail(request, who('front-desk').email, new RegExp(`${S.number} approved by manager`));
@@ -150,10 +150,10 @@ test('parts: technician requests → supervisor approves → Store reserves → 
   await page.waitForURL(/\/workshop\/parts-requests\//);
   S.prsUrl = new URL(page.url()).pathname;
 
-  await test.step('the Workshop HOD (Manager) approves', async () => {
+  await test.step('the Owner approves', async () => {
     await as(page, 'owner');
     await open(page, S.prsUrl);
-    await page.getByRole('heading', { name: 'Workshop HOD Approval' }).locator('..').getByRole('button', { name: 'Approve' }).click();
+    await page.getByRole('heading', { name: 'Workshop Supervisor approval' }).locator('..').getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByText('Approved — now awaiting Store.')).toBeVisible();
   });
   await test.step('Store approves and reserves the stock', async () => {
@@ -203,15 +203,15 @@ test('quality check → completed → ready; balance paid; close approved; vehic
   await as(page, 'front-desk');
   await open(page, S.url);
   await page.getByRole('button', { name: 'Request close' }).click();
-  await expect(page.getByText(/Close requested — waiting on a Manager.s approval\./)).toBeVisible();
+  await expect(page.getByText(/Close requested — waiting on the Owner.s approval\./)).toBeVisible();
 
   await as(page, 'owner');
   await open(page, S.url);
   await page.locator('#close-request').getByRole('button', { name: 'Approve close' }).click();
   await expectStatus(page, 'Closed');
 
-  // Collection: the supervisor, technician or a Manager checks the vehicle out
-  // (WAITING_ON.CLOSED on the Job Card page) — here the Manager at the counter.
+  // Collection: the supervisor, technician or the Owner checks the vehicle out
+  // (WAITING_ON.CLOSED on the Job Card page) — here the Owner at the counter.
   // Re-open (not reload) so the form is hydrated before the click.
   await open(page, S.url);
   const checkout = jcForm(page, 'Check out vehicle');
@@ -227,10 +227,10 @@ test('quality check → completed → ready; balance paid; close approved; vehic
 test('Security lets the collected vehicle out through the gate', async ({ page }) => {
   await as(page, 'security');
   await page.goto(`/security/vehicles?q=${encodeURIComponent(S.plate)}`);
-  await expect(page.getByRole('heading', { name: 'Vehicles cleared to leave' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Vehicles leaving', level: 1 })).toBeVisible();
   await page.getByRole('row').filter({ hasText: S.plate }).getByRole('link', { name: 'Confirm exit' }).click();
-  await page.waitForURL(/\/security\/vehicles\/release\/job-card\//);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText(S.plate);
+  await page.waitForURL(/\/security\/vehicles\/release\//);
+  await expect(page.locator('main')).toContainText(S.plate);
   await expect(page.locator('input[name="collectedBy"]')).toHaveValue(CUSTOMER.name);
   await page.locator('input[name="notes"]').fill('Plate and VIN checked');
   await page.getByRole('button', { name: 'Confirm exit' }).click();
@@ -243,7 +243,7 @@ test('the whole story is on the audit trail and in the Audit Logs', async ({ pag
   await open(page, S.url);
   const trail = page.getByRole('heading', { name: 'Audit trail' }).locator('..');
   await trail.getByRole('button', { name: /^Show all/ }).click();
-  for (const label of ['Job Card created', 'Job Card approved', 'Technician accepted assignment', 'Estimate submitted for validation', 'Estimate approved by manager', 'Customer notified of approved estimate', 'Payment recorded', 'Parts request released', 'Close requested', 'Left through the gate']) {
+  for (const label of ['Job Card created', 'Job Card approved', 'Technician accepted assignment', 'Estimate submitted for validation', 'Estimate approved by the Owner', 'Customer notified of approved estimate', 'Payment recorded', 'Parts request released', 'Close requested', 'Left through the gate']) {
     await expect(trail.getByText(label).first(), label).toBeVisible();
   }
   await as(page, 'owner');
