@@ -148,8 +148,14 @@ export async function createJobCardFormAction(formData: FormData) {
       complaints: formData.getAll('complaints').map((v) => String(v)),
       supervisorId: str(formData, 'supervisorId'),
       mileageAtCheckIn: num(formData, 'mileageAtCheckIn'),
-      // "What is this visit for?" — a routine service starts the next-service count at checkout.
-      isService: str(formData, 'visitType') === 'SERVICE',
+      // "What is this visit for?": a service starts the next-service count at checkout (lib/workshop/job-types.ts).
+      jobType: str(formData, 'jobType'),
+      fuelLevel: formData.get('fuelLevel') === null || str(formData, 'fuelLevel') === '' ? null : Number(str(formData, 'fuelLevel')),
+      itemsInVehicle: str(formData, 'itemsInVehicle'),
+      sprayColour: str(formData, 'sprayColour'),
+      sprayColourCode: str(formData, 'sprayColourCode'),
+      sprayPanels: formData.getAll('sprayPanels').map((v) => String(v)),
+      washPackage: str(formData, 'washPackage'),
     });
     jobCardId = jobCard.id;
   } catch (err) {

@@ -1,4 +1,5 @@
 import { jobCardVisible, guardAnyPage, can, allows } from '@/lib/authz/server';
+import { fuelLevelLabel, sprayPanelLabels, washPackageLabel } from '@/lib/workshop/job-types';
 import { JobCardRatingCard } from '@/components/JobCardRatingCard';
 import { LoadingLink } from '@/components/LoadingLink';
 import { depositDueOn, vatIsFixed, discountNeedsManager, discountPercent, isCustomerLine, jobCardTotals, paidInFull } from '@/lib/estimate-billing';
@@ -43,7 +44,7 @@ import { RefineTextButton } from '@/components/enyo/RefineTextButton';
 import { moduleIsOn } from '@/lib/modules';
 import { getVehicleInspection } from '@/lib/actions/vehicle-inspection';
 import { serviceJobCardCycle } from '@/lib/vehicle-service-cycle';
-import { ServiceJobCardBadge } from '@/components/ServiceJobCardBadge';
+import { JobTypeBadge } from '@/components/JobTypeBadge';
 import { WhatsAppLink } from '@/components/WhatsAppLink';
 import { WhatsAppSendButton } from '@/components/WhatsAppSendButton';
 import { JOB_CARD_NOTICES, customerCanWhatsApp, customerWhatsAppUrl, jobCardNoticeMessage, readyForCollectionMessage, refundMessage, type JobCardNotice } from '@/lib/whatsapp-messages';
@@ -550,7 +551,7 @@ export default async function JobCardDetailPage({
       <div className="ejo-hero relative mt-3 mb-6 flex flex-wrap items-center gap-3 overflow-hidden rounded-[var(--ejo-radius-xl)] border border-[var(--ejo-border)] p-4 sm:p-5">
         <div className="ejo-orb pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full bg-[var(--ejo-primary)]/15 blur-3xl" aria-hidden="true" />
         <PageTitle icon="clipboard" className="relative mr-1">{jobCard.jobNumber}</PageTitle>
-        {jobCard.isService ? <ServiceJobCardBadge className="relative text-xs" /> : null}
+        <JobTypeBadge jobType={jobCard.jobType} className="relative text-xs" />
         <StatusChip status={jobCard.status} label={STATUS_LABEL[jobCard.status]} />
         <StatusChip tone={jobCard.approvalStatus === 'APPROVED' ? 'success' : jobCard.approvalStatus === 'REJECTED' ? 'error' : 'warning'} className="max-w-full whitespace-normal">
           {jobCard.approvalStatus === 'APPROVED'
@@ -689,6 +690,32 @@ export default async function JobCardDetailPage({
                   {jobCard.mileageAtCheckIn != null ? `${jobCard.mileageAtCheckIn.toLocaleString('en-NG')} km` : '—'}
                 </dd>
               </div>
+              {fuelLevelLabel(jobCard.fuelLevel) ? (
+                <div>
+                  <dt className="text-[var(--ejo-text-muted)]">Fuel at check-in</dt>
+                  <dd className="mt-0.5 font-medium text-[var(--ejo-text)]">{fuelLevelLabel(jobCard.fuelLevel)}</dd>
+                </div>
+              ) : null}
+              {jobCard.itemsInVehicle ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-[var(--ejo-text-muted)]">Items left in the vehicle</dt>
+                  <dd className="mt-0.5 font-medium text-[var(--ejo-text)]">{jobCard.itemsInVehicle}</dd>
+                </div>
+              ) : null}
+              {jobCard.jobType === 'SPRAYING' ? (
+                <div className="sm:col-span-2" data-testid="job-card-spraying">
+                  <dt className="text-[var(--ejo-text-muted)]">Spraying</dt>
+                  <dd className="mt-0.5 font-medium text-[var(--ejo-text)]">
+                    {jobCard.sprayColour ?? '—'}{jobCard.sprayColourCode ? ` (paint code ${jobCard.sprayColourCode})` : ''}: {sprayPanelLabels(jobCard.sprayPanels).join(', ') || '—'}
+                  </dd>
+                </div>
+              ) : null}
+              {jobCard.jobType === 'CAR_WASH' ? (
+                <div>
+                  <dt className="text-[var(--ejo-text-muted)]">Car wash</dt>
+                  <dd className="mt-0.5 font-medium text-[var(--ejo-text)]">{washPackageLabel(jobCard.washPackage) ?? '—'}</dd>
+                </div>
+              ) : null}
               <div>
                 <dt className="text-[var(--ejo-text-muted)]">Workshop department</dt>
                 <dd className="mt-0.5 font-medium text-[var(--ejo-text)]">

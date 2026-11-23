@@ -1,4 +1,5 @@
 import { portalBaseUrl } from '@/lib/portal-url';
+import { fuelLevelLabel, jobTypeLabel, sprayPanelLabels, washPackageLabel } from '@/lib/workshop/job-types';
 import { notFound } from 'next/navigation';
 import { billingOf, billingSplit, isCustomerLine, coveredLabel, jobCardTotals } from '@/lib/estimate-billing';
 import { vatLabel } from '@/lib/pdf/document-props';
@@ -120,7 +121,12 @@ export default async function PrintJobCardPage({
         <Field label="VIN / CHASSIS" value={jobCard.vehicle.chassisNumber ?? '—'} />
         <Field label="CHECKED IN" value={formatDateTime(new Date(jobCard.createdAt))} />
         <Field label="CHECKED OUT" value={jobCard.checkedOutAt ? formatDateTime(new Date(jobCard.checkedOutAt)) : '—'} />
-        {jobCard.isService ? <Field label="VISIT" value="Service" /> : null}
+        <Field label="VISIT" value={jobTypeLabel(jobCard.jobType)} />
+        {jobCard.mileageAtCheckIn != null ? <Field label="MILEAGE AT CHECK-IN" value={`${jobCard.mileageAtCheckIn.toLocaleString('en-NG')} km`} /> : null}
+        {fuelLevelLabel(jobCard.fuelLevel) ? <Field label="FUEL AT CHECK-IN" value={fuelLevelLabel(jobCard.fuelLevel)!} /> : null}
+        {jobCard.itemsInVehicle ? <Field label="ITEMS LEFT IN THE VEHICLE" value={jobCard.itemsInVehicle} /> : null}
+        {jobCard.jobType === 'SPRAYING' ? <Field label="SPRAYING" value={`${jobCard.sprayColour ?? '—'}${jobCard.sprayColourCode ? ` (paint code ${jobCard.sprayColourCode})` : ''}: ${sprayPanelLabels(jobCard.sprayPanels).join(', ')}`} /> : null}
+        {jobCard.jobType === 'CAR_WASH' && washPackageLabel(jobCard.washPackage) ? <Field label="CAR WASH" value={washPackageLabel(jobCard.washPackage)!} /> : null}
         {nextServiceDue ? <Field label="NEXT SERVICE DUE" value={`${nextServiceDue} — whichever comes first`} /> : null}
         {paymentRefs.length > 0 ? <Field label={pluralize(paymentRefs.length, 'PAYMENT REF', 'PAYMENT REFS')} value={paymentRefs.join(', ')} /> : null}
         {jobCard.refunds.length > 0 ? (

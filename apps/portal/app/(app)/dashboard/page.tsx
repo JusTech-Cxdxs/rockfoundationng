@@ -52,6 +52,7 @@ const QUICK: { key: PermissionKey; label: string; href: string; icon: IconName }
 
 /** The "at a glance" tiles: an icon per destination; colour only when it means something. */
 const GLANCE_ICON: Record<string, IconName> = {
+  '/crm/callbacks': 'phone', '/crm/complaints': 'alert',
   '/workshop/custody': 'clipboard', '/workshop/parts-requests': 'package', '/inventory/goods-receipts': 'receipt', '/notifications?tab=broadcasts': 'megaphone',
 };
 const GLANCE_TONE: Record<string, Tone> = { warning: 'warning', error: 'error', muted: 'neutral' };

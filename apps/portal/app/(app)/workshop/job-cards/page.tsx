@@ -12,15 +12,15 @@ import { SubmitButton } from '@/components/SubmitButton';
 import { FormPendingOverlay } from '@/components/FormPendingOverlay';
 import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
 import { CustomerVehiclePicker } from '@/components/CustomerVehiclePicker';
+import { JobTypeFields } from '@/components/JobTypeFields';
 import { CategoryFilterTabs } from '@/components/CategoryFilterTabs';
-import { ComplaintListInput } from '@/components/ComplaintListInput';
 import { BinnedNotice } from '@/components/RecycleBinPanel';
 import { LiveSearchInput } from '@/components/LiveSearchInput';
 import { BackLink, PageHeader, StatusChip } from '@/components/ui';
 import { CustomerLink } from '@/components/CustomerLink';
 import { parseJobCardPrefill } from '@/lib/enyo/prefill';
 import { checkJobCardPrefill, checkServiceVehiclePrefill } from '@/lib/enyo/prefill-server';
-import { ServiceJobCardBadge } from '@/components/ServiceJobCardBadge';
+import { JobTypeBadge } from '@/components/JobTypeBadge';
 import { ExportAction } from '@/components/ExportAction';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -38,9 +38,6 @@ const STATUS_LABEL: Record<string, string> = {
 
 
 /** "What is this visit for?": each choice a pill at least 44px tall, the radio itself covering it (see the form). */
-const VISIT_PILL = 'relative flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border border-[var(--ejo-border)] px-4 font-medium has-[:checked]:border-[var(--ejo-primary)] has-[:checked]:bg-[var(--ejo-primary)]/10 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[var(--ejo-primary)]';
-const VISIT_RADIO = 'peer absolute inset-0 z-10 m-0 h-full w-full cursor-pointer appearance-none rounded-full opacity-0';
-const VISIT_DOT = 'h-4 w-4 shrink-0 rounded-full border-2 border-[var(--ejo-border)] peer-checked:border-[var(--ejo-primary)] peer-checked:bg-[var(--ejo-primary)] peer-checked:shadow-[inset_0_0_0_2px_var(--ejo-surface)]';
 
 export default async function WorkshopJobCardsPage({
   searchParams,
@@ -131,7 +128,7 @@ export default async function WorkshopJobCardsPage({
                       <LoadingLink href={`/workshop/job-cards/${jc.id}`} className="text-[var(--ejo-primary)] hover:underline">
                         {jc.jobNumber}
                       </LoadingLink>
-                      {jc.isService ? <ServiceJobCardBadge className="mt-1 block" /> : null}
+                      <JobTypeBadge jobType={jc.jobType} className="mt-1 block" />
                     </td>
                     <td data-label="Customer" className="px-4 py-3 text-[var(--ejo-text-muted)]"><CustomerLink id={jc.customerId} name={jc.customer.fullName} canView={canSeeCustomers} /></td>
                     <td data-label="Vehicle" className="px-4 py-3 text-[var(--ejo-text-muted)]">
@@ -168,35 +165,8 @@ export default async function WorkshopJobCardsPage({
           ) : null}
           <form action={createJobCardFormAction} className="mt-4 space-y-3">
             <FormPendingOverlay />
-            <fieldset>
-              <legend className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">What is this visit for?</legend>
-              {/* Two thumb-sized pills. The real radio covers its whole pill (see-through), so the
-                  whole pill is the control for touch, keyboard and screen readers; the dot only shows the choice. */}
-              <div className="grid grid-cols-2 gap-2 text-sm text-[var(--ejo-text)]">
-                <label className={VISIT_PILL}>
-                  <input type="radio" name="visitType" value="REPAIR" defaultChecked={!forService} data-testid="visit-type-repair" className={VISIT_RADIO} />
-                  <span aria-hidden="true" className={VISIT_DOT} />
-                  Repair
-                </label>
-                <label className={VISIT_PILL}>
-                  <input type="radio" name="visitType" value="SERVICE" defaultChecked={forService} data-testid="visit-type-service" className={VISIT_RADIO} />
-                  <span aria-hidden="true" className={VISIT_DOT} />
-                  Service
-                </label>
-              </div>
-              <p className="mt-1 text-xs text-[var(--ejo-text-muted)]">A routine service starts the vehicle&rsquo;s next-service count when it is checked out. Enter the mileage so the next service can be worked out by distance too.</p>
-            </fieldset>
             <CustomerVehiclePicker initialCustomer={prefill?.customer} initialVehicleId={prefill?.vehicleId} />
-            <div>
-              <label htmlFor="job-card-mileage" className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">Mileage at check-in (km) <span className="font-normal">— needed for a service</span></label>
-              <input id="job-card-mileage" name="mileageAtCheckIn" type="number" defaultValue={prefill?.mileage ?? undefined} className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-[var(--ejo-text-muted)]">
-                Complaints / reasons for visit <span className="text-[var(--ejo-error)]">*</span>
-              </label>
-              <ComplaintListInput initial={prefill?.complaints} />
-            </div>
+            <JobTypeFields initialType={forService ? 'SERVICE' : 'REPAIR'} initialComplaints={prefill?.complaints} initialMileage={prefill?.mileage ?? null} />
             <SubmitButton
               label="Open Job Card"
               pendingLabel="Opening…"

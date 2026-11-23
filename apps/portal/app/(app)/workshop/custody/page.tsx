@@ -18,7 +18,7 @@ import { LiveSearchInput } from '@/components/LiveSearchInput';
 import { EmptyState, PageHeader } from '@/components/ui';
 import { CustomerLink } from '@/components/CustomerLink';
 import { RefineTextButton } from '@/components/enyo/RefineTextButton';
-import { ServiceJobCardBadge } from '@/components/ServiceJobCardBadge';
+import { JobTypeBadge } from '@/components/JobTypeBadge';
 
 const STATUS_LABEL: Record<string, string> = {
   CHECKED_IN: 'Checked In',
@@ -334,7 +334,7 @@ export default async function WorkshopCustodyPage({
                     <LoadingLink href={`/workshop/job-cards/${entry.id}`} className="font-medium text-[var(--ejo-primary)] hover:underline">
                       {entry.jobNumber}
                     </LoadingLink>
-                    {entry.isService ? <ServiceJobCardBadge className="ml-2" /> : null}
+                    <JobTypeBadge jobType={entry.jobType} className="ml-2" />
                     <p className="text-sm text-[var(--ejo-text)]">
                       <CustomerLink id={entry.customerId} name={entry.customerName} canView={canSeeCustomers} /> —{' '}
                       <LoadingLink href={`/workshop/vehicles/${entry.vehicleId}/edit`} className="hover:underline">
@@ -435,7 +435,7 @@ export default async function WorkshopCustodyPage({
                     <LoadingLink href={`/workshop/job-cards/${entry.id}`} className="font-medium text-[var(--ejo-primary)] hover:underline">
                       {entry.jobNumber}
                     </LoadingLink>
-                    {entry.isService ? <ServiceJobCardBadge className="ml-2" /> : null}
+                    <JobTypeBadge jobType={entry.jobType} className="ml-2" />
                     <p className="text-sm text-[var(--ejo-text)]">
                       <CustomerLink id={entry.customerId} name={entry.customerName} canView={canSeeCustomers} /> —{' '}
                       <LoadingLink href={`/workshop/vehicles/${entry.vehicleId}/edit`} className="hover:underline">
@@ -515,7 +515,7 @@ export default async function WorkshopCustodyPage({
                     <LoadingLink href={`/workshop/job-cards/${entry.id}`} className="font-medium text-[var(--ejo-primary)] hover:underline">
                       {entry.jobNumber}
                     </LoadingLink>
-                    {entry.isService ? <ServiceJobCardBadge className="ml-2" /> : null}
+                    <JobTypeBadge jobType={entry.jobType} className="ml-2" />
                     <p className="text-sm text-[var(--ejo-text)]">
                       <CustomerLink id={entry.customerId} name={entry.customerName} canView={canSeeCustomers} /> —{' '}
                       <LoadingLink href={`/workshop/vehicles/${entry.vehicleId}/edit`} className="hover:underline">
@@ -586,7 +586,7 @@ export default async function WorkshopCustodyPage({
                       <LoadingLink href={`/workshop/job-cards/${entry.id}`} className="text-[var(--ejo-primary)] hover:underline">
                         {entry.jobNumber}
                       </LoadingLink>
-                      {entry.isService ? <ServiceJobCardBadge className="ml-2" /> : null}
+                      <JobTypeBadge jobType={entry.jobType} className="ml-2" />
                     </td>
                     <td data-label="Customer" className="px-4 py-2 text-[var(--ejo-text)]"><CustomerLink id={entry.customerId} name={entry.customerName} canView={canSeeCustomers} /></td>
                     <td data-label="Vehicle" className="px-4 py-2">

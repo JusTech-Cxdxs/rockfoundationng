@@ -1,4 +1,5 @@
 'use server';
+import { checkIn } from '@/lib/workshop/job-types';
 import { dutyRoleSlugs } from '@/lib/duty-roles';
 import { NO_CUSTOMER_EMAIL } from '@/lib/customer-email';
 import { parseSourceFilter, sourceWhere, type SOURCE_PARAMS } from '@/lib/source-filter';
@@ -866,19 +867,27 @@ export type CreateJobCardInput = {
   complaints: string[];
   supervisorId: string;
   mileageAtCheckIn?: number;
-  /** A routine service rather than a repair: once checked out, this Job Card
-   * starts the vehicle's next-service count (Service Tracker, reminders, the
-   * customer's "next service"). */
-  isService?: boolean;
+  /** What kind of visit (lib/workshop/job-types.ts). SERVICE and
+   * SERVICE_AND_REPAIR start the vehicle's next-service count once checked
+   * out (Service Tracker, reminders, the customer's "next service"). */
+  jobType: string;
+  /** Check-in: fuel in eighths (0–8) and what was left in the vehicle. */
+  fuelLevel?: number | null;
+  itemsInVehicle?: string | null;
+  /** Spraying only: the colour, its paint code and the panels. */
+  sprayColour?: string | null;
+  sprayColourCode?: string | null;
+  sprayPanels?: string[];
+  /** Car wash only: the package. */
+  washPackage?: string | null;
 };
 
 
 export async function createJobCard(input: CreateJobCardInput) {
   await authorize('workshop.job_card.create', undefined, 'createJobCard');
   const user = await requireUser();
-  const complaints = input.complaints.map((c) => c.trim()).filter((c) => c.length > 0);
-  if (!input.customerId || !input.vehicleId || complaints.length === 0) {
-    throw new WorkshopActionError('Customer, vehicle, and at least one complaint are required to open a Job Card.');
+  if (!input.customerId || !input.vehicleId) {
+    throw new WorkshopActionError('Choose the customer and the vehicle to open a Job Card.');
   }
   if (!input.supervisorId) {
     throw new WorkshopActionError('A supervisor must be assigned to open a Job Card.');
@@ -886,13 +895,11 @@ export async function createJobCard(input: CreateJobCardInput) {
   if (input.mileageAtCheckIn !== undefined && input.mileageAtCheckIn !== null && (!Number.isInteger(input.mileageAtCheckIn) || input.mileageAtCheckIn < 0 || input.mileageAtCheckIn > 5_000_000)) {
     throw new WorkshopActionError('Enter the mileage as a whole number of kilometres.');
   }
-  if (complaints.some((c) => c.length > 500)) {
-    throw new WorkshopActionError('Keep each complaint under 500 characters.');
-  }
-  // A service visit starts the next-service clock from this reading.
-  if (input.isService === true && (input.mileageAtCheckIn === undefined || input.mileageAtCheckIn === null)) {
-    throw new WorkshopActionError('Enter the mileage at check-in: the next service is worked out from it.');
-  }
+  // What front desk entered for this kind of visit: checked, and the reason
+  // written for a car wash or a service when left blank (lib/workshop/job-types.ts).
+  const visit = checkIn({ ...input, complaints: input.complaints });
+  if (typeof visit === 'string') throw new WorkshopActionError(visit);
+  const complaints = visit.complaints;
 
   // The department is derived from the vehicle's recorded type, never from
   // client input. The vehicle must belong to this organisation.
@@ -919,7 +926,7 @@ export async function createJobCard(input: CreateJobCardInput) {
   }
 
   const branchId = await getWorkshopBranchId();
-  const isService = input.isService === true;
+  const isService = visit.isService;
 
   // Retries only on a jobNumber collision (two creates reading the same
   // latest number). Any other error is re-thrown immediately.
@@ -942,6 +949,13 @@ export async function createJobCard(input: CreateJobCardInput) {
         supervisorId: input.supervisorId,
         mileageAtCheckIn: input.mileageAtCheckIn ?? null,
         isService,
+        jobType: visit.jobType,
+        fuelLevel: visit.fuelLevel,
+        itemsInVehicle: visit.itemsInVehicle,
+        sprayColour: visit.sprayColour,
+        sprayColourCode: visit.sprayColourCode,
+        sprayPanels: visit.sprayPanels,
+        washPackage: visit.washPackage,
         createdById: user.id,
         status: JobCardStatus.CHECKED_IN,
         complaints: {

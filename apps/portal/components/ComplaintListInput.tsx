@@ -10,7 +10,7 @@ type ComplaintRow = { key: string; value: string };
  * <input name="complaints">, read with formData.getAll('complaints').
  * Rows use stable keys, not the index, because rows can be removed.
  */
-export function ComplaintListInput({ initial }: { initial?: string[] } = {}) {
+export function ComplaintListInput({ initial, required = true, placeholder }: { initial?: string[]; required?: boolean; placeholder?: string } = {}) {
   const [rows, setRows] = useState<ComplaintRow[]>(() => (initial?.length ? initial.map((value, i) => ({ key: `c${i}`, value })) : [{ key: 'c0', value: '' }]));
   const nextId = useRef(initial?.length || 1);
 
@@ -34,10 +34,10 @@ export function ComplaintListInput({ initial }: { initial?: string[] } = {}) {
           <input
             id={`complaint-${row.key}`}
             name="complaints"
-            required={i === 0}
+            required={required && i === 0}
             value={row.value}
             onChange={(e) => updateRow(row.key, e.target.value)}
-            placeholder={i === 0 ? 'e.g. Fan not working' : 'e.g. AC not working'}
+            placeholder={i === 0 ? placeholder ?? 'e.g. Fan not working' : 'e.g. AC not working'}
             className="w-0 min-w-0 flex-1 rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]"
           />
           <RefineTextButton targetId={`complaint-${row.key}`} label={`complaint ${i + 1}`} compact />

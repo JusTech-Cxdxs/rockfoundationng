@@ -312,9 +312,17 @@ export async function getPlatformGlance(): Promise<GlanceTile[]> {
   ]);
   const p = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
   // Each tile only for the people whose work it is (same rule as its page).
-  const [cw, cs, ccost] = await Promise.all([allows('workshop.view'), allows('store.view'), Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k))).then((xs) => xs.some(Boolean))]);
-  const NEED: Record<string, boolean> = { '/workshop/custody': cw, '/workshop/parts-requests': cs && storeOn, '/inventory/goods-receipts': ccost && storeOn, '/notifications?tab=broadcasts': true };
+  const [cw, cs, ccost, cgrn, ccare, ccomplaints] = await Promise.all([allows('workshop.view'), allows('store.view'), Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k))).then((xs) => xs.some(Boolean)), allows('store.grn.record'), allows('crm.manage'), allows('support.tickets.manage')]);
+  // Customer care: calls due today or overdue, and complaints still open (what the Callbacks and Complaints pages list).
+  const careFence = ccare ? await reachWhere('crm.manage', { lens: false }) : null;
+  const [callsDue, complaintsOpen] = await Promise.all([
+    careFence && me?.organisationId ? n(prisma.followUp.count({ where: { organisationId: me.organisationId, status: 'OPEN', dueAt: { lt: dayEnd }, ...(careFence.branchId ? { OR: [{ branchId: careFence.branchId }, { branchId: null }] } : {}) } })) : off,
+    ccomplaints && me?.organisationId ? n(prisma.supportTicket.count({ where: { organisationId: me.organisationId, kind: 'COMPLAINT', status: { in: ['OPEN', 'WAITING_ON_CUSTOMER', 'ON_HOLD'] } } })) : off,
+  ]);
+  const NEED: Record<string, boolean> = { '/workshop/custody': cw, '/workshop/parts-requests': cs && storeOn, '/inventory/goods-receipts': (ccost || cgrn) && storeOn, '/notifications?tab=broadcasts': true, '/crm/callbacks': ccare, '/crm/complaints': ccomplaints };
   const tiles: GlanceTile[] = [
+    { label: 'Calls due today', value: callsDue, hint: 'Callbacks, overdue included', href: '/crm/callbacks', tone: callsDue ? 'warning' : 'muted' },
+    { label: 'Open complaints', value: complaintsOpen, hint: 'Being put right', href: '/crm/complaints', tone: complaintsOpen ? 'error' : 'muted' },
     { label: 'Job Cards in progress', value: jcActive, hint: 'Open, not yet checked out', href: '/workshop/custody', tone: 'primary' },
     { label: 'Parts requests open', value: prsOpen, hint: 'Awaiting approval or release', href: '/workshop/parts-requests', tone: prsOpen ? 'warning' : 'muted' },
     { label: 'Goods received today', value: grnsToday, hint: p(grnsToday, 'goods receipt', 'goods receipts'), href: '/inventory/goods-receipts', tone: 'success' },

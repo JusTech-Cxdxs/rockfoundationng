@@ -696,6 +696,15 @@ enum InspectionSeverity {
 // WORKSHOP
 // ----------------------------------------------------------------------------
 
+enum JobType {
+  SERVICE
+  REPAIR
+  SERVICE_AND_REPAIR
+  DIAGNOSTICS
+  SPRAYING
+  CAR_WASH
+}
+
 enum JobCardStatus {
   CHECKED_IN
   IN_PROGRESS
@@ -744,6 +753,19 @@ model JobCard {
   complaint   String?       // legacy single-field complaint, kept for Job Cards created before per-item complaints existed — new Job Cards use `complaints` below instead
   diagnosis   String?       // technician/service-advisor findings, filled in after inspection
   mileageAtCheckIn Int?
+  // What kind of visit (one Job Card for every kind). SERVICE and
+  // SERVICE_AND_REPAIR start the vehicle's next-service count (isService).
+  jobType     JobType       @default(REPAIR)
+  // Check-in: fuel in eighths of a tank (0 empty … 8 full) and what was left
+  // in the vehicle, so both are agreed with the customer at the desk.
+  fuelLevel   Int?
+  itemsInVehicle String?
+  // Spraying: the colour (name and paint code) and the panels to be sprayed.
+  sprayColour     String?
+  sprayColourCode String?
+  sprayPanels     String[]  @default([])
+  // Car wash: the package chosen at the quick check-in.
+  washPackage     String?
 
   assignedTechnicianId String? // User.id — nullable until a technician is assigned
   // Separate from status/approvalStatus: being assigned is not the same as
@@ -809,6 +831,7 @@ model JobCard {
   supervisor         User?               @relation("JobCardSupervisor", fields: [supervisorId], references: [id])
   approvedBy         User?               @relation("JobCardApprovedBy", fields: [approvedById], references: [id])
   createdBy          User                @relation("JobCardCreatedBy", fields: [createdById], references: [id])
+  photos             JobCardPhoto[]
   rating             JobRating?
   followUps          FollowUp[]
   inspection         VehicleInspection?
@@ -3211,4 +3234,28 @@ model JobRating {
 
   @@index([organisationId, respondedAt])
   @@map("job_ratings")
+}
+
+/// A photo on a Job Card: the vehicle's condition at check-in, the work, the
+/// quality check or the collection. Resized in the browser before upload
+/// (about 1280 px, JPEG), kept in the database so a backup holds everything,
+/// and served only to staff who may open the Job Card.
+model JobCardPhoto {
+  id          String   @id @default(cuid())
+  jobCardId   String
+  // CHECK_IN | WORK | QUALITY | COLLECTION
+  stage       String   @default("CHECK_IN")
+  contentType String
+  bytes       Bytes
+  sizeBytes   Int
+  width       Int?
+  height      Int?
+  caption     String?
+  takenById   String?
+  createdAt   DateTime @default(now())
+
+  jobCard JobCard @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+
+  @@index([jobCardId, createdAt])
+  @@map("job_card_photos")
 }
