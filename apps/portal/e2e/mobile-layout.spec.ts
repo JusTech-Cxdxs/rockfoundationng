@@ -2,7 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import { CUSTOMER, SUPERMANAGER } from './people';
 import { as, open, expectHealthy, noSidewaysScroll } from './helpers';
 import { db, freshVehicle } from './db';
-import { addLine, assignTechnician, card, jcForm, managerApprovesEstimate, notifyCustomer, openJobCard, recordPayment, submitEstimate, supervisorApproves, supervisorApprovesEstimate, technicianAccepts } from './workflows';
+import { addLine, assignTechnician, card, jcForm, notifyCustomer, openJobCard, recordPayment, submitEstimate, supervisorApproves, technicianAccepts } from './workflows';
 
 /**
  * Phone layout regressions the owner reported, on a small Android phone
@@ -135,13 +135,12 @@ test('opening a Job Card on a phone: the form fits and nothing overlaps', async 
 
 test('approving the estimate and recording a payment on a phone', async ({ page }) => {
   test.skip(!S.url, 'needs the Job Card from the estimate test');
+  // The job's supervisor also holds the Owner role: checking the estimate is its final approval too.
   await as(page, SUPERMANAGER);
   await open(page, S.url);
   await submitEstimate(page);
-  await supervisorApprovesEstimate(page);
-  await as(page, 'owner');
-  await open(page, S.url);
-  await managerApprovesEstimate(page);
+  await page.getByRole('button', { name: 'Approve estimate' }).click();
+  await expect(card(page, 'Estimate').getByText('Approved', { exact: true })).toBeVisible();
   await as(page, 'front-desk');
   await open(page, S.url);
   await notifyCustomer(page);
