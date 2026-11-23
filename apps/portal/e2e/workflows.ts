@@ -57,12 +57,15 @@ export const suggestion = (page: Page, option: RegExp | string): Locator =>
   page.locator('button[role="option"]').filter({ hasText: option }).first();
 
 /** Front desk opens a Job Card for a vehicle; returns its path. */
-export async function openJobCard(page: Page, opts: { plate: string; customer?: string; supervisor?: Person; complaint?: string; mileage?: number; service?: boolean }): Promise<string> {
-  return test.step(`front desk opens a ${opts.service ? 'service ' : ''}Job Card for ${opts.plate}`, async () => {
+export type E2eJobType = 'SERVICE' | 'REPAIR' | 'SERVICE_AND_REPAIR' | 'DIAGNOSTICS' | 'SPRAYING' | 'CAR_WASH';
+
+export async function openJobCard(page: Page, opts: { plate: string; customer?: string; supervisor?: Person; complaint?: string; mileage?: number; service?: boolean; jobType?: E2eJobType; fill?: (form: Locator) => Promise<void> }): Promise<string> {
+  const jobType: E2eJobType = opts.jobType ?? (opts.service ? 'SERVICE' : 'REPAIR');
+  return test.step(`front desk opens a ${jobType.toLowerCase().replace(/_/g, ' ')} Job Card for ${opts.plate}`, async () => {
     await page.goto('/workshop/job-cards');
     const form = jcForm(page, 'Open Job Card');
     // "What is this visit for?" — Repair is chosen by default.
-    if (opts.service) await form.getByRole('radio', { name: 'Service' }).check();
+    if (jobType !== 'REPAIR') await form.getByTestId(`job-type-${jobType.toLowerCase()}`).check();
     await form.getByPlaceholder('Search by name, email, or phone…').fill(opts.customer ?? CUSTOMER.name);
     await page.getByRole('option', { name: new RegExp(opts.customer ?? CUSTOMER.name) }).first().click();
     const vehicle = form.locator('select[name="vehicleId"]');
@@ -73,7 +76,9 @@ export async function openJobCard(page: Page, opts: { plate: string; customer?: 
     await expect(supervisor.locator('option', { hasText: (opts.supervisor ?? who('workshop-supervisor')).name })).toHaveCount(1);
     await supervisor.selectOption({ label: (opts.supervisor ?? who('workshop-supervisor')).name });
     await form.locator('input[name="mileageAtCheckIn"]').fill(String(opts.mileage ?? 50100));
-    await form.locator('input[name="complaints"]').first().fill(opts.complaint ?? 'Brakes squeal when stopping');
+    // A car wash needs no complaint (the reason is written for it); the other visits do.
+    if (jobType !== 'CAR_WASH') await form.locator('input[name="complaints"]').first().fill(opts.complaint ?? 'Brakes squeal when stopping');
+    if (opts.fill) await opts.fill(form);
     await form.getByRole('button', { name: 'Open Job Card' }).click();
     await waitOutcome(page, /\/workshop\/job-cards\/[^/?]+\?status=job_card_created/);
     await expect(page.getByText('Job Card successfully created.')).toBeVisible();

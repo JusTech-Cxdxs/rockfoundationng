@@ -23,7 +23,7 @@ test.describe('Job Card — opened as a service', () => {
     S.url = await openJobCard(page, { plate: S.plate, complaint: 'Routine 10,000 km service', mileage: 40000, service: true });
     S.id = S.url.split('/').pop()!;
     S.number = await jobNumber(page);
-    await expect(page.getByTestId('job-card-service-badge').first()).toBeVisible();
+    await expect(page.getByTestId('job-card-type-badge').first()).toHaveAttribute('data-job-type', 'SERVICE');
     expectNoUrlError(page);
     const row = await db().jobCard.findUniqueOrThrow({ where: { id: S.id }, select: { isService: true, serviceAttendedAt: true } });
     expect(row.isService).toBe(true);
@@ -35,14 +35,14 @@ test.describe('Job Card — opened as a service', () => {
     await as(page, 'front-desk');
     await open(page, `/workshop/job-cards?q=${encodeURIComponent(S.number)}`);
     const row = page.locator('tr', { has: page.getByRole('link', { name: S.number }) });
-    await expect(row.getByTestId('job-card-service-badge')).toBeVisible();
+    await expect(row.getByTestId('job-card-type-badge')).toBeVisible();
   });
 
   test('"Open a service Job Card" from a vehicle chooses Service', async ({ page }) => {
     await as(page, 'front-desk');
     const v = await freshVehicle('JCP');
     await open(page, `/workshop/job-cards?service=1&vehicle=${v.id}`);
-    await expect(page.getByTestId('visit-type-service')).toBeChecked();
+    await expect(page.getByTestId('job-type-service')).toBeChecked();
   });
 
   test('there is no separate Vehicle Service: its booking page and tile are gone', async ({ page }) => {
