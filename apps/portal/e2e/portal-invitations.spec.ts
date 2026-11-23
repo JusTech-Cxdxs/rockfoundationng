@@ -17,7 +17,7 @@ const mail = (n: number) => `imported-${STAMP}-${n}@e2e.test`;
 const ids = { job: '', invite: '', noEmail: '', hasAccess: '' };
 
 test('set up: a loaded customers import — one to invite, one with no email, one who already has access', async () => {
-  const admin = await db().user.findUniqueOrThrow({ where: { email: who('administrator').email }, select: { id: true, organisationId: true } });
+  const admin = await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { id: true, organisationId: true } });
   const org = admin.organisationId!;
   ids.job = (await db().importJob.create({ data: { number: `IMP-E2E-INV-${STAMP}`, organisationId: org, entity: 'customers', fileName: `customers-${STAMP}.csv`, fileSha256: `e2e-${STAMP}`.padEnd(64, '0'), headers: ['Name', 'Email', 'Phone'], mapping: { fullName: 0, email: 1, phone: 2 }, status: 'COMPLETED', completedAt: new Date(), createdById: admin.id, goodRows: 3, createdRows: 3 }, select: { id: true } })).id;
   const make = (n: number, email: string | null) => db().customer.create({ data: { organisationId: org, fullName: `Imported ${STAMP} ${n}`, email, phone: `0803${STAMP.slice(-6)}${n}`, importJobId: ids.job, externalSource: 'LEGACY', externalId: `9${STAMP}${n}` }, select: { id: true } });
@@ -28,7 +28,7 @@ test('set up: a loaded customers import — one to invite, one with no email, on
 });
 
 test('the Administrator invites them from the import: the welcome with a one-time link, once', async ({ page, request }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, `/data-exchange/imports/${ids.job}`);
   const box = page.getByTestId('portal-invitations');
   await expect(box).toContainText('0 invited · 1 can be invited · 1 already have access, or have it switched off · 1 with no email');
@@ -45,13 +45,13 @@ test('the Administrator invites them from the import: the welcome with a one-tim
   const welcome = await latestMail(request, mail(1), /set up your customer portal account/);
   expect(welcome.html).toContain('Set my password');
   expect(welcome.html).toMatch(/customer-portal\/reset-password/);
-  expect(welcome.html).not.toContain(who('administrator').name);
+  expect(welcome.html).not.toContain(who('owner').name);
   expect(await countMail(request, mail(3), /./)).toBe(0);
   expect(await db().auditLog.count({ where: { entityType: 'Customer', entityId: ids.invite, action: 'customer.portal_invited' } })).toBe(1);
 });
 
 test('the customer’s own page still sends a new link; the import never writes to them again', async ({ page, request }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, `/data-exchange/imports/${ids.job}`);
   await expect(page.getByTestId('portal-invitations')).toContainText('Every customer from this import who can use the portal has been invited.');
   expect(await countMail(request, mail(1), /./)).toBe(1);

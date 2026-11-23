@@ -4,7 +4,6 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { as, uniq, open } from './helpers';
 import { db } from './db';
 import { who } from './people';
-import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
  * Exports: any list to Excel or CSV, exactly as it is filtered, for the
@@ -40,17 +39,17 @@ async function exportFromButton(page: Page, format: 'Excel (.xlsx)' | 'CSV'): Pr
 const csvRows = (text: string) => text.replace(/^﻿/, '').split('\r\n').filter(Boolean);
 
 test('set up: a customer and seven suppliers of our own', async () => {
-  orgId = await orgOf(who('administrator').email);
-  const adminId = (await db().user.findUniqueOrThrow({ where: { email: who('administrator').email }, select: { id: true } })).id;
+  orgId = await orgOf(who('owner').email);
+  const adminId = (await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { id: true } })).id;
   await db().customer.create({ data: { organisationId: orgId, fullName: CUSTOMER, phone: `0803${String(Date.now()).slice(-7)}`, email: `export-${T.toLowerCase()}@example.test` } });
-  // The Store's parts only where the edition has it (edition.ts); the D'Phoenix edition puts them on the workshop's branch, unused.
-  const storeBranch = (await db().user.findUniqueOrThrow({ where: { email: who('store-manager').email }, select: { branchId: true } })).branchId!;
+  // The Store's parts, on the workshop's branch.
+  const storeBranch = (await db().user.findUniqueOrThrow({ where: { email: who('store-keeper').email }, select: { branchId: true } })).branchId!;
   for (let i = 1; i <= 3; i++) await db().part.create({ data: { branchId: storeBranch, createdById: adminId, name: `Export part ${T} ${i}`, partNumber: `EXP-${T}-${i}`, baseUnitOfMeasure: 'EA', updatedAt: new Date() } });
   for (let i = 1; i <= 7; i++) await db().supplier.create({ data: { organisationId: orgId, createdById: adminId, name: `${SUPPLIER} ${i}`, email: `s${i}-${T.toLowerCase()}@example.test` } });
 });
 
 test('Customers → Excel: the filtered list, an About sheet first, real cells, a link back', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, `/crm?q=${encodeURIComponent(CUSTOMER)}`);
   const { id, file, name } = await exportFromButton(page, 'Excel (.xlsx)');
   expect(name).toMatch(/^EJO-customers-\d{4}-\d{2}-\d{2}-EXP-\d{4}-\d{6}\.xlsx$/);
@@ -59,7 +58,7 @@ test('Customers → Excel: the filtered list, an About sheet first, real cells, 
   expect(wb).toMatch(/<sheet name="About this file"[^>]*\/><sheet name="Customers"/);
   const about = strFromU8(files['xl/worksheets/sheet1.xml']!);
   expect(about).toContain(`Search: ${CUSTOMER}`);
-  expect(about).toContain('Hannah Admin');
+  expect(about).toContain('Owner Test');
   const data = strFromU8(files['xl/worksheets/sheet2.xml']!);
   expect((data.match(/<row /g) ?? []).length).toBe(2); // the header and our one customer
   expect(data).toContain(CUSTOMER);
@@ -83,11 +82,11 @@ test('Customers → Excel: the filtered list, an About sheet first, real cells, 
 
 test('CSV of lists whose reader checks who is signed in, block by block (Customers, Parts)', async ({ page }) => {
   // CSV writes its header first, so every read happens after the response has started: still as this person.
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, `/crm?q=${encodeURIComponent(CUSTOMER)}`);
   const customers = csvRows((await exportFromButton(page, 'CSV')).file.toString('utf8'));
   expect(customers.filter((l) => !l.startsWith('"#') && l.includes(CUSTOMER))).toHaveLength(1);
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   await open(page, `/inventory/parts?q=${encodeURIComponent(`EXP-${T}-`)}`);
   const parts = csvRows((await exportFromButton(page, 'CSV')).file.toString('utf8'));
   const header = parts.findIndex((l) => l.startsWith('"Part number"'));
@@ -95,7 +94,7 @@ test('CSV of lists whose reader checks who is signed in, block by block (Custome
 });
 
 test('a long list comes in parts: each a complete file, carrying on exactly where the last stopped', async ({ page }) => {
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   await open(page, `/inventory/suppliers?q=${encodeURIComponent(SUPPLIER)}`);
   const first = await exportFromButton(page, 'CSV');
   const part1 = csvRows(first.file.toString('utf8'));
@@ -120,8 +119,8 @@ test('a long list comes in parts: each a complete file, carrying on exactly wher
 });
 
 test('contact details need their own permission; no permission, no file; a day later, no link', async ({ page }) => {
-  // The branch administrator exports lists, but not customers' contact details.
-  await as(page, 'branch-administrator');
+  // Front Desk exports lists, but not customers' contact details.
+  await as(page, 'front-desk');
   await open(page, '/crm');
   await expect(page.getByRole('heading', { name: 'Customers', level: 1 })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Export/ })).toHaveCount(0);
@@ -139,7 +138,7 @@ test('contact details need their own permission; no permission, no file; a day l
   expect((await page.request.get(`/data-exchange/exports/${job.id}/download`)).status()).toBe(403);
   // An expired link stops working for everyone.
   await db().exportJob.update({ where: { id: job.id }, data: { expiresAt: new Date(Date.now() - 60_000) } });
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   const expired = await page.request.get(`/data-exchange/exports/${job.id}/download`);
   expect(expired.status()).toBe(410);
   expect(await expired.text()).toContain('expired');

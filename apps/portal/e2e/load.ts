@@ -16,7 +16,6 @@
  */
 import { appendFileSync } from 'node:fs';
 import { E2E_PASSWORD, MASTER, PEOPLE } from './people';
-import { INVENTORY_ENABLED } from './edition';
 
 const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:3001';
 const SECONDS = Number(process.env.LOAD_SECONDS ?? 30);

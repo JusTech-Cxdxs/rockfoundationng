@@ -45,7 +45,7 @@ export function PageHeader({
           {back.label}
         </LoadingLink>
       ) : null}
-      <section className={`ejo-hero relative overflow-hidden rounded-[var(--ejo-radius-xl)] border border-[var(--ejo-border)] ${hero ? 'p-5 sm:p-8' : 'p-4 sm:p-6'}`}>
+      <section className={`ejo-hero relative overflow-hidden rounded-[var(--ejo-radius-xl)] border border-[var(--ejo-border)] ${hero ? 'p-4 sm:p-8' : 'p-4 sm:p-6'}`}>
         <div className="ejo-orb pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[var(--ejo-primary)]/15 blur-3xl" aria-hidden="true" />
         {hero ? <div className="ejo-orb ejo-orb-slow pointer-events-none absolute -bottom-24 left-1/3 h-48 w-48 rounded-full bg-[var(--ejo-accent)]/10 blur-3xl" aria-hidden="true" /> : null}
         <div className="relative flex flex-wrap items-start gap-4 sm:gap-5">
@@ -56,7 +56,7 @@ export function PageHeader({
               <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--ejo-surface)] text-[var(--ejo-primary)] shadow-sm"><Icon name={icon} size={22} /></span>
             </div>
           ) : null}
-          <span className={`${hero ? 'flex sm:hidden' : 'flex'} h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)] ring-1 ring-[var(--ejo-primary)]/15`}>
+          <span className={`${hero ? 'hidden' : 'flex'} h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--ejo-primary)]/10 text-[var(--ejo-primary)] ring-1 ring-[var(--ejo-primary)]/15`}>
             <Icon name={icon} size={22} />
           </span>
           <div className="min-w-0 flex-1 basis-56">
@@ -66,7 +66,7 @@ export function PageHeader({
                 {eyebrow ? <span>{eyebrow}</span> : null}
               </p>
             ) : null}
-            <h1 className={`break-words font-bold leading-tight text-[var(--ejo-text)] ${hero ? 'text-2xl sm:text-3xl' : 'text-xl sm:text-2xl'}`}>{title}</h1>
+            <h1 className={`break-words font-bold leading-tight text-[var(--ejo-text)] ${hero ? 'text-xl sm:text-3xl' : 'text-xl sm:text-2xl'}`}>{title}</h1>
             {description ? <div className="mt-1.5 max-w-3xl text-sm leading-relaxed text-[var(--ejo-text-muted)]">{description}</div> : null}
             {meta ? <div className="mt-3 flex flex-wrap items-center gap-2">{meta}</div> : null}
           </div>

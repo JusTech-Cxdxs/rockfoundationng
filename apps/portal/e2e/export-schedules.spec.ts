@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { as, open } from './helpers';
 import { db } from './db';
 import { who } from './people';
-import { INVENTORY_ENABLED } from './edition';
 
 /**
  * A4c3 — scheduled exports, end to end: the Store Manager repeats an export
@@ -11,8 +10,6 @@ import { INVENTORY_ENABLED } from './edition';
  * runs, and the file downloads as any export does; paused, it is left alone;
  * a schedule whose owner may no longer export the list pauses itself and
  * says why. The job's address needs the scheduler's secret.
- * The D'Phoenix edition has no Store (edition.ts): there the Workshop Manager
- * repeats an export of the vehicles list instead of the suppliers.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -23,7 +20,7 @@ const yesterday = new Date(Date.now() + 3_600_000 - 86_400_000).toISOString().sl
 const ids = { owner: '', org: '', exportId: '', schedule: '', orphan: '' };
 const params = { q: `No supplier is called ${STAMP}` };
 /** Whose export is repeated, and of which list. */
-const OWNER = 'store-manager';
+const OWNER = 'store-keeper';
 const KIND = { key: 'suppliers', label: 'Suppliers' };
 
 test(`the Store Manager repeats an export of theirs every Monday`, async ({ page }) => {

@@ -21,7 +21,7 @@ const url = (kind: string, from = today, to = today, part = 1) => `/data-exchang
 const isPdf = (b: Uint8Array) => strFromU8(b.subarray(0, 5)) === '%PDF-' && b.byteLength > 1500;
 
 test('set up: an estimate sent for a Job Card', async () => {
-  const fin = await db().user.findUniqueOrThrow({ where: { email: who('finance-officer').email }, select: { id: true, branchId: true } });
+  const fin = await db().user.findUniqueOrThrow({ where: { email: who('accounts').email }, select: { id: true, branchId: true } });
   ids.branch = fin.branchId!;
   const v = await freshVehicle(`DOC${STAMP.slice(-4)}`);
   const { customerId } = await db().customerVehicle.findUniqueOrThrow({ where: { id: v.id }, select: { customerId: true } });
@@ -34,7 +34,7 @@ test('set up: an estimate sent for a Job Card', async () => {
 });
 
 test('Finance finds the Job Card estimates of the period and downloads the zip: real PDFs, the index, the checksum, the audit entry', async ({ page }) => {
-  await as(page, 'finance-officer');
+  await as(page, 'accounts');
   await open(page, '/data-exchange/documents');
   const form = page.getByTestId('documents-form');
   await form.getByLabel(/Job Card estimates/).check();
@@ -70,7 +70,7 @@ test('Finance finds the Job Card estimates of the period and downloads the zip: 
 });
 
 test('nothing in the period, a period too long, a part that does not exist; someone without the right is refused', async ({ page }) => {
-  await as(page, 'finance-officer');
+  await as(page, 'accounts');
   await open(page, '/data-exchange/documents');
   const form = page.getByTestId('documents-form');
   await form.getByLabel(/Job Card estimates/).check();
@@ -85,6 +85,6 @@ test('nothing in the period, a period too long, a part that does not exist; some
   expect((await page.request.get(url('JOB_ESTIMATE', today, today, 999))).status()).toBe(400);
   expect((await page.request.get(url('PAYSLIPS'))).status()).toBe(400);
 
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   expect((await page.request.get(url('JOB_ESTIMATE'))).status()).toBe(403);
 });

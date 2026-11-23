@@ -18,19 +18,19 @@ export const OPTIONAL_ROLES = ['workshop-supervisor', 'technician', 'store-keepe
 export const PEOPLE: readonly Person[] = [
   { email: 'owner@e2e.test', name: 'Owner Test', role: 'owner' },
   { email: 'frontdesk@e2e.test', name: 'Front Desk Test', role: 'front-desk' },
-  { email: 'supervisor@e2e.test', name: 'Supervisor Test', role: 'workshop-supervisor', dept: 'workshop-passenger' },
-  { email: 'tech@e2e.test', name: 'Technician Test', role: 'technician', dept: 'workshop-passenger' },
+  { email: 'supervisor@e2e.test', name: 'Supervisor Test', role: 'workshop-supervisor', dept: 'mechanical' },
+  { email: 'tech@e2e.test', name: 'Technician Test', role: 'technician', dept: 'mechanical' },
   { email: 'store@e2e.test', name: 'Store Keeper Test', role: 'store-keeper', dept: 'store' },
   { email: 'accounts@e2e.test', name: 'Accounts Test', role: 'accounts' },
   { email: 'security@e2e.test', name: 'Security Test', role: 'security' },
   // Holds BOTH Workshop Supervisor and Owner: for the segregation-of-duties
   // checks (approves as supervisor, so may not also give the Owner's final approval).
-  { email: 'supervisorowner@e2e.test', name: 'Supervisor Owner Test', role: 'workshop-supervisor', dept: 'workshop-passenger', extraRoles: ['owner'] },
+  { email: 'supervisorowner@e2e.test', name: 'Supervisor Owner Test', role: 'workshop-supervisor', dept: 'mechanical', extraRoles: ['owner'] },
   // Only for user-administration tests (given roles / switched off during the run).
   { email: 'switchable@e2e.test', name: 'Switchable Test', role: 'accounts' },
 ];
 /** Only for the forgot-password test (its password changes during the run). */
-export const RESET: Person = { email: 'reset@e2e.test', name: 'Reset Test', role: 'technician', dept: 'workshop-passenger' };
+export const RESET: Person = { email: 'reset@e2e.test', name: 'Reset Test', role: 'technician', dept: 'mechanical' };
 export const SUPERMANAGER = PEOPLE.find((p) => p.email === 'supervisorowner@e2e.test')!;
 export const SWITCHABLE = PEOPLE.find((p) => p.email === 'switchable@e2e.test')!;
 export const OTHER_ORG_ADMIN = { email: 'other-owner@e2e.test', name: 'Other Organisation Owner' };

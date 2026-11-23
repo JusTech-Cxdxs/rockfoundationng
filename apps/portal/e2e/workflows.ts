@@ -165,7 +165,7 @@ export async function requestStoreMatching(page: Page) {
 }
 
 /** Store matches every requested line of this Job Card (first fitting part each). */
-export async function storeMatchesAll(page: Page, jobCardId: string, matcher: Person = who('store-manager')) {
+export async function storeMatchesAll(page: Page, jobCardId: string, matcher: Person = who('store-keeper')) {
   await test.step('Store matches the Store Part lines', async () => {
     await as(page, matcher);
     await open(page, `/inventory/estimate-matching/${jobCardId}`);
@@ -249,7 +249,7 @@ export async function nextStep(page: Page, label: string | RegExp, expectLabel?:
 
 /** Opens a Job Card, approves it, assigns and accepts — ready for the estimate. */
 export async function jobCardReadyForEstimate(page: Page, opts: { plate: string; customer?: string; supervisor?: Person; complaint?: string }): Promise<string> {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   const url = await openJobCard(page, opts);
   await supervisorApproves(page, url, opts.supervisor);
   await assignTechnician(page);
@@ -281,14 +281,14 @@ export async function jobCardInProgress(page: Page, opts: { plate: string; lines
   }
   await submitEstimate(page);
   await supervisorApprovesEstimate(page);
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, url);
   await managerApprovesEstimate(page);
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, url);
   await notifyCustomer(page);
   const number = await jobNumber(page);
-  await as(page, 'finance-officer');
+  await as(page, 'accounts');
   await open(page, url);
   await recordPayment(page, 'DEPOSIT');
   await expectStatus(page, 'In Progress');

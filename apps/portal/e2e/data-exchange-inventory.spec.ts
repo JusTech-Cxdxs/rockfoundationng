@@ -2,13 +2,12 @@ import { test, expect, type Page } from '@playwright/test';
 import { as, uniq, open } from './helpers';
 import { db } from './db';
 import { who } from './people';
-import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
  * Data Exchange: the Store's records from the old system: suppliers, the parts
  * catalogue (material master) and the opening stock with its value, loaded
  * as an opening-balance goods receipt that the inventory figures count.
- * Group IT prepares, the Store Manager approves, Finance confirms the value,
+ * Group IT prepares, the Owner approves, Finance confirms the value,
  * and the opening stock can be reversed while nothing has been issued.
  */
 test.describe.configure({ mode: 'serial' });
@@ -20,7 +19,7 @@ const csv = (rows: (string | number)[][]) => rows.map((r) => r.map((c) => (/[,"]
 const pn = (n: number) => `E2E-${T}-${n}`;
 
 async function storeBranchId(): Promise<string> {
-  const u = await db().user.findUniqueOrThrow({ where: { email: who('store-manager').email }, select: { branchId: true } });
+  const u = await db().user.findUniqueOrThrow({ where: { email: who('store-keeper').email }, select: { branchId: true } });
   return u.branchId!;
 }
 
@@ -38,7 +37,8 @@ async function upload(page: Page, entity: string, name: string, body: string, op
 }
 
 async function approveAndLoad(page: Page, url: string) {
-  await as(page, 'store-manager');
+  // The Owner approves what Front Desk prepared (never both on the same import).
+  await as(page, 'owner');
   await open(page, url);
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Start loading' }).click();
@@ -47,8 +47,8 @@ async function approveAndLoad(page: Page, url: string) {
 
 let stockUrl = '';
 
-test('suppliers from the old vendor list: the Store Manager approves; the Suppliers page lists them', async ({ page }) => {
-  await as(page, 'it-administrator');
+test('suppliers from the old vendor list: the Owner approves; the Suppliers page lists them', async ({ page }) => {
+  await as(page, 'front-desk');
   const url = await upload(page, 'suppliers', `vendors-${T}.csv`, csv([
     ['Supplier number (old system)', 'Name', 'Name, second line', 'Phone', 'Email'],
     [`00${D}1`, `Ota Parts ${T}`, 'Limited', '+234 1 270 1000', `parts.${T.toLowerCase()}@example.com`],
@@ -64,7 +64,7 @@ test('suppliers from the old vendor list: the Store Manager approves; the Suppli
 
 test('parts from the old parts list: units translated, batch parts, an alternative unit; the list pages', async ({ page }) => {
   const branchId = await storeBranchId();
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   const url = await upload(page, 'parts', `material-master-${T}.csv`, csv([
     ['Part number', 'Description', 'Category', 'Base unit', 'Tracking', 'Selling price (₦)', 'Reorder point', 'Alternative unit', 'Base units in the alternative unit'],
     [pn(1), `Brake pad set ${T}`, 'BRAKES', 'ST', '', '45000', '4', '', ''],
@@ -75,7 +75,7 @@ test('parts from the old parts list: units translated, batch parts, an alternati
   ]), { branchId });
   await expect(page.getByText('Part number is required.')).toBeVisible();
   await expect(page.getByText(/Same part number.* as row 2 of the file/)).toBeVisible();
-  // Only the Store Manager (or an administrator) approves parts: not Group IT.
+  // The person who prepared the file cannot approve it.
   await page.getByRole('button', { name: /Send for approval/ }).click();
   await expect(page.getByRole('button', { name: 'Approve' })).toHaveCount(0);
   await approveAndLoad(page, url);
@@ -89,9 +89,9 @@ test('parts from the old parts list: units translated, batch parts, an alternati
   await expect(page.getByText(/Showing 1–3 of 3 parts/)).toBeVisible();
 });
 
-test('opening stock: totals before approval, an opening-balance receipt at the cut-over date, the value Finance confirms', async ({ page }) => {
+test('opening stock: totals before approval, an opening-balance receipt at the cut-over date, the value Accounts confirms', async ({ page }) => {
   const branchId = await storeBranchId();
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   stockUrl = await upload(page, 'stock', `opening-stock-${T}.csv`, csv([
     ['Part number', 'Quantity on hand', 'Unit', 'Stock value (₦)', 'Unit cost (₦)', 'Batch', 'Storage location'],
     [pn(1), 12, 'ST', '540,000.00', '45000', '', '0001'],
@@ -116,24 +116,24 @@ test('opening stock: totals before approval, an opening-balance receipt at the c
   const stock = await db().partStock.findFirstOrThrow({ where: { part: { branchId, partNumber: pn(2) } }, select: { quantityOnHand: true } });
   expect(Number(stock.quantityOnHand)).toBe(416);
   expect(await db().partBatch.count({ where: { part: { branchId, partNumber: pn(2) }, batchNumber: 'B-2026-001' } })).toBe(1);
-  // The Store Manager approved it, so cannot confirm the value; Finance does.
-  await expect(page.getByText('Waiting for Finance to confirm the value.')).toBeVisible();
-  await as(page, 'finance-officer');
+  // Accounts confirms the value.
+  await as(page, 'accounts');
   await open(page, stockUrl);
   await page.getByRole('button', { name: 'Confirm the value (Finance)' }).click();
   await expect(page.getByText(/Value confirmed by .* \(Finance\)/)).toBeVisible();
 });
 
-test('Finance opens only stock imports; reversing the opening stock takes it back off the shelf', async ({ page }) => {
+test('Accounts opens only stock imports; reversing the opening stock takes it back off the shelf', async ({ page }) => {
   const branchId = await storeBranchId();
-  // Finance cannot open a customers import (personal data).
+  // Accounts cannot open a customers import (personal data).
   const customers = await db().importJob.findFirst({ where: { entity: 'customers' }, select: { id: true } });
   if (customers) {
-    await as(page, 'finance-officer');
+    await as(page, 'accounts');
     await open(page, `/data-exchange/imports/${customers.id}`);
     await expect(page.getByText(/could not be found|404|not found/i).first()).toBeVisible();
   }
-  await as(page, 'store-manager');
+  // Undoing a finished import is the approver's step: the Owner.
+  await as(page, 'owner');
   page.on('dialog', (d) => void d.accept());
   await open(page, stockUrl);
   await page.getByRole('button', { name: 'Reverse this opening stock' }).click();
@@ -142,7 +142,7 @@ test('Finance opens only stock imports; reversing the opening stock takes it bac
   expect(Number(stock.quantityOnHand)).toBe(0);
   expect(await db().goodsReceiptLine.count({ where: { part: { branchId, partNumber: { in: [pn(1), pn(2), pn(3)] } } } })).toBe(0);
   // The file is still there: it can be reopened, checked and loaded again.
-  await as(page, 'it-administrator');
+  await as(page, 'owner');
   await open(page, stockUrl);
   await expect(page.getByRole('button', { name: /Reopen: check and load this file again/ })).toBeVisible();
 });

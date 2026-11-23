@@ -11,9 +11,9 @@ import { pickSearchable } from './workflows';
  */
 test.describe.configure({ mode: 'serial' });
 
-const OWNER = who('calendar-user'); // Cora Calendar
-const DELEGATE = who('scheduling-admin'); // Sade Scheduler
-const OUTSIDER = who('broadcaster'); // Bimbo Broadcaster — never allowed
+const OWNER = who('accounts');
+const DELEGATE = who('workshop-supervisor');
+const OUTSIDER = who('security'); // never allowed
 const tag = uniq();
 const MINE = `Call Mr Okafor back ${tag}`;
 const FROM_DELEGATE = `Board pack for Monday ${tag}`;
@@ -97,14 +97,14 @@ test('the 10-minute job delivers the due reminder: in the bell and by email', as
   // Real time passes (no clock tricks): wait until it is due.
   const wait = dueAt.getTime() - Date.now() + 2_000;
   if (wait > 0) await page.waitForTimeout(wait);
-  const res = await request.get('/api/cron/appointment-reminders', { headers: { authorization: `Bearer ${CRON}` } });
+  const res = await request.get('/api/cron/reminders', { headers: { authorization: `Bearer ${CRON}` } });
   expect(res.status()).toBe(200);
   expect(((await res.json()) as { personalRemindersDelivered?: number }).personalRemindersDelivered ?? 0).toBeGreaterThanOrEqual(0);
   const mail = await latestMail(request, OWNER.email, new RegExp(`Reminder: ${MINE}`), 30_000);
   expect(mail.html).toContain('He asked about the estimate.');
   expect(mail.html).toContain('/reminders?focus=');
   // A second run sends nothing again.
-  await request.get('/api/cron/appointment-reminders', { headers: { authorization: `Bearer ${CRON}` } });
+  await request.get('/api/cron/reminders', { headers: { authorization: `Bearer ${CRON}` } });
 
   await as(page, OWNER);
   await open(page, '/dashboard');

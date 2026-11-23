@@ -9,7 +9,7 @@ import { DEMO_ENABLED, DEMO_OFF } from './edition';
 
 /**
  * D2 — the workshop demo (lib/workshop/demo), in its own organisation
- * (dphoenix-demo). The CI seed loaded it (`npm run demo:reset`), so every
+ * (rock-foundation-demo). The CI seed loaded it (`npm run demo:reset`), so every
  * page the demo people open is full: here, each of them signs in and walks
  * their own pages — nothing broken, the figures the demo promises on screen
  * — and the customer portal shows a customer's own vehicle, estimate and
@@ -35,12 +35,12 @@ test('the demo is in place, in its own organisation: records registered, job car
   expect(await db().jobCard.count({ where: { customer: { organisationId: org }, isService: true } })).toBeGreaterThan(20);
   expect(await db().invoice.count({ where: { organisationId: org } })).toBeGreaterThan(50);
   expect(await db().payment.count({ where: { jobCard: { customer: { organisationId: org } }, receiptNumber: { not: null } } })).toBeGreaterThan(50);
-  const real = await db().organisation.findUnique({ where: { slug: 'dphoenix-autocare' }, select: { id: true } });
+  const real = await db().organisation.findUnique({ where: { slug: 'rock-foundation' }, select: { id: true } });
   if (real) expect(await db().demoRecord.count({ where: { organisationId: real.id } })).toBe(0);
 });
 
-test('the Manager: the dashboard, every workshop page, a job card with its estimate, invoice, receipts and history, the Service Tracker, refunds, custody', async ({ page }) => {
-  await as(page, 'workshop-manager');
+test('the Owner: the dashboard, every workshop page, a job card with its estimate, invoice, receipts and history, the Service Tracker, refunds, custody', async ({ page }) => {
+  await as(page, 'owner');
   await expect(page).toHaveURL(/\/dashboard/);
   await expectHealthy(page);
   await walk(page, ['/workshop', '/workshop/job-cards', '/workshop/customers', '/workshop/vehicles', '/workshop/custody', '/workshop/refunds', '/workshop/service-tracker', '/approvals', '/analytics', '/crm']);
@@ -58,38 +58,31 @@ test('the Manager: the dashboard, every workshop page, a job card with its estim
   await signOut(page);
 });
 
-test('the technicians see their own jobs; the front desk its pages; Finance the invoices; security, support and Headquarters their pages', async ({ page }) => {
-  await as(page, 'technician', 'VI');
+test('the technician sees their own jobs; the front desk its pages; Accounts the money; Security the gate; the Owner the administration', async ({ page }) => {
+  await as(page, 'technician', 'OTA');
   await walk(page, ['/workshop/job-cards']);
   await signOut(page);
-  await as(page, 'receptionist');
-  await walk(page, ['/workshop/customers', '/workshop/vehicles', '/workshop/service-tracker', '/security/my-visitors', '/schedule']);
+  await as(page, 'front-desk');
+  await walk(page, ['/workshop/customers', '/workshop/vehicles', '/workshop/service-tracker', '/crm', '/crm/support']);
   await signOut(page);
-  await as(page, 'finance-officer');
-  await walk(page, ['/workshop/job-cards', '/workshop/refunds', '/analytics']);
+  await as(page, 'accounts');
+  await walk(page, ['/workshop/job-cards', '/workshop/refunds']);
   await signOut(page);
-  await as(page, 'chief-security-officer');
-  await walk(page, ['/security', '/security/overdue', '/security/visitors', '/security/exit-passes', '/security/road-tests', '/security/incidents', '/security/deliveries', '/security/on-premises']);
-  await gotoSettled(page, '/security/overdue');
-  await expect(page.getByText(/insurance assessor/i).first()).toBeVisible();
+  await as(page, 'security');
+  await walk(page, ['/security', '/security/vehicles', '/security/vehicles-inside']);
   await signOut(page);
-  await as(page, 'customer-care', 'VI');
-  await walk(page, ['/crm/support', '/crm/support/analytics']);
-  await gotoSettled(page, '/crm/support');
-  await expect(page.getByText(/scratch on the bumper/).first()).toBeVisible();
-  await signOut(page);
-  await as(page, 'administrator', 'HQ');
-  await walk(page, ['/users', '/structure', '/audit-logs', '/data-exchange', '/data-exchange/exports', '/recycle-bin', '/organisation']);
+  await as(page, 'owner', 'BIZ');
+  await walk(page, ['/users', '/roles', '/structure', '/audit-logs', '/data-exchange', '/data-exchange/exports', '/recycle-bin', '/organisation', '/analytics']);
   await signOut(page);
 });
 
-test('the customer portal: the individual sees their Camry and the estimate to approve; the fleet company its vehicles', async ({ page, request }) => {
+test('the customer portal: the individual sees their Corolla; the fleet company its vehicles', async ({ page, request }) => {
   test.skip(!(await websiteUp(request)), 'the customer portal (apps/website) is not running');
   const individual = DEMO_CUSTOMERS[0]!;
   await customerSignedIn(page, { email: individual.email, name: individual.name, password: P });
-  await expect(page.getByText(/Camry/).first()).toBeVisible();
+  await expect(page.getByText(/Corolla/).first()).toBeVisible();
   await page.context().clearCookies();
   const fleet = DEMO_CUSTOMERS[1]!;
   await customerSignedIn(page, { email: fleet.email, name: fleet.name, password: P });
-  await expect(page.getByText(/Hilux|Land Cruiser|Hiace/).first()).toBeVisible();
+  await expect(page.getByText(/Hilux|Hiace|Sienna/).first()).toBeVisible();
 });

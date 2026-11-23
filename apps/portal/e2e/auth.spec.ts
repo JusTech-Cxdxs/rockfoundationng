@@ -40,7 +40,7 @@ test.describe('Sign-in', () => {
   test('a protected page sends you to sign in, then back to it', async ({ page }) => {
     await page.goto('/workshop');
     await expect(page).toHaveURL(/\/login\?redirect=%2Fworkshop/);
-    await page.getByLabel('Work email').fill(who('receptionist').email);
+    await page.getByLabel('Work email').fill(who('front-desk').email);
     await page.getByLabel('Password', { exact: true }).fill(E2E_PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
     await page.waitForURL(/\/workshop/);
@@ -53,7 +53,7 @@ test.describe('Sign-in', () => {
     const since = Date.now();
     await page.getByRole('button', { name: 'Send reset link' }).click();
     await expect(page.getByText('If an account exists')).toBeVisible();
-    const mail = await latestMail(request, email, /Reset your EJO 100 password/, { since });
+    const mail = await latestMail(request, email, /Reset your EJO password/, { since });
     const link = linkIn(mail.html, /reset-password/);
     await page.goto(link);
     await expect(page.getByRole('heading', { name: 'Set your password' })).toBeVisible();
@@ -80,4 +80,14 @@ test.describe('Sign-in', () => {
     const res = await request.get('/api/live/pulse', { maxRedirects: 0 });
     expect([307, 308, 401]).toContain(res.status());
   });
+});
+
+test('the staff sign-in page says what the platform does, in the workshop\'s own words', async ({ page }) => {
+  await page.goto('/login');
+  const panel = page.locator('main section').first();
+  await expect(panel.getByText('Front desk, customer care and the workshop,')).toBeVisible();
+  await expect(panel.getByText('WhatsApp first')).toBeVisible();
+  await expect(panel.getByText('Nobody approves their own request')).toBeVisible();
+  await expect(panel.getByText(/Powered by/i)).toBeVisible();
+  await expect(panel.getByText('EJO · JusTech')).toBeVisible();
 });

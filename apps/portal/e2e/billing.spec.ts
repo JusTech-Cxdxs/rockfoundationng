@@ -5,7 +5,7 @@ import { db, freshVehicle } from './db';
 import { jobCardInProgress, nextStep, recordPayment } from './workflows';
 
 /**
- * D'Phoenix phase 3 — money and documents. A Job Card taken to completion
+ * Money and documents. A Job Card taken to completion
  * is invoiced once (INV-number on the Job Card page, the customer emailed),
  * the invoice prints on the letterhead with ₦ figures, and every payment
  * carries a receipt number with its own printable receipt.
@@ -55,7 +55,7 @@ test.describe('Invoices and receipts', () => {
 
   test('the invoice prints on the letterhead, in ₦, with the balance due', async ({ page }) => {
     test.skip(!S.invoiceId, 'needs the invoice from the previous step');
-    await as(page, 'finance-officer');
+    await as(page, 'accounts');
     const res = await page.goto(`/print/invoices/${S.invoiceId}`);
     expect(res?.status()).toBeLessThan(400);
     const organisation = await db().organisation.findFirstOrThrow({ where: { invoices: { some: { id: S.invoiceId } } }, select: { name: true } });
@@ -72,7 +72,7 @@ test.describe('Invoices and receipts', () => {
     await as(page, SUPERMANAGER);
     await open(page, S.url);
     await nextStep(page, 'Mark Ready for Collection', 'Ready for Collection');
-    await as(page, 'finance-officer');
+    await as(page, 'accounts');
     await open(page, S.url);
     await recordPayment(page, 'REMAINING', 'CASH', 'Balance at collection');
     await expect(page.getByText('Paid in full — nothing further to record.')).toBeVisible();

@@ -18,8 +18,8 @@ const tenDigits = () => String(1_000_000_000 + Math.floor(Math.random() * 8_999_
 
 async function fixtureError(opts: { kind?: string; message?: string; path?: string } = {}) {
   const prisma = db();
-  const admin = await prisma.user.findUniqueOrThrow({ where: { email: who('administrator').email }, select: { organisationId: true } });
-  const frontDesk = await prisma.user.findUniqueOrThrow({ where: { email: who('receptionist').email }, select: { id: true } });
+  const admin = await prisma.user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { organisationId: true } });
+  const frontDesk = await prisma.user.findUniqueOrThrow({ where: { email: who('front-desk').email }, select: { id: true } });
   const ref = tenDigits();
   await prisma.errorEvent.create({
     data: {
@@ -34,7 +34,7 @@ async function fixtureError(opts: { kind?: string; message?: string; path?: stri
 test.describe('Error log', () => {
   test('an administrator finds a quoted reference: what, where, when, who, and what to do', async ({ page }) => {
     const ref = await fixtureError();
-    await as(page, 'administrator');
+    await as(page, 'owner');
     await gotoSettled(page, '/audit-logs');
     await page.getByRole('link', { name: 'Error log' }).click();
     await page.waitForURL(/\/audit-logs\/errors/);
@@ -46,7 +46,7 @@ test.describe('Error log', () => {
     await expect(row).toHaveCount(1);
     await expect(row.getByText('Page failed to load').first()).toBeVisible();
     await expect(row.getByText('/workshop/job-cards/e2e-missing').first()).toBeVisible();
-    await expect(row.getByRole('link', { name: who('receptionist').name })).toBeVisible();
+    await expect(row.getByRole('link', { name: who('front-desk').name })).toBeVisible();
     await expect(row.getByText('What to do')).toBeVisible();
     await expect(row.getByRole('button', { name: `Copy reference ${ref}` })).toBeVisible();
     await expect(row.getByText('(Lagos time)')).toBeVisible();
@@ -65,7 +65,7 @@ test.describe('Error log', () => {
   });
 
   test('a failure in the browser is stored under the reference its screen shows', async ({ page }) => {
-    await as(page, 'administrator');
+    await as(page, 'owner');
     await gotoSettled(page, '/dashboard');
     const ref = tenDigits();
     // What ErrorScreen sends when a page fails in the browser with no server digest.
@@ -77,7 +77,7 @@ test.describe('Error log', () => {
     await gotoSettled(page, `/audit-logs/errors?ref=${ref}`);
     const row = page.locator('li').filter({ has: page.getByTestId('error-ref').filter({ hasText: ref }) });
     await expect(row.getByText('Connection').first()).toBeVisible();
-    await expect(row.getByRole('link', { name: who('administrator').name })).toBeVisible();
+    await expect(row.getByRole('link', { name: who('owner').name })).toBeVisible();
   });
 
   test('a report from another site is ignored', async ({ request }) => {
@@ -90,7 +90,7 @@ test.describe('Error log', () => {
 });
 
 test('a missing record shows the branded "Page not found", never an error screen', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await page.goto('/workshop/job-cards/this-job-card-does-not-exist');
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to the dashboard' })).toBeVisible();

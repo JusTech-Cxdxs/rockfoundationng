@@ -12,7 +12,6 @@ import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { as } from './helpers';
 import { db } from './db';
 import { SEED_PARTS } from './people';
-import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 type Event = { type: string; [k: string]: unknown };
 
@@ -49,7 +48,7 @@ async function storedToolResult(conversationId: string, name: string): Promise<s
 
 test.describe('Enyo staff assistant (API)', () => {
   test('streams an answer: conversation first, then the text, then done — and keeps the conversation', async ({ page }) => {
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     const status = await page.request.get('/api/enyo/status');
     expect(status.status()).toBe(200);
     expect(await status.json()).toMatchObject({ ready: true, displayName: expect.any(String) });
@@ -78,8 +77,8 @@ test.describe('Enyo staff assistant (API)', () => {
     expect(other.events[0]).toMatchObject({ type: 'error' });
   });
 
-  test('Finance asks for today\'s takings and gets the figures', async ({ page }) => {
-    await as(page, 'finance-officer');
+  test('the Owner asks for today\'s takings and gets the figures', async ({ page }) => {
+    await as(page, 'owner');
     const r = await ask(page, '[[tool:business_summary {"period":"today"}]]');
     expect(r.res.status()).toBe(200);
     expect(tool(r.events, 'business_summary')).toMatchObject({ ok: true });
@@ -128,7 +127,7 @@ test.describe('Enyo staff assistant (API)', () => {
   });
 
   test('messages over 4,000 characters get a calm error, not an answer', async ({ page }) => {
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     const r = await ask(page, 'x'.repeat(4001));
     expect(r.res.status()).toBe(413);
     expect(r.events).toHaveLength(1);
@@ -138,7 +137,7 @@ test.describe('Enyo staff assistant (API)', () => {
 
   test('asking too fast is limited per person, with a calm message', async ({ page }) => {
     // A person no other Enyo test uses, so their count is theirs alone.
-    await as(page, 'broadcaster');
+    await as(page, 'security');
     let ok = 0;
     let limited: { res: APIResponse; events: Event[] } | null = null;
     for (let i = 0; i <= LIMIT; i += 1) {
@@ -163,7 +162,7 @@ test.describe('Enyo staff assistant (API)', () => {
   });
 
   test('a request from another site is refused (CSRF)', async ({ page }) => {
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     const r = await ask(page, '[[say:should not answer]]', {}, 'https://evil.example');
     expect(r.res.status()).toBe(403);
     expect(r.text).toBe('');
@@ -172,18 +171,18 @@ test.describe('Enyo staff assistant (API)', () => {
   });
 
   test('"hi" is answered at once without the model; "what needs my attention" is a briefing; a busy model never leaves a bare error', async ({ page }) => {
-    await as(page, 'executive');
+    await as(page, 'owner');
     const hi = await ask(page, 'Hey Enyo');
     expect(hi.res.status()).toBe(200);
-    expect(hi.text).toMatch(/^Good (morning|afternoon|evening), Eze! I'm/);
+    expect(hi.text).toMatch(/^Good (morning|afternoon|evening), Owner! I'm/);
     expect(hi.text).toContain('Are we on profit this month');
     expect(hi.text).not.toContain('You said');
     const attention = await ask(page, 'What needs my attention today? [[busy]]');
     expect(attention.events.some((e) => e.type === 'error')).toBe(false);
-    expect(attention.text).toContain('Here is your briefing, Eze');
+    expect(attention.text).toContain('Here is your briefing, Owner');
     expect(tool(attention.events, 'daily_brief')?.ok).toBe(true);
     // A question only the model can answer, with every model busy: where to look, and "brief me" always works.
-    const busy = await ask(page, 'Explain the warranty claim process for a gearbox [[busy]]');
+    const busy = await ask(page, 'Explain how a parts request reaches the store [[busy]]');
     expect(busy.events.some((e) => e.type === 'error')).toBe(false);
     expect(busy.text).toContain('brief me');
     expect(busy.text).toContain('[Business analytics](/analytics)');
@@ -192,7 +191,7 @@ test.describe('Enyo staff assistant (API)', () => {
 
   test('"brief me": the figures are gathered as the person in one go, and written up even when the model is busy', async ({ page }) => {
     // An executive: every section, including the business this month and the website.
-    await as(page, 'executive');
+    await as(page, 'owner');
     const r = await ask(page, "oh what's up, I need a briefing of everything that is happening, business analytics, are we on profit?");
     expect(r.res.status()).toBe(200);
     expect(r.events.some((e) => e.type === 'error')).toBe(false);
@@ -208,7 +207,7 @@ test.describe('Enyo staff assistant (API)', () => {
     const busy = await ask(page, 'Brief me on everything happening today [[busy]]');
     expect(busy.res.status()).toBe(200);
     expect(busy.events.some((e) => e.type === 'error')).toBe(false);
-    expect(busy.text).toContain('Here is your briefing, Eze');
+    expect(busy.text).toContain('Here is your briefing, Owner');
     expect(busy.text).toMatch(/### Your day/);
     expect(busy.text).toMatch(/### The business this month/);
     expect(busy.text).toContain('my writing model was busy');
@@ -224,7 +223,7 @@ test.describe('Enyo staff assistant (API)', () => {
     expect(tech.text).not.toMatch(/not allowed|Not allowed/);
 
     // A workshop manager: the briefing is for their branch (the money section says so).
-    await as(page, 'workshop-manager');
+    await as(page, 'owner');
     const m = await ask(page, 'Brief me on my branch [[busy]]');
     expect(m.res.status()).toBe(200);
     expect(tool(m.events, 'branch_briefing')?.ok).toBe(true);

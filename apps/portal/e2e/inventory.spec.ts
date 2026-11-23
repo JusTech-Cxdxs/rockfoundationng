@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { as, expectHealthy, expectNoUrlError, readStock, uniq, visitHealthy, waitOutcome } from './helpers';
 import { jcForm, pickSearchable, reveal } from './workflows';
-import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
  * The Store's own day: a new category and part type, a new part in the
@@ -20,8 +19,8 @@ const S = {
   grn: '',
 };
 
-test('a store manager adds a category, a part type and a part', async ({ page }) => {
-  await as(page, 'store-manager');
+test('the Store Keeper adds a category, a part type and a part', async ({ page }) => {
+  await as(page, 'store-keeper');
   await page.goto('/inventory/part-types');
   await reveal(page, 'Add a category');
   const cat = jcForm(page, 'Add Category');
@@ -44,7 +43,6 @@ test('a store manager adds a category, a part type and a part', async ({ page })
   await part.locator('input[name="name"]').fill(S.part);
   await pickSearchable(part, page, S.type, new RegExp(S.type), 'Search Part Types…');
   await part.locator('select[name="trackingType"]').selectOption('QUANTITY');
-  await part.locator('select[name="warrantyChoice"]').selectOption('NO');
   await part.locator('input[name="baseUnitOfMeasure"]').fill('Piece');
   await part.locator('input[name="reorderPoint"]').fill('5');
   await part.getByRole('button', { name: 'Add Part' }).click();
@@ -64,7 +62,7 @@ test('a store manager adds a category, a part type and a part', async ({ page })
 });
 
 test('a goods receipt with its cost puts the stock on the shelf', async ({ page }) => {
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   await page.goto('/inventory/goods-receipts/new');
   const form = jcForm(page, 'Record Goods Receipt');
   await form.locator('input[name="supplierName"]').fill('E2E Wipers Ltd');
@@ -88,8 +86,8 @@ test('a goods receipt with its cost puts the stock on the shelf', async ({ page 
   await expect(page.getByText('₦3,000').first()).toBeVisible();
 });
 
-test('the selling price is set; pricing, matching and analytics pages show real figures', async ({ page }) => {
-  await as(page, 'store-manager');
+test('the Store Keeper sets the selling price; only the Owner sees pricing, costs and stock value', async ({ page }) => {
+  await as(page, 'store-keeper');
   await page.goto(S.partUrl);
   const price = jcForm(page, /^(Set|Save)$/).filter({ has: page.locator('input[name="sellingPrice"]') });
   await price.locator('input[name="sellingPrice"]').fill('4500');
@@ -98,14 +96,21 @@ test('the selling price is set; pricing, matching and analytics pages show real 
   await expect(page.getByText('Selling price updated.')).toBeVisible();
   await expect(page.getByText('₦4,500.00').first()).toBeVisible();
 
-  await visitHealthy(page, '/inventory/pricing');
-  await expect(page.getByRole('heading', { name: 'Pricing Command Center' })).toBeVisible();
   await visitHealthy(page, '/inventory/estimate-matching');
   await expect(page.getByRole('heading', { name: 'Estimate Matching' })).toBeVisible();
+  await visitHealthy(page, '/inventory');
+  // Cost prices, margins and stock value are the Owner's alone.
+  for (const url of ['/inventory/pricing', '/inventory/analytics']) {
+    await page.goto(url);
+    await expect(page, url).toHaveURL(/\/access-denied/);
+  }
+
+  await as(page, 'owner');
+  await visitHealthy(page, '/inventory/pricing');
+  await expect(page.getByRole('heading', { name: 'Pricing Command Center' })).toBeVisible();
   await visitHealthy(page, '/inventory/analytics');
   await expect(page.getByRole('heading', { name: 'Inventory analytics' })).toBeVisible();
   await expect(page.locator('main')).toContainText(/₦[\d,]+/);
-  await visitHealthy(page, '/inventory');
   await visitHealthy(page, '/inventory/goods-receipts');
 });
 

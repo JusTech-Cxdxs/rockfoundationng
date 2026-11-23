@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { as, uniq, open } from './helpers';
 import { db } from './db';
-import { INVENTORY_ENABLED } from './edition';
 
 /**
  * The staged copy of an import's file: its size is shown, the administrator
@@ -24,15 +23,15 @@ const csv = [
 let url = '';
 
 test('the administrator sets how long finished imports keep their file; the hub shows the space used', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, '/data-exchange');
   await expect(page.getByRole('heading', { name: 'Space used by staged files' })).toBeVisible();
   // The database's space against its plan (500 MB, the free plan, unless DATABASE_SPACE_LIMIT_MB says otherwise).
   const space = page.locator('#database-space');
   await expect(space.getByRole('heading', { name: 'Database space' })).toBeVisible();
   await expect(space).toContainText(/of [\d,]+ MB used \(\d+%\)/);
-  // Without the Store (the D'Phoenix edition) the estimate is in customers and vehicles, not parts.
-  await expect(space).toContainText(/more parts, or [\d,]+ more customers/, or [\d,]+ more vehicles fit/);
+  // With the Store on, the space estimate is in parts first.
+  await expect(space).toContainText(/more parts, or [\d,]+ more customers/);
   await expect(space.getByRole('meter', { name: 'Database space used' })).toBeVisible();
   await page.getByLabel('Release a finished import’s file after (days)').fill('45');
   await page.getByRole('button', { name: 'Save' }).click();
@@ -45,7 +44,7 @@ test('the administrator sets how long finished imports keep their file; the hub 
 });
 
 test('a finished import: released early by an approver; outcomes and rejected rows are kept', async ({ page }) => {
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   await open(page, '/data-exchange/new?entity=customers');
   await expect(page.locator('#import-file')).toHaveCount(1);
   await page.locator('#import-file').setInputFiles({ name: `staged-${T}.csv`, mimeType: 'text/csv', buffer: Buffer.from(csv) });
@@ -57,7 +56,7 @@ test('a finished import: released early by an approver; outcomes and rejected ro
   await expect(page.getByRole('heading', { name: /Staged file \d/ })).toBeVisible();
   await expect(page.getByText(/Kept while the import is in progress/)).toBeVisible();
   await page.getByRole('button', { name: /Send for approval/ }).click();
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, url);
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Start loading' }).click();
@@ -80,12 +79,12 @@ test('a finished import: released early by an approver; outcomes and rejected ro
 });
 
 test('after release, undo still works and the file cannot be reopened', async ({ page }) => {
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   page.on('dialog', (d) => void d.accept());
   await open(page, url);
   await page.getByRole('button', { name: 'Undo this import' }).click();
   await expect(page.getByRole('heading', { name: 'Undone' })).toBeVisible({ timeout: 60_000 });
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   await open(page, url);
   await expect(page.getByRole('button', { name: /Reopen: check and load this file again/ })).toHaveCount(0);
   await expect(page.getByText('Its staged file was released, so to load it again, start a new import with the same file.')).toBeVisible();

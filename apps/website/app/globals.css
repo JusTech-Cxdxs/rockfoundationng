@@ -41,6 +41,9 @@
   --ejo-radius-xl: 24px;
 }
 
+/* "only light": a phone browser's forced dark mode must not recolour the light
+   theme (it washes out links); .dark below is the site's own dark theme. */
+:root { color-scheme: only light; }
 .dark {
   --ejo-secondary: #24265c;
   --ejo-bg: #111827;

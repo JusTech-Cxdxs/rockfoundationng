@@ -3,7 +3,6 @@ import { writeFileSync } from 'node:fs';
 import { as } from './helpers';
 import { db } from './db';
 import { who } from './people';
-import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
  * The measured speed run (docs/DATA_MIGRATION.md): a full parts catalogue
@@ -15,10 +14,10 @@ test.skip(!process.env.PERF_FILE, 'Speed run only: set PERF_FILE');
 test.setTimeout(4 * 60 * 60 * 1000);
 
 test('a full parts catalogue: upload, check, approve, load', async ({ page }) => {
-  const branchId = (await db().user.findUniqueOrThrow({ where: { email: who('store-manager').email }, select: { branchId: true } })).branchId!;
+  const branchId = (await db().user.findUniqueOrThrow({ where: { email: who('store-keeper').email }, select: { branchId: true } })).branchId!;
   const t: Record<string, number> = {};
   const mark = (k: string, from: number) => { t[k] = Math.round((Date.now() - from) / 100) / 10; };
-  await as(page, 'it-administrator');
+  await as(page, 'owner');
   // What the page says, once a minute, and anything that goes wrong in it (the run's log).
   page.on('pageerror', (e) => console.log('PAGE ERROR', e.message));
   page.on('console', (m) => { if (m.type() === 'error') console.log('CONSOLE ERROR', m.text()); });
@@ -41,7 +40,7 @@ test('a full parts catalogue: upload, check, approve, load', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'What the check found' })).toBeVisible({ timeout: 3_600_000 });
   mark('checkSeconds', s);
   await page.getByRole('button', { name: /Send for approval/ }).click();
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   await page.goto(url);
   await page.getByRole('button', { name: 'Approve' }).click();
   s = Date.now();

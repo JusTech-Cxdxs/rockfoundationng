@@ -81,11 +81,11 @@ test('the console is the platform team’s: the Master Administrator sees the de
   await demo.getByRole('textbox').fill('refresh');
   await expect(demo.getByRole('button', { name: 'Load / refresh the demo now' })).toBeDisabled();
   await expect(demo.getByRole('button', { name: 'Remove the demo records' })).toBeDisabled();
-  await as(page, 'it-administrator');
+  await as(page, 'owner');
   await gotoSettled(page, '/it');
   await expect(page.getByTestId('it-control-room')).toBeVisible();
   await expect(consoleCard(page)).toHaveCount(0);
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await gotoSettled(page, '/it');
   await expect(consoleCard(page)).toHaveCount(0);
 });
