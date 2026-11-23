@@ -12,7 +12,7 @@
  */
 import { prisma, type Prisma } from '@ejo/database';
 import { allows, branchWithinReach, myOrganisationId, orgWhere, reachWhere, jobCardReach } from '@/lib/authz/server';
-import type { PermissionKey } from '@/lib/authz/catalogue';
+import { STORE_COST_PERMISSIONS, type PermissionKey } from '@/lib/authz/catalogue';
 import { portalBaseUrl } from '@/lib/portal-url';
 import { getCrmHub, type CrmHubParams } from '@/lib/actions/crm';
 import { getAuditLogPage } from '@/lib/actions/audit-logs';
@@ -217,9 +217,9 @@ const stock: ExportKind<StockRow> = {
     { header: 'On hand', type: 'number', width: 9, get: (r) => r.onHand },
     { header: 'Reserved', type: 'number', width: 9, get: (r) => r.reserved },
     { header: 'Available', type: 'number', width: 9, get: (r) => r.available },
-    { header: 'Stock value (FIFO cost)', type: 'money', width: 14, get: (r) => r.stockValue },
-    { header: 'Average cost', type: 'money', width: 12, get: (r) => r.avgCost },
-    { header: 'Last cost', type: 'money', width: 12, get: (r) => r.lastCost },
+    { header: 'Stock value (FIFO cost)', type: 'money', width: 14, get: (r) => r.stockValue, needs: STORE_COST_PERMISSIONS },
+    { header: 'Average cost', type: 'money', width: 12, get: (r) => r.avgCost, needs: STORE_COST_PERMISSIONS },
+    { header: 'Last cost', type: 'money', width: 12, get: (r) => r.lastCost, needs: STORE_COST_PERMISSIONS },
     { header: 'Currency', type: 'text', width: 8, get: () => 'NGN' },
     { header: 'Status', type: 'text', width: 14, get: (r) => words(r.status) },
     { header: 'ABC', type: 'text', width: 5, get: (r) => r.abc },
@@ -273,8 +273,8 @@ const goodsReceipts: ExportKind = {
     { header: 'Description', type: 'text', width: 28, get: (r) => r.part.name },
     { header: 'Quantity (base unit)', type: 'number', width: 10, get: (r) => n(r.quantityInBaseUnit) },
     { header: 'Base unit', type: 'text', width: 9, get: (r) => r.part.baseUnitOfMeasure },
-    { header: 'Unit cost', type: 'money', width: 12, get: (r) => n(r.unitCost) },
-    { header: 'Line cost', type: 'money', width: 13, get: (r) => n(r.totalCost) },
+    { header: 'Unit cost', type: 'money', width: 12, get: (r) => n(r.unitCost), needs: STORE_COST_PERMISSIONS },
+    { header: 'Line cost', type: 'money', width: 13, get: (r) => n(r.totalCost), needs: STORE_COST_PERMISSIONS },
     { header: 'Currency', type: 'text', width: 8, get: () => 'NGN' },
     { header: 'Link', type: 'link', width: 40, get: (r) => link(`/inventory/goods-receipts/${r.goodsReceipt.id}`) },
   ],

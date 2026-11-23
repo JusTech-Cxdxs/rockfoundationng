@@ -25,7 +25,7 @@ const NAME = `Tracked Haulage ${T}`;
 const csv = (rows: string[][]) => rows.map((r) => r.join(',')).join('\r\n');
 
 async function importFile(page: Page, entity: string, name: string, body: string, opts: { branchId?: string } = {}): Promise<string> {
-  await as(page, 'owner');
+  await as(page, 'front-desk');
   await open(page, `/data-exchange/new?entity=${entity}`);
   await expect(page.locator('#import-file')).toHaveCount(1);
   if (opts.branchId) await page.locator('#import-branch').selectOption(opts.branchId);

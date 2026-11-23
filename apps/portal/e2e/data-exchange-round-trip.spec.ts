@@ -9,7 +9,7 @@ import { who } from './people';
  * by its EJO record only; the check previews every change as "from → to" (a
  * phone written another way is no change, an empty cell leaves a field as it
  * is, a record of another organisation or none at all is refused); the
- * Workshop Manager approves; the load changes exactly that, with each change
+ * Owner approves; the load changes exactly that, with each change
  * in the customer's history; a field changed in EJO after the check is left
  * as it is; and the undo puts back what each field was.
  */

@@ -45,7 +45,7 @@ test(`a Job Card is paid (70%) and Store reserves its parts`, async ({ page }) =
 
   await as(page, 'owner');
   await open(page, S.prsUrl);
-  await page.getByRole('heading', { name: 'Workshop HOD Approval' }).locator('..').getByRole('button', { name: 'Approve' }).click();
+  await page.getByRole('heading', { name: 'Workshop Supervisor approval' }).locator('..').getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByText('Approved — now awaiting Store.')).toBeVisible();
   await as(page, 'store-keeper');
   await open(page, S.prsUrl);
@@ -56,14 +56,14 @@ test(`a Job Card is paid (70%) and Store reserves its parts`, async ({ page }) =
   expect(reserved.onHand).toBe(S.before.onHand);
 });
 
-test('front desk asks to cancel; the Manager sees the refund it authorises and approves', async ({ page }) => {
+test('front desk asks to cancel; the Owner sees the refund it authorises and approves', async ({ page }) => {
   await as(page, 'front-desk');
   await open(page, S.url);
   const req = jcForm(page, 'Request cancellation');
   await req.locator('textarea[name="reason"]').fill('Customer decided to repair elsewhere');
   await req.getByRole('button', { name: 'Request cancellation' }).click();
   await expect(page.getByRole('button', { name: 'Request cancellation' })).toHaveCount(0);
-  await expect(card(page, 'Cancellation history')).toContainText('Awaiting Manager Decision');
+  await expect(card(page, 'Cancellation history')).toContainText('Awaiting Owner Decision');
 
   await as(page, 'owner');
   await open(page, S.url);

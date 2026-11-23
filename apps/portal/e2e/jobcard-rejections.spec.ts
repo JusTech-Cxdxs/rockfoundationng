@@ -7,7 +7,7 @@ import { addLine, assignTechnician, card, jcForm, jobNumber, openJobCard, submit
 /**
  * The "no" paths of a Job Card: a supervisor turns it down (with a reason)
  * and the front desk routes it to another supervisor; a technician turns
- * down the assignment; the Manager sends an estimate back for changes; a
+ * down the assignment; the Owner sends an estimate back for changes; a
  * cancellation request is declined; and the vehicle can never have two open
  * Job Cards.
  */
@@ -69,7 +69,10 @@ test('a technician turns the assignment down; it is reassigned and accepted', as
   await respond.locator('input[name="reason"]').fill('On leave tomorrow');
   await respond.getByRole('button', { name: 'Reject' }).click();
   await expect(page.locator('#technician-response')).toHaveCount(0);
-  // The assignment is handed back (the reason is kept on the trail).
+  // The assignment is handed back (the reason is kept on the trail): no longer
+  // their job, so the technician no longer sees it; the supervisor does.
+  await as(page, SUPERMANAGER);
+  await open(page, S.url);
   await expect(page.getByText('Assigned technician').locator('..')).toContainText('Unassigned');
   const trail = page.getByRole('heading', { name: 'Audit trail' }).locator('..');
   await expect(trail).toContainText('Technician rejected assignment');
@@ -84,7 +87,7 @@ test('a technician turns the assignment down; it is reassigned and accepted', as
   await expect(page.locator('#technician-response')).toHaveCount(0);
 });
 
-test('the Manager sends the estimate back for changes; the supervisor fixes and re-approves', async ({ page }) => {
+test('the Owner sends the estimate back for changes; the supervisor fixes and re-approves', async ({ page }) => {
   await as(page, SUPERMANAGER);
   await open(page, S.url);
   await addLine(page, { type: 'LABOUR', description: 'Wheel alignment', price: 12000 });
@@ -100,7 +103,7 @@ test('the Manager sends the estimate back for changes; the supervisor fixes and 
   await waitOutcome(page, /status=estimate_returned/);
   await expect(page.getByText(/Sent back to the supervisor/)).toBeVisible();
   await expect(card(page, 'Estimate')).toContainText('Awaiting supervisor validation');
-  await expect(page.getByRole('button', { name: 'Approve as Manager' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Approve as Owner' })).toHaveCount(0);
 
   await as(page, SUPERMANAGER);
   await open(page, S.url);
@@ -116,8 +119,8 @@ test('the Manager sends the estimate back for changes; the supervisor fixes and 
 
   await as(page, 'owner');
   await open(page, S.url);
-  await page.getByRole('button', { name: 'Approve as Manager' }).click();
-  await expect(page.getByRole('button', { name: 'Approve as Manager' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Approve as Owner' }).click();
+  await expect(page.getByRole('button', { name: 'Approve as Owner' })).toHaveCount(0);
   expectNoUrlError(page);
 });
 
@@ -127,7 +130,7 @@ test('a cancellation request can be declined; the Job Card carries on', async ({
   const req = jcForm(page, 'Request cancellation');
   await req.locator('textarea[name="reason"]').fill('Customer unsure about the cost');
   await req.getByRole('button', { name: 'Request cancellation' }).click();
-  await expect(card(page, 'Cancellation history')).toContainText('Awaiting Manager Decision');
+  await expect(card(page, 'Cancellation history')).toContainText('Awaiting Owner Decision');
 
   await as(page, 'owner');
   await open(page, S.url);

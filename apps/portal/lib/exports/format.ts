@@ -12,6 +12,8 @@
  */
 
 /** day: a calendar date stored as such (customer since, invoice date); date: the Lagos day of a moment; datetime: the moment, to the minute. */
+import type { PermissionKey } from '../authz/catalogue';
+
 export type ColumnType = 'text' | 'code' | 'int' | 'number' | 'money' | 'day' | 'date' | 'datetime' | 'bool' | 'link';
 
 export type ExportColumn<R> = {
@@ -20,6 +22,8 @@ export type ExportColumn<R> = {
   /** Width in characters (Excel). */
   width?: number;
   get: (r: R) => unknown;
+  /** Only for people holding one of these (e.g. cost prices): left out of the file for everyone else. */
+  needs?: readonly PermissionKey[];
 };
 
 export type Cell = string | number | Date | boolean | null | undefined;

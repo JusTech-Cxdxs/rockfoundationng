@@ -40,7 +40,7 @@ test('the staff file: refusals and the totals; the Owner approves; accounts swit
   importUrl = await upload(page, csv([
     ['Personnel number', 'Full name', 'Work email', 'Employee ID', 'Branch', 'Department', 'Roles'],
     [`0001${D}1`, `Ada Import ${T}`, mail(1), `P7-${D}-1`, branch.name, dept.name, 'Technician'],
-    [`0001${D}2`, `Bayo Import ${T}`, mail(2), '', branch.name, '', 'Front Desk; Customer Care'],
+    [`0001${D}2`, `Bayo Import ${T}`, mail(2), '', branch.name, '', 'Front Desk / Customer Care; Accounts'],
     [`0001${D}3`, `Chika Import ${T}`, mail(3), '', branch.name, '', ''],
     [`0001${D}4`, `Ada Again ${T}`, mail(1), '', branch.name, '', 'Technician'],
     [`0001${D}5`, `Existing ${T}`, who('owner').email, '', branch.name, '', 'Technician'],
@@ -78,7 +78,7 @@ test('the staff file: refusals and the totals; the Owner approves; accounts swit
   expect(people[0]!.departmentId).toBe(dept.id);
   expect(people[1]!.employeeId).toMatch(/^[A-Z0-9]+-[A-Z0-9]+-\d{4}$/); // issued by EJO for the branch
   expect(people[0]!.roles.map((r) => r.role.slug)).toEqual(['technician']);
-  expect(people[1]!.roles.map((r) => r.role.slug).sort()).toEqual(['front-desk', 'front-desk']);
+  expect(people[1]!.roles.map((r) => r.role.slug).sort()).toEqual(['accounts', 'front-desk']);
   expect(people[2]!.roles).toEqual([]);
   expect(people.every((u) => u.accounts.length === 1 && u.accounts[0]!.providerId === 'credential' && u.accounts[0]!.password)).toBe(true);
   for (const n of [1, 2, 3]) expect(await countMail(request, mail(n), /./)).toBe(0); // nobody emailed at load

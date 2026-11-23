@@ -26,7 +26,7 @@ async function main() {
   const tech = await u('tech@e2e.test');
   const mgr = await u('owner@e2e.test');
   const fin = await u('accounts@e2e.test');
-  // The Store's records are made by the Store Manager, or the Manager where the edition has no Store (e2e/edition.ts).
+  // The Store's records are made by the Store Keeper.
   const store = (await prisma.user.findUnique({ where: { email: 'store@e2e.test' } })) ?? mgr;
   const admin = await u('owner@e2e.test');
   const master = await u('master@e2e.test');

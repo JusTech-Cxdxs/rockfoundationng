@@ -48,7 +48,10 @@ export function GoodsReceiptLineCard({
   totalCost,
   unitCost,
   canSeeCustomers = false,
+  canSeeCosts = false,
 }: {
+  /** Costs are shown (and corrected) only for those who may see them; the Store Keeper never does. */
+  canSeeCosts?: boolean;
   /** Customer names link to their Customers (CRM) page — decided once by the page. */
   canSeeCustomers?: boolean;
   goodsReceiptId: string;
@@ -131,7 +134,7 @@ export function GoodsReceiptLineCard({
         );
       })()}
 
-      {!isEditing ? (
+      {!canSeeCosts ? null : !isEditing ? (
         <div className="mt-2 flex items-center justify-between rounded-[var(--ejo-radius-md)] border border-[var(--ejo-success)]/30 bg-[var(--ejo-success)]/5 px-3 py-2.5">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--ejo-success)]">Total Bulk Cost — Current</p>
