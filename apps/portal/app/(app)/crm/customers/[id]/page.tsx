@@ -133,7 +133,6 @@ export default async function Customer360Page({ params, searchParams }: { params
             <a href={`mailto:${c.email}`} className={ghost}><CrmIcon name="mail" size={14} />Email</a>
             {can.broadcast ? <Link href={`/notifications/broadcasts/new?for=customers&customerId=${encodeURIComponent(c.id)}`} className={ghost}><CrmIcon name="broadcast" size={14} />Send a message</Link> : null}
             {can.manage && !editing ? <Link href={`${base}?edit=1`} className={ghost}><CrmIcon name="edit" size={14} />Edit details</Link> : null}
-            {/* Data requests only in an edition that has them (lib/modules.ts). */}
           </div>
         </div>
       </section>

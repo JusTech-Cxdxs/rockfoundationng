@@ -71,7 +71,7 @@ test('access description: exactly what the catalogue grants, with "added" grants
 
 test('welcome email: employee ID, roles, branch, access, sign-in steps, the rules — and nothing unescaped', () => {
   const { subject, html } = renderStaffAccessEmail({
-    kind: 'welcome', fullName: 'Ada <b>Obi</b>', email: 'ada@example.com', employeeId: 'PN-AJA-0007', companyName: 'Phoenix Nigeria',
+    kind: 'welcome', fullName: 'Ada <b>Obi</b>', email: 'ada@example.com', employeeId: 'PN-AJA-0007', companyName: 'Example Motors Ltd',
     branchName: 'Ajah Branch', departmentName: 'Workshop', roles: ['Technician'], isPlatformTeam: false,
     access: describeAccess(who(['technician'])), setPasswordUrl: 'https://portal.example/api/auth/reset-password/tok?callbackURL=%2Freset-password', setPasswordHours: 72,
     signInUrl: 'https://portal.example/login', logoUrl: 'https://portal.example/brand/logo.png',
