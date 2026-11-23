@@ -40,7 +40,7 @@ async function openCustomer(page: Page, name: string): Promise<string> {
 }
 
 test('register: primary phone and address are required — by the form and by the server', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await page.goto('/crm?register=1');
   const form = page.locator('#register');
   await form.getByLabel('Full name').fill('Nkem Noaddress');
@@ -59,7 +59,7 @@ test('register: primary phone and address are required — by the form and by th
 
 test('register a customer: welcome email with a set-password link (no password); they set it on the website and sign in', async ({ page, request }) => {
   const email = `crm.customer.${Date.now()}@e2e.test`;
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await page.goto('/crm?register=1');
   const form = page.locator('#register');
   await form.getByLabel('Full name').fill('Chidi Newcustomer');
@@ -86,7 +86,7 @@ test.describe('portal access, from the front desk', () => {
   const S = { url: '', password: SWITCH_CUSTOMER.password };
 
   test('"Send set-password link": the email arrives; the customer sets a password and signs in', async ({ page, request }) => {
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     S.url = await openCustomer(page, SWITCH_CUSTOMER.name);
     const since = Date.now();
     await page.locator('#main').getByRole('button', { name: 'Send set-password link' }).first().click();
@@ -107,7 +107,7 @@ test.describe('portal access, from the front desk', () => {
     const customer = await other.newPage();
     if (up) await customerSignedIn(customer, SWITCH_CUSTOMER, S.password);
 
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await page.goto(S.url);
     // The page's own copy (#main) — the shell can briefly hold a second one while the page streams in.
     const main = page.locator('#main');
@@ -138,7 +138,7 @@ test.describe('portal access, from the front desk', () => {
 
 test('a broadcast to all customers reaches the customer portal — and never the staff', async ({ page, request }) => {
   const title = `Customer notice ${uniq()}`;
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await publishBroadcast(page, { category: /Important/, title, message: 'Our workshop closes early on Friday.', audience: 'CUSTOMERS_ALL', email: false });
 
   await test.step('staff never see it', async () => {
@@ -172,7 +172,7 @@ test.describe('Ada, a long-standing customer', () => {
   }
 
   test('front desk: the hub, then Ada\'s 360 page with her vehicles', async ({ page }) => {
-    await signIn(page, who('receptionist').email, E2E_PASSWORD);
+    await signIn(page, who('front-desk').email, E2E_PASSWORD);
     await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Customers', exact: true })).toBeVisible();
     await openAda(page);
     await expect(page.getByText('Lifetime spend')).toBeVisible();
@@ -189,7 +189,7 @@ test.describe('Ada, a long-standing customer', () => {
     // Fixture: start from the seeded details, so a second run on the same database still has a change to save
     // (otherwise the page rightly answers "Nothing to save").
     await db().customer.update({ where: { id: adaUrl.split('/').pop()! }, data: { altPhone: null, tags: [] } });
-    await signIn(page, who('receptionist').email, E2E_PASSWORD);
+    await signIn(page, who('front-desk').email, E2E_PASSWORD);
     await page.goto(`${adaUrl}?edit=1`);
     const form = page.getByRole('form', { name: 'Edit customer' });
     await form.getByLabel('Second phone').fill('0809 555 0101');

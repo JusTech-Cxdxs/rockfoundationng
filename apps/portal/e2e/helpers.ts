@@ -114,7 +114,7 @@ export function uniq(prefix = ''): string {
 /** Text that only ever appears when a page has failed. */
 export const BROKEN_PAGE_TEXT = [
   'Something went wrong on this page',
-  'EJO 100 is having a problem right now',
+  'EJO is having a problem right now',
   'Application error',
   'Internal Server Error',
   'Unhandled Runtime Error',

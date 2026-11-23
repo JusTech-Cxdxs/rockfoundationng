@@ -1,21 +1,18 @@
 /**
- * E2E seed — runs AFTER packages/database/prisma/seed.ts and
- * scripts/v24-roles.sql on a throwaway test database (never a real one).
- * Idempotent (upserts only) — safe to run twice.
- * Adds: one account per role (all with the same test password, one person
- * holding both Supervisor and Manager for the segregation-of-duties checks),
- * customers with vehicles (two of them with customer-portal passwords), a
- * second branch, and a SECOND organisation with its own admin and customer
- * for the cross-organisation tests.
- * The Store can be switched off (edition.ts), so only with its flag does it
- * also add the store people (and their roles, which the edition's seed does
- * not create) and a Store with priced, stocked parts (each workflow spec has
- * its own part, with a real goods-receipt layer under the stock).
+ * E2E seed: runs AFTER packages/database/prisma/seed.ts on a throwaway test
+ * database (never a real one). Idempotent (upserts only): safe to run twice.
+ * Adds: every optional role switched on for the test organisation, one
+ * account per role (all with the same test password, one person holding both
+ * Supervisor and Owner for the segregation-of-duties checks), the workshop's
+ * passenger and commercial sections and its Store, customers with vehicles
+ * (some with customer-portal passwords), a Store with priced, stocked parts
+ * (each workflow spec has its own part, with a real goods-receipt layer under
+ * the stock), a second branch, and a SECOND organisation with its own Owner
+ * and customer for the cross-organisation tests.
  */
 import { PrismaClient } from '@prisma/client';
 import { hashPassword } from 'better-auth/crypto';
-import { E2E_PASSWORD, EDITION_ROLES, ORGANISATION_SLUG, PEOPLE, RESET, OTHER_ORG_ADMIN, OTHER_BRANCH_TECH, SECOND_BRANCH, CUSTOMER, PORTAL_CUSTOMERS, SEED_PARTS, SEED_CATEGORY, type Person } from './people';
-import { INVENTORY_ENABLED } from './edition';
+import { E2E_PASSWORD, OPTIONAL_ROLES, ORGANISATION_SLUG, PEOPLE, RESET, OTHER_ORG_ADMIN, OTHER_BRANCH_TECH, SECOND_BRANCH, CUSTOMER, PORTAL_CUSTOMERS, SEED_PARTS, SEED_CATEGORY, type Person } from './people';
 
 const prisma = new PrismaClient();
 
@@ -34,10 +31,8 @@ async function person(organisationId: string, branchId: string, p: Person) {
     create: { email: p.email, fullName: p.name, organisationId, branchId, departmentId: dept?.id ?? null, isActive: true, accountType: 'EMPLOYEE', emailVerified: true },
   });
   for (const slug of [p.role, ...(p.extraRoles ?? [])]) {
-    // A role the edition switched off (a flag turned it back on for this run) is created here; every other role must exist.
-    const role = EDITION_ROLES[slug]
-      ? await prisma.role.upsert({ where: { organisationId_slug: { organisationId, slug } }, update: {}, create: { organisationId, name: EDITION_ROLES[slug], slug, isSystem: true } })
-      : await prisma.role.findUniqueOrThrow({ where: { organisationId_slug: { organisationId, slug } } });
+    // Every role comes from the main seed (packages/database/prisma/seed.ts).
+    const role = await prisma.role.findUniqueOrThrow({ where: { organisationId_slug: { organisationId, slug } } });
     await prisma.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId: role.id } }, update: {}, create: { userId: user.id, roleId: role.id } });
   }
   await account(user.id, E2E_PASSWORD);
@@ -55,22 +50,26 @@ async function main() {
   const org = await prisma.organisation.findUniqueOrThrow({ where: { slug: ORGANISATION_SLUG } });
   // The workshop stories take a 70% deposit from an individual customer: the deposit switch is on for them
   // (Organisation → Billing & tax; off by default). An organisation customer never pays one (approval-credit.spec).
-  await prisma.organisation.update({ where: { id: org.id }, data: { depositRequired: true, depositPercent: 70 } });
+  // Every optional role is switched on, so each one can be tested (roles.spec switches one off and on again).
+  await prisma.organisation.update({ where: { id: org.id }, data: { depositRequired: true, depositPercent: 70, optionalRoles: [...OPTIONAL_ROLES] } });
   const branch = await prisma.branch.findFirstOrThrow({ where: { businessUnit: { organisationId: org.id }, type: 'WORKSHOP' }, orderBy: { createdAt: 'asc' } });
-  // The Store team works in the branch's store department (the D'Phoenix seed has none; made here only with E2E_INVENTORY=1).
-  await prisma.department.upsert({ where: { branchId_slug: { branchId: branch.id, slug: 'store' } }, update: {}, create: { branchId: branch.id, name: 'Store', slug: 'store' } });
+  // The workshop's sections (Job Cards are filed by the work: lib/workshop/routing.ts) and the Store team's department.
+  // The main seed makes them too; upserting here keeps this seed safe on any base.
+  for (const [slug, name] of [['workshop', 'Workshop'], ['mechanical', 'Mechanical'], ['electrical', 'Electrical and diagnostics'], ['body-spray', 'Body and spraying'], ['car-wash', 'Car wash'], ['store', 'Store']] as const) {
+    await prisma.department.upsert({ where: { branchId_slug: { branchId: branch.id, slug } }, update: {}, create: { branchId: branch.id, name, slug } });
+  }
   for (const p of [...PEOPLE, RESET]) await person(org.id, branch.id, p);
 
-  const frontDesk = await prisma.user.findUniqueOrThrow({ where: { email: PEOPLE.find((p) => p.role === 'receptionist')!.email } });
-  // Who "created" the Store fixtures: the Store Manager when the Store is on, else the Workshop Manager.
-  const store = await prisma.user.findUniqueOrThrow({ where: { email: PEOPLE.find((p) => p.role === ('store-manager'))!.email } });
+  const frontDesk = await prisma.user.findUniqueOrThrow({ where: { email: PEOPLE.find((p) => p.role === 'front-desk')!.email } });
+  // Who "created" the Store fixtures: the Store Keeper.
+  const store = await prisma.user.findUniqueOrThrow({ where: { email: PEOPLE.find((p) => p.role === 'store-keeper')!.email } });
 
   // ── Customers ──────────────────────────────────────────────────────
   const customer = await prisma.customer.upsert({
     where: { email: CUSTOMER.email },
     update: {},
     // Registration requires a primary address and phone (v28).
-    create: { organisationId: org.id, fullName: CUSTOMER.name, email: CUSTOMER.email, phone: '08000000001', address: '1 Test Street, Ikeja', createdById: frontDesk.id },
+    create: { organisationId: org.id, fullName: CUSTOMER.name, email: CUSTOMER.email, phone: '08000000001', address: '1 Test Street, Ota', createdById: frontDesk.id },
   });
   await prisma.customerVehicle.upsert({
     where: { plateNumber: 'E2E-001-AA' },
@@ -86,7 +85,7 @@ async function main() {
     const row = await prisma.customer.upsert({
       where: { email: c.email },
       update: { isActive: true },
-      create: { organisationId: org.id, fullName: c.name, email: c.email, phone: `0800000010${i}`, address: `${i + 2} Portal Road, Lekki`, createdById: frontDesk.id, emailVerified: true },
+      create: { organisationId: org.id, fullName: c.name, email: c.email, phone: `0800000010${i}`, address: `${i + 2} Portal Road, Ota`, createdById: frontDesk.id, emailVerified: true },
     });
     await customerAccount(row.id, c.password);
     await prisma.customerVehicle.upsert({
@@ -96,7 +95,7 @@ async function main() {
     });
   }
 
-  // ── Store: category, part types, priced parts with real stock layers (E2E_INVENTORY=1) ──
+  // ── Store: category, part types, priced parts with real stock layers ──
   const category = await prisma.partCategory.upsert({
     where: { branchId_name: { branchId: branch.id, name: SEED_CATEGORY.name } },
     update: {},
@@ -127,7 +126,6 @@ async function main() {
       await prisma.partStock.upsert({ where: { partId: part.id }, update: { quantityOnHand: p.stock }, create: { partId: part.id, quantityOnHand: p.stock } });
     }
   }
-  
 
   // ── A second branch of THIS organisation, with one technician (branch fences) ──
   const second = (await prisma.branch.findFirst({ where: { businessUnitId: branch.businessUnitId, name: SECOND_BRANCH } }))
@@ -142,8 +140,8 @@ async function main() {
   const bu = await prisma.businessUnit.upsert({ where: { organisationId_slug: { organisationId: other.id, slug: 'automobile' } }, update: {}, create: { organisationId: other.id, name: 'Automobile', slug: 'automobile' } });
   const otherBranch = (await prisma.branch.findFirst({ where: { businessUnitId: bu.id } })) ?? (await prisma.branch.create({ data: { businessUnitId: bu.id, cityId: city.id, name: 'Garki Branch' } }));
   await prisma.department.upsert({ where: { branchId_slug: { branchId: otherBranch.id, slug: 'workshop' } }, update: {}, create: { branchId: otherBranch.id, name: 'Workshop', slug: 'workshop' } });
-  await prisma.role.upsert({ where: { organisationId_slug: { organisationId: other.id, slug: 'administrator' } }, update: {}, create: { organisationId: other.id, name: 'Organisation Administrator', slug: 'administrator', isSystem: true } });
-  await person(other.id, otherBranch.id, { ...OTHER_ORG_ADMIN, role: 'administrator' });
+  await prisma.role.upsert({ where: { organisationId_slug: { organisationId: other.id, slug: 'owner' } }, update: {}, create: { organisationId: other.id, name: 'Owner / GMD', slug: 'owner', isSystem: true } });
+  await person(other.id, otherBranch.id, { ...OTHER_ORG_ADMIN, role: 'owner' });
   await prisma.customer.upsert({ where: { email: 'other-customer@e2e.test' }, update: {}, create: { organisationId: other.id, fullName: 'Other Customer', email: 'other-customer@e2e.test', phone: '08000000009', address: 'Garki, Abuja' } });
 
   // eslint-disable-next-line no-console

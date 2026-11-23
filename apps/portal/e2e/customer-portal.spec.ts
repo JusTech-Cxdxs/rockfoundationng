@@ -6,7 +6,6 @@ import { freshVehicle, resetCustomerAccount } from './db';
 import {
   addLine, jcForm, jobCardReadyForEstimate, jobNumber, managerApprovesEstimate, notifyCustomer, recordPayment, submitEstimate, supervisorApprovesEstimate,
 } from './workflows';
-import { WARRANTY_ENABLED, WARRANTY_OFF } from './edition';
 
 /**
  * The customer portal (apps/website, :3002 in CI), as customers use it:
@@ -164,7 +163,7 @@ test.describe('a Job Card, followed by its customer', () => {
     await addLine(page, { type: 'LABOUR', description: LINE, price: 12000 });
     await submitEstimate(page);
     await supervisorApprovesEstimate(page);
-    await as(page, 'workshop-manager');
+    await as(page, 'owner');
     await open(page, S.url);
     await managerApprovesEstimate(page);
 
@@ -182,7 +181,7 @@ test.describe('a Job Card, followed by its customer', () => {
 
   test('once the front desk sends it: the estimate, the bell and the notifications; mark all read', async ({ page }) => {
     test.skip(!S.id, 'needs the Job Card from the previous step');
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await open(page, S.url);
     await notifyCustomer(page);
 
@@ -219,7 +218,7 @@ test.describe('a Job Card, followed by its customer', () => {
 
   test('a payment recorded by Finance appears in the customer’s payment history', async ({ page }) => {
     test.skip(!S.id, 'needs the Job Card from the first step');
-    await as(page, 'finance-officer');
+    await as(page, 'accounts');
     await open(page, S.url);
     await recordPayment(page, 'DEPOSIT');
     await customerSignedIn(page, PORTAL_CUSTOMER);
@@ -329,7 +328,7 @@ test('a staff session never opens the customer portal, and a customer session ne
     (await context.cookies()).find((c) => new RegExp(`(^|-)${app}\\.session_token$`).test(c.name));
 
   await test.step('signed in as staff: the customer portal still asks for a customer sign-in', async () => {
-    await as(page, 'receptionist');
+    await as(page, 'front-desk');
     await page.goto(portal('/dashboard'));
     await expect(page).toHaveURL(/\/customer-portal\?redirect=/);
     // Even the staff session token presented as a customer cookie is refused.

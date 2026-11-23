@@ -10,7 +10,7 @@ import { tourFor } from '../lib/demo/tour';
 import { DEMO_ENABLED, DEMO_OFF } from './edition';
 
 /**
- * D4 — the role tour of docs/DPHOENIX_DEMO.md, in the browser: every demo
+ * The role tour of docs/DEMO.md, in the browser: every demo
  * sign-in lands on its own dashboard, its three clicks open (never
  * "Access denied"), and every "must not" is refused when typed in. Then the
  * branch fences on real demo records, and the reset refusing a hosted
@@ -61,11 +61,11 @@ test('fences on real demo records: a technician on the cars bay cannot work on t
   const fleetTech = await db().user.findUniqueOrThrow({ where: { email: DEMO_STAFF.find((s) => s.email.startsWith('tech.3@'))!.email }, select: { id: true } });
   const job = await demoJob({ assignedTechnicianId: fleetTech.id, status: { in: ['IN_PROGRESS', 'READY_FOR_COLLECTION', 'CHECKED_OUT'] } });
   await page.context().clearCookies();
-  await signIn(page, DEMO_STAFF.find((s) => s.email.startsWith('calendar@'))!.email, DEMO_E2E_PASSWORD);
+  await signIn(page, demoPerson('security').email, DEMO_E2E_PASSWORD);
   await gotoSettled(page, `/workshop/job-cards/${job.id}`);
   await expect(page.getByText(job.jobNumber)).toHaveCount(0);
   await page.context().clearCookies();
-  await signIn(page, demoPerson('executive', 'HQ').email, DEMO_E2E_PASSWORD);
+  await signIn(page, demoPerson('owner', 'BIZ').email, DEMO_E2E_PASSWORD);
   await gotoSettled(page, `/workshop/job-cards/${job.id}`);
   await expect(page.getByText(job.jobNumber).first()).toBeVisible();
   await expectHealthy(page);

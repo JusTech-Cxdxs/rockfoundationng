@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { as, open } from './helpers';
 import { db } from './db';
 import { WORKSHOP_BRANCH } from './people';
-import { INVENTORY_ENABLED } from './edition';
 
 /**
  * P9 — the cut-over checklist: every branch with how far it has come; a
@@ -20,7 +19,7 @@ const STEPS = ['staff', 'customers', 'vehicles', 'suppliers', 'parts', 'stock', 
 
 test('the Administrator: the workshop’s checklist in order, a step marked not needed with its reason and needed again, the sign-off waiting', async ({ page }) => {
   const workshop = await db().branch.findFirstOrThrow({ where: { name: WORKSHOP_BRANCH }, select: { id: true } });
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, '/data-exchange');
   await page.getByRole('link', { name: 'Cut-over checklist' }).click();
   await page.waitForURL(/\/data-exchange\/cutover$/);
@@ -55,7 +54,7 @@ test('the Administrator: the workshop’s checklist in order, a step marked not 
 
 test('someone who only prepares files sees the checklist but cannot mark it; a branch of nowhere is not found', async ({ page }) => {
   const workshop = await db().branch.findFirstOrThrow({ where: { name: WORKSHOP_BRANCH }, select: { id: true } });
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   await open(page, `/data-exchange/cutover/${workshop.id}`);
   await expect(page.getByTestId('cutover-step')).toHaveCount(STEPS.length);
   await expect(page.getByRole('button', { name: 'Not needed here' })).toHaveCount(0);

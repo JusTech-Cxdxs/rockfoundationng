@@ -25,7 +25,7 @@ const NAME = `Tracked Haulage ${T}`;
 const csv = (rows: string[][]) => rows.map((r) => r.join(',')).join('\r\n');
 
 async function importFile(page: Page, entity: string, name: string, body: string, opts: { branchId?: string } = {}): Promise<string> {
-  await as(page, 'it-administrator');
+  await as(page, 'owner');
   await open(page, `/data-exchange/new?entity=${entity}`);
   await expect(page.locator('#import-file')).toHaveCount(1);
   if (opts.branchId) await page.locator('#import-branch').selectOption(opts.branchId);
@@ -35,7 +35,7 @@ async function importFile(page: Page, entity: string, name: string, body: string
   await page.getByRole('button', { name: 'Save and check the file' }).click();
   await expect(page.getByRole('heading', { name: 'What the check found' })).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: /Send for approval/ }).click();
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, url);
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Start loading' }).click();
@@ -63,7 +63,7 @@ test('imported from the old system: the customer and two of their invoices', asy
   const job = await db().importJob.findUniqueOrThrow({ where: { id: url.split('/').pop()! }, select: { number: true } });
   importNumber = job.number;
   customerId = (await db().customer.findFirstOrThrow({ where: { externalId: custNo }, select: { id: true } })).id;
-  const branchId = (await db().user.findUniqueOrThrow({ where: { email: who('workshop-manager').email }, select: { branchId: true } })).branchId!;
+  const branchId = (await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { branchId: true } })).branchId!;
   await importFile(page, 'invoices', `invoices-${T}.csv`, csv([
     ['Invoice number', 'Invoice date', 'Customer number', 'Amount (₦)', 'Description'],
     [invNo, '10/05/2024', custNo, '125000.00', 'Service 20,000 km'],
@@ -73,7 +73,7 @@ test('imported from the old system: the customer and two of their invoices', asy
 });
 
 test('search by the old number: every match labelled; a year narrows it; leading zeros are understood', async ({ page }) => {
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, '/dashboard');
   let panel = await search(page, `000${custNo}`);
   await expect(panel.getByText(`${SRC} customer ${custNo}`)).toBeVisible();
@@ -85,7 +85,7 @@ test('search by the old number: every match labelled; a year narrows it; leading
   panel = await search(page, `${invNo} 2024`);
   await expect(panel.getByText(`${SRC} invoice ${invNo} · 2024`)).toBeVisible();
   // The front desk without the CRM still finds the customer; the invoices are for the CRM.
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, '/dashboard');
   panel = await search(page, custNo);
   await expect(panel.getByText(`${SRC} customer ${custNo}`)).toBeVisible();
@@ -93,7 +93,7 @@ test('search by the old number: every match labelled; a year narrows it; leading
 });
 
 test('the customer page says where it came from: imported by IMP-…, with its old number and customer-since date', async ({ page }) => {
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, `/crm/customers/${customerId}`);
   const box = page.getByRole('region', { name: 'Where this came from' }).or(page.locator('section[aria-labelledby="provenance"]'));
   await expect(box.getByText(IMPORTED)).toBeVisible();
@@ -103,7 +103,7 @@ test('the customer page says where it came from: imported by IMP-…, with its o
 });
 
 test('the customer list filters by source, import, and both dates', async ({ page }) => {
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, `/crm?source=${SOURCE_KEY}&imp=${encodeURIComponent(importNumber.toLowerCase())}&originalTo=2012-12-31`);
   await expect(page.getByText(NAME)).toBeVisible();
   await open(page, `/crm?source=ejo&q=${encodeURIComponent(NAME)}`);
@@ -113,7 +113,7 @@ test('the customer list filters by source, import, and both dates', async ({ pag
 });
 
 test('Data Exchange, day by day; the analytics with or without the history from before EJO', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, '/data-exchange/timeline');
   await expect(page.getByRole('link', { name: importNumber }).first()).toBeVisible();
   await open(page, '/analytics?period=this_year');

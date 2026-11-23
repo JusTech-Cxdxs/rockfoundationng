@@ -6,7 +6,6 @@ import {
   addLine, assignTechnician, expectStatus, jobNumber, jcForm, nextStep, notifyCustomer, openJobCard, recordPayment,
   requestStoreMatching, statusPanel, storeMatchesAll, submitEstimate, supervisorApproves, supervisorApprovesEstimate, technicianAccepts,
 } from './workflows';
-import { INVENTORY_ENABLED, INVENTORY_OFF } from './edition';
 
 /**
  * One Job Card, A to Z, by the people who really do each step:
@@ -34,7 +33,7 @@ test.beforeAll(async () => {
 });
 
 test('front desk opens the Job Card; the supervisor approves and assigns; the technician accepts', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   S.url = await openJobCard(page, { plate: S.plate, supervisor: SUPERMANAGER, complaint: 'Grinding noise from the front brakes' });
   S.id = S.url.split('/').pop()!;
   S.number = await jobNumber(page);
@@ -61,13 +60,12 @@ test(`the estimate is drafted by the technician and the supervisor, and Store pr
     await expect(form.locator('input[name="unitPrice"]')).toHaveCount(0);
     await expect(form.getByText('Priced by supervisor')).toBeVisible();
   });
-  // Without the Store (the D'Phoenix edition) the pads are bought outside, at the same price.
+  // The pads come from the Store.
   await addLine(page, { type: 'STORE_PART', partType: SEED_PARTS.brakePads.type, qty: 2 });
   await addLine(page, { type: 'EXTERNAL_PART', description: 'Brake disc skimming (outside machine shop)', price: 8000 });
   await expect(page.getByText('Awaiting Store match')).toBeVisible();
   // Submission is held until Store has priced the part.
   await expect(page.getByRole('button', { name: 'Submit for validation' })).toHaveCount(0);
-  
 
   await as(page, SUPERMANAGER);
   await open(page, S.url);
@@ -78,12 +76,11 @@ test(`the estimate is drafted by the technician and the supervisor, and Store pr
     await expect(form.locator('select[name="type"] option[value="SUNDRY"]')).toHaveCount(0);
   });
   await requestStoreMatching(page);
-  await storeMatchesAll(page, S.id, who('store-officer'));
+  await storeMatchesAll(page, S.id, who('store-keeper'));
 
   await as(page, SUPERMANAGER);
   await open(page, S.url);
   await expect(page.getByText(`Matched: ${SEED_PARTS.brakePads.name}`).first()).toBeVisible();
-  
   // 2 × 15,000 + 8,000 + 20,000 + 1,500 = 59,500
   await expect(page.getByText('Total Estimate').locator('..')).toContainText('₦59,500.00');
 });
@@ -101,16 +98,16 @@ test('approvals respect segregation of duties; the customer is notified by email
     await expect(page.getByText('Awaiting manager review').first()).toBeVisible();
   });
   await test.step('another Manager gives the final approval', async () => {
-    await as(page, 'workshop-manager');
+    await as(page, 'owner');
     await open(page, S.url);
     await page.getByRole('button', { name: 'Approve as Manager' }).click();
     await expect(page.getByRole('button', { name: 'Approve as Manager' })).toHaveCount(0);
     expectNoUrlError(page);
   });
-  const toFrontDesk = await latestMail(request, who('receptionist').email, new RegExp(`${S.number} approved by manager`));
+  const toFrontDesk = await latestMail(request, who('front-desk').email, new RegExp(`${S.number} approved by manager`));
   expect(toFrontDesk.subject).toContain(S.number);
 
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, S.url);
   await notifyCustomer(page);
   const mail = await latestMail(request, CUSTOMER.email, new RegExp(`Estimate ready for ${S.number}\\b.*\\(${S.plate}\\)`));
@@ -122,7 +119,7 @@ test('approvals respect segregation of duties; the customer is notified by email
 });
 
 test('Finance records the 70% deposit — a double click records ONE payment — and work starts', async ({ page, request }) => {
-  await as(page, 'finance-officer');
+  await as(page, 'accounts');
   await open(page, S.url);
   await expectStatus(page, 'Awaiting Customer Approval');
   const form = jcForm(page, 'Record payment');
@@ -139,7 +136,7 @@ test('Finance records the 70% deposit — a double click records ONE payment —
 });
 
 test('parts: technician requests → supervisor approves → Store reserves → Store releases (stock moves)', async ({ page }) => {
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   S.stockBefore = await readStock(page, S.partUrl);
 
   await as(page, 'technician');
@@ -154,13 +151,13 @@ test('parts: technician requests → supervisor approves → Store reserves → 
   S.prsUrl = new URL(page.url()).pathname;
 
   await test.step('the Workshop HOD (Manager) approves', async () => {
-    await as(page, 'workshop-manager');
+    await as(page, 'owner');
     await open(page, S.prsUrl);
     await page.getByRole('heading', { name: 'Workshop HOD Approval' }).locator('..').getByRole('button', { name: 'Approve' }).click();
     await expect(page.getByText('Approved — now awaiting Store.')).toBeVisible();
   });
   await test.step('Store approves and reserves the stock', async () => {
-    await as(page, 'store-manager');
+    await as(page, 'store-keeper');
     await open(page, S.prsUrl);
     await page.getByRole('button', { name: 'Approve & Reserve' }).click();
     await expect(page.getByText('Approved and stock reserved — now ready for release.')).toBeVisible();
@@ -195,7 +192,7 @@ test('quality check → completed → ready; balance paid; close approved; vehic
   await nextStep(page, 'Mark Ready for Collection', 'Ready for Collection');
   await expect(page.getByText(/Next: collect the balance/)).toBeVisible();
 
-  await as(page, 'finance-officer');
+  await as(page, 'accounts');
   await open(page, S.url);
   await recordPayment(page, 'REMAINING', 'CASH', 'Balance at collection');
   await expect(page.getByText('Paid in full — nothing further to record.')).toBeVisible();
@@ -203,12 +200,12 @@ test('quality check → completed → ready; balance paid; close approved; vehic
   expect(await paymentsOn(S.id)).toBe(2);
   await latestMail(request, CUSTOMER.email, new RegExp(`Payment received — Job Card ${S.number}`));
 
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, S.url);
   await page.getByRole('button', { name: 'Request close' }).click();
   await expect(page.getByText(/Close requested — waiting on a Manager.s approval\./)).toBeVisible();
 
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, S.url);
   await page.locator('#close-request').getByRole('button', { name: 'Approve close' }).click();
   await expectStatus(page, 'Closed');
@@ -228,7 +225,7 @@ test('quality check → completed → ready; balance paid; close approved; vehic
 });
 
 test('Security lets the collected vehicle out through the gate', async ({ page }) => {
-  await as(page, 'security-officer');
+  await as(page, 'security');
   await page.goto(`/security/vehicles?q=${encodeURIComponent(S.plate)}`);
   await expect(page.getByRole('heading', { name: 'Vehicles cleared to leave' })).toBeVisible();
   await page.getByRole('row').filter({ hasText: S.plate }).getByRole('link', { name: 'Confirm exit' }).click();
@@ -242,14 +239,14 @@ test('Security lets the collected vehicle out through the gate', async ({ page }
 });
 
 test('the whole story is on the audit trail and in the Audit Logs', async ({ page }) => {
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, S.url);
   const trail = page.getByRole('heading', { name: 'Audit trail' }).locator('..');
   await trail.getByRole('button', { name: /^Show all/ }).click();
   for (const label of ['Job Card created', 'Job Card approved', 'Technician accepted assignment', 'Estimate submitted for validation', 'Estimate approved by manager', 'Customer notified of approved estimate', 'Payment recorded', 'Parts request released', 'Close requested', 'Left through the gate']) {
     await expect(trail.getByText(label).first(), label).toBeVisible();
   }
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await expectAuditEntry(page, S.number);
   // The printable estimate opens for the customer copy.
   const res = await page.goto(`/print/job-cards/${S.id}/estimate?variant=client`);

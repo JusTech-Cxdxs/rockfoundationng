@@ -42,7 +42,9 @@
   --ejo-radius-xl: 24px;
 }
 
-:root { color-scheme: light; }
+/* "only light": a phone browser's forced dark mode must not recolour the light
+   theme (it washes out links); the dark theme below is the app's own. */
+:root { color-scheme: only light; }
 
 /* Dark theme: chosen in the header (Light / Dark / System). "System" follows
    the device; an explicit choice is stored in the ejo-theme cookie and applied

@@ -45,7 +45,7 @@ async function listsFloatOnTop(page: Page, name: string, max = 3) {
 }
 
 test('administrator pages: no sideways scroll; dropdowns open above everything', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   const pages: [string, string][] = [
     ['/users', 'users'],
     ['/users/new', 'users-new'],
@@ -54,7 +54,6 @@ test('administrator pages: no sideways scroll; dropdowns open above everything',
     ['/organisation/people?add=1', 'people-add'],
     ['/structure', 'structure'],
     ['/settings/support/teams?edit=new', 'support-teams-new'],
-    ['/headquarters', 'headquarters'],
   ];
   for (const [url, name] of pages) {
     await visitHealthy(page, url);
@@ -75,7 +74,7 @@ test('administrator pages: no sideways scroll; dropdowns open above everything',
 });
 
 test('adding a person has its own page; the department list follows the branch', async ({ page }) => {
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, '/users?add=1');
   await expect(page).toHaveURL(/\/users\/new$/);
   const form = page.locator('#add-staff');
@@ -85,35 +84,14 @@ test('adding a person has its own page; the department list follows the branch',
   await expect(form.getByRole('textbox', { name: 'Department' })).toHaveAttribute('placeholder', 'Choose the branch first');
   await form.getByRole('textbox', { name: 'First role' }).fill('Technician');
   await page.getByRole('option', { name: 'Technician' }).first().click();
-  await expect(form).toContainText('Does the work on the jobs assigned to them');
-});
-
-test('an executive gets Headquarters, can export it and send a notice; a technician cannot', async ({ page }) => {
-  await as(page, 'executive');
-  await visitHealthy(page, '/headquarters');
-  await expect(page.getByTestId('headquarters').getByRole('heading', { name: 'Headquarters', level: 1 })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Branches side by side' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Send a notice' }).first()).toBeVisible();
-  await noSidewaysScroll(page, '/headquarters (executive)');
-  await shot(page, 'headquarters-executive');
-  const csv = await page.request.get('/headquarters/export?period=this_year');
-  expect(csv.status()).toBe(200);
-  expect(csv.headers()['content-type']).toContain('text/csv');
-  expect(csv.headers()['cache-control']).toContain('no-store');
-  expect(await csv.text()).toMatch(/^\uFEFF"Branch","Health"/);
-
-  await as(page, 'technician');
-  await page.goto('/headquarters');
-  await expect(page).toHaveURL(/access-denied/);
-  const denied = await page.request.get('/headquarters/export');
-  expect(denied.status()).toBe(403);
+  await expect(form).toContainText('Sees and works only on the jobs assigned to them');
 });
 
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
-  test('Users, Add a staff member, Roles and Headquarters fit the screen', async ({ page }) => {
-    await as(page, 'administrator');
-    for (const [url, name] of [['/users', 'm-users'], ['/users/new', 'm-users-new'], ['/roles', 'm-roles'], ['/headquarters', 'm-headquarters']] as const) {
+  test('Staff, Add a staff member and Roles fit the screen', async ({ page }) => {
+    await as(page, 'owner');
+    for (const [url, name] of [['/users', 'm-users'], ['/users/new', 'm-users-new'], ['/roles', 'm-roles']] as const) {
       await visitHealthy(page, url);
       await noSidewaysScroll(page, url);
       await shot(page, name);

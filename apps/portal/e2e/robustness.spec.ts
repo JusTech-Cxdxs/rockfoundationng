@@ -22,7 +22,7 @@ const remindersTitled = (title: string) => db().reminder.count({ where: { title 
 
 test('a double click on a submit button records ONE reminder', async ({ page }) => {
   const title = `Call back ${uniq()}`;
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   const form = await fillReminder(page, title);
   await form.getByRole('button', { name: 'Save reminder' }).dblclick();
   await waitOutcome(page, /\/reminders\?status=created/);
@@ -32,7 +32,7 @@ test('a double click on a submit button records ONE reminder', async ({ page }) 
 
 test('Back and Refresh after saving never save it again', async ({ page }) => {
   const title = `Follow up ${uniq()}`;
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   const form = await fillReminder(page, title);
   await form.getByRole('button', { name: 'Save reminder' }).click();
   await waitOutcome(page, /status=created/);
@@ -50,7 +50,7 @@ test('Back and Refresh after saving never save it again', async ({ page }) => {
 
 test('a session that expires while a form is open: sent to sign in, nothing saved', async ({ page }) => {
   const title = `Expired ${uniq()}`;
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   const form = await fillReminder(page, title);
   await page.context().clearCookies();
   await form.getByRole('button', { name: 'Save reminder' }).click();
@@ -66,7 +66,7 @@ test('a session that expires while a form is open: sent to sign in, nothing save
 
 test('very long input is either saved whole or refused politely — never a crash', async ({ page }) => {
   const title = `Long ${uniq()}`;
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   const form = await fillReminder(page, title);
   // Past the browser's own limits, as a script or an old browser would send it.
   await form.locator('input[name="title"], textarea[name="notes"]').evaluateAll((els) => els.forEach((e) => e.removeAttribute('maxlength')));
@@ -87,7 +87,7 @@ test('very long input is either saved whole or refused politely — never a cras
 
 test('accents, emoji and markup in a title are kept as typed and never run', async ({ page }) => {
   const title = `Ọlá Àdébáyọ̀ 🚗 <b>bold</b> ${uniq()}`;
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   const form = await fillReminder(page, title);
   await form.getByRole('button', { name: 'Save reminder' }).click();
   await waitOutcome(page, /\/reminders\?status=created/);

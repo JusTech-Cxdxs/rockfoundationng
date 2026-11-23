@@ -39,7 +39,8 @@ export async function LeadershipOverview() {
       {a ? (
         <div className="ejo-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <StatTile icon="money" label="Revenue this month" value={naira(a.current.sales)} delta={a.changes.sales} hint="Labour, parts and charges on finished jobs" href="/analytics" />
-          <StatTile icon="trend-up" label="Gross profit" value={naira(a.current.grossProfit)} delta={a.changes.grossProfit} hint={a.partsCostNote ?? (a.current.grossMargin !== null ? `${a.current.grossMargin}% margin` : undefined)} href="/analytics" />
+          {/* Hidden while parts bought outside are not costed: it would equal revenue. */}
+          {a.partsCostNote ? null : <StatTile icon="trend-up" label="Gross profit" value={naira(a.current.grossProfit)} delta={a.changes.grossProfit} hint={a.partsCostNote ?? (a.current.grossMargin !== null ? `${a.current.grossMargin}% margin` : undefined)} href="/analytics" />}
           <StatTile icon="receipt" label="Money collected" value={naira(a.current.collections)} delta={a.changes.collections} hint="Payments less refunds" href="/analytics" />
           <StatTile icon="clipboard" label="Jobs finished" value={a.current.jobsCompleted} delta={a.changes.jobsCompleted} hint={a.current.averageJob !== null ? `Average ${naira(a.current.averageJob)}` : undefined} href="/analytics" />
           <StatTile icon="alert" label="Owed on finished jobs" value={naira(a.position.receivables)} hint={pluralize(a.position.receivableJobs, 'job')} tone={a.position.receivables > 0 ? 'warning' : 'brand'} href="/analytics" />

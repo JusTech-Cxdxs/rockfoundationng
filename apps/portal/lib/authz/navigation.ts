@@ -1,5 +1,6 @@
 import { platformModules } from '../modules';
 import { branchHostsModule, moduleOfPath } from '../branch-types';
+import { isOffPermission } from '../edition';
 import { APPROVAL_PERMISSIONS, decide, PAGE_PERMISSIONS, scopeFor, type PermissionKey, type Principal } from './catalogue';
 
 export type NavItem = { key: string; name: string; href: string; status: string };
@@ -57,7 +58,7 @@ export function navigationFor(p: Principal, view: BranchView = {}): NavItem[] {
     if (m.key === 'dashboard') {
       out.push({ key: m.key, name: m.name, href: m.href, status: m.status });
       // People who decide things get one list of everything waiting for them.
-      if (p.isSuperAdmin || APPROVAL_PERMISSIONS.some(can)) out.push({ key: 'approvals', name: 'Approvals', href: '/approvals', status: m.status });
+      if (p.isSuperAdmin || APPROVAL_PERMISSIONS.some((k) => !isOffPermission(k) && can(k))) out.push({ key: 'approvals', name: 'Approvals', href: '/approvals', status: m.status });
       continue;
     }
     if (EVERYONE.has(m.key)) { out.push({ key: m.key, name: m.name, href: m.href, status: m.status }); continue; }

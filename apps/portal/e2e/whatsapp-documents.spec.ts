@@ -5,7 +5,7 @@ import { db, freshVehicle } from './db';
 import { jobCardInProgress, nextStep } from './workflows';
 
 /**
- * D'Phoenix phase 6A — documents on WhatsApp. Finance presses "Send on
+ * Documents on WhatsApp. Accounts presses "Send on
  * WhatsApp" on a Job Card's invoice and gets a wa.me address whose message
  * carries a secure /d/ link; that link opens the invoice PDF without
  * signing in, and an altered link gets the plain refusal page.
@@ -31,7 +31,7 @@ test.describe('Documents on WhatsApp', () => {
 
   test('Finance presses "Send on WhatsApp" on the invoice: a wa.me message with a /d/ link', async ({ page }) => {
     test.skip(!S.id, 'needs the Job Card from the previous step');
-    await as(page, 'finance-officer');
+    await as(page, 'accounts');
     await open(page, S.url);
     await page.getByTestId('invoice-whatsapp').click();
     const openLink = page.getByTestId('invoice-whatsapp-open');

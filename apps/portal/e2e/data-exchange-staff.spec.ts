@@ -6,7 +6,7 @@ import { who } from './people';
 /**
  * The organisation's people from the old HR list: each becomes an EJO account in
  * its branch and department with its roles, switched OFF and emailed nothing,
- * until an Organisation Administrator sends the invitations; then each person
+ * until the Owner sends the invitations; then each person
  * gets the welcome with a one-time set-password link, signs in, and sees
  * their own dashboard. Administrator roles, unknown branches, departments and
  * roles, an address already in use elsewhere are refused; an address already
@@ -32,26 +32,26 @@ async function upload(page: Page, body: string): Promise<string> {
   return page.url();
 }
 
-test('the staff file: refusals and the totals; the Organisation Administrator approves; accounts switched off, roles given, nobody emailed', async ({ page, request }) => {
-  const manager = await db().user.findUniqueOrThrow({ where: { email: who('workshop-manager').email }, select: { branch: { select: { id: true, name: true } } } });
+test('the staff file: refusals and the totals; the Owner approves; accounts switched off, roles given, nobody emailed', async ({ page, request }) => {
+  const manager = await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { branch: { select: { id: true, name: true } } } });
   const branch = manager.branch!;
-  const dept = await db().department.findFirstOrThrow({ where: { branchId: branch.id, slug: 'workshop-commercial' }, select: { id: true, name: true } });
-  await as(page, 'it-administrator');
+  const dept = await db().department.findFirstOrThrow({ where: { branchId: branch.id, slug: 'mechanical' }, select: { id: true, name: true } });
+  await as(page, 'front-desk');
   importUrl = await upload(page, csv([
     ['Personnel number', 'Full name', 'Work email', 'Employee ID', 'Branch', 'Department', 'Roles'],
     [`0001${D}1`, `Ada Import ${T}`, mail(1), `P7-${D}-1`, branch.name, dept.name, 'Technician'],
     [`0001${D}2`, `Bayo Import ${T}`, mail(2), '', branch.name, '', 'Front Desk; Customer Care'],
     [`0001${D}3`, `Chika Import ${T}`, mail(3), '', branch.name, '', ''],
     [`0001${D}4`, `Ada Again ${T}`, mail(1), '', branch.name, '', 'Technician'],
-    [`0001${D}5`, `Existing ${T}`, who('workshop-manager').email, '', branch.name, '', 'Technician'],
-    [`0001${D}6`, `Admin Try ${T}`, mail(6), '', branch.name, '', 'Administrator'],
+    [`0001${D}5`, `Existing ${T}`, who('owner').email, '', branch.name, '', 'Technician'],
+    [`0001${D}6`, `Owner Try ${T}`, mail(6), '', branch.name, '', 'Owner / GMD'],
     [`0001${D}7`, `Nowhere ${T}`, mail(7), '', `Nowhere Branch ${T}`, '', 'Technician'],
     [`0001${D}8`, `No Dept ${T}`, mail(8), '', branch.name, 'Canteen', 'Technician'],
     [`0001${D}9`, `No Role ${T}`, mail(9), '', branch.name, '', 'Chief Cook'],
   ]));
   await expect(page.getByText('Same email as row 2 of the file; only the first is loaded.')).toBeVisible();
   await expect(page.getByText(/Already in EJO \(/)).toBeVisible();
-  await expect(page.getByText(/the organisation’s administrators are added by hand on the Users page, never by a file/).first()).toBeVisible();
+  await expect(page.getByText(/the Owner is added by hand on the Staff page, never by a file/).first()).toBeVisible();
   // Each refusal, read from the import's own rows (the file's rows 8, 9 and 10), so a failure says what the row got instead.
   const jobId = importUrl.split('/').pop()!.split('?')[0]!;
   const rowIssues = async (n: number) => {
@@ -64,7 +64,7 @@ test('the staff file: refusals and the totals; the Organisation Administrator ap
   await expect(page.getByText(/There is no role “Chief Cook” in this organisation/)).toBeVisible();
   await expect(page.getByTestId('staff-import-totals')).toContainText('To bring in: 3 people in 1 branch · 1 with no role yet');
   await page.getByRole('button', { name: /Send for approval/ }).click();
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, importUrl);
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Start loading' }).click();
@@ -78,7 +78,7 @@ test('the staff file: refusals and the totals; the Organisation Administrator ap
   expect(people[0]!.departmentId).toBe(dept.id);
   expect(people[1]!.employeeId).toMatch(/^[A-Z0-9]+-[A-Z0-9]+-\d{4}$/); // issued by EJO for the branch
   expect(people[0]!.roles.map((r) => r.role.slug)).toEqual(['technician']);
-  expect(people[1]!.roles.map((r) => r.role.slug).sort()).toEqual(['customer-care', 'receptionist']);
+  expect(people[1]!.roles.map((r) => r.role.slug).sort()).toEqual(['front-desk', 'front-desk']);
   expect(people[2]!.roles).toEqual([]);
   expect(people.every((u) => u.accounts.length === 1 && u.accounts[0]!.providerId === 'credential' && u.accounts[0]!.password)).toBe(true);
   for (const n of [1, 2, 3]) expect(await countMail(request, mail(n), /./)).toBe(0); // nobody emailed at load
@@ -91,13 +91,8 @@ test('the staff file: refusals and the totals; the Organisation Administrator ap
   await expect(page).not.toHaveURL(/\/dashboard/);
 });
 
-test('only an administrator of the whole organisation sends the invitations; each person gets the welcome once, sets a password and signs in to their own view', async ({ page, request }) => {
-  // A Branch Administrator manages people of one branch only: the file reaches every branch, so no button (and the server refuses).
-  await as(page, 'branch-administrator');
-  await open(page, importUrl);
-  await expect(page.getByTestId('staff-invitations')).toContainText('Waiting for an administrator of the whole organisation');
-  await expect(page.getByRole('button', { name: 'Send the invitations' })).toHaveCount(0);
-  await as(page, 'administrator');
+test('the Owner sends the invitations; each person gets the welcome once, sets a password and signs in to their own view', async ({ page, request }) => {
+  await as(page, 'owner');
   await open(page, importUrl);
   await page.getByRole('button', { name: 'Send the invitations' }).click();
   await expect(page.getByTestId('staff-invitations')).toContainText('Everyone from this import has been invited.', { timeout: 60_000 });
@@ -106,7 +101,7 @@ test('only an administrator of the whole organisation sends the invitations; eac
   expect(ada.isActive).toBe(true);
   expect(ada.invitedAt).not.toBeNull();
   expect(await db().auditLog.count({ where: { action: 'user.invited', entityId: ada.id } })).toBe(1);
-  const welcome = await latestMail(request, mail(1), /Welcome to EJO 100/);
+  const welcome = await latestMail(request, mail(1), /Welcome to EJO/);
   expect(welcome.html).toContain(ada.employeeId!);
   expect(welcome.html).toContain('Technician');
   const link = linkIn(welcome.html, /reset-password/);
@@ -122,15 +117,15 @@ test('only an administrator of the whole organisation sends the invitations; eac
   await expect(page).toHaveURL(/\/dashboard/);
   await expect(page.getByRole('button', { name: 'Account menu' })).toContainText(`Ada Import ${T}`);
   // Sending again invites nobody twice.
-  expect(await countMail(request, mail(1), /Welcome to EJO 100/)).toBe(1);
+  expect(await countMail(request, mail(1), /Welcome to EJO/)).toBe(1);
 });
 
 test('undo: everyone invited stays (reported); a second import of one not yet invited goes to the Recycle bin and restores switched off', async ({ page }) => {
-  const manager = await db().user.findUniqueOrThrow({ where: { email: who('workshop-manager').email }, select: { branch: { select: { name: true } } } });
-  await as(page, 'it-administrator');
+  const manager = await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { branch: { select: { name: true } } } });
+  await as(page, 'front-desk');
   const second = await upload(page, csv([['Full name', 'Work email', 'Branch', 'Roles'], [`Dayo Import ${T}`, mail(10), manager.branch!.name, 'Technician']]));
   await page.getByRole('button', { name: /Send for approval/ }).click();
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, second);
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Start loading' }).click();

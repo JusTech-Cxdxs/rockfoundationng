@@ -21,7 +21,7 @@ const sheet = (page: Page) => page.getByRole('dialog', { name: 'Enyo' });
 const composer = (page: Page) => sheet(page).getByRole('textbox', { name: /^Ask / });
 
 async function signedInWithEnyo(page: Page) {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, '/dashboard');
   // [engine] the launcher appears only when /api/enyo/status says ready.
   await expect(launcher(page)).toBeVisible({ timeout: 20_000 });
@@ -155,10 +155,10 @@ test('[engine] reduced motion: the avatar stands still', async ({ page }) => {
 test('[engine] the daily greeting shows once a day and can be dismissed', async ({ page }) => {
   // The panel does not greet automated browsers unless they look like a person's.
   await page.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => false }));
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await page.evaluate(() => { try { localStorage.removeItem('ejo-enyo-prefs'); } catch { /* ignore */ } });
   await open(page, '/dashboard');
-  const bubble = page.getByRole('status').filter({ hasText: /Good (morning|afternoon|evening), Funmi\./ });
+  const bubble = page.getByRole('status').filter({ hasText: /Good (morning|afternoon|evening), Front\./ });
   await expect(bubble).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Dismiss greeting' }).click();
   await expect(bubble).toBeHidden();

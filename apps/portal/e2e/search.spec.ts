@@ -3,7 +3,6 @@ import { CUSTOMER, E2E_PASSWORD, OTHER_ORG_ADMIN, SEED_PARTS } from './people';
 import { as, expectHealthy, signIn } from './helpers';
 import { freshVehicle } from './db';
 import { jobNumber, openJobCard } from './workflows';
-import { INVENTORY_ENABLED } from './edition';
 
 /**
  * The header search finds a Job Card by number, a customer by name, a
@@ -30,7 +29,7 @@ async function search(page: Page, q: string) {
 test.beforeAll(async () => { S.plate = (await freshVehicle('SRC', { make: 'Mazda', model: 'CX-5' })).plate; });
 
 test('front desk finds the Job Card, the customer, the vehicle; Store finds the part', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   S.url = await openJobCard(page, { plate: S.plate, complaint: 'Search me' });
   S.number = await jobNumber(page);
 
@@ -49,14 +48,13 @@ test('front desk finds the Job Card, the customer, the vehicle; Store finds the 
   await expectHealthy(page);
 
   // The Store's parts only where the edition has it (edition.ts).
-  await as(page, 'store-manager');
+  await as(page, 'store-keeper');
   panel = await search(page, SEED_PARTS.brakePads.name);
   await expect(panel.getByRole('option', { name: new RegExp(SEED_PARTS.brakePads.number) }).first()).toBeVisible();
-  
 });
 
 test('special characters and emoji in the search never break it', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   for (const q of [`Ünïcødé 🚗 '"<script>alert(1)</script>`, '%_\\', 'a'.repeat(300)]) {
     const panel = await search(page, q);
     await expect(panel).toContainText(/Nothing found for|Pages|Job Cards/);

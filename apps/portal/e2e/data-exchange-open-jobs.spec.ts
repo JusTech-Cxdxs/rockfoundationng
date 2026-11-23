@@ -24,7 +24,7 @@ const jobNo = (n: number) => `4${D.slice(-4)}${n}`;
 const csv = (rows: (string | number)[][]) => rows.map((r) => r.map((c) => (/[,"]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(',')).join('\r\n');
 
 async function managerBranch(): Promise<string> {
-  const u = await db().user.findUniqueOrThrow({ where: { email: who('workshop-manager').email }, select: { branchId: true } });
+  const u = await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { branchId: true } });
   return u.branchId!;
 }
 
@@ -47,7 +47,7 @@ const vehicleIds: string[] = [];
 test('the file: refusals, the totals, approval and load — live job cards at their stage, old numbers kept, estimates approved before EJO, deposits as opening payments', async ({ page }) => {
   const branchId = await managerBranch();
   const org = await db().branch.findUniqueOrThrow({ where: { id: branchId }, select: { businessUnit: { select: { organisationId: true } } } });
-  const admin = await db().user.findUniqueOrThrow({ where: { email: 'admin@e2e.test' }, select: { id: true } });
+  const admin = await db().user.findUniqueOrThrow({ where: { email: 'owner@e2e.test' }, select: { id: true } });
   const customer = await db().customer.create({ data: { organisationId: org.businessUnit.organisationId, fullName: `Opening Jobs ${T}`, phone: `0807 ${D.slice(-7, -4)} ${D.slice(-4)}`, externalSource: 'LEGACY', externalId: custNo(0).replace(/^0+/, ''), createdById: admin.id } });
   customerId = customer.id;
   for (const n of [1, 2, 3]) {
@@ -56,7 +56,7 @@ test('the file: refusals, the totals, approval and load — live job cards at th
   }
   const tech = await db().user.findUniqueOrThrow({ where: { email: who('technician').email }, select: { id: true, employeeId: true, fullName: true } });
   const part = await db().part.findFirst({ where: { branchId }, select: { partNumber: true, name: true, id: true } });
-  await as(page, 'it-administrator');
+  await as(page, 'front-desk');
   importUrl = await upload(page, `open-jobs-${T}.csv`, csv([
     ['Job number', 'Customer number', 'Chassis number (VIN)', 'Plate number', 'Opened on', 'Stage', 'Mileage at check-in (km)', 'Complaint / work requested', 'Findings so far', 'Technician', 'Labour', 'Parts', 'Estimate approved', 'Parts issued', 'Paid', 'Payment method', 'Receipt', 'Branch'],
     [jobNo(1), custNo(0), vin(1), '', '30/10/2026', 'Checked in', '21000', 'Carry out service', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
@@ -67,12 +67,12 @@ test('the file: refusals, the totals, approval and load — live job cards at th
     [jobNo(6), custNo(0), '', '', '20/10/2026', 'In progress', '', 'No vehicle', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
     [jobNo(7), '9999999', 'JAANLR85EL7999999', '', '20/10/2026', 'In progress', '', 'Unknown vehicle', '', '', '', '', '', '', '', '', '', WORKSHOP_BRANCH],
   ]), branchId);
-  await expect(page.getByText(/Stage “CLSD”: a closed, checked-out or cancelled job card belongs in the job card history file/)).toBeVisible();
+  await expect(page.getByText(/Stage “Closed”: a closed, checked-out or cancelled job card belongs in the job card history file/)).toBeVisible();
   await expect(page.getByText(/Which vehicle is it\?/)).toBeVisible();
   await expect(page.getByText(/The vehicle is not in EJO\. Import the vehicles file first/)).toBeVisible();
   await expect(page.getByText(/3 job cards · estimates ₦220,200\.00 · ₦123,000\.00 already paid · opened 25 Oct 2026 to 30 Oct 2026/)).toBeVisible();
   await page.getByRole('button', { name: /Send for approval/ }).click();
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, importUrl);
   await page.getByRole('button', { name: 'Approve' }).click();
   await page.getByRole('button', { name: 'Start loading' }).click();
@@ -105,7 +105,7 @@ test('the file: refusals, the totals, approval and load — live job cards at th
 
 test('the job card page carries its origin; search finds it by the old number; Finance confirms the opening payments', async ({ page }) => {
   const second = await db().jobCard.findFirstOrThrow({ where: { customerId, externalId: jobNo(2) } });
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, `/workshop/job-cards/${second.id}`);
   await expect(page.getByTestId('job-card-origin')).toContainText(`Brought in from the old system as job card ${jobNo(2)}.`);
   await expect(page.getByTestId('job-card-origin')).toContainText('The estimate was approved before EJO');
@@ -118,7 +118,7 @@ test('the job card page carries its origin; search finds it by the old number; F
   // Finance confirms the totals (the manager approved, so cannot).
   await open(page, importUrl);
   await expect(page.getByText('Waiting for Finance to confirm the totals.')).toBeVisible();
-  await as(page, 'finance-officer');
+  await as(page, 'accounts');
   await open(page, importUrl);
   await page.getByRole('button', { name: 'Confirm the totals (Finance)' }).click();
   await expect(page.getByText(/Totals confirmed by .* \(Finance\)/)).toBeVisible();
@@ -126,10 +126,10 @@ test('the job card page carries its origin; search finds it by the old number; F
 
 test('undo: a job card worked on since stays (reported); the others go to the Recycle bin with their estimate and opening payment, and one is restored whole', async ({ page }) => {
   const jobs = await db().jobCard.findMany({ where: { customerId }, orderBy: { externalId: 'asc' }, select: { id: true, jobNumber: true, externalId: true } });
-  const manager = await db().user.findUniqueOrThrow({ where: { email: who('workshop-manager').email }, select: { id: true } });
+  const manager = await db().user.findUniqueOrThrow({ where: { email: who('owner').email }, select: { id: true } });
   // The desk records a new payment on the third job card after the import: that one has been worked on.
   await db().payment.create({ data: { jobCardId: jobs[2]!.id, amount: 5000, method: 'CASH', recordedById: manager.id, notes: 'Balance' } });
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   page.on('dialog', (d) => void d.accept());
   await open(page, importUrl);
   await page.getByRole('button', { name: 'Undo this import' }).click();
@@ -142,7 +142,7 @@ test('undo: a job card worked on since stays (reported); the others go to the Re
   const snap = items.find((i) => i.reference === jobs[1]!.jobNumber)!.snapshot as { rows: { model: string }[] };
   expect(snap.rows.map((r) => r.model)).toEqual(expect.arrayContaining(['jobCard', 'jobCardComplaint', 'estimate', 'estimateLineItem', 'payment']));
   // Restore the second from the bin: the job card, its estimate and its opening payment are back.
-  await as(page, 'administrator');
+  await as(page, 'owner');
   await open(page, '/recycle-bin');
   const row = page.getByTestId('bin-row').filter({ hasText: jobs[1]!.jobNumber }).first();
   await row.getByRole('button', { name: 'Restore' }).click();

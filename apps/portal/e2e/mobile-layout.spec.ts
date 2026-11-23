@@ -3,7 +3,6 @@ import { CUSTOMER, SUPERMANAGER } from './people';
 import { as, open, expectHealthy, noSidewaysScroll } from './helpers';
 import { db, freshVehicle } from './db';
 import { addLine, assignTechnician, card, jcForm, managerApprovesEstimate, notifyCustomer, openJobCard, recordPayment, submitEstimate, supervisorApproves, supervisorApprovesEstimate, technicianAccepts } from './workflows';
-import { EXTERNAL_PROCUREMENT_ENABLED, INVENTORY_ENABLED, WARRANTY_ENABLED } from './edition';
 
 /**
  * Phone layout regressions the owner reported, on a small Android phone
@@ -54,39 +53,31 @@ async function estimateLinesReadable(page: Page) {
 
 const S = { url: '', plate: '' };
 
-test('header: the full wordmark (logo, both name lines) fits beside search, bell and account', async ({ page }) => {
-  await as(page, 'receptionist');
+test('header: the full logo fits beside search, bell and account', async ({ page }) => {
+  await as(page, 'front-desk');
   await page.goto('/dashboard');
   await page.locator('main h1').first().waitFor();
   const header = page.locator('header').first();
   const headerBox = (await header.boundingBox())!;
   const brand = header.getByRole('link', { name: /: dashboard$/ });
   await expect(brand).toBeVisible();
-  const name = (await brand.locator('[title]').first().getAttribute('title'))!.trim();
-  const [top, ...rest] = name.split(/\s+/);
-  const lines = [header.getByText(top!, { exact: true }).first()];
-  if (rest.length) lines.push(header.getByText(rest.join(' '), { exact: true }).first());
-  for (const line of lines) {
-    await expect(line).toBeVisible();
-    const box = (await line.boundingBox())!;
-    expect(inside(box, headerBox), `"${await line.textContent()}" sits inside the header`).toBe(true);
-    expect(box.x + box.width, 'wordmark inside the screen').toBeLessThanOrEqual(360);
-    await notClipped(line, `"${await line.textContent()}" in the header`);
-  }
-  if (lines.length === 2) {
-    const [a, b] = [(await lines[0]!.boundingBox())!, (await lines[1]!.boundingBox())!];
-    expect(b.y, 'the second name line sits under the first').toBeGreaterThanOrEqual(a.y + a.height - 1);
-  }
-  // The wordmark never runs under the buttons on the right.
+  // The workshop's own logo, exactly as published (public/brand/logo.png).
+  const logo = brand.locator('img[src="/brand/logo.png"]');
+  await expect(logo).toBeVisible();
+  expect(await logo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), 'the logo file loads').toBe(true);
+  const box = (await logo.boundingBox())!;
+  expect(inside(box, headerBox), 'the logo sits inside the header').toBe(true);
+  expect(box.x + box.width, 'logo inside the screen').toBeLessThanOrEqual(360);
+  // The logo never runs under the buttons on the right.
   const brandBox = (await brand.boundingBox())!;
   const account = (await header.getByRole('button', { name: 'Account menu' }).boundingBox())!;
-  expect(brandBox.x + brandBox.width, 'wordmark clear of the account button').toBeLessThanOrEqual(account.x);
+  expect(brandBox.x + brandBox.width, 'logo clear of the account button').toBeLessThanOrEqual(account.x);
   await noSidewaysScroll(page, '/dashboard');
 });
 
 test('estimate on a phone: lines are added on the phone and each line reads without overlap', async ({ page }) => {
   S.plate = (await freshVehicle('MOB')).plate;
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   S.url = await openJobCard(page, { plate: S.plate, supervisor: SUPERMANAGER, complaint: 'AC not cooling and an oil leak under the engine' });
   await supervisorApproves(page, S.url, SUPERMANAGER);
   await assignTechnician(page);
@@ -134,7 +125,7 @@ async function formFitsPhone(form: Locator, what: string) {
 }
 
 test('opening a Job Card on a phone: the form fits and nothing overlaps', async ({ page }) => {
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, '/workshop/job-cards');
   const form = jcForm(page, 'Open Job Card');
   await form.getByRole('button', { name: '+ Add another complaint' }).click();
@@ -148,14 +139,14 @@ test('approving the estimate and recording a payment on a phone', async ({ page 
   await open(page, S.url);
   await submitEstimate(page);
   await supervisorApprovesEstimate(page);
-  await as(page, 'workshop-manager');
+  await as(page, 'owner');
   await open(page, S.url);
   await managerApprovesEstimate(page);
-  await as(page, 'receptionist');
+  await as(page, 'front-desk');
   await open(page, S.url);
   await notifyCustomer(page);
 
-  await as(page, 'finance-officer');
+  await as(page, 'accounts');
   await open(page, S.url);
   const pay = jcForm(page, 'Record payment');
   await pay.scrollIntoViewIfNeeded();
@@ -171,11 +162,10 @@ test('approving the estimate and recording a payment on a phone', async ({ page 
 test('busy pages do not scroll sideways on a phone', async ({ page }) => {
   const customer = await db().customer.findUniqueOrThrow({ where: { email: CUSTOMER.email }, select: { id: true } });
   const visits: { who: string; urls: string[] }[] = [
-    { who: 'receptionist', urls: ['/reminders', '/mail', '/workshop/job-cards', '/workshop/vehicle-service', '/workshop/customers', '/workshop/vehicles', '/crm', `/crm/customers/${customer.id}`, `/crm/customers/${customer.id}?tab=jobs`, '/notifications'] },
-    // The Store, outside purchases and Warranty only where the edition has them (edition.ts).
-    { who: 'workshop-manager', urls: ['/workshop/refunds', '/workshop/parts-requests', '/analytics'] },
-    ...([{ who: 'store-manager', urls: ['/inventory/parts', '/inventory/goods-receipts'] }]),
-    { who: 'administrator', urls: ['/settings', '/settings/enyo', '/enyo/learning', '/enyo/models', '/users', '/roles', '/structure', '/audit-logs'] },
+    { who: 'front-desk', urls: ['/reminders', '/workshop/job-cards', '/workshop/customers', '/workshop/vehicles', '/crm', `/crm/customers/${customer.id}`, `/crm/customers/${customer.id}?tab=jobs`, '/notifications'] },
+    { who: 'owner', urls: ['/workshop/refunds', '/workshop/parts-requests', '/analytics'] },
+    { who: 'store-keeper', urls: ['/inventory/parts', '/inventory/goods-receipts'] },
+    { who: 'owner', urls: ['/settings', '/settings/enyo', '/enyo/learning', '/users', '/roles', '/structure', '/audit-logs'] },
   ];
   if (S.url) visits[0]!.urls.unshift(S.url);
   for (const { who: role, urls } of visits) {
