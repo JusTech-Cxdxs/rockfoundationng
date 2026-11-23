@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireCustomer } from '@/lib/customer-portal/session';
 import { loadContact, loadServices, outstanding } from '@/lib/customer-portal/data';
-import { fmtDate, naira } from '@/lib/customer-portal/format';
+import { AGE_BUCKETS, ageBucketIndex, fmtDate, naira } from '@/lib/customer-portal/format';
 import { Card, EmptyState, PageHero, SectionTitle } from '@/components/customer/ui';
 import { PayHow } from '@/components/customer/PayHow';
 import { CountUp } from '@/components/customer/CountUp';
@@ -26,6 +26,8 @@ export default async function PaymentsPage() {
   const refunded = rows.filter((r) => r.kind === 'refund').reduce((s, r) => s + r.amount, 0);
   const owing = items.filter((i) => outstanding(i) > 0);
   const totalOwed = owing.reduce((s, i) => s + outstanding(i), 0);
+  const ages = [0, 0, 0, 0];
+  for (const i of owing) ages[ageBucketIndex(i.invoice?.issuedAt ?? i.completedAt ?? i.createdAt)]! += outstanding(i);
 
   return (
     <div className="space-y-6">
@@ -43,6 +45,17 @@ export default async function PaymentsPage() {
           </Card>
         ))}
       </div>
+
+      {totalOwed > 0 ? (
+        <Card className="p-4" data-testid="owed-by-age">
+          <p className="text-xs font-medium text-[var(--ejo-text-muted)]">How long it has been owed</p>
+          <dl className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {AGE_BUCKETS.map((b, idx) => (
+              <div key={b}><dt className="text-xs text-[var(--ejo-text-muted)]">{b}</dt><dd className={`text-base font-bold tabular-nums ${idx >= 2 && ages[idx]! > 0 ? 'text-[var(--ejo-error)]' : 'text-[var(--ejo-text)]'}`}>{naira(ages[idx]!)}</dd></div>
+            ))}
+          </dl>
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-6">

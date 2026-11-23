@@ -146,6 +146,14 @@ export function initials(fullName: string): string {
 }
 
 /** What the customer sees a visit called: a Job Card opened as a service is a "Service". */
-export function itemKindLabel(i: { isServiceJobCard: boolean }): string {
-  return i.isServiceJobCard ? 'Service' : 'Job Card';
+const JOB_TYPE_LABEL: Record<string, string> = { SERVICE: 'Service', REPAIR: 'Repair', SERVICE_AND_REPAIR: 'Service and repair', DIAGNOSTICS: 'Diagnostics', SPRAYING: 'Spraying', CAR_WASH: 'Car wash' };
+export function itemKindLabel(i: { isServiceJobCard: boolean; jobType?: string }): string {
+  return (i.jobType && JOB_TYPE_LABEL[i.jobType]) || (i.isServiceJobCard ? 'Service' : 'Repair');
+}
+
+/** Owed money by how long it has been owed, the way the statement shows it: 0–30, 31–60, 61–90 and over 90 days from the invoice (or from when the job was finished). */
+export const AGE_BUCKETS = ['0–30 days', '31–60 days', '61–90 days', 'Over 90 days'] as const;
+export function ageBucketIndex(since: Date, now: Date = new Date()): 0 | 1 | 2 | 3 {
+  const days = Math.floor((now.getTime() - since.getTime()) / 86_400_000);
+  return days <= 30 ? 0 : days <= 60 ? 1 : days <= 90 ? 2 : 3;
 }

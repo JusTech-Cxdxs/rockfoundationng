@@ -60,7 +60,9 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage }: {
   mileage: number | null;
 }) {
   const m = item.money;
-  const owe = item.phase === 'cancelled' ? 0 : (m.balance ?? 0);
+  // Approved credit notes are taken off what is owed (the same as the statement and the front desk see).
+  const credited = item.creditNotes.reduce((s, c) => s + c.amount, 0);
+  const owe = item.phase === 'cancelled' ? 0 : Math.max(0, Math.round(((m.balance ?? 0) - credited) * 100) / 100);
   const reference = `${item.number} — ${item.vehicle.label}${item.vehicle.plate ? ` — ${item.vehicle.plate}` : ''}`;
   const groups = new Map<string, number>();
   for (const l of lines ?? []) groups.set(LINE_GROUP[l.type] ?? 'Other', (groups.get(LINE_GROUP[l.type] ?? 'Other') ?? 0) + (l.amount ?? 0));
@@ -202,6 +204,7 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage }: {
                   <div className="flex justify-between gap-3"><dt className="text-[var(--ejo-text-muted)]">Estimate</dt><dd className="shrink-0 text-right tabular-nums text-[var(--ejo-text)]">{naira(m.estimateTotal)}</dd></div>
                   {item.phase === 'active' && (m.depositDue ?? 0) > 0 ? <div className="flex justify-between gap-3"><dt className="text-[var(--ejo-text-muted)]">Deposit before work starts ({m.depositPercent}%)</dt><dd className="shrink-0 text-right tabular-nums text-[var(--ejo-text)]">{naira(m.minDeposit ?? 0)}</dd></div> : null}
                   {m.refunded > 0 ? <div className="flex justify-between gap-3"><dt className="text-[var(--ejo-text-muted)]">Refunded</dt><dd className="shrink-0 text-right tabular-nums text-[var(--ejo-text)]">{naira(m.refunded)}</dd></div> : null}
+                  {item.creditNotes.map((c) => <div key={c.number} className="flex justify-between gap-3" data-testid="credit-note"><dt className="text-[var(--ejo-text-muted)]">Credit note {c.number}</dt><dd className="shrink-0 text-right tabular-nums text-[var(--ejo-text)]">−{naira(c.amount)}</dd></div>)}
                   <div className="flex justify-between gap-3 border-t border-[var(--ejo-border)] pt-1.5 font-semibold"><dt className="text-[var(--ejo-text)]">Balance</dt><dd className={owe > 0 ? 'text-[#b45309] dark:text-[var(--ejo-warning)]' : 'text-[var(--ejo-success)]'}>{owe > 0 ? naira(owe) : 'Nothing to pay'}</dd></div>
                 </dl>
               </>
@@ -251,6 +254,9 @@ export function ServiceDetail({ item, complaints, lines, branch, mileage }: {
               {mileage ? <KeyValue label="Mileage at check-in">{mileage.toLocaleString('en-NG')} km</KeyValue> : null}
               {item.nextServiceDueDate || item.nextServiceDueOdometer ? (
                 <KeyValue label="Next service due">{[item.nextServiceDueDate ? fmtDate(item.nextServiceDueDate) : null, item.nextServiceDueOdometer ? `${item.nextServiceDueOdometer.toLocaleString('en-NG')} km` : null].filter(Boolean).join(' or ')}</KeyValue>
+              ) : null}
+              {item.guarantee ? (
+                <KeyValue label="Our guarantee on the work">{[item.guarantee.until ? `until ${fmtDate(item.guarantee.until)}` : null, item.guarantee.km ? `up to ${item.guarantee.km.toLocaleString('en-NG')} km` : null].filter(Boolean).join(' or ')}</KeyValue>
               ) : null}
             </dl>
           </Card>

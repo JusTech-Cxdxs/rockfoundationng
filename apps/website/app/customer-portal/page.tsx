@@ -130,6 +130,9 @@ function CustomerLoginForm() {
         <p className="text-center text-xs leading-relaxed text-[var(--ejo-text-muted)]">
           New here? Your account is opened at the workshop front desk — check your email for the welcome message with a link to set your password.
         </p>
+        <p className="text-center text-sm">
+          <Link href="/book" className="font-semibold text-[var(--ejo-primary)] hover:underline" data-testid="book-link">Book a visit without signing in</Link>
+        </p>
       </form>
     </CustomerAuthShell>
   );

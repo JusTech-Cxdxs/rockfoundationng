@@ -21,6 +21,7 @@ export const NAV: NavItem[] = [
   { href: BASE, label: 'Overview', icon: 'home', exact: true },
   { href: `${BASE}/vehicles`, label: 'My vehicles', icon: 'car' },
   { href: `${BASE}/services`, label: 'My services', icon: 'wrench' },
+  { href: '/book', label: 'Book a visit', icon: 'calendar' },
   { href: `${BASE}/payments`, label: 'Payments', icon: 'wallet' },
   { href: `${BASE}/notifications`, label: 'Notifications', icon: 'bell' },
   { href: `${BASE}/profile`, label: 'Profile & settings', icon: 'user' },

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireCustomer } from '@/lib/customer-portal/session';
 import { loadServices, loadVehicles, nextServiceFor, outstanding } from '@/lib/customer-portal/data';
 import { loadNotices } from '@/lib/customer-portal/notifications';
+import { myBookings } from '@/lib/booking';
 import { DAY_MS, firstName, fmtDate, naira, timeAgo, COLLECTION_FRIENDLY_NOTICE_DAYS } from '@/lib/customer-portal/format';
 import { AttentionCard, Card, EmptyState, KeepCodes, SectionTitle } from '@/components/customer/ui';
 import { ServiceCard } from '@/components/customer/ServiceCard';
@@ -24,10 +25,11 @@ const LAGOS_YM = (d: Date) => new Intl.DateTimeFormat('en-CA', { year: 'numeric'
  */
 export default async function CustomerOverviewPage() {
   const me = await requireCustomer();
-  const [items, vehicles, notices] = await Promise.all([
+  const [items, vehicles, notices, bookings] = await Promise.all([
     loadServices(me.id),
     loadVehicles(me.id),
     loadNotices(me),
+    myBookings(me.id),
   ]);
   const now = new Date();
 
@@ -136,10 +138,26 @@ export default async function CustomerOverviewPage() {
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Link href="/customer-portal/dashboard/services" className="inline-flex items-center gap-2 rounded-full bg-[var(--ejo-primary)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-95"><Icon name="wrench" size={15} /> My services</Link>
+            <Link href="/book" className="inline-flex items-center gap-2 rounded-full border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-4 py-2 text-sm font-semibold text-[var(--ejo-text)]"><Icon name="calendar" size={15} /> Book a visit</Link>
             {totalOwed > 0 ? <Link href="/customer-portal/dashboard/payments" className="inline-flex items-center gap-2 rounded-full border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-4 py-2 text-sm font-semibold text-[var(--ejo-text)]"><Icon name="wallet" size={15} /> {naira(totalOwed)} to pay</Link> : null}
           </div>
         </div>
       </section>
+
+      {bookings.length ? (
+        <section aria-labelledby="bookings-title" data-testid="my-bookings">
+          <SectionTitle id="bookings-title" icon="calendar" title="Your bookings" />
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {bookings.map((b) => (
+              <li key={b.id}><Card className="p-4">
+                <p className="text-sm font-semibold text-[var(--ejo-text)]">{b.when}</p>
+                <p className="mt-0.5 text-sm text-[var(--ejo-text-muted)]">{b.visit}{b.vehicle ? ` · ${b.vehicle}` : ''} · {b.number}</p>
+                <p className="mt-2 text-xs font-semibold text-[var(--ejo-primary)]">{b.status === 'CONFIRMED' ? 'Confirmed' : 'Waiting for front desk to confirm'}</p>
+              </Card></li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Needs your attention */}
       <section aria-labelledby="attention-title">

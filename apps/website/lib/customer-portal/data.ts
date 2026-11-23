@@ -66,6 +66,12 @@ export type ServiceItem = {
   nextServiceFrom: Date | null;
   /** A Job Card opened as a routine service (shown to the customer as "Service"). */
   isServiceJobCard: boolean;
+  /** What the visit was for (SERVICE, REPAIR, SPRAYING, CAR_WASH …). */
+  jobType: string;
+  /** The workshop's guarantee on this visit's work, once checked out. */
+  guarantee: { until: Date | null; km: number | null } | null;
+  /** Credit notes approved on the invoice: taken off what is owed. */
+  creditNotes: { number: string; amount: number; at: Date | null }[];
   invoice: InvoiceRow | null;
   /** The customer's own answer to the estimate (null before they answer). */
   answer: { approvedAt: Date | null; via: string | null; declinedAt: Date | null; declineNote: string | null } | null;
@@ -80,7 +86,7 @@ const toRefund = (r: { id: string; amount: unknown; method: unknown; recordedAt:
 export const jobCardItemSelect = {
   id: true, jobNumber: true, status: true, createdAt: true, updatedAt: true,
   workStartedAt: true, completedAt: true, readyForCollectionAt: true, closedAt: true, checkedOutAt: true,
-  isService: true, mileageAtCheckIn: true,
+  isService: true, jobType: true, mileageAtCheckIn: true, warrantyUntil: true, warrantyUntilKm: true,
   // The service interval (the vehicle's own, else the organisation's), for a service Job Card's next-service point.
   vehicle: { select: { ...vehicleSelect, serviceIntervalKm: true, serviceIntervalDays: true } },
   // …and the organisation's VAT switch and rate, for the total.
@@ -89,6 +95,8 @@ export const jobCardItemSelect = {
   customer: { select: { customerType: true } },
   estimate: { select: { customerNotifiedAt: true, discountAmount: true, vatRate: true, customerApprovedAt: true, customerApprovedVia: true, customerDeclinedAt: true, customerDeclineNote: true, lineItems: { where: { billTo: 'CUSTOMER' as const }, select: { amount: true, discountAmount: true } } } },
   invoice: { select: { id: true, invoiceNumber: true, issuedAt: true, total: true } },
+  // Credit notes the Owner approved (what was taken off the invoice; never the reason's internal notes).
+  creditNotes: { where: { status: 'APPROVED' as const }, select: { number: true, amount: true, decidedAt: true }, orderBy: { decidedAt: 'asc' as const } },
   payments: { select: paySelect, orderBy: { recordedAt: 'asc' as const } },
   refunds: { select: refundSelect, orderBy: { recordedAt: 'asc' as const } },
   cancellationRequests: { where: { status: 'APPROVED' as const }, select: { decidedAt: true }, orderBy: { decidedAt: 'desc' as const }, take: 1 },
@@ -143,6 +151,9 @@ export function jobCardItem(jc: JobCardRow, now = new Date()): ServiceItem {
     nextServiceDueOdometer: due?.odometer ?? null,
     nextServiceFrom: due?.from ?? null,
     isServiceJobCard: jc.isService,
+    jobType: String(jc.jobType),
+    guarantee: jc.checkedOutAt && (jc.warrantyUntil || jc.warrantyUntilKm) ? { until: jc.warrantyUntil, km: jc.warrantyUntilKm } : null,
+    creditNotes: jc.creditNotes.map((c) => ({ number: c.number ?? '', amount: num(c.amount), at: c.decidedAt })),
     answer: jc.estimate && (jc.estimate.customerApprovedAt || jc.estimate.customerDeclinedAt) ? { approvedAt: jc.estimate.customerApprovedAt, via: jc.estimate.customerApprovedVia, declinedAt: jc.estimate.customerDeclinedAt, declineNote: jc.estimate.customerDeclineNote } : null,
     invoice: jc.invoice ? { id: jc.invoice.id, number: jc.invoice.invoiceNumber, issuedAt: jc.invoice.issuedAt, total: num(jc.invoice.total) } : null,
   };
@@ -158,7 +169,8 @@ export const loadServices = cache(async (customerId: string, take = 100): Promis
 /** What the customer still owes on a job (0 for a cancelled one). */
 export function outstanding(i: ServiceItem): number {
   if (i.phase === 'cancelled') return 0;
-  return i.money.balance ?? 0;
+  const credited = i.creditNotes.reduce((s, c) => s + c.amount, 0);
+  return Math.max(0, Math.round(((i.money.balance ?? 0) - credited) * 100) / 100);
 }
 
 // ------------------------------------------------------------------ Vehicles

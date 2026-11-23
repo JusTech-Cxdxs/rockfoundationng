@@ -1,12 +1,13 @@
 import Link from 'next/link';
-import type { ServiceItem } from '@/lib/customer-portal/data';
+import { outstanding, type ServiceItem } from '@/lib/customer-portal/data';
 import { fmtDate, itemKindLabel, naira, timeAgo } from '@/lib/customer-portal/format';
 import { Badge, Stepper } from './ui';
 import { Icon } from './Icon';
 
 /** One Job Card in a list — status, progress, money, next step. */
 export function ServiceCard({ item, delay }: { item: ServiceItem; delay?: number }) {
-  const owe = item.phase !== 'cancelled' ? item.money.balance : null;
+  // What is still owed, credit notes taken off (null before an estimate is sent).
+  const owe = item.phase !== 'cancelled' && item.money.balance !== null ? outstanding(item) : null;
   return (
     <Link
       href={item.href}
