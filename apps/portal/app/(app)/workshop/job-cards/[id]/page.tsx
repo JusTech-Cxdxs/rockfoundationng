@@ -1,4 +1,6 @@
 import { jobCardVisible, guardAnyPage, can, allows } from '@/lib/authz/server';
+import { JobCardPhotos } from '@/components/JobCardPhotos';
+import { listJobCardPhotos } from '@/lib/actions/job-card-photos';
 import { fuelLevelLabel, sprayPanelLabels, washPackageLabel } from '@/lib/workshop/job-types';
 import { JobCardRatingCard } from '@/components/JobCardRatingCard';
 import { LoadingLink } from '@/components/LoadingLink';
@@ -331,6 +333,7 @@ export default async function JobCardDetailPage({
   // Round 1: everything that needs only the id, in parallel (each database
   // round trip crosses regions). An id the viewer can't see is a 404.
   if (!(await jobCardVisible(id, 'page'))) notFound();
+  const photoData = await listJobCardPhotos(id).catch(() => ({ photos: [], canAdd: false }));
   const [jobCard, technicians, isMasterAdmin, viewerId, auditTrail, eligibleSupervisors, estimate, payments, cancellationRequests, closeRequests, sourcingFound, refunds, billing, binOffer, inspection] = await Promise.all([
     getJobCard(id),
     listTechnicianCandidates(),
@@ -798,6 +801,8 @@ export default async function JobCardDetailPage({
               </>
             ) : null}
           </div>
+
+          <JobCardPhotos jobCardId={jobCard.id} photos={photoData.photos} canAdd={photoData.canAdd} myUserId={viewerId} />
 
           {/* The check-in inspection: one per Job Card, started, skipped or completed on its own page. */}
           <div className="rounded-[var(--ejo-radius-lg)] border border-[var(--ejo-border)] bg-[var(--ejo-surface)] p-6" data-testid="job-card-inspection">
