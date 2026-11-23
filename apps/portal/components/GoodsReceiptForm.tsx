@@ -31,9 +31,12 @@ type SerialRow = { key: string; value: string };
 export function GoodsReceiptForm({
   branchId,
   action,
+  withCosts = true,
 }: {
   branchId: string;
   action: (formData: FormData) => void | Promise<void>;
+  /** The Store Keeper records the delivery without its cost; the Owner enters it on the receipt. */
+  withCosts?: boolean;
 }) {
   const [selectedPartId, setSelectedPartId] = useState('');
   const [supplierNames, setSupplierNames] = useState<string[]>([]);
@@ -186,6 +189,7 @@ export function GoodsReceiptForm({
         </div>
       </div>
 
+      {withCosts ? (
       <div>
         <label className="mb-1 block text-xs text-[var(--ejo-text-muted)]">
           Total Cost
@@ -214,6 +218,11 @@ export function GoodsReceiptForm({
           </p>
         ) : null}
       </div>
+      ) : (
+        <p className="rounded-[var(--ejo-radius-md)] border border-dashed border-[var(--ejo-border)] px-3 py-2 text-xs text-[var(--ejo-text-muted)]">
+          Record what arrived. The Owner enters what it cost on the receipt.
+        </p>
+      )}
 
       {selectedPart?.trackingType === 'BATCH' ? (
         <div>

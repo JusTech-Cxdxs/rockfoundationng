@@ -273,6 +273,8 @@ model Branch {
   jobCards     JobCard[]
   parts          Part[]
   goodsReceipts  GoodsReceipt[]
+  counterSales   CounterSale[]
+  stockCounts    StockCount[]
   partRequestSlips PartRequestSlip[]
   partCategories PartCategory[]
   partTypes      PartType[]
@@ -410,6 +412,10 @@ model User {
   partCategoriesCreated PartCategory[] @relation("PartCategoryCreatedBy")
   partTypesCreated      PartType[] @relation("PartTypeCreatedBy")
   goodsReceiptsTaken GoodsReceipt[] @relation("GoodsReceiptReceivedBy")
+  counterSalesMade   CounterSale[]  @relation("CounterSaleSoldBy")
+  outsidePurchasesRecorded OutsidePurchase[] @relation("OutsidePurchaseRecordedBy")
+  stockCountsMade    StockCount[]   @relation("StockCountCountedBy")
+  stockCountsDecided StockCount[]   @relation("StockCountDecidedBy")
   partRequestSlipsRequested    PartRequestSlip[] @relation("PartRequestSlipRequestedBy")
   partRequestSlipsHodApproved  PartRequestSlip[] @relation("PartRequestSlipHodApprovedBy")
   partRequestSlipsStoreApproved PartRequestSlip[] @relation("PartRequestSlipStoreApprovedBy")
@@ -628,6 +634,7 @@ model Customer {
   contacts        CustomerContact[]
   jobCards        JobCard[]
 
+  counterSales CounterSale[]
   @@index([organisationId])
   @@unique([organisationId, externalSource, externalId])
   @@index([importJobId])
@@ -894,6 +901,7 @@ model JobCard {
   partRequestSlips     PartRequestSlip[]
   // Reverse side of VehicleService.escalatedToJobCard.
 
+  outsidePurchases OutsidePurchase[]
   @@index([branchId, status])
   @@index([branchId, createdAt])
   @@index([customerId])
@@ -1073,6 +1081,9 @@ model EstimateLineItem {
   estimate    Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
   enteredBy   User     @relation(fields: [enteredById], references: [id])
   requestSlipLines PartRequestSlipLine[]
+  // What an outside part or job cost the workshop (Owner only; its own table so
+  // nothing that reads estimate lines can carry it to anyone else).
+  outsidePurchase OutsidePurchase?
   // Per-line link used by multi-line requests; separate from the legacy
   // request-level relation above.
   partType    PartType? @relation(fields: [partTypeId], references: [id])
@@ -1710,6 +1721,9 @@ model Part {
   fitments          PartFitment[]
   matchedOnEstimateLines EstimateLineItem[] @relation("EstimateLineItemMatchedPart")
   pricingAlerts     PricingAlert[]
+  counterSaleLines  CounterSaleLine[]
+  stockCountLines   StockCountLine[]
+  stockOuts         PartStockOut[]
 
   @@unique([branchId, partNumber])
   @@unique([branchId, externalSource, externalId])
@@ -1767,6 +1781,8 @@ model PartBatch {
   // Draws against this batch. Many-to-many: a release can draw from several
   // batches (FIFO) and a batch can serve several releases.
   consumptions     PartBatchConsumption[]
+  // Stock that left this batch over the counter or on a stock count.
+  stockOuts        PartStockOut[]
 
   @@unique([partId, batchNumber])
   @@map("part_batches")
@@ -1832,6 +1848,8 @@ model PartSerial {
   part             Part                 @relation(fields: [partId], references: [id], onDelete: Cascade)
   goodsReceiptLine GoodsReceiptLine?    @relation(fields: [goodsReceiptLineId], references: [id])
   issuedToSlipLine PartRequestSlipLine? @relation(fields: [issuedToSlipLineId], references: [id])
+  // Sold over the counter or found missing on a stock count.
+  stockOuts        PartStockOut[]
 
   // Unique across all parts, not per part: a serial identifies one physical
   // unit in the whole catalogue.
@@ -1861,16 +1879,22 @@ model GoodsReceipt {
   // include it like any delivery. importJobId: the import that made it (its reversal removes exactly these).
   isOpeningBalance Boolean @default(false)
   importJobId     String?
+  // The stock count whose surplus this receipt records (stock found on the
+  // shelf that the system did not have). No supplier and, until the Owner
+  // enters one, no cost.
+  stockCountId    String?
   createdAt       DateTime @default(now())
 
   supplier   Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   branch     Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
   receivedBy User               @relation("GoodsReceiptReceivedBy", fields: [receivedById], references: [id])
   lines      GoodsReceiptLine[]
+  stockCount StockCount?        @relation(fields: [stockCountId], references: [id], onDelete: SetNull)
 
   @@index([branchId, receivedAt])
   @@index([importJobId])
   @@index([supplierId])
+  @@index([stockCountId])
   @@map("goods_receipts")
 }
 
@@ -1902,10 +1926,199 @@ model GoodsReceiptLine {
   serials      PartSerial[]
   quantityConsumptions PartQuantityConsumption[]
   pricingAlert PricingAlert?
+  stockOuts    PartStockOut[]
 
   @@index([goodsReceiptId])
   @@index([partId])
   @@map("goods_receipt_lines")
+}
+
+// ----------------------------------------------------------------------------
+// COUNTER SALES AND STOCK COUNTS. Stock otherwise leaves the store only on a
+// Job Card's parts request; these two add the other ways. Each draws FIFO,
+// like a release, and records where it came from in PartStockOut, so the
+// delivery traces, stock value and analytics stay exact.
+// ----------------------------------------------------------------------------
+
+/// What a part or job bought outside for a Job Card cost the workshop: one per
+/// outside estimate line (EXTERNAL_PART or EXTERNAL_JOB). Entered and seen by
+/// those who see costs (the Owner) only; read by Business Analytics so parts
+/// and sublet profit are real. The selling price stays on the estimate line.
+model OutsidePurchase {
+  id                 String   @id @default(cuid())
+  estimateLineItemId String   @unique
+  jobCardId          String
+  cost               Decimal  @db.Decimal(12, 2)
+  supplierName       String?
+  recordedById       String
+  recordedAt         DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+
+  estimateLineItem EstimateLineItem @relation(fields: [estimateLineItemId], references: [id], onDelete: Cascade)
+  jobCard          JobCard          @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  recordedBy       User             @relation("OutsidePurchaseRecordedBy", fields: [recordedById], references: [id])
+
+  @@index([jobCardId])
+  @@map("outside_purchases")
+}
+
+/// Parts sold over the counter, without a Job Card, to a registered customer
+/// or a walk-in buyer. Paid in full at the counter, with VAT as on invoices.
+/// The buyer, lines and figures are frozen when it is made, so a reprint is
+/// always the document the buyer was given. CS-2026-000001.
+model CounterSale {
+  id               String        @id @default(cuid())
+  number           String        @unique
+  // One per submitted form: the same sale sent twice never takes stock twice.
+  idempotencyKey   String?       @unique
+  organisationId   String
+  branchId         String
+  // A registered customer, or null for a walk-in buyer (name and phone below).
+  customerId       String?
+  buyerName        String
+  buyerPhone       String?
+  // Lines at their full amounts; VAT (rate 0 when VAT was off); what was paid.
+  subtotal         Decimal       @db.Decimal(12, 2)
+  vatRate          Decimal       @db.Decimal(5, 2)
+  vatAmount        Decimal       @db.Decimal(12, 2)
+  // The organisation's TIN, when VAT was charged.
+  vatNumber        String?
+  total            Decimal       @db.Decimal(12, 2)
+  paymentMethod    PaymentMethod
+  // A transfer reference or teller number.
+  paymentReference String?
+  notes            String?
+  soldById         String
+  soldAt           DateTime      @default(now())
+
+  branch   Branch            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  customer Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  soldBy   User              @relation("CounterSaleSoldBy", fields: [soldById], references: [id])
+  lines    CounterSaleLine[]
+
+  @@index([organisationId, soldAt])
+  @@index([branchId, soldAt])
+  @@index([customerId])
+  @@map("counter_sales")
+}
+
+/// One part on a counter sale, at the selling price of the day, in the part's
+/// base unit. Serial-tracked parts name the units sold.
+model CounterSaleLine {
+  id            String   @id @default(cuid())
+  counterSaleId String
+  partId        String
+  description   String
+  partNumber    String?
+  unitOfMeasure String
+  quantity      Decimal  @db.Decimal(14, 4)
+  unitPrice     Decimal  @db.Decimal(12, 2)
+  amount        Decimal  @db.Decimal(12, 2)
+  serialNumbers String[] @default([])
+
+  counterSale CounterSale    @relation(fields: [counterSaleId], references: [id], onDelete: Cascade)
+  part        Part           @relation(fields: [partId], references: [id])
+  stockOuts   PartStockOut[]
+
+  @@index([counterSaleId])
+  @@index([partId])
+  @@map("counter_sale_lines")
+}
+
+enum StockCountStatus {
+  // Differences found: waiting on the Owner.
+  PENDING_APPROVAL
+  // Every part counted matched the system: recorded, nothing to approve.
+  NO_DIFFERENCE
+  // The Owner approved: the differences moved the stock.
+  APPROVED
+  // The Owner rejected: nothing moved (count again).
+  REJECTED
+}
+
+/// A count of the shelf against the system, by the Store Keeper (or Front
+/// Desk while that role is off). Differences only move stock once the Owner
+/// approves: a shortfall leaves FIFO (PartStockOut), a surplus comes in as a
+/// goods receipt marked with this count. SC-2026-000001.
+model StockCount {
+  id             String           @id @default(cuid())
+  number         String           @unique
+  idempotencyKey String?          @unique
+  organisationId String
+  branchId       String
+  status         StockCountStatus @default(PENDING_APPROVAL)
+  note           String?
+  countedById    String
+  countedAt      DateTime         @default(now())
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+
+  branch    Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  countedBy User             @relation("StockCountCountedBy", fields: [countedById], references: [id])
+  decidedBy User?            @relation("StockCountDecidedBy", fields: [decidedById], references: [id])
+  lines     StockCountLine[]
+  receipts  GoodsReceipt[]
+
+  @@index([branchId, status])
+  @@index([organisationId, countedAt])
+  @@map("stock_counts")
+}
+
+/// One part counted: what the system held when it was counted, what was on
+/// the shelf, the difference, and why (required for any difference).
+model StockCountLine {
+  id              String  @id @default(cuid())
+  stockCountId    String
+  partId          String
+  systemQuantity  Decimal @db.Decimal(14, 4)
+  countedQuantity Decimal @db.Decimal(14, 4)
+  difference      Decimal @db.Decimal(14, 4)
+  reason          String?
+
+  stockCount StockCount     @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  part       Part           @relation(fields: [partId], references: [id])
+  stockOuts  PartStockOut[]
+
+  @@index([stockCountId])
+  @@index([partId])
+  @@map("stock_count_lines")
+}
+
+enum StockOutKind {
+  COUNTER_SALE
+  COUNT_SHORTFALL
+}
+
+/// Stock that left the store other than on a parts request: one row per
+/// delivery (QUANTITY part), batch (BATCH) or unit (SERIALIZED) it was drawn
+/// from, oldest first. Read with the release records wherever FIFO layers are
+/// replayed (lib/inventory/quantity-trace.ts, the release in sourcing.ts).
+model PartStockOut {
+  id                 String       @id @default(cuid())
+  partId             String
+  kind               StockOutKind
+  counterSaleLineId  String?
+  stockCountLineId   String?
+  quantityTaken      Decimal      @db.Decimal(14, 4)
+  takenAt            DateTime     @default(now())
+  goodsReceiptLineId String?
+  batchId            String?
+  serialId           String?
+
+  part             Part              @relation(fields: [partId], references: [id], onDelete: Cascade)
+  counterSaleLine  CounterSaleLine?  @relation(fields: [counterSaleLineId], references: [id], onDelete: Cascade)
+  stockCountLine   StockCountLine?   @relation(fields: [stockCountLineId], references: [id], onDelete: Cascade)
+  goodsReceiptLine GoodsReceiptLine? @relation(fields: [goodsReceiptLineId], references: [id])
+  batch            PartBatch?        @relation(fields: [batchId], references: [id])
+  serial           PartSerial?       @relation(fields: [serialId], references: [id])
+
+  @@index([partId, takenAt])
+  @@index([counterSaleLineId])
+  @@index([stockCountLineId])
+  @@index([goodsReceiptLineId])
+  @@index([batchId])
+  @@map("part_stock_outs")
 }
 
 // ----------------------------------------------------------------------------

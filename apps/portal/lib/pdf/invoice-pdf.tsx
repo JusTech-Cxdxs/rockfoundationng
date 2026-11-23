@@ -91,7 +91,7 @@ export function InvoicePdf(props: InvoicePdfProps) {
             ) : null}
           </View>
           <View style={styles.docTitleWrap}>
-            <Text style={styles.docTitle}>Invoice</Text>
+            <Text style={styles.docTitle}>{props.title ?? 'Invoice'}</Text>
             <Text style={styles.docRef}>{props.invoiceNumber}</Text>
             <Text style={styles.docDate}>{props.issuedOnLabel}</Text>
             {props.dueOnLabel ? <Text style={styles.docDate}>Payment due by {props.dueOnLabel}</Text> : null}
@@ -122,18 +122,37 @@ export function InvoicePdf(props: InvoicePdfProps) {
             {props.customerContact ? <Text style={styles.smallMuted}>{props.customerContact}</Text> : null}
             {props.customerAddress ? <Text style={styles.smallMuted}>{props.customerAddress}</Text> : null}
           </View>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>JOB CARD</Text>
-            <Text style={styles.fieldValue}>{props.jobNumber}</Text>
-          </View>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>VEHICLE</Text>
-            <Text style={styles.fieldValue}>{props.vehicleDescription}</Text>
-          </View>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>PLATE NO. / MILEAGE</Text>
-            <Text style={styles.fieldValue}>{[props.plateNumber ?? '—', props.mileage].filter(Boolean).join('  ·  ')}</Text>
-          </View>
+          {props.sale ? (
+            <>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>SALE</Text>
+                <Text style={styles.fieldValue}>Over the counter</Text>
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>PAID BY</Text>
+                <Text style={styles.fieldValue}>{props.sale.paidBy}</Text>
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>SERVED BY</Text>
+                <Text style={styles.fieldValue}>{props.sale.soldBy}</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>JOB CARD</Text>
+                <Text style={styles.fieldValue}>{props.jobNumber}</Text>
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>VEHICLE</Text>
+                <Text style={styles.fieldValue}>{props.vehicleDescription}</Text>
+              </View>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>PLATE NO. / MILEAGE</Text>
+                <Text style={styles.fieldValue}>{[props.plateNumber ?? '—', props.mileage].filter(Boolean).join('  ·  ')}</Text>
+              </View>
+            </>
+          )}
         </View>
 
         <View style={styles.table}>
@@ -191,14 +210,18 @@ export function InvoicePdf(props: InvoicePdfProps) {
           {props.discountReason ? <Text style={styles.note}>Discount: {props.discountReason}</Text> : null}
         </View>
 
-        <Text style={styles.paymentTitle}>How to pay</Text>
-        <View style={styles.paymentBox}>
-          <Text style={styles.paymentLine}>Bank: {props.bankName}</Text>
-          <Text style={styles.paymentLine}>Account Name: {props.accountName}</Text>
-          <Text style={styles.paymentLine}>Account Number: {props.accountNumber}</Text>
-          <Text style={styles.paymentLine}>Payment Reference: {props.paymentRemarkSuggestion}</Text>
-          <Text style={styles.paymentNote}>Or pay the cashier at our {branch.name} office.</Text>
-        </View>
+        {props.sale ? null : (
+          <>
+            <Text style={styles.paymentTitle}>How to pay</Text>
+            <View style={styles.paymentBox}>
+              <Text style={styles.paymentLine}>Bank: {props.bankName}</Text>
+              <Text style={styles.paymentLine}>Account Name: {props.accountName}</Text>
+              <Text style={styles.paymentLine}>Account Number: {props.accountNumber}</Text>
+              <Text style={styles.paymentLine}>Payment Reference: {props.paymentRemarkSuggestion}</Text>
+              <Text style={styles.paymentNote}>Or pay the cashier at our {branch.name} office.</Text>
+            </View>
+          </>
+        )}
 
         {props.guarantee ? <Text style={{ marginTop: 12, fontSize: 9, color: '#334155' }}>{props.guarantee}</Text> : null}
         <Text style={styles.closing}>{props.closing}</Text>

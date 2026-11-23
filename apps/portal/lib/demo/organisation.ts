@@ -112,7 +112,7 @@ async function ensureDemoWorkshop(prisma: PrismaClient, organisationId: string):
     },
     select: { id: true },
   });
-  for (const [slug, name] of [['workshop', 'Workshop'], ['mechanical', 'Mechanical'], ['electrical', 'Electrical and diagnostics'], ['body-spray', 'Body and spraying'], ['car-wash', 'Car wash']] as const) {
+  for (const [slug, name] of [['workshop', 'Workshop'], ['mechanical', 'Mechanical'], ['electrical', 'Electrical and diagnostics'], ['body-spray', 'Body and spraying'], ['car-wash', 'Car wash'], ['store', 'Store']] as const) {
     await prisma.department.upsert({ where: { branchId_slug: { branchId: branch.id, slug } }, update: {}, create: { branchId: branch.id, name, slug } });
   }
 }

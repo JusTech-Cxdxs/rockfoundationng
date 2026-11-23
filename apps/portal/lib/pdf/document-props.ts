@@ -254,3 +254,34 @@ export function receiptPdfProps(p: {
     closing: `Thank you for choosing ${p.letterhead.organisation.name}.`,
   };
 }
+
+/**
+ * A counter sale's receipt (CS-number): the invoice layout without a Job
+ * Card or vehicle, its lines at the selling price, VAT as charged, paid in
+ * full at the counter. Pure, like the invoice.
+ */
+export function counterSalePdfProps(p: {
+  letterhead: Letterhead;
+  bank: Bank;
+  number: string;
+  soldOnLabel: string;
+  buyer: { name: string; contact: string | null; address: string | null };
+  lines: { description: string; quantity: number; unitOfMeasure: string; unitPrice: number; amount: number }[];
+  figures: { subtotal: unknown; vatRate: unknown; vatAmount: unknown; vatNumber: string | null; total: unknown };
+  paidBy: string;
+  soldBy: string;
+}): InvoicePdfProps {
+  const base = invoicePdfProps({
+    letterhead: p.letterhead,
+    bank: p.bank,
+    invoiceNumber: p.number,
+    issuedOnLabel: p.soldOnLabel,
+    jobNumber: '',
+    customer: p.buyer,
+    vehicle: { make: null, model: null, plateNumber: null, chassisNumber: null, mileage: null },
+    lines: p.lines.map((l) => ({ description: l.description, type: 'STORE_PART', quantity: l.quantity, unitOfMeasure: l.unitOfMeasure, unitPrice: l.unitPrice, lineDiscount: 0, amount: l.amount, billTo: 'CUSTOMER' })),
+    figures: { subtotal: p.figures.subtotal, lineDiscounts: 0, discountAmount: 0, discountReason: null, vatRate: p.figures.vatRate, vatAmount: p.figures.vatAmount, vatNumber: p.figures.vatNumber, total: p.figures.total },
+    amountPaid: money(p.figures.total),
+  });
+  return { ...base, title: 'Sales receipt', jobNumber: null, vehicleDescription: '', plateNumber: null, mileage: null, sale: { paidBy: p.paidBy, soldBy: p.soldBy }, paymentRemarkSuggestion: p.number };
+}

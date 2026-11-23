@@ -21,6 +21,8 @@ export async function listPartsFittedToVehicle(vehicleId: string) {
       quantityReleased: true,
       part: { select: { id: true, name: true, partNumber: true, baseUnitOfMeasure: true } },
       issuedSerials: { select: { serialNumber: true } },
+      // The selling price the customer was charged (never a cost) and who paid.
+      estimateLineItem: { select: { unitPrice: true, billTo: true } },
       slip: {
         select: {
           id: true, referenceNumber: true, releasedAt: true,
@@ -28,6 +30,20 @@ export async function listPartsFittedToVehicle(vehicleId: string) {
         },
       },
     },
+  });
+}
+
+/** Parts bought outside for this vehicle's jobs (not stocked): the lines on
+ * Owner-approved estimates, at the price charged. The outside cost is never
+ * read here. Cancelled jobs are left out. */
+export async function listOutsidePartsForVehicle(vehicleId: string) {
+  await requireUser();
+  await seeVehicle(vehicleId, 'listOutsidePartsForVehicle');
+  return prisma.estimateLineItem.findMany({
+    where: { type: 'EXTERNAL_PART', estimate: { status: 'MANAGER_APPROVED', jobCard: { vehicleId, status: { not: 'CANCELLED' } } } },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    select: { id: true, description: true, quantity: true, unitOfMeasure: true, unitPrice: true, billTo: true, estimate: { select: { managerApprovedAt: true, jobCard: { select: { id: true, jobNumber: true, customer: { select: { fullName: true } } } } } } },
   });
 }
 

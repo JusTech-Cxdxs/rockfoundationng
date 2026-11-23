@@ -24,7 +24,7 @@ export async function getInventoryAnalytics(branchId: string, settings?: Partial
   await requireUser();
   await authorize('analytics.inventory.view', undefined, 'getInventoryAnalytics', 'Inventory Analytics is for the Owner.');
   branchId = await branchWithinReach('analytics.inventory.view', branchId);
-  const [parts, receipts, qtyUses, batchUses, serials, openPricingAlerts] = await Promise.all([
+  const [parts, receipts, qtyUses, batchUses, serials, openPricingAlerts, counterOut] = await Promise.all([
     prisma.part.findMany({
       where: { branchId },
       select: { id: true, name: true, partNumber: true, category: true, baseUnitOfMeasure: true, isActive: true, reorderPoint: true, safetyStock: true, sellingPrice: true, targetMarginPercent: true, createdAt: true, stock: { select: { quantityOnHand: true, quantityReserved: true } } },
@@ -46,6 +46,12 @@ export async function getInventoryAnalytics(branchId: string, settings?: Partial
       select: { partId: true, goodsReceiptLine: { select: { unitCost: true } }, issuedToSlipLine: { select: { estimateLineItem: { select: { unitPrice: true, billTo: true } }, slip: { select: { releasedAt: true } } } } },
     }),
     prisma.pricingAlert.count({ where: { status: 'OPEN', part: { branchId } } }),
+    // Counter sales: demand and revenue like a release, at the price the buyer paid.
+    // (Stock count shortfalls are losses, not demand: they change the stock, not the sales.)
+    prisma.partStockOut.findMany({
+      where: { part: { branchId }, kind: 'COUNTER_SALE' },
+      select: { partId: true, quantityTaken: true, takenAt: true, goodsReceiptLine: { select: { unitCost: true } }, counterSaleLine: { select: { unitPrice: true } } },
+    }),
   ]);
 
   const issues: IIssue[] = [
@@ -63,6 +69,10 @@ export async function getInventoryAnalytics(branchId: string, settings?: Partial
         const price = priceOf(x.issuedToSlipLine);
         return { partId: x.partId, qty: 1, date: x.issuedToSlipLine!.slip.releasedAt as Date, unitCost: num(x.goodsReceiptLine?.unitCost), unitPrice: price, priceIsEstimated: price === null };
       }),
+    ...counterOut.map((o: (typeof counterOut)[number]) => {
+      const price = num(o.counterSaleLine?.unitPrice);
+      return { partId: o.partId, qty: Number(o.quantityTaken), date: o.takenAt, unitCost: num(o.goodsReceiptLine?.unitCost), unitPrice: price, priceIsEstimated: price === null };
+    }),
   ];
 
   return computeInventoryAnalytics({

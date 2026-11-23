@@ -269,7 +269,7 @@ record inside the portal.
   comes first). A comeback (`JobCard.comebackOfId`) is only allowed on the
   vehicle's own checked-out job whose guarantee still runs; its lines bill to
   WARRANTY and the Owner approves. Faulty parts are claimed back from
-  suppliers (`SupplierClaim`, SC-YYYY-NNNNNN). The warranty report shows the
+  suppliers (`SupplierClaim`, CLM-YYYY-NNNNNN). The warranty report shows the
   comeback rate by job type and technician, warranty and goodwill cost, and
   open claims.
 

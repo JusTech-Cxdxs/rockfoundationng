@@ -68,6 +68,14 @@ export async function getMasterAnalytics(periodKey?: string, custom?: { from?: s
   // nothing for jobs outside the window.
   const jcIds = jcs.map((j: { id: string }) => j.id);
   const ofLoadedJobs = { jobCardId: { in: jcIds } };
+  // What outside parts and jobs cost (the Owner enters it on the Job Card): parts cost and sublet cost.
+  const outside = jcIds.length === 0 ? [] : await prisma.outsidePurchase.findMany({ where: ofLoadedJobs, select: { jobCardId: true, cost: true, estimateLineItem: { select: { type: true } } } });
+  const outsideParts = new Map<string, number>();
+  const sublet = new Map<string, number>();
+  for (const o of outside) {
+    const m = o.estimateLineItem.type === 'EXTERNAL_JOB' ? sublet : outsideParts;
+    m.set(o.jobCardId, (m.get(o.jobCardId) ?? 0) + Number(o.cost));
+  }
   const [qty, batch, serial] = jcIds.length === 0 ? [[], [], []] as const : await Promise.all([
     storeOn ? prisma.partQuantityConsumption.findMany({ where: { slipLine: { slip: ofLoadedJobs } }, select: { quantityTaken: true, goodsReceiptLine: { select: { unitCost: true } }, ...SLIP_JOB } }) : [],
     storeOn ? prisma.partBatchConsumption.findMany({ where: { slipLine: { slip: ofLoadedJobs } }, select: { quantityTaken: true, batch: { select: { goodsReceiptLine: { select: { unitCost: true } } } }, ...SLIP_JOB } }) : [],
@@ -103,7 +111,7 @@ export async function getMasterAnalytics(periodKey?: string, custom?: { from?: s
       finishedAt: jcCancelled(j) ? null : j.completedAt ?? j.checkedOutAt ?? j.closedAt ?? null,
       cancelled: jcCancelled(j),
       lines: (j.estimate?.lineItems ?? []).map((l: { type: string; amount: unknown; billTo: string }) => ({ type: l.type, amount: num(l.amount), billTo: l.billTo })),
-      partsCost: cost.get(`JC:${j.id}`) ?? 0, partsIssuedWithoutCost: uncosted.get(`JC:${j.id}`) ?? 0, subletCost: 0,
+      partsCost: (cost.get(`JC:${j.id}`) ?? 0) + (outsideParts.get(j.id) ?? 0), partsIssuedWithoutCost: uncosted.get(`JC:${j.id}`) ?? 0, subletCost: sublet.get(j.id) ?? 0,
       payments: pay(j.payments), refunds: pay(j.refunds),
       organisation: j.customer.customerType === 'ORGANIZATION', dueDate: j.invoice?.dueDate ?? null,
     })),

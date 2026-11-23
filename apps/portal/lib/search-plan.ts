@@ -11,6 +11,9 @@ export const REFERENCE_TYPES = [
   { prefix: 'JC', model: 'JobCard', group: 'Job Cards', path: (id: string) => `/workshop/job-cards/${id}` },
   { prefix: 'PRS', model: 'PartRequestSlip', group: 'Parts requests', path: (id: string) => `/workshop/parts-requests/${id}` },
   { prefix: 'GRN', model: 'GoodsReceipt', group: 'Goods receipts', path: (id: string) => `/inventory/goods-receipts/${id}` },
+  // The parts store: a sale over the counter, and a count of the shelf.
+  { prefix: 'CS', model: 'CounterSale', group: 'Counter sales', path: (id: string) => `/inventory/counter-sales/${id}` },
+  { prefix: 'SC', model: 'StockCount', group: 'Stock counts', path: (id: string) => `/inventory/stock-counts/${id}` },
   // A refund has no page of its own: the id given is its Job Card's page.
   { prefix: 'RF', model: 'Refund', group: 'Refunds', path: (parentUrl: string) => parentUrl },
   // Invoices and payment receipts open on their Job Card too (each has its print page there).
@@ -19,7 +22,7 @@ export const REFERENCE_TYPES = [
   // Credit notes open on their Job Card too (the invoice's credit notes are listed there).
   { prefix: 'CN', model: 'CreditNote', group: 'Credit notes', path: (parentUrl: string) => parentUrl },
   // Warranty claims to suppliers.
-  { prefix: 'SC', model: 'SupplierClaim', group: 'Supplier claims', path: (id: string) => `/warranty/claims/${id}` },
+  { prefix: 'CLM', model: 'SupplierClaim', group: 'Supplier claims', path: (id: string) => `/warranty/claims/${id}` },
   { prefix: 'VX', model: 'VehicleGateExit', group: 'Vehicle exits', path: (id: string) => `/security/vehicles/exits/${id}` },
   { prefix: 'BC', model: 'Broadcast', group: 'Broadcasts', path: (id: string) => `/notifications/broadcasts/${id}` },
   // Support tickets: customers and website visitors handed over by Enyo (numbered by the website).
@@ -39,7 +42,7 @@ export const REFERENCE_PREFIXES: RefPrefix[] = REFERENCE_TYPES.map((t) => t.pref
  * stay here so old references in audit logs and texts still read.
  */
 export const MODULE_PREFIXES: { module: 'inventory'; prefixes: RefPrefix[] }[] = [
-  { module: 'inventory', prefixes: ['PRS', 'GRN'] },
+  { module: 'inventory', prefixes: ['PRS', 'GRN', 'CS', 'SC'] },
 ];
 
 /** The same plan without the reference types given (those of switched-off areas). */

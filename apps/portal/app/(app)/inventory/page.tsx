@@ -1,10 +1,13 @@
 import { allows, guardAnyPage } from '@/lib/authz/server';
-import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
+import { AREAS } from '@/lib/authz/page-areas';
 import { OrgTrail } from '@/components/OrgTrail';
 import { PageHeader, NavCard, type IconName } from '@/components/ui';
 
 const sections: { name: string; href: string; desc: string; icon: IconName }[] = [
   { name: 'Parts Catalog', href: '/inventory/parts', icon: 'package', desc: 'Parts the Store stocks, with tracking type, unit and stock on hand.' },
+  { name: 'Counter sales', href: '/inventory/counter-sales', icon: 'cart', desc: 'Parts sold over the counter without a Job Card, with the receipt.' },
+  { name: 'Stock counts', href: '/inventory/stock-counts', icon: 'clipboard', desc: 'Count the shelf against the system; the Owner approves any difference.' },
+  { name: 'Parts store report', href: '/inventory/reports', icon: 'chart', desc: 'Parts sold on jobs and over the counter, what is running low and what has not moved.' },
   { name: 'Goods Receipts', href: '/inventory/goods-receipts', icon: 'receipt', desc: 'Deliveries received into the Store.' },
   { name: 'Suppliers', href: '/inventory/suppliers', icon: 'truck', desc: 'The organisation\'s suppliers, with how often each delivers.' },
   { name: 'Part Categories & Types', href: '/inventory/part-types', icon: 'layers', desc: 'The categories and types technicians choose from on an estimate.' },
@@ -17,9 +20,11 @@ const sections: { name: string; href: string; desc: string; icon: IconName }[] =
 export default async function InventoryPage() {
   await guardAnyPage(['store.view'], '/inventory');
   // Show only what this person may open (the same rule the pages enforce).
-  const [canAnalytics, canSeeCosts] = await Promise.all([allows('analytics.inventory.view'), Promise.all(STORE_COST_PERMISSIONS.map((k) => allows(k))).then((xs) => xs.some(Boolean))]);
-  const COSTS = ['/inventory/goods-receipts', '/inventory/pricing'];
-  const visible = sections.filter((s) => (s.href !== '/inventory/analytics' || canAnalytics) && (!COSTS.includes(s.href) || canSeeCosts));
+  // The same rules as lib/authz/page-areas.ts: each card only for those who may open it.
+  const visible = (await Promise.all(sections.map(async (s) => {
+    const area = AREAS.find((a) => a.url === s.href);
+    return !area || (await Promise.all(area.needs.map((k) => allows(k)))).some(Boolean) ? s : null;
+  }))).filter((s): s is (typeof sections)[number] => s !== null);
   return (
     <div className="w-full p-4 sm:p-8">
       <PageHeader

@@ -3,7 +3,7 @@
 import { prisma, type Prisma } from '@ejo/database';
 import { requireUser } from './workshop';
 import { navigationFor } from '@/lib/authz/navigation';
-import { firstReach, getBranchView, getPrincipal, myOrganisationId, orgWhere, reachWhere } from '@/lib/authz/server';
+import { getBranchView, getPrincipal, myOrganisationId, orgWhere, reachWhere } from '@/lib/authz/server';
 import { ticketReachWhere } from '@/lib/support-rules';
 import { decide, STORE_COST_PERMISSIONS, type PermissionKey } from '@/lib/authz/catalogue';
 import { groupRank, MODULE_PREFIXES, numberFilters, oldNumberQuery, planSearch, referenceUrl, withoutPrefixes, type RefPrefix, type SearchPlan } from '@/lib/search-plan';
@@ -100,12 +100,15 @@ export async function globalSearch(raw: string): Promise<SearchGroup[]> {
     return reaches.some((r) => r.branchId === undefined) ? {} : { OR: reaches };
   };
   const canWorkshop = allowed('workshop.view');
-  const [jobReach, storeReach, securityReach, prsReach, grnReach] = await Promise.all([
+  const [jobReach, storeReach, securityReach, prsReach, grnReach, saleReach, countReach] = await Promise.all([
     canWorkshop ? reachAny(['workshop.job_card.view']) : null,
     storeOn ? reachAny(['store.view']) : null,
     reachAny(['security.view']),
     canWorkshop && storeOn ? reachAny(['workshop.job_card.view', 'store.view']) : null,
-    storeOn && any(STORE_COST_PERMISSIONS) ? firstReach(STORE_COST_PERMISSIONS) : null,
+    // Goods receipts: those who record them (the Store Keeper) and those who see costs.
+    storeOn && any(['store.grn.record', ...STORE_COST_PERMISSIONS]) ? reachAny(['store.grn.record', ...STORE_COST_PERMISSIONS]) : null,
+    storeOn ? reachAny(['store.counter.sell', 'workshop.payment.record']) : null,
+    storeOn ? reachAny(['store.stock.count', 'store.stock.approve']) : null,
   ]);
   const [mineOrg] = await Promise.all([orgWhere()]);
   const me = await prisma.user.findUnique({ where: { id: user.id }, select: { organisationId: true } });
@@ -136,13 +139,17 @@ export async function globalSearch(raw: string): Promise<SearchGroup[]> {
   const W = <T,>(w: Where) => w as T;
   const newest = { createdAt: 'desc' } as const;
 
-  const [jcs, prs, grns, refunds, invoices, receipts, creditNotes, supplierClaims, exits, broadcasts, tickets, imports, exportJobs, vehicles, customers, parts, branches, departments, staff] = await Promise.all([
+  const [jcs, prs, grns, sales, counts, refunds, invoices, receipts, creditNotes, supplierClaims, exits, broadcasts, tickets, imports, exportJobs, vehicles, customers, parts, branches, departments, staff] = await Promise.all([
     find(jobReach, { numbers: [['JC', 'jobNumber']], text: ['customer.fullName'], codes: ['vehicle.plateNumber'], phones: ['customer.phone'] },
       (w) => prisma.jobCard.findMany({ where: W<Prisma.JobCardWhereInput>(w), take, orderBy: newest, select: { id: true, branchId: true, jobNumber: true, status: true, customer: { select: { fullName: true } }, vehicle: { select: { plateNumber: true } } } })),
     find(prsReach, { numbers: [['PRS', 'referenceNumber']] },
       (w) => prisma.partRequestSlip.findMany({ where: W<Prisma.PartRequestSlipWhereInput>(w), take, orderBy: newest, select: { id: true, branchId: true, referenceNumber: true, status: true, jobCard: { select: { jobNumber: true } } } })),
     find(grnReach, { numbers: [['GRN', 'referenceNumber']], text: ['supplierName'] },
       (w) => prisma.goodsReceipt.findMany({ where: W<Prisma.GoodsReceiptWhereInput>(w), take, orderBy: { receivedAt: 'desc' }, select: { id: true, referenceNumber: true, supplierName: true } })),
+    find(saleReach, { numbers: [['CS', 'number']], text: ['buyerName'], phones: ['buyerPhone'] },
+      (w) => prisma.counterSale.findMany({ where: W<Prisma.CounterSaleWhereInput>(w), take, orderBy: { soldAt: 'desc' }, select: { id: true, number: true, buyerName: true, total: true } })),
+    find(countReach, { numbers: [['SC', 'number']] },
+      (w) => prisma.stockCount.findMany({ where: W<Prisma.StockCountWhereInput>(w), take, orderBy: { countedAt: 'desc' }, select: { id: true, number: true, status: true } })),
     // Refunds, invoices and receipts: within reach of their Job Card's branch, like the Job Card itself.
     find(jobReach && { jobCard: jobReach }, { numbers: [['RF', 'referenceNumber']], text: ['paidToName'] },
       (w) => prisma.refund.findMany({ where: W<Prisma.RefundWhereInput>(w), take, orderBy: { recordedAt: 'desc' }, select: { referenceNumber: true, paidToName: true, jobCard: { select: { id: true, jobNumber: true, branchId: true } } } })),
@@ -154,7 +161,7 @@ export async function globalSearch(raw: string): Promise<SearchGroup[]> {
     find(jobReach && (allowed('money.credit_note.request') || allowed('money.credit_note.approve') || allowed('workshop.payment.record')) && { jobCard: jobReach }, { numbers: [['CN', 'number']] },
       (w) => prisma.creditNote.findMany({ where: W<Prisma.CreditNoteWhereInput>(w), take, orderBy: { requestedAt: 'desc' }, select: { number: true, amount: true, jobCard: { select: { id: true, jobNumber: true, branchId: true } } } })),
     // Supplier claims: Accounts and the Owner, in their own organisation.
-    find((allowed('workshop.warranty.claims') || allowed('workshop.warranty.report')) && sameOrg, { numbers: [['SC', 'number']], text: ['supplierName', 'partName'] },
+    find((allowed('workshop.warranty.claims') || allowed('workshop.warranty.report')) && sameOrg, { numbers: [['CLM', 'number']], text: ['supplierName', 'partName'] },
       (w) => prisma.supplierClaim.findMany({ where: W<Prisma.SupplierClaimWhereInput>(w), take, orderBy: newest, select: { id: true, number: true, partName: true, supplierName: true } })),
     find(securityReach, { numbers: [['VX', 'exitNumber']], text: ['driverName'], codes: ['vehicle.plateNumber'] },
       (w) => prisma.vehicleGateExit.findMany({ where: W<Prisma.VehicleGateExitWhereInput>(w), take, orderBy: newest, select: { id: true, branchId: true, exitNumber: true, vehicle: { select: { make: true, model: true, plateNumber: true } } } })),
@@ -196,12 +203,14 @@ export async function globalSearch(raw: string): Promise<SearchGroup[]> {
     ref('JC', 'Job Cards', jcs.filter((r) => opens(JOB, r.branchId)).map((r) => ({ label: r.jobNumber, sub: dot(r.customer.fullName, r.vehicle?.plateNumber, words(r.status)), href: referenceUrl('JC', r.id) }))),
     ref('PRS', 'Parts requests', prs.filter((r) => opens(['workshop.job_card.view', 'store.view'], r.branchId)).map((r) => ({ label: r.referenceNumber, sub: dot(r.jobCard?.jobNumber, words(r.status)), href: referenceUrl('PRS', r.id) }))),
     ref('GRN', 'Goods receipts', grns.map((r) => ({ label: r.referenceNumber, sub: r.supplierName, href: referenceUrl('GRN', r.id) }))),
+    ref('CS', 'Counter sales', sales.map((r) => ({ label: r.number, sub: dot(r.buyerName, `₦${Number(r.total).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`), href: referenceUrl('CS', r.id) }))),
+    ref('SC', 'Stock counts', counts.map((r) => ({ label: r.number, sub: words(r.status), href: referenceUrl('SC', r.id) }))),
     // A refund opens on its Job Card.
     ref('RF', 'Refunds', refunds.flatMap((r) => (r.jobCard && opens(JOB, r.jobCard.branchId) ? [{ label: r.referenceNumber, sub: dot(`On ${r.jobCard.jobNumber}`, r.paidToName), href: referenceUrl('JC', r.jobCard.id) }] : []))),
     ref('INV', 'Invoices', invoices.filter((r) => opens(JOB, r.branchId)).map((r) => ({ label: r.invoiceNumber, sub: dot(`On ${r.jobCard.jobNumber}`, r.customer.fullName), href: referenceUrl('JC', r.jobCard.id) }))),
     ref('RCT', 'Receipts', receipts.flatMap((r) => (r.receiptNumber && r.jobCard && opens(JOB, r.jobCard.branchId) ? [{ label: r.receiptNumber, sub: dot(`On ${r.jobCard.jobNumber}`, `₦${Number(r.amount).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`), href: referenceUrl('JC', r.jobCard.id) }] : []))),
     ref('CN', 'Credit notes', creditNotes.flatMap((r) => (r.number && opens(JOB, r.jobCard.branchId) ? [{ label: r.number, sub: dot(`On ${r.jobCard.jobNumber}`, `₦${Number(r.amount).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`), href: referenceUrl('JC', r.jobCard.id) }] : []))),
-    ref('SC', 'Supplier claims', supplierClaims.map((r) => ({ label: r.number, sub: dot(r.partName, r.supplierName), href: referenceUrl('SC', r.id) }))),
+    ref('CLM', 'Supplier claims', supplierClaims.map((r) => ({ label: r.number, sub: dot(r.partName, r.supplierName), href: referenceUrl('CLM', r.id) }))),
     ref('VX', 'Vehicle exits', exits.filter((r) => opens(SEC, r.branchId)).map((r) => ({ label: r.exitNumber, sub: dot([r.vehicle?.make, r.vehicle?.model].filter(Boolean).join(' '), r.vehicle?.plateNumber), href: referenceUrl('VX', r.id) }))),
     ref('BC', 'Broadcasts', broadcasts.map((r) => ({ label: r.broadcastNumber, sub: r.title, href: referenceUrl('BC', r.id) }))),
     ref('SUP', 'Support tickets', tickets.map((r) => ({ label: r.number, sub: dot(r.contactName, words(r.status)), href: referenceUrl('SUP', r.id) }))),

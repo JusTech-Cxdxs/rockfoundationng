@@ -12,6 +12,7 @@ import { FormFeedbackBanner } from '@/components/FormFeedbackBanner';
 import { pluralize } from '@/lib/utils/pluralize';
 import { BackLink, PageTitle } from '@/components/ui';
 import { RefineTextButton } from '@/components/enyo/RefineTextButton';
+import { stockOutPlace, type StockOutRef } from '@/lib/inventory/stock-out-place';
 
 const AUDIT_ACTION_LABEL: Record<string, string> = {
   'goods_receipt.recorded': 'Goods Receipt recorded',
@@ -41,6 +42,12 @@ function destination(slip: SlipDestination, quantity: number, detail: string | n
   };
 }
 
+/** Stock that left without a parts request: the counter sale or the stock count. */
+function elsewhere(o: StockOutRef, quantity: number, detail: string | null): GoodsReceiptLineStockTrace['issuedTo'][number] {
+  const place = stockOutPlace(o);
+  return { slipId: place.id, referenceNumber: place.number, sourceNumber: place.label, customerName: place.customerName, customerId: place.customerId, quantity, detail, href: place.href };
+}
+
 /**
  * Where this delivery's stock went (GRN → parts request → job → customer):
  * via the batch, the serials, or the FIFO layer for a Quantity part.
@@ -56,9 +63,10 @@ function buildStockTrace(line: ReceiptLine, quantityTraces: ReceiptWithTrace['qu
       remaining,
       issued: Math.max(0, Math.round((received - remaining) * 10000) / 10000),
       isActive: line.batches.some((b: (typeof line.batches)[number]) => b.id === activeBatchId),
-      issuedTo: line.batches.flatMap((b: (typeof line.batches)[number]) =>
-        b.consumptions.map((c: (typeof b.consumptions)[number]) => destination(c.slipLine.slip, Number(c.quantityTaken), null)),
-      ),
+      issuedTo: line.batches.flatMap((b: (typeof line.batches)[number]) => [
+        ...b.consumptions.map((c: (typeof b.consumptions)[number]) => destination(c.slipLine.slip, Number(c.quantityTaken), null)),
+        ...b.stockOuts.map((o: (typeof b.stockOuts)[number]) => elsewhere(o, Number(o.quantityTaken), null)),
+      ]),
     };
   }
   if (line.part.trackingType === 'SERIALIZED') {
@@ -69,9 +77,11 @@ function buildStockTrace(line: ReceiptLine, quantityTraces: ReceiptWithTrace['qu
       remaining: line.serials.length - issuedSerials.length,
       issued: issuedSerials.length,
       isActive: false,
-      issuedTo: issuedSerials
-        .filter((sr: (typeof issuedSerials)[number]) => sr.issuedToSlipLine)
-        .map((sr: (typeof issuedSerials)[number]) => destination(sr.issuedToSlipLine!.slip, 1, `Serial ${sr.serialNumber}`)),
+      issuedTo: issuedSerials.flatMap((sr: (typeof issuedSerials)[number]) =>
+        sr.issuedToSlipLine
+          ? [destination(sr.issuedToSlipLine.slip, 1, `Serial ${sr.serialNumber}`)]
+          : sr.stockOuts.map((o: (typeof sr.stockOuts)[number]) => elsewhere(o, 1, `Serial ${sr.serialNumber}`)),
+      ),
     };
   }
   const trace = quantityTraces.get(line.partId);
@@ -88,6 +98,7 @@ function buildStockTrace(line: ReceiptLine, quantityTraces: ReceiptWithTrace['qu
         customerId: release.slip.customerId ?? null,
         quantity: a.quantity,
         detail: null,
+        href: release.href,
       });
     }
   }

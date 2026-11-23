@@ -76,6 +76,9 @@ export const PERMISSIONS = {
   'sourcing.request': { module: 'Store', label: 'Raise parts requests on jobs' },
   'store.grn.record': { module: 'Store', label: 'Record goods received from suppliers' },
   'store.prs.release': { module: 'Store', label: 'Parts requests: approve, reserve and issue parts to the job' },
+  'store.counter.sell': { module: 'Store', label: 'Sell parts over the counter (no Job Card) and take the payment' },
+  'store.stock.count': { module: 'Store', label: 'Count the stock and send the differences for approval' },
+  'store.stock.approve': { module: 'Store', label: 'Approve or reject stock count differences (Owner)' },
   // Gate
   'security.view': { module: 'Gate', label: 'Open the gate desk: vehicles in the compound and the gate log' },
   'security.gate.operate': { module: 'Gate', label: 'Let vehicles in and out and check gate passes' },
@@ -115,7 +118,7 @@ export const ROLE_GRANTS: Record<string, Partial<Record<PermissionKey, Scope>>> 
   'front-desk': {
     ...VIEW_WORKSHOP, 'workshop.job_card.create': B, 'workshop.customer.manage': B, 'workshop.customer.notify': B, 'workshop.close.request': B,
     'workshop.estimate.edit': B, 'workshop.payment.record': B, 'money.credit_note.request': B, 'money.statement.view': B,
-    'crm.view': B, 'crm.manage': B, 'support.tickets.manage': B, 'store.view': B,
+    'crm.view': B, 'crm.manage': B, 'support.tickets.manage': B, 'store.view': B, 'store.counter.sell': B,
     'dataexchange.import.run': B, 'dataexchange.export.run': B,
   },
   // Workshop Supervisor / Service Advisor: assigns technicians, inspects,
@@ -133,6 +136,7 @@ export const ROLE_GRANTS: Record<string, Partial<Record<PermissionKey, Scope>>> 
   // Store Keeper: parts, stock, goods received, issuing parts to jobs and counter sales. Selling prices, not costs.
   'store-keeper': {
     'store.view': B, ...VIEW_WORKSHOP, 'store.matching': B, 'store.parts.manage': B, 'store.grn.record': B, 'store.prs.release': B,
+    'store.counter.sell': B, 'store.stock.count': B,
     'dataexchange.export.run': B,
   },
   // Accounts: payments, refunds, statements and the QuickBooks export.
@@ -153,7 +157,7 @@ export const ROLE_GRANTS: Record<string, Partial<Record<PermissionKey, Scope>>> 
 export const OPTIONAL_ROLE_COVER: Record<OptionalRole, Partial<Record<PermissionKey, Scope>>> = {
   'workshop-supervisor': { 'workshop.job.supervise': B, 'workshop.technician.assign': B, 'workshop.estimate.approve': B, 'workshop.inspection.perform': B, 'sourcing.request': B },
   technician: { 'workshop.job.work': B, 'workshop.inspection.perform': B, 'sourcing.request': B },
-  'store-keeper': { 'store.matching': B, 'store.parts.manage': B, 'store.grn.record': B, 'store.prs.release': B },
+  'store-keeper': { 'store.matching': B, 'store.parts.manage': B, 'store.grn.record': B, 'store.prs.release': B, 'store.stock.count': B },
   accounts: { 'workshop.refund.record': B, 'dataexchange.export.sensitive': B, 'workshop.warranty.claims': B },
   security: { 'security.view': B, 'security.gate.operate': B },
 };
@@ -269,7 +273,7 @@ export const ROLE_DESCRIPTIONS: Record<string, string> = {
   'front-desk': 'Front Desk / Customer Care. Receives vehicles and customers, opens Job Cards, prepares estimates and invoices, takes payments, sends WhatsApp and email messages, and handles appointments, complaints and follow-ups. Always on, and covers the steps of any optional role that is switched off.',
   'workshop-supervisor': 'Workshop Supervisor / Service Advisor (optional). Assigns technicians, inspects vehicles, checks estimates before the Owner and does the quality check before a vehicle is ready.',
   technician: 'Technician (optional). Sees and works only on the jobs assigned to them: inspects, records the work and raises parts requests.',
-  'store-keeper': 'Store Keeper (optional). Runs the parts store: parts, stock, goods received, issuing parts to jobs and counter sales. Sees selling prices, not cost prices.',
+  'store-keeper': 'Store Keeper (optional). Runs the parts store: parts, stock, goods received (without their costs), issuing parts to jobs, counter sales and stock counts. Sees selling prices, not cost prices.',
   accounts: 'Accounts (optional). Records payments and refunds, follows credit and statements, and exports to QuickBooks.',
   security: 'Security (optional). Runs the gate: vehicles in and out of the compound and gate passes.',
 };
@@ -278,7 +282,7 @@ export const ROLE_DESCRIPTIONS: Record<string, string> = {
  * listed separately on the Roles page and used for the Approvals menu. */
 export const APPROVAL_PERMISSIONS: PermissionKey[] = [
   'workshop.job.supervise', 'workshop.estimate.approve', 'workshop.estimate.final_approve', 'workshop.close.approve', 'store.prs.approve_hod', 'store.prs.release',
-  'money.credit_note.approve',
+  'money.credit_note.approve', 'store.stock.approve',
 ];
 
 /** Pages and figures that show cost prices, margins, stock value and profit: the Owner only by default. */

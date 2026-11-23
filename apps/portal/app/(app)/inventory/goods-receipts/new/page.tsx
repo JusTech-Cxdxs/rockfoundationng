@@ -19,7 +19,7 @@ export default async function NewGoodsReceiptPage({
   await guardAnyPage(['store.grn.record'], '/inventory/goods-receipts/new');
   const { error } = await searchParams;
   const branchId = await getStoreBranchId();
-  const [paged, canRecord] = await Promise.all([listPartsPage(branchId, undefined, 1), allows('store.grn.record', { branchId })]);
+  const [paged, canRecord, withCosts] = await Promise.all([listPartsPage(branchId, undefined, 1), allows('store.grn.record', { branchId }), allows('store.cost.view', { branchId })]);
 
   return (
     <div className="p-8">
@@ -45,7 +45,7 @@ export default async function NewGoodsReceiptPage({
           No parts in the catalog yet — <LoadingLink href="/inventory/parts" className="text-[var(--ejo-primary)] hover:underline">add one first</LoadingLink>.
         </p>
       ) : (
-        <GoodsReceiptForm branchId={branchId} action={recordGoodsReceiptFormAction} />
+        <GoodsReceiptForm branchId={branchId} action={recordGoodsReceiptFormAction} withCosts={withCosts} />
       )}
     </div>
   );

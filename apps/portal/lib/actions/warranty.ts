@@ -35,7 +35,7 @@ export async function listComebackOptions(vehicleId: string, mileage?: number | 
 }
 
 async function nextClaimNumber(tx: Prisma.TransactionClient): Promise<string> {
-  const prefix = `SC-${lagosYear()}-`;
+  const prefix = `CLM-${lagosYear()}-`;
   const latest = await tx.supplierClaim.findFirst({ where: { number: { startsWith: prefix } }, orderBy: { number: 'desc' }, select: { number: true } });
   return `${prefix}${String(highestSequence(prefix, [latest?.number]) + 1).padStart(6, '0')}`;
 }

@@ -338,10 +338,10 @@ export async function setPartSellingPrice(partId: string, sellingPrice: number):
       listEligibleStoreManagersForBranch(part.branchId),
       prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }),
     ]);
-    const recipients = new Map<string, { fullName: string; email: string }>();
-    for (const staffMember of [...officers.staff, ...managers.staff]) {
-      recipients.set(staffMember.id, staffMember);
-    }
+    // The margin is cost information: only the Owner's copy carries it, never the Store Keeper's or Front Desk's.
+    const recipients = new Map<string, { fullName: string; email: string; seesCosts: boolean }>();
+    for (const staffMember of officers.staff) recipients.set(staffMember.id, { ...staffMember, seesCosts: false });
+    for (const staffMember of managers.staff) recipients.set(staffMember.id, { ...staffMember, seesCosts: true });
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
     const logoUrl = `${portalUrl}/brand/emblem.png`;
@@ -356,8 +356,8 @@ export async function setPartSellingPrice(partId: string, sellingPrice: number):
           baseUnitOfMeasure: part.baseUnitOfMeasure,
           previousSellingPrice,
           newSellingPrice: sellingPrice,
-          margin,
-          targetMarginPercent,
+          margin: recipient.seesCosts ? margin : null,
+          targetMarginPercent: recipient.seesCosts ? targetMarginPercent : null,
           partUrl: `${portalUrl}/inventory/parts/${partId}`,
           logoUrl,
           companyName: orgContext.companyName,
@@ -408,15 +408,13 @@ export async function setPartTargetMargin(partId: string, targetValue: number, p
 
   // Notify Store of the new target. Email failures never block the save.
   try {
-    const [officers, managers, setByUser] = await Promise.all([
-      listEligibleStoreOfficersForBranch(part.branchId),
+    const [managers, setByUser] = await Promise.all([
       listEligibleStoreManagersForBranch(part.branchId),
       prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }),
     ]);
+    // Target margins are cost policy: the Owner's alone, never the Store Keeper's (or Front Desk's) inbox.
     const recipients = new Map<string, { fullName: string; email: string }>();
-    for (const staffMember of [...officers.staff, ...managers.staff]) {
-      recipients.set(staffMember.id, staffMember);
-    }
+    for (const staffMember of managers.staff) recipients.set(staffMember.id, staffMember);
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
     const logoUrl = `${portalUrl}/brand/emblem.png`;
@@ -1307,8 +1305,9 @@ export type GoodsReceiptLineInput = {
   quantityReceivedInUnit: number;
   unitUsed: string;
   // Total cost of the delivery in the unit received (e.g. ₦650,000 for one
-  // drum). Required: pricing and valuation depend on it.
-  totalCost: number;
+  // drum). Entered by those who see costs; the Store Keeper records the
+  // delivery without it (null) and the Owner enters it on the receipt.
+  totalCost: number | null;
   /** Required, and only meaningful, for a BATCH-tracked part. */
   batchNumber?: string;
   /** Required, and only meaningful, for a SERIALIZED part: one entry per unit.
@@ -1388,6 +1387,8 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
   }
   // Typed from `parts`: conversionFactor is a Prisma Decimal, not a number.
   const partById = new Map<string, (typeof parts)[number]>(parts.map((p) => [p.id, p]));
+  // Whoever does not see costs records quantities only; anything typed as a cost is ignored.
+  const withCosts = await seesCosts(input.branchId);
 
   // Validate every line before writing anything; one bad line rejects the receipt.
   const resolvedLines = input.lines.map((line) => {
@@ -1398,14 +1399,15 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
     if (!(line.quantityReceivedInUnit > 0)) {
       throw new StoreActionError(`Quantity received must be greater than zero for ${part.name}.`);
     }
-    if (!(line.totalCost > 0)) {
+    const typedCost = withCosts ? line.totalCost : null;
+    if (withCosts && !(typedCost !== null && typedCost > 0)) {
       throw new StoreActionError(`Total Cost must be greater than zero for ${part.name}.`);
     }
     // The total as typed is the source of truth. Per-unit and per-base-unit
     // costs are derived from it once, never the other way round.
-    const unitCostAsEntered = line.totalCost / line.quantityReceivedInUnit;
+    const unitCostAsEntered = typedCost === null ? null : typedCost / line.quantityReceivedInUnit;
     let quantityInBaseUnit: number;
-    let unitCostInBaseUnit: number;
+    let unitCostInBaseUnit: number | null;
     if (line.unitUsed === part.baseUnitOfMeasure) {
       quantityInBaseUnit = line.quantityReceivedInUnit;
       unitCostInBaseUnit = unitCostAsEntered;
@@ -1419,10 +1421,10 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
       // Stock and prices are tracked per base unit (e.g. litres), so convert the
       // per-entered-unit cost (e.g. per drum) here. Storing a drum price as a
       // per-litre price would inflate every estimate priced from it.
-      unitCostInBaseUnit = Math.round((unitCostAsEntered / conversionFactor) * 1_000_000) / 1_000_000;
+      unitCostInBaseUnit = unitCostAsEntered === null ? null : Math.round((unitCostAsEntered / conversionFactor) * 1_000_000) / 1_000_000;
     }
     // Rounded for storage only; the calculations above use the typed value.
-    const totalCost = Math.round(line.totalCost * 100) / 100;
+    const totalCost = typedCost === null ? null : Math.round(typedCost * 100) / 100;
 
     if (part.trackingType === 'BATCH' && !line.batchNumber?.trim()) {
       throw new StoreActionError(`A batch number is required for ${part.name}.`);
@@ -1550,11 +1552,13 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
       });
 
       // Pricing Command Center: compare the new cost against the part's target
-      // margin. Skipped when the part has no selling price or target margin yet.
-      if (line.part.sellingPrice !== null && line.part.targetMarginPercent !== null) {
+      // margin. Skipped when the part has no selling price or target margin yet,
+      // or the cost was not entered (it is checked when the Owner enters it).
+      const newUnitCost = line.unitCostInBaseUnit;
+      if (newUnitCost !== null && line.part.sellingPrice !== null && line.part.targetMarginPercent !== null) {
         const sellingPrice = Number(line.part.sellingPrice);
         const targetMarginPercent = Number(line.part.targetMarginPercent);
-        const actualMarginPercent = ((sellingPrice - line.unitCostInBaseUnit) / sellingPrice) * 100;
+        const actualMarginPercent = ((sellingPrice - newUnitCost) / sellingPrice) * 100;
         // Differences smaller than MARGIN_TOLERANCE_PP are kobo rounding,
         // not a real margin change — no alert.
         const severity =
@@ -1572,7 +1576,7 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
               goodsReceiptLineId: createdLine.id,
               severity,
               previousUnitCost: priorUnitCostByPart.get(line.partId) ?? undefined,
-              newUnitCost: line.unitCostInBaseUnit,
+              newUnitCost: newUnitCost,
               sellingPriceAtAlert: sellingPrice,
               targetMarginPercentAtAlert: targetMarginPercent,
               actualMarginPercent: Math.round(actualMarginPercent * 100) / 100,
@@ -1583,7 +1587,7 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
             partName: line.part.name,
             severity,
             previousUnitCost: priorUnitCostByPart.get(line.partId) ?? null,
-            newUnitCost: line.unitCostInBaseUnit,
+            newUnitCost: newUnitCost,
             sellingPrice,
             actualMarginPercent: Math.round(actualMarginPercent * 100) / 100,
             targetMarginPercent,
@@ -1644,15 +1648,13 @@ async function recordGoodsReceiptOnce(input: RecordGoodsReceiptInput, user: Awai
   // Separate email for any new pricing alerts. Failures never block the receipt.
   if (newAlertsForEmail.length > 0) {
     try {
-      const [orgContext, officers, managers] = await Promise.all([
+      const [orgContext, managers] = await Promise.all([
         getStoreOrgContext(),
-        listEligibleStoreOfficersForBranch(input.branchId),
         listEligibleStoreManagersForBranch(input.branchId),
       ]);
+      // A pricing alert shows unit costs and margins: the Owner's alone.
       const recipients = new Map<string, { fullName: string; email: string }>();
-      for (const staffMember of [...officers.staff, ...managers.staff]) {
-        recipients.set(staffMember.id, staffMember);
-      }
+      for (const staffMember of managers.staff) recipients.set(staffMember.id, staffMember);
       const portalUrl = portalBaseUrl();
       const logoUrl = `${portalUrl}/brand/emblem.png`;
       const formatNairaForAlert = (value: number) => `₦${value.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1867,10 +1869,10 @@ export async function syncPartPriceToTargetMargin(alertId: string): Promise<void
       listEligibleStoreManagersForBranch(alert.part.branchId),
       prisma.user.findUnique({ where: { id: user.id }, select: { fullName: true } }),
     ]);
-    const recipients = new Map<string, { fullName: string; email: string }>();
-    for (const staffMember of [...officers.staff, ...managers.staff]) {
-      recipients.set(staffMember.id, staffMember);
-    }
+    // Everyone in the store hears of the new selling price; the target margin is in the Owner's copy only.
+    const recipients = new Map<string, { fullName: string; email: string; seesCosts: boolean }>();
+    for (const staffMember of officers.staff) recipients.set(staffMember.id, { ...staffMember, seesCosts: false });
+    for (const staffMember of managers.staff) recipients.set(staffMember.id, { ...staffMember, seesCosts: true });
     const orgContext = await getStoreOrgContext();
     const portalUrl = portalBaseUrl();
     const logoUrl = `${portalUrl}/brand/emblem.png`;
@@ -1888,7 +1890,7 @@ export async function syncPartPriceToTargetMargin(alertId: string): Promise<void
           // The alert only stores cost, price and margin, not the quantity/revenue
           // context of a manual edit; the template handles a null insight.
           margin: null,
-          targetMarginPercent: targetMargin,
+          targetMarginPercent: recipient.seesCosts ? targetMargin : null,
           partUrl: `${portalUrl}/inventory/parts/${alert.part.id}`,
           logoUrl,
           companyName: orgContext.companyName,
@@ -1912,6 +1914,13 @@ export async function listGoodsReceipts(branchId: string) {
     include: { receivedBy: { select: { fullName: true } }, lines: { select: { id: true, part: { select: { id: true, name: true } } } } },
   });
 }
+
+/** Where stock that left without a parts request went (lib/inventory/stock-out-place.ts). */
+const STOCK_OUT_PLACE_SELECT = {
+  kind: true, quantityTaken: true,
+  counterSaleLine: { select: { counterSale: { select: { id: true, number: true, buyerName: true, customerId: true } } } },
+  stockCountLine: { select: { stockCount: { select: { id: true, number: true } } } },
+} as const;
 
 const SLIP_DESTINATION_SELECT = {
   id: true,
@@ -1946,12 +1955,14 @@ export async function getGoodsReceipt(id: string) {
               receivedQuantity: true,
               remainingQuantity: true,
               consumptions: { orderBy: { consumedAt: 'asc' }, select: { quantityTaken: true, slipLine: { select: { slip: { select: SLIP_DESTINATION_SELECT } } } } },
+              // Sold over the counter or short on a stock count.
+              stockOuts: { orderBy: { takenAt: 'asc' }, select: STOCK_OUT_PLACE_SELECT },
             },
           },
           // Forward trace, SERIALIZED parts — each unit and where it went.
           serials: {
             orderBy: { receivedAt: 'asc' },
-            select: { id: true, serialNumber: true, status: true, issuedToSlipLine: { select: { slip: { select: SLIP_DESTINATION_SELECT } } } },
+            select: { id: true, serialNumber: true, status: true, issuedToSlipLine: { select: { slip: { select: SLIP_DESTINATION_SELECT } } }, stockOuts: { select: STOCK_OUT_PLACE_SELECT } },
           },
         },
       },
@@ -2117,7 +2128,8 @@ export async function updateGoodsReceiptLineCost(lineId: string, newUnitCostAsEn
     line.part.branchId,
     editedByUser?.fullName ?? 'A team member',
     line.goodsReceipt.referenceNumber,
-    `${line.part.name}'s cost corrected to ${newUnitCostAsEntered} per ${line.unitUsed} — total now ₦${totalCost.toLocaleString('en-NG')}`,
+    // No amounts: the Store Keeper is told the cost changed, never what it is.
+    `${line.part.name}: the cost was ${previousTotalCost === null ? 'entered' : 'corrected'} by the Owner`,
   );
 }
 

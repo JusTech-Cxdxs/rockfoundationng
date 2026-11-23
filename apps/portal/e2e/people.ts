@@ -63,5 +63,7 @@ export const SEED_PARTS = {
   brakePads: { type: 'E2E Brake Pads', name: 'E2E Brake Pad Set', number: 'E2ES-001', price: 15000, stock: 100 },
   /** Cancellation — reserved, then returned when the Job Card is cancelled. */
   oilFilter: { type: 'E2E Oil Filter', name: 'E2E Oil Filter Unit', number: 'E2ES-002', price: 4000, stock: 40 },
+  /** The parts store: sold over the counter and counted (e2e/parts-store.spec.ts). */
+  screenWash: { type: 'E2E Screen Wash', name: 'E2E Screen Wash', number: 'E2ES-003', price: 2500, stock: 50 },
 } as const;
 export const SEED_CATEGORY = { name: 'E2E Seed Parts', code: 'E2ES' };

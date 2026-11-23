@@ -3,11 +3,12 @@ import { provenanceOf } from '@/lib/data-exchange/provenance-server';
 import { ProvenanceCard } from '@/components/ProvenanceCard';
 import { guardAnyPage, allows } from '@/lib/authz/server';
 import { notFound } from 'next/navigation';
-import { listPartsFittedToVehicle, getVehicleCoveredValue, getVehicleHistoryBeforeEjo } from '@/lib/actions/vehicle-history';
+import { listPartsFittedToVehicle, listOutsidePartsForVehicle, getVehicleCoveredValue, getVehicleHistoryBeforeEjo } from '@/lib/actions/vehicle-history';
+import { BILL_TO_LABEL, type BillTo } from '@/lib/estimate-billing';
 import { naira as nairaText } from '@/lib/crm';
 import { computeVehicleIntelligence } from '@/lib/vehicle-intelligence';
 import { VehicleIntelligenceCard } from '@/components/VehicleIntelligenceCard';
-import { VehiclePartsFitted } from '@/components/VehiclePartsFitted';
+import { VehiclePartsFitted, type PartFittedRow } from '@/components/VehiclePartsFitted';
 import { humanizeAction } from '@/lib/humanize-action';
 import { moduleIsOn } from '@/lib/modules';
 import { bookServiceHref, OPEN_SERVICE_JOB_CARD } from '@/lib/service-entry';
@@ -79,6 +80,11 @@ function reminderSender(
  * vehicle's own mileage interval (if it overrides the organisation default)
  * and the audit trail.
  */
+/** A part fitted under warranty, as goodwill or internally: said instead of a price. */
+function coveredOf(billTo: string | null | undefined): string | null {
+  return billTo && billTo !== 'CUSTOMER' ? BILL_TO_LABEL[billTo as BillTo] ?? billTo : null;
+}
+
 export default async function VehiclePage({
   params,
   searchParams,
@@ -90,9 +96,10 @@ export default async function VehiclePage({
   const { id } = await params;
   const { error, edit, status } = await searchParams;
   // Everything on this page needs only the vehicle's id — one round, all at once.
-  const [vehicle, partsFitted, lastEdit, auditTrail, binOffer, serviceHealth, analytics, reminderHistory, coveredValue, beforeEjo] = await Promise.all([
+  const [vehicle, partsFitted, outsideParts, lastEdit, auditTrail, binOffer, serviceHealth, analytics, reminderHistory, coveredValue, beforeEjo] = await Promise.all([
     getVehicle(id),
     listPartsFittedToVehicle(id),
+    listOutsidePartsForVehicle(id),
     getLastEditInfo('CustomerVehicle', id, 'vehicle.updated'),
     getVehicleAuditTrail(id),
     getRecycleBinOffer('CustomerVehicle', id),
@@ -516,7 +523,7 @@ export default async function VehiclePage({
       {moduleIsOn('inventory') ? (
       <div className="mt-6">
         <VehiclePartsFitted
-          rows={partsFitted.map((r: (typeof partsFitted)[number]) => ({
+          rows={partsFitted.map((r: (typeof partsFitted)[number]): PartFittedRow => ({
             id: r.id,
             date: r.slip.releasedAt ? r.slip.releasedAt.toISOString() : null,
             dateLabel: r.slip.releasedAt ? formatDateOnly(r.slip.releasedAt) : '—',
@@ -526,11 +533,31 @@ export default async function VehiclePage({
             unit: r.part.baseUnitOfMeasure,
             quantity: Number(r.quantityReleased ?? 0),
             serials: r.issuedSerials.map((x: { serialNumber: string }) => x.serialNumber),
+            unitPrice: r.estimateLineItem?.unitPrice == null ? null : Number(r.estimateLineItem.unitPrice),
+            covered: coveredOf(r.estimateLineItem?.billTo),
+            source: 'STORE' as const,
             slipId: r.slip.id,
             slipNumber: r.slip.referenceNumber,
             jobCard: r.slip.jobCard ? { id: r.slip.jobCard.id, number: r.slip.jobCard.jobNumber } : null,
             customer: r.slip.jobCard?.customer.fullName ?? null,
-          }))}
+          })).concat(outsideParts.map((o: (typeof outsideParts)[number]): PartFittedRow => ({
+            id: o.id,
+            date: o.estimate.managerApprovedAt ? o.estimate.managerApprovedAt.toISOString() : null,
+            dateLabel: o.estimate.managerApprovedAt ? formatDateOnly(o.estimate.managerApprovedAt) : '—',
+            partId: null,
+            partName: o.description,
+            partNumber: null,
+            unit: o.unitOfMeasure ?? 'piece',
+            quantity: o.quantity,
+            serials: [],
+            unitPrice: o.unitPrice == null ? null : Number(o.unitPrice),
+            covered: coveredOf(o.billTo),
+            source: 'OUTSIDE' as const,
+            slipId: null,
+            slipNumber: null,
+            jobCard: { id: o.estimate.jobCard.id, number: o.estimate.jobCard.jobNumber },
+            customer: o.estimate.jobCard.customer.fullName,
+          }))).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))}
         />
       </div>
       ) : null}

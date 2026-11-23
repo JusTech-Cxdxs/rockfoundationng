@@ -142,6 +142,14 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   PartCategory: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Configuration', ai: 'AUTHORISED_USER' },
   PartType: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL'], lifecycle: 'EDITABLE', retention: 'Configuration', ai: 'AUTHORISED_USER' },
   PricingAlert: { tenancy: 'VIA_PARENT', owner: 'partId', classification: ['FINANCIAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
+  // Counter sales: the buyer (a customer or a walk-in's name and phone) and what they paid.
+  CounterSale: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['PERSONAL', 'FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
+  CounterSaleLine: { tenancy: 'VIA_PARENT', owner: 'counterSaleId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
+  StockCount: { tenancy: 'ORGANISATION', owner: 'organisationId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
+  StockCountLine: { tenancy: 'VIA_PARENT', owner: 'stockCountId', classification: ['INTERNAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
+  PartStockOut: { tenancy: 'VIA_PARENT', owner: 'partId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
+  // What outside parts and jobs cost: the Owner's figures; aggregates only for Enyo.
+  OutsidePurchase: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['FINANCIAL'], lifecycle: 'EDITABLE', retention: FIN_RETENTION, ai: 'AGGREGATE_ONLY' },
   GoodsReceipt: { tenancy: 'BRANCH', owner: 'branchId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   GoodsReceiptLine: { tenancy: 'VIA_PARENT', owner: 'goodsReceiptId', classification: ['FINANCIAL'], lifecycle: 'IMMUTABLE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   PartRequestSlip: { tenancy: 'BRANCH', owner: 'branchId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },

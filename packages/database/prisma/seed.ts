@@ -139,8 +139,9 @@ async function main() {
   });
 
   // The workshop department ("workshop" stays: the platform finds the
-  // workshop branch through it) and the workshop's own sections.
-  const departments: [string, string][] = [['workshop', 'Workshop'], ['mechanical', 'Mechanical'], ['electrical', 'Electrical and diagnostics'], ['body-spray', 'Body and spraying'], ['car-wash', 'Car wash']];
+  // workshop branch through it), the workshop's own sections and the Store
+  // (the parts store: stock, counter sales and stock counts).
+  const departments: [string, string][] = [['workshop', 'Workshop'], ['mechanical', 'Mechanical'], ['electrical', 'Electrical and diagnostics'], ['body-spray', 'Body and spraying'], ['car-wash', 'Car wash'], ['store', 'Store']];
   for (const [slug, name] of departments) {
     await prisma.department.upsert({
       where: { branchId_slug: { branchId: workshopBranch.id, slug } },

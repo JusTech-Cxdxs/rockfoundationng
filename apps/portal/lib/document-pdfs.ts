@@ -3,12 +3,13 @@ import { prisma } from '@ejo/database';
 import { EstimatePdf } from '@/lib/pdf/estimate-pdf';
 import { InspectionPdf } from '@/lib/pdf/inspection-pdf';
 import { ReceiptPdf } from '@/lib/pdf/receipt-pdf';
-import { inspectionPdfProps, jobEstimatePdfProps, letterhead, receiptPdfProps } from '@/lib/pdf/document-props';
+import { InvoicePdf } from '@/lib/pdf/invoice-pdf';
+import { counterSalePdfProps, inspectionPdfProps, jobEstimatePdfProps, letterhead, receiptPdfProps } from '@/lib/pdf/document-props';
 import { BILLING_SETTINGS_SELECT, ESTIMATE_TOTALS_SELECT, billingOf, depositFractionFor, jobCardTotals, vatSettingFor } from '@/lib/estimate-billing';
 import { INVOICE_DOCUMENT_SELECT, invoicePdfBuffer } from '@/lib/invoices';
 import { bankDetailsFor } from '@/lib/workshop-core';
 import { portalBaseUrl } from '@/lib/portal-url';
-import { formatDateTime } from '@/lib/utils/format-date';
+import { formatDateOnly, formatDateTime } from '@/lib/utils/format-date';
 import { documentPdfFileName, type DocumentKind } from '@/lib/document-links-core';
 
 /**
@@ -170,4 +171,40 @@ export function documentPdf(kind: DocumentKind, recordId: string, organisationId
   if (kind === 'ESTIMATE') return estimatePdfFor(recordId, organisationId);
   if (kind === 'INVOICE') return invoicePdfFor(recordId, organisationId);
   return receiptPdfFor(recordId, organisationId);
+}
+
+/** A counter sale's receipt PDF (CS-number): the lines, VAT and total as frozen at the sale, paid in full. */
+export async function counterSalePdfFor(saleId: string, organisationId?: string): Promise<DocumentPdf | null> {
+  const s = await prisma.counterSale.findUnique({
+    where: { id: saleId },
+    select: {
+      number: true, organisationId: true, soldAt: true, buyerName: true, buyerPhone: true, subtotal: true, vatRate: true, vatAmount: true, vatNumber: true, total: true, paymentMethod: true, paymentReference: true,
+      soldBy: { select: { fullName: true } },
+      customer: { select: { address: true, email: true } },
+      lines: { orderBy: { id: 'asc' }, select: { description: true, partNumber: true, quantity: true, unitOfMeasure: true, unitPrice: true, amount: true, serialNumbers: true } },
+      branch: {
+        select: {
+          id: true, name: true, address: true, hotlines: true, email: true,
+          businessUnit: { select: { organisation: { select: { name: true, legalName: true, hqAddress: true, poBox: true, rcNumber: true, hotlines: true, website: true, email: true } } } },
+        },
+      },
+    },
+  });
+  if (!s || (organisationId && s.organisationId !== organisationId)) return null;
+  const method = s.paymentMethod === 'CASH' ? 'Cash' : 'Bank transfer';
+  const pdf = await renderToBuffer(InvoicePdf(counterSalePdfProps({
+    letterhead: letterhead(s.branch.businessUnit.organisation, s.branch, portalBaseUrl()),
+    bank: await bankDetailsFor(s.branch.id),
+    number: s.number,
+    soldOnLabel: formatDateOnly(s.soldAt),
+    buyer: { name: s.buyerName, contact: [s.buyerPhone, s.customer?.email].filter(Boolean).join(' · ') || null, address: s.customer?.address ?? null },
+    lines: s.lines.map((l) => ({
+      description: [l.partNumber ? `${l.description} (${l.partNumber})` : l.description, l.serialNumbers.length ? `Serial ${l.serialNumbers.join(', ')}` : null].filter(Boolean).join(' · '),
+      quantity: Number(l.quantity), unitOfMeasure: l.unitOfMeasure, unitPrice: Number(l.unitPrice), amount: Number(l.amount),
+    })),
+    figures: s,
+    paidBy: [method, s.paymentReference].filter(Boolean).join(' · '),
+    soldBy: s.soldBy.fullName,
+  })));
+  return { pdf, fileName: `Sales-receipt-${s.number}.pdf`, number: s.number };
 }

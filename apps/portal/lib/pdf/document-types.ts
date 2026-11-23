@@ -105,11 +105,16 @@ export type InvoicePdfProps = {
   organisation: EstimatePdfProps['organisation'];
   branch: EstimatePdfProps['branch'];
   logoUrl: string;
+  /** "Invoice", or "Sales receipt" for a counter sale. */
+  title?: string;
   invoiceNumber: string;
   issuedOnLabel: string;
   /** "21 December 2026": printed as "Payment due by …"; null when due before collection. */
   dueOnLabel?: string | null;
-  jobNumber: string;
+  /** The Job Card; null for a counter sale (no Job Card, no vehicle). */
+  jobNumber: string | null;
+  /** A counter sale: how it was paid ("Cash, 23/11/2026"), printed instead of the vehicle; paid in full, so no "How to pay". */
+  sale?: { paidBy: string; soldBy: string } | null;
   customerName: string;
   customerContact: string | null;
   customerAddress: string | null;
