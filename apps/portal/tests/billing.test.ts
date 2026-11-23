@@ -1,5 +1,5 @@
 /**
- * D'Phoenix phase 3 — money and documents.
+ * money and documents.
  *
  *  1. One totals calculation (@ejo/utils/billing), pure and in whole kobo:
  *     customer lines → line discounts → subtotal → estimate discount → VAT
@@ -8,7 +8,7 @@
  *  2. Both apps, every document and every payment check use it.
  *  3. The wiring: the invoice is issued once when a Job Card is completed,
  *     the receipt number is given inside recordPayment's locked step, and a
- *     discount above the limit needs the Manager's explicit approval.
+ *     discount above the limit needs the Owner's explicit approval.
  *  4. ₦ in PDFs: Noto Sans is embedded and the ₦ is in the text.
  */
 import { test } from 'node:test';
@@ -102,7 +102,7 @@ test('a discount never exceeds what it discounts; nothing goes negative', () => 
   assert.equal(billingTotals({ lines: [{ amount: null }, { amount: undefined }, { amount: 'x' }] }).total, 0, 'an unpriced line counts for nothing');
 });
 
-test('the Manager rule: above the limit, or any discount with no limit set', () => {
+test('the Owner rule: above the limit, or any discount with no limit set', () => {
   const t = (discount: number) => ({ subtotal: 10000, discountAmount: discount });
   assert.equal(discountNeedsManager(t(0), null), false, 'no discount, nothing to approve');
   assert.equal(discountNeedsManager(t(1), null), true, 'no limit: every discount');
@@ -121,7 +121,7 @@ test('deposit, paid in full and balance compare in kobo', () => {
   assert.equal(balanceDue(100, 250), 0);
 });
 
-test('the VAT fixed at the Manager\'s approval is used whatever the settings say later', () => {
+test('the VAT fixed at the Owner\'s approval is used whatever the settings say later', () => {
   const lines = [{ amount: 10000 }];
   // Still being written: the live setting.
   assert.equal(jobCardTotals({ lineItems: lines, vatRate: null }, VAT_ON).total, 10750);
@@ -150,9 +150,8 @@ test('the rate is fixed in the approving update and cleared when the estimate is
   assert.match(read('lib/invoices.ts'), /discountReason: true, vatRate: true,/, 'the invoice takes the fixed rate');
   assert.match(body(ws, 'notifyCustomerOfApprovedEstimate'), /vat: vatSettingFor\(estimate,/, 'the email and its PDF too');
   assert.match(readRepo('apps/website/lib/customer-portal/data.ts'), /vat: vatSettingFor\(jc\.estimate,/, 'and the customer portal');
-  assert.match(read('app/(app)/workshop/job-cards/[id]/page.tsx'), /\(fixed when the Manager approved\)/);
+  assert.match(read('app/(app)/workshop/job-cards/[id]/page.tsx'), /\(fixed when the Owner approved\)/);
   assert.match(readRepo('packages/database/prisma/schema.prisma'), /model Estimate \{[\s\S]*?vatRate\s+Decimal\?\s+@db\.Decimal\(5, 2\)/);
-  for (const f of ['scripts/predeploy/0029-billing.sql', 'scripts/v-dp3-billing.sql']) assert.match(readRepo(f), /ALTER TABLE "estimates" ADD COLUMN IF NOT EXISTS "vatRate" DECIMAL\(5,2\);/, f);
 });
 
 // ── 2. One calculation everywhere ────────────────────────────────────
@@ -187,8 +186,8 @@ test('the estimate page, prints, PDF, emails and payment checks all go through i
   assert.match(read('app/print/job-cards/[id]/estimate/page.tsx'), /jobCardTotals\(estimate, billingOf\(jobCard\)\)/);
   assert.match(read('app/print/job-cards/[id]/page.tsx'), /jobCardTotals\(jobCard\.estimate, billingOf\(jobCard\)\)/);
   for (const f of ['lib/actions/refunds.ts', 'lib/actions/security.ts', 'lib/actions/estimate-billing.ts']) assert.match(read(f), /jobCardTotals\(/, f);
-  // The Vehicle Service estimate (switched off for new work) keeps its own maths.
-  assert.match(read('lib/pdf/document-props.ts'), /export function serviceEstimateTotals\(lines: \{ type: string; amount: unknown \}\[\], depositFraction = 0\) \{/);
+  // One estimate maths only: no second calculation for a separate service flow.
+  assert.doesNotMatch(read('lib/pdf/document-props.ts'), /serviceEstimateTotals/);
 });
 
 // ── 3. The wiring ────────────────────────────────────────────────────
@@ -213,7 +212,7 @@ test('completing a Job Card issues its invoice in the same step, once', () => {
   assert.match(schema, /model Invoice \{[\s\S]*?lines\s+Json/);
 });
 
-test('"Issue invoice" is for Finance or the Manager at the branch; viewing follows the Job Card', () => {
+test('"Issue invoice" is for whoever records payments (Front Desk, Accounts) or the Owner at the branch; viewing follows the Job Card', () => {
   const src = read('lib/actions/invoices.ts');
   assert.match(src, /allows\('workshop\.payment\.record', \{ branchId, homeBranch: true \}\)[\s\S]{0,200}authorize\('workshop\.close\.approve', \{ branchId, homeBranch: true \}/);
   assert.match(body(src, 'issueInvoice'), /seeJobCard\(jobCardId, 'issueInvoice'\)[\s\S]*requireBiller\(/);
@@ -235,7 +234,7 @@ test('a receipt number is given inside recordPayment\'s locked step, retried on 
   assert.match(readRepo('packages/database/prisma/schema.prisma'), /receiptNumber\s+String\?\s+@unique/);
 });
 
-test('discounts: by whoever works on the estimate, with a reason; the Manager approves one above the limit', () => {
+test('discounts: by whoever works on the estimate, with a reason; the Owner approves one above the limit', () => {
   const ws = read('lib/actions/workshop.ts');
   const whole = body(ws, 'setEstimateDiscount');
   assert.match(whole, /requireEstimateContributor\(jobCard\)/);
@@ -250,7 +249,7 @@ test('discounts: by whoever works on the estimate, with a reason; the Manager ap
   const manager = body(ws, 'approveEstimateAsManager');
   assert.match(manager, /discountNeedsManager\(totals, settings\.discountApprovalPercent\)/);
   assert.match(manager, /if \(discountToApprove && !approveDiscount\) \{\s*throw new WorkshopActionError/, 'refused without the explicit tick');
-  assert.match(manager, /where: \{ id: estimate\.id, status: 'APPROVED', discountAmount: estimate\.discountAmount \}/, 'the discount the Manager saw');
+  assert.match(manager, /where: \{ id: estimate\.id, status: 'APPROVED', discountAmount: estimate\.discountAmount \}/, 'the discount the Owner saw');
   assert.match(manager, /discountApprovedById: user\.id, discountApprovedAt: approvedAt/);
   assert.match(manager, /action: 'estimate\.discount_approved'/);
   assert.match(read('lib/actions/workshop-form-handlers.ts'), /approveEstimateAsManager\(jobCardId, formData\.get\('approveDiscount'\) === 'on'\)/);
@@ -263,7 +262,7 @@ test('billing settings: their own audited action, guarded like the organisation 
   assert.match(src, /me\?\.organisationId !== organisationId/);
   assert.match(src, /action: 'organisation\.billing_updated'/);
   const page = read('app/(app)/organisation/page.tsx');
-  for (const label of ['Billing &amp; tax', 'Charge VAT', 'VAT rate (%)', 'Tax ID (TIN) on invoices', 'Discounts above this % need the Manager']) assert.ok(page.includes(label), label);
+  for (const label of ['Billing &amp; tax', 'Charge VAT', 'VAT rate (%)', 'Tax ID (TIN) on invoices', 'Discounts above this % need the Owner']) assert.ok(page.includes(label), label);
   const schema = readRepo('packages/database/prisma/schema.prisma');
   const org = schema.slice(schema.indexOf('model Organisation {'), schema.indexOf('\n}', schema.indexOf('model Organisation {')));
   assert.match(org, /vatEnabled\s+Boolean\s+@default\(false\)/);
@@ -271,18 +270,11 @@ test('billing settings: their own audited action, guarded like the organisation 
   assert.match(org, /discountApprovalPercent Int\?/);
 });
 
-test('the schema change is additive: the deploy SQL and its manual mirror', () => {
-  for (const f of ['scripts/predeploy/0029-billing.sql', 'scripts/v-dp3-billing.sql']) {
-    const sql = readRepo(f);
-    assert.match(sql, /IF to_regclass\('public\.organisations'\) IS NULL OR to_regclass\('public\.job_cards'\) IS NULL THEN/);
-    assert.match(sql, /ADD COLUMN IF NOT EXISTS "receiptNumber" TEXT;/);
-    assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS "payments_receiptNumber_key"/);
-    assert.match(sql, /CREATE TABLE IF NOT EXISTS "invoices"/);
-    assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS "invoices_jobCardId_key"/);
-    assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /\b(DROP|DELETE|TRUNCATE|UPDATE|RENAME)\b/i, 'additive only');
-  }
-  assert.equal(readRepo('scripts/predeploy/0029-billing.sql'), readRepo('scripts/v-dp3-billing.sql'));
-  assert.match(readRepo('docs/DATA_MIGRATION.md'), /0029-billing\.sql[\s\S]{0,40}v-dp3-billing\.sql/);
+test('the schema carries receipts and invoices with their unique numbers and one invoice per Job Card', () => {
+  const schema = readRepo('packages/database/prisma/schema.prisma');
+  assert.match(schema, /model Payment \{[\s\S]*?receiptNumber\s+String\?\s+@unique/);
+  assert.match(schema, /model Invoice \{[\s\S]*?@@map\("invoices"\)/);
+  assert.match(schema, /model Estimate \{[\s\S]*?vatRate\s+Decimal\?\s+@db\.Decimal\(5, 2\)/);
 });
 
 // ── 4. The invoice document and ₦ in PDFs ────────────────────────────

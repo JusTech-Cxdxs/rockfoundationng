@@ -1,14 +1,14 @@
 /**
- * Loads (or removes) the whole demo in the demo organisation, "D'Phoenix
- * Autocare (Demo)": the demo people with their sign-ins
- * (lib/demo/people-load.ts, when DEMO_STAFF_PASSWORD is set) and the seven
- * months of the Victoria Island Workshop (lib/workshop/demo):
+ * Loads (or removes) the whole demo in the demo organisation, "Rock Foundation
+ * Automobile (Demo)": the demo people with their sign-ins
+ * (lib/demo/people-load.ts, when DEMO_STAFF_PASSWORD is set) and the sample
+ * months of the Ota Workshop (lib/workshop/demo):
  *
- *   npm run demo:reset                 the organisation marked as the demo (dphoenix-demo, made when there is none)
- *   npm run demo:reset -- --org dphoenix-demo    that organisation (made, or marked, first)
+ *   npm run demo:reset                 the organisation marked as the demo (rock-foundation-demo, made when there is none)
+ *   npm run demo:reset -- --org rock-foundation-demo    that organisation (made, or marked, first)
  *   npm run demo:reset -- --remove     take the demo records out, load nothing (people are kept, switched off only by un-marking the organisation)
  *
- * Never the real organisation (dphoenix-autocare) or any organisation with
+ * Never the real organisation (rock-foundation) or any organisation with
  * its own customers or job cards. Refused against a production
  * database unless DEMO_RESET_CONFIRM is set to "replace the demo records":
  * the reset deletes the previous demo's records (only those, listed in

@@ -766,7 +766,7 @@ export default async function PartDetailPage({
                 <FormPendingOverlay />
                 <input type="hidden" name="partId" value={part.id} />
                 <div className="grid grid-cols-2 gap-2">
-                  <input name="make" required placeholder="Make, e.g. Isuzu" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
+                  <input name="make" required placeholder="Make, e.g. Toyota" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
                   <input name="model" placeholder="Model (optional — leave blank to fit every model of this Make)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />
                 </div>
                 <input name="engineType" placeholder="Engine (optional — leave blank to fit every engine of this make/model)" className="w-full rounded-[var(--ejo-radius-md)] border border-[var(--ejo-border)] bg-[var(--ejo-bg)] px-3 py-2 text-sm text-[var(--ejo-text)]" />

@@ -66,7 +66,7 @@ const pack: BriefingPack = {
       readAloudTip: 'never shown', definitions: { takings: 'x' },
     } },
     { key: 'stock', title: 'Stock', data: { outOfStock: 1, atOrBelowReorderPoint: 2, parts: [{ name: 'Brake pad set', partNumber: 'BP-100', onHand: 0, reorderPoint: 4, href: '/store/parts/1' }], pricingAlerts: { soldBelowCost: 1, belowTargetMargin: 0, aboveTarget: 0, lossIfStockSoldAtTodaysPrice: 12000, href: '/inventory/pricing' } } },
-    { key: 'website', title: 'Website visitors', data: null, note: 'Could not be read just now.' },
+    { key: 'support', title: 'Support centre', data: null, note: 'Could not be read just now.' },
     { key: 'integrity', title: 'Integrity watch', data: { alerts: [{ title: 'Same person asked and approved', severity: 'HIGH', href: '/integrity/1' }], open: 1 } },
     { key: 'leads', title: 'Website and store', data: { period: 'Last 7 days', enquiriesFromTheWebsite: 5, byTopic: { sales: 3, referrals: 2 }, stillOpen: 2 } },
   ],
@@ -100,7 +100,7 @@ test('the pack for the model drops coaching keys and stays within its budget', (
   assert.doesNotMatch(text, /readAloudTip|definitions|never shown/);
   assert.match(text, /## The business this month/);
   assert.match(text, /"grossProfit":3900000.5/);
-  assert.match(text, /## Website visitors\n\(Could not be read just now\.\)/);
+  assert.match(text, /## Support centre\n\(Could not be read just now\.\)/);
   assert.ok(text.length < 9_000, `too long: ${text.length}`);
   // A huge section is cut, not sent whole.
   const big: BriefingPack = { ...pack, sections: [{ key: 'support', title: 'Support', data: { rows: Array.from({ length: 200 }, (_, i) => ({ number: `SUP-2026-${i}`, subject: 'x'.repeat(100) })) } }] };
@@ -108,9 +108,9 @@ test('the pack for the model drops coaching keys and stays within its budget', (
 });
 
 test('the briefing prompt is small and names the person, role and branch', () => {
-  const p = briefingSystemPrompt({ assistantName: 'Enyo', organisationName: 'Rock Foundation Automobile', personName: 'Tunde', roleDescription: 'Executive', now: 'Monday', branch: 'Ota Workshop' });
+  const p = briefingSystemPrompt({ assistantName: 'Enyo', organisationName: 'Rock Foundation Automobile', personName: 'Tunde', roleDescription: 'Owner / GMD', now: 'Monday', branch: 'Ota Workshop' });
   assert.ok(p.length < 2_000);
-  assert.match(p, /briefing Tunde \(Executive\)/);
+  assert.match(p, /briefing Tunde \(Owner \/ GMD\)/);
   assert.match(p, /lead with that branch/);
   assert.match(p, /never invent/);
 });

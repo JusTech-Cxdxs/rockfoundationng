@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { askedAbout, busyAnswer, cleanHistory, isGreeting, quickAnswer, type QuickInfo } from '../lib/enyo/quick-core';
 
 const info: QuickInfo = {
-  organisation: "D'Phoenix Autocare",
+  organisation: 'Rock Foundation Automobile',
   assistantName: 'Enyo',
-  headOffice: { address: 'Plot 1 Muri Okunola Street, Victoria Island, Lagos', phones: ['0811 496 6212'], email: 'info@example.com' },
+  headOffice: { address: '1, Heal The World Avenue, Opp. Gateway Hotel, Ota, Ogun State', phones: ['0811 496 6212'], email: 'info@example.com' },
 };
 const evening = new Date('2026-10-19T21:00:00Z'); // 10 pm Lagos
 
 test('greetings are answered at once, by Lagos time; questions are not mistaken for greetings', () => {
   for (const g of ['Hi', 'hey Enyo', 'Hello there!', 'Good evening', 'hi again', 'How are you doing?', 'how far']) assert.equal(isGreeting(g), true, g);
   for (const q of ['Hi, who is Tunde Bakare?', 'hello I want to book a service', 'hey what services do you have']) assert.equal(isGreeting(q), false, q);
-  assert.match(quickAnswer('Hey Enyo', info, evening)!, /^Good evening! I'm Enyo, D'Phoenix Autocare's assistant/);
+  assert.match(quickAnswer('Hey Enyo', info, evening)!, /^Good evening! I'm Enyo, Rock Foundation Automobile's assistant/);
   assert.doesNotMatch(quickAnswer('Hi', info)!, /offer|store|price/i, 'no store or offers on this site');
 });
 
@@ -26,7 +26,7 @@ test('"who is" is left to the model: no staff list is published here', () => {
 
 test('how to reach us comes from the records; questions about a job do not', () => {
   assert.match(quickAnswer('What is your phone number?', info)!, /0811 496 6212[\s\S]*\[Customer support\]\(\/support\)/);
-  assert.match(quickAnswer('Where is your office?', info)!, /\*\*Workshop:\*\* Plot 1 Muri Okunola Street/);
+  assert.match(quickAnswer('Where is your office?', info)!, /\*\*Workshop:\*\* 1, Heal The World Avenue/);
   assert.equal(quickAnswer('Any discount or financing offers?', info), null, 'no offers here: left to the model');
   assert.equal(quickAnswer('Can you call me about my car JC-2026-000001?', info), null);
   assert.equal(quickAnswer('My phone number is 0803 555 0101, please call me back', info), null, 'a visitor giving theirs is a hand-over');

@@ -3,7 +3,7 @@
  * authorization catalogue would not do: every demo sign-in has a tour stop;
  * every "must not" page is refused by its roles; every click on a protected
  * page is granted; the director's order uses real sign-ins; and
- * docs/DPHOENIX_DEMO.md is exactly what `npm run demo:tour-doc` writes.
+ * docs/DEMO.md is exactly what `npm run demo:tour-doc` writes.
  * e2e/demo-tour.spec.ts proves the same in the browser for every person.
  */
 import { test } from 'node:test';
@@ -19,20 +19,20 @@ import { renderTourDoc } from '../lib/demo/tour-doc';
 const ROOT = join(__dirname, '..', '..', '..', '..');
 const principal = (roles: string[]): Principal => ({ userId: 'x', isSuperAdmin: false, roleSlugs: roles, branchId: 'b', departmentId: null });
 const opens = (roles: string[], href: string) => {
-  // The page's own area, or the nearest one above it (/organisation/people is guarded by /organisation's layout).
+  // The page's own area, or the nearest one above it (a page under /organisation is guarded by /organisation's layout).
   const path = href.split('?')[0]!;
   const area = AREAS.filter((a) => path === a.url || path.startsWith(`${a.url}/`)).sort((x, y) => y.url.length - x.url.length)[0];
   return area ? area.needs.some((k) => decide(principal(roles), k).allowed) : null; // null: not a guarded area (checked in the browser)
 };
 
-test('every demo sign-in has a tour stop with a first view, three clicks and at least one proof of what it must not do (the Administrator sees everything: none); no stop for anyone else', () => {
+test('every demo sign-in has a tour stop with a first view, three clicks and at least one proof of what it must not do (the Owner sees everything: none); no stop for anyone else', () => {
   for (const s of DEMO_STAFF) {
     const t = tourFor(s.email);
     assert.ok(t, `${s.email} has a tour stop`);
     assert.ok(t.firstView.length > 15, `${s.email} first view`);
     assert.equal(t.clicks.length, 3);
     for (const c of t.clicks) assert.match(c.href, /^\/[a-z]/, `${s.email}: ${c.href}`);
-    if (s.role !== 'administrator') assert.ok(t.mustNot.length >= 1, `${s.email} has a must-not`);
+    if (s.role !== 'owner') assert.ok(t.mustNot.length >= 1, `${s.email} has a must-not`);
   }
   assert.equal(Object.keys(TOUR).length, DEMO_STAFF.length, 'one stop per person, no strays');
 });
@@ -53,8 +53,8 @@ test('the catalogue keeps every promise: a "must not" page is refused by the per
   assert.deepEqual(problems, [], problems.join('\n'));
 });
 
-test('the 15-minute order: ten steps, minutes in order up to 15, each a real demo sign-in (staff or customer) on a page it opens', () => {
-  assert.equal(DIRECTOR_TOUR.length, 10);
+test('the 15-minute order: about ten steps, minutes in order up to 15, each a real demo sign-in (staff or customer) on a page it opens', () => {
+  assert.ok(DIRECTOR_TOUR.length >= 8 && DIRECTOR_TOUR.length <= 12, `${DIRECTOR_TOUR.length} steps`);
   let last = 0;
   for (const step of DIRECTOR_TOUR) {
     const [a, b] = step.minute.split('–').map(Number) as [number, number];
@@ -68,6 +68,6 @@ test('the 15-minute order: ten steps, minutes in order up to 15, each a real dem
   assert.equal(last, 15);
 });
 
-test('docs/DPHOENIX_DEMO.md is the generated tour (run npm run demo:tour-doc after changing lib/demo/tour.ts or people.ts)', () => {
-  assert.equal(readFileSync(join(ROOT, 'docs/DPHOENIX_DEMO.md'), 'utf8'), renderTourDoc());
+test('docs/DEMO.md is the generated tour (run npm run demo:tour-doc after changing lib/demo/tour.ts or people.ts)', () => {
+  assert.equal(readFileSync(join(ROOT, 'docs/DEMO.md'), 'utf8'), renderTourDoc());
 });

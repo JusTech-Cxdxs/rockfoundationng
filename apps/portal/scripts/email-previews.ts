@@ -22,7 +22,7 @@ const samples: EmailSample[] = [
     name: 'customer-password-reset',
     template: 'website: renderCustomerPasswordResetEmail',
     audience: 'customer',
-    render: () => renderCustomerPasswordResetEmail({ fullName: 'Adaeze Okafor', email: 'adaeze@example.com', url: `${SAMPLE_WEBSITE}/customer-portal/reset-password?token=abc`, expiresInMinutes: 60, companyName: "D'Phoenix Autocare", logoUrl: `${SAMPLE_WEBSITE}/brand/emblem.png` }),
+    render: () => renderCustomerPasswordResetEmail({ fullName: 'Adaeze Okafor', email: 'adaeze@example.com', url: `${SAMPLE_WEBSITE}/customer-portal/reset-password?token=abc`, expiresInMinutes: 60, companyName: "Rock Foundation Automobile", logoUrl: `${SAMPLE_WEBSITE}/brand/emblem.png` }),
   },
 ];
 

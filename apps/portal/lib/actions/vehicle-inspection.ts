@@ -48,13 +48,8 @@ export async function startVehicleInspection(jobCardId: string): Promise<{ id: s
   if (existing) return existing;
 
   const jc = await openJobCard(jobCardId);
-  if (!jc.vehicle.vehicleType) {
-    throw new VehicleInspectionActionError(
-      'This vehicle has no Passenger/Commercial type on file yet — set it on the Vehicles page before starting an inspection.',
-    );
-  }
-
-  const template = getApplicableTemplate(jc.vehicle.vehicleType);
+  // A vehicle with no type on file is checked as a car (the passenger checklist).
+  const template = getApplicableTemplate(jc.vehicle.vehicleType ?? 'PASSENGER');
   const inspection = await prisma.$transaction(async (tx) => {
     const created = await tx.vehicleInspection.create({
       data: { jobCardId, inspectedById: user.id, status: 'IN_PROGRESS', startedAt: new Date() },

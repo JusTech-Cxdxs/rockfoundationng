@@ -41,43 +41,29 @@ function actions(): Fn[] {
 
 /** Anything that checks the record (or scopes the query) counts as a fence. */
 const READ_FENCES = [
-  'seeJobCard', 'seeService', 'seeBranch', 'seeVehicle', 'seePart', 'seeTarget', 'jobOrServiceReach', 'partsOfMyOrganisation',
-  'branchOwnedByMyOrganisation', 'myOrganisationBranches', 'reachWhere', 'canSeeRecord', 'seeOrNull', 'authorizeOn', 'orgWhere',
-  'orgOwned', 'inMyOrganisation', 'actingOrgWhere', 'visibleOrNull', 'branchWithinReach', 'firstReach', 'historyVisible',
-  'getAppointment(', 'requireJobCardApprover', 'managerApprovers', 'me()', 'requireStoreStaff',
+  'seeJobCard', 'seeBranch', 'seeVehicle', 'seePart', 'seeTarget', 'myOrganisationBranches', 'reachWhere', 'jobCardReach', 'canSeeRecord', 'authorizeOn',
+  'orgWhere', 'inMyOrganisation', 'visibleOrNull', 'branchWithinReach', 'firstReach', 'requireJobCardApprover', 'me()', 'requireStoreStaff',
   // Organisation structure (lib/actions/structure.ts): fenced to the person's organisation + authorize with the branch.
   'branchInMyOrg(', 'departmentInMyOrg(', 'orgFence(o)',
-  // Customers' data requests (lib/actions/data-requests.ts): the request, or its customer, found inside the person's organisation.
-  'dataRequestOf(',
-  'requestCustomerOf(',
   // Customer documents in bulk (lib/actions/documents.ts): the workshop found inside the person's organisation.
   'documentBranchOf(',
   // Scheduled exports (lib/actions/export-schedules.ts): the person's own schedule inside their organisation.
   'myScheduleOf(',
-  'requireEligible', 'requireWarrantyStaff', 'requireWarrantyApprover', 'requireStaff', 'getSchedulingAccess', 'loadForChange',
-  'loadForGroups', 'requireMasterAdmin', 'currentUserIsMasterAdmin', 'branchInMyOrganisationOrSystem', 'onMyDesk',
-  'allows(', // with the record (branch / assignees) — e.g. canRequestRoadTestOn
-  // Customers (lib/actions/crm.ts): the customer — or its address / contact / note — looked up inside the person's organisation (orgWhere).
+  'requireEligible', 'currentUserIsMasterAdmin', 'branchInMyOrganisationOrSystem',
+  // The gate (lib/actions/security.ts): the Job Card's branch, checked against the gate desk's reach.
+  'jobCardOnMyDesk(',
+  'allows(', // with the record (branch / assignees)
+  // Customers (lib/actions/crm.ts): the customer, or its address / contact / note, looked up inside the person's organisation (orgWhere).
   'fencedCustomer',
   // Enyo (lib/actions/enyo.ts): the person's own chats and facts, by user id AND the organisation the chat route stores them under.
   'myEnyoOrg(',
-  // Integrity alerts: where { AND: [{ id }, visible(await integrityReviewer()) ] } — the reviewer's organisation, never about themselves.
+  // Integrity alerts: where { AND: [{ id }, visible(await integrityReviewer()) ] }: the reviewer's organisation, never about themselves.
   'integrityReviewer(',
-  // People the organisation publishes: where { id, organisationId: profileOrg() } (the administrator's own organisation).
-  'profileOrg(',
-  // News & media: where { id, organisationId: newsOrg() } (the communications team's own organisation).
-  'newsOrg(',
   // Data Exchange (lib/actions/data-exchange.ts): where { id, organisationId } of the person's own organisation (exchangeOrg).
   'myImportJob(',
   // Exports (lib/actions/exports.ts): where { id, organisationId } of the person's own organisation (the platform team: any).
   'myExportJob(',
-  // Assembly plant (lib/actions/plant.ts): where { id, organisationId, branch reach } (myPdi / plantFence).
-  'myPdi(', 'plantFence(',
-  // Kits and shipments (lib/actions/plant-kits.ts): where { id, organisationId, branch reach } (myKit / myShipment / kitFence).
-  'myKit(', 'myShipment(', 'kitFence(',
-  // The line (lib/actions/plant-line.ts): where { id, organisationId, plant reach } (myBuild / lineFence).
-  'myBuild(', 'lineFence(',
-  // The demo console (lib/actions/demo-console.ts): the platform team only (platformTeam() — the Master Administrator), any organisation by design (platformOrg).
+  // The demo console (lib/actions/demo-console.ts): the platform team only, any organisation by design (platformOrg).
   'platformOrg(',
 ];
 
@@ -85,7 +71,6 @@ const READ_FENCES = [
 const READ_EXCEPTIONS: Record<string, string> = {
   'dashboard.ts:listActiveAnnouncements': 'compares the id with myOrganisationId() and returns nothing otherwise',
   'organisation.ts:getOrganisation': "the person's own organisation (platform team: the first)",
-  'security.ts:getMe': 'the signed-in person only',
 };
 
 test('every read action that takes an id checks the record it reads', () => {
@@ -99,10 +84,8 @@ test('every read action that takes an id checks the record it reads', () => {
 });
 
 const RECORD_CHECKS = [
-  ...READ_FENCES, 'requireJobCardApprover', 'requireAssignedTechnician', 'requireEstimateContributor', 'requireJobCardCreatorOrSupervisor',
-  'requireAssignedVehicleServiceTechnician', 'requireVehicleServiceStepRole', 'requireServiceEstimateContributor', 'homeBranch',
-  'canDecide', 'headApproversFor', 'checkPair', 'requireBookFor', 'assertRoomIsMine', 'onMyDesk', 'ownBroadcast', 'editableRole',
-  'actorOrg', 'inMyOrganisation(',
+  ...READ_FENCES, 'requireJobCardApprover', 'requireAssignedTechnician', 'requireEstimateContributor', 'requireJobCardCreatorOrSupervisor', 'homeBranch',
+  'canDecide', 'checkPair', 'ownBroadcast', 'editableRole', 'actorOrg', 'inMyOrganisation(',
   // Enyo learned answers: where { id, organisationId: learnedOrg() } (the person's own organisation).
   'learnedOrg(',
   // Support centre set-up: where { id, organisationId: supportOrg() } (the person's own organisation).
@@ -129,7 +112,7 @@ test('every write action that takes an id checks the record it changes', () => {
   assert.deepEqual(missing, [], `Writes by id with no record check:\n${missing.join('\n')}`);
 });
 
-test('every security write by id checks the desk branch or the organisation', () => {
+test('every gate write by id checks the desk branch or the organisation', () => {
   const src = read('lib/actions/security.ts');
   const missing: string[] = [];
   for (const part of src.split('\nexport async function ').slice(1)) {
@@ -138,28 +121,22 @@ test('every security write by id checks the desk branch or the organisation', ()
     const end = part.indexOf('\nexport ');
     const body = end === -1 ? part : part.slice(0, end);
     if (!TAKES_ID.test(sig) || !WRITE.test(body)) continue;
-    if (!body.includes('onMyDesk(') && !body.includes('inMyOrganisation(')) missing.push(name);
+    if (!body.includes('OnMyDesk(') && !body.includes('inMyOrganisation(')) missing.push(name);
   }
-  assert.deepEqual(missing, [], `Security writes without a branch / organisation check:\n${missing.join('\n')}`);
+  assert.deepEqual(missing, [], `Gate writes without a branch / organisation check:\n${missing.join('\n')}`);
 });
 
-test('the security desk acts only on its own branch: every desk action calls onMyDesk', () => {
+test('the gate acts only on its own branch: the release is checked against the Job Card’s branch before anything is written', () => {
   const src = read('lib/actions/security.ts');
-  const missing: string[] = [];
-  for (const part of src.split('\nexport async function ').slice(1)) {
-    const name = part.slice(0, part.indexOf('('));
-    const sig = part.slice(0, part.indexOf(')') + 1);
-    const end = part.indexOf('\nexport ');
-    const body = end === -1 ? part : part.slice(0, end);
-    if (!/await require(Gate|FrontDesk|Chief)\(\)/.test(body) || !TAKES_ID.test(sig)) continue;
-    if (name === 'recordDeliveryArrival' ? !body.includes("if (deliveryId) await onMyDesk(") : !body.includes('await onMyDesk(')) missing.push(name);
-  }
-  assert.deepEqual(missing, [], `Desk actions without the branch check:\n${missing.join('\n')}`);
-  // Acting as the desk on someone else's booking / pass: the desk's own branch.
-  assert.match(src, /export async function updateBooking\([\s\S]{0,1200}await onMyDesk\('visit', visitId, 'updateBooking'\)/);
-  assert.match(src, /export async function cancelVisit\([\s\S]{0,1200}await onMyDesk\('visit', visitId, 'cancelVisit'\)/);
-  assert.match(src, /export async function cancelContractorPass\([\s\S]{0,1200}await onMyDesk\('contractorPass', id, 'cancelContractorPass'\)/);
-  for (const fn of ['confirmDeliveryReceived', 'cancelDelivery']) assert.match(src, new RegExp(`export async function ${fn}\\([\\s\\S]{0,400}onMyDesk\\('gateDelivery', id, '${fn}', true\\)`), fn);
+  const helper = src.slice(src.indexOf('async function jobCardOnMyDesk('), src.indexOf('async function jobCardOnMyDesk(') + 400);
+  assert.match(helper, /prisma\.jobCard\.findUnique\(\{ where: \{ id \}, select: \{ branchId: true \} \}\)/);
+  assert.match(helper, /seeBranchAnyOf\(\['security\.gate\.operate', 'security\.view'\], rec\.branchId, where\)/);
+  const exit = src.slice(src.indexOf('export async function confirmVehicleExit('), src.indexOf('\nexport ', src.indexOf('export async function confirmVehicleExit(') + 10));
+  assert.ok(exit.indexOf("await jobCardOnMyDesk(jobCardId, 'confirmVehicleExit')") > -1, 'the exit checks the desk branch');
+  assert.ok(exit.indexOf("await jobCardOnMyDesk(") < exit.indexOf('vehicleGateExit.create('), 'checked before the exit is written');
+  assert.match(exit, /if \(j\.status !== 'CHECKED_OUT'\)/, 'only a released vehicle may leave');
+  // One exit per Job Card, enforced by the database too.
+  assert.match(read('../../packages/database/prisma/schema.prisma'), /model VehicleGateExit \{[^}]*jobCardId\s+String\?\s+@unique/);
 });
 
 test('nobody can create an account from the internet (staff or customer)', () => {
@@ -198,20 +175,18 @@ test('adding a staff member never emails a password and stays inside the organis
   assert.doesNotMatch(create, /temporaryPassword|generateSecurePassword/, 'no password is ever emailed');
   assert.match(create, /Choose a branch of your organisation/);
   assert.match(create, /You can only add people to your own branch/);
-  assert.match(create, /Administrator roles are given by headquarters/);
+  assert.match(create, /r\.slug === 'owner' && !p\.isSuperAdmin && !p\.roleSlugs\.includes\('owner'\)\) throw new Error\('Only the Owner can give the Owner role\.'\)/, 'only the Owner (or the platform team) makes another Owner');
   assert.match(create, /r\.isSuperAdmin \|\| r\.organisationId !== branchOrg/, 'never the platform role, never another organisation\'s role');
 });
 
 test('lists that used to read platform-wide are fenced', () => {
-  assert.match(read('lib/actions/refunds.ts'), /export async function listAllRefunds[\s\S]{0,300}jobOrServiceReach\(\)/);
-  assert.match(read('lib/actions/workshop.ts'), /export async function getWorkshopCustodySummary[\s\S]{0,1600}reachWhere\('workshop\.job_card\.view'\)/);
+  assert.match(read('lib/actions/refunds.ts'), /export async function listAllRefunds[\s\S]{0,300}const reach = \{ jobCard: await jobCardReach\(\) \}/);
+  assert.match(read('lib/actions/workshop.ts'), /export async function getWorkshopCustodySummary[\s\S]{0,1600}jobCardReach\(\)/);
   const wf = read('lib/actions/workflow-actions.ts');
   assert.doesNotMatch(wf, /const T = 40;/, 'never "the newest 40 platform-wide, then filtered"');
   for (const m of wf.matchAll(/prisma\.(\w+)\.findMany\(\{ where: \{([^]*?)\}, take: T/g)) {
     assert.match(m[2]!, /reach/, `${m[1]} action items must be scoped to the person's reach`);
   }
-  assert.match(read('lib/actions/visit-outcomes.ts'), /id: \{ in: ids \}, \.\.\.\(await reachWhere/);
-  assert.match(read('lib/actions/scheduling.ts'), /export async function listRooms[\s\S]{0,300}branchOwnedByMyOrganisation\(\)/);
   assert.match(read('lib/actions/dashboard.ts'), /listActiveAnnouncements[\s\S]{0,300}mine !== organisationId\) return \[\]/);
 });
 

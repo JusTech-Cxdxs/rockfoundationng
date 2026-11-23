@@ -21,17 +21,17 @@ const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 const who = (roleSlugs: string[], extra: Partial<Principal> = {}): Principal => ({ userId: 'me', isSuperAdmin: false, roleSlugs, branchId: 'b1', departmentId: null, ...extra });
 
 test('employee IDs: organisation and branch codes', () => {
-  assert.equal(organisationCode('Phoenix Nigeria'), 'PN');
+  assert.equal(organisationCode('Rock Foundation Automobile'), 'RFA');
   assert.equal(organisationCode('Lagos Fleet Services Limited'), 'LFS');
   assert.equal(organisationCode('Acme'), 'ACM');
   assert.equal(organisationCode('   '), 'EJO');
   assert.equal(branchCode('Ajah Branch'), 'AJA');
-  assert.equal(branchCode('Victoria Island'), 'VI');
+  assert.equal(branchCode('Sango Ota'), 'SO');
   assert.equal(branchCode('Ikeja Workshop'), 'IKE');
-  assert.equal(branchCode('Anything', 'kwl-ws'), 'KWLW', 'the branch\'s own code wins (letters and digits only)');
+  assert.equal(branchCode('Anything', 'ota-ws'), 'OTAW', 'the branch\'s own code wins (letters and digits only)');
   assert.equal(branchCode('Abuja', 'x'), 'ABU', 'a one-character own code is ignored');
   assert.equal(branchCode('Lekki <script>'), 'LS', 'only letters and digits survive');
-  assert.equal(employeeIdPrefix('Phoenix Nigeria', 'Ajah Branch'), 'PN-AJA');
+  assert.equal(employeeIdPrefix('Rock Foundation Automobile', 'Ajah Branch'), 'RFA-AJA');
 });
 
 test('employee IDs: format and running number', () => {
@@ -44,25 +44,24 @@ test('employee IDs: format and running number', () => {
 });
 
 test('employee IDs: branches whose names give the same code are told apart, and existing ones never change', () => {
-  const first = uniqueBranchPrefixes('Phoenix Nigeria', [{ id: 'a', name: 'Ajah' }, { id: 'b', name: 'Ajah Workshop' }, { id: 'c', name: 'Victoria Island' }]);
-  assert.deepEqual([...first.values()], ['PN-AJA', 'PN-AJA2', 'PN-VI']);
-  const later = uniqueBranchPrefixes('Phoenix Nigeria', [{ id: 'a', name: 'Ajah' }, { id: 'b', name: 'Ajah Workshop' }, { id: 'c', name: 'Victoria Island' }, { id: 'd', name: 'Ajah Branch' }]);
-  assert.equal(later.get('a'), 'PN-AJA');
-  assert.equal(later.get('b'), 'PN-AJA2');
-  assert.equal(later.get('d'), 'PN-AJA3');
+  const first = uniqueBranchPrefixes('Rock Foundation Automobile', [{ id: 'a', name: 'Ajah' }, { id: 'b', name: 'Ajah Workshop' }, { id: 'c', name: 'Sango Ota' }]);
+  assert.deepEqual([...first.values()], ['RFA-AJA', 'RFA-AJA2', 'RFA-SO']);
+  const later = uniqueBranchPrefixes('Rock Foundation Automobile', [{ id: 'a', name: 'Ajah' }, { id: 'b', name: 'Ajah Workshop' }, { id: 'c', name: 'Sango Ota' }, { id: 'd', name: 'Ajah Branch' }]);
+  assert.equal(later.get('a'), 'RFA-AJA');
+  assert.equal(later.get('b'), 'RFA-AJA2');
+  assert.equal(later.get('d'), 'RFA-AJA3');
 });
 
 test('access description: exactly what the catalogue grants, with "added" grants marked', () => {
   const tech = describeAccess(who(['technician']));
   const keys = tech.flatMap((g) => g.lines.map((l) => l.key));
   assert.ok(keys.includes('workshop.job.work'));
-  assert.ok(keys.includes('security.exit_pass.request'), 'the everyone baseline is listed');
   assert.ok(!keys.includes('admin.users.manage'));
   const work = tech.flatMap((g) => g.lines).find((l) => l.key === 'workshop.job.work')!;
   assert.equal(work.where, 'on work assigned to you');
   assert.equal(work.added, false);
-  const extra = describeAccess(who(['technician'], { extraGrants: { 'warranty.view': 'BRANCH' } }), () => true);
-  const w = extra.flatMap((g) => g.lines).find((l) => l.key === 'warranty.view')!;
+  const extra = describeAccess(who(['technician'], { extraGrants: { 'workshop.payment.record': 'BRANCH' } }), () => true);
+  const w = extra.flatMap((g) => g.lines).find((l) => l.key === 'workshop.payment.record')!;
   assert.equal(w.added, true);
   assert.equal(w.where, 'in your branch');
   for (const g of tech) for (const l of g.lines) assert.equal(l.label, plainLabel(PERMISSIONS[l.key as PermissionKey].label));
@@ -93,17 +92,17 @@ test('welcome email: employee ID, roles, branch, access, sign-in steps, the rule
   assert.ok(!upd.html.includes('Set my password'), 'an access-changed email carries no password link');
 });
 
-test('version 1 menu: only live modules; everything planned is on the Roadmap, with a page each', () => {
-  const admin = navigationFor(who(['administrator']));
+test('the menu: only live modules; the organisation structure for the Owner', () => {
+  const admin = navigationFor(who(['owner']));
   const master = navigationFor(who([], { isSuperAdmin: true }));
   for (const items of [admin, master]) for (const i of items) assert.equal(i.status, 'LIVE', `${i.key} is shown but not live`);
-  assert.ok(admin.some((i) => i.key === 'structure'), 'the organisation structure is in the menu for administrators');
+  assert.ok(admin.some((i) => i.key === 'structure'), 'the organisation structure is in the menu for the Owner');
   assert.ok(!navigationFor(who(['technician'])).some((i) => i.key === 'structure'), 'but not for a technician');
   assert.equal(existsSync(join(ROOT, 'components', 'PagePlaceholder.tsx')), false);
 });
 
 test('organisation structure: workflow departments are protected', () => {
-  for (const slug of ['workshop', 'workshop-passenger', 'workshop-commercial', 'store']) assert.ok(SYSTEM_DEPARTMENT_SLUGS.has(slug), `${slug} is a system department`);
+  for (const slug of ['workshop', 'mechanical', 'electrical', 'body-spray', 'car-wash', 'store']) assert.ok(SYSTEM_DEPARTMENT_SLUGS.has(slug), `${slug} is a system department`);
   const src = read('lib/actions/structure.ts');
   assert.match(src, /cannot be switched off/, 'system departments are never switched off');
   assert.match(src, /move them to another department first/, 'a department with people is never switched off');
@@ -148,9 +147,9 @@ test('avatars: initials and a stable colour', () => {
 test('deploys: pre-deploy SQL is additive and re-runnable, and runs before every production push', () => {
   const repo = join(ROOT, '..', '..');
   const dir = join(repo, 'scripts', 'predeploy');
-  const { readdirSync } = require('node:fs') as typeof import('node:fs');
-  const files = readdirSync(dir).filter((f: string) => f.endsWith('.sql'));
-  assert.ok(files.length > 0);
+  const { readdirSync, existsSync: exists } = require('node:fs') as typeof import('node:fs');
+  // A fresh edition starts with none; each later additive change adds a numbered file.
+  const files = exists(dir) ? readdirSync(dir).filter((f: string) => f.endsWith('.sql')) : [];
   for (const f of files) {
     const sql = readFileSync(join(dir, f), 'utf8').replace(/--.*$/gm, '');
     assert.doesNotMatch(sql, /\b(DROP|DELETE|TRUNCATE|RENAME)\b|ALTER\s+COLUMN[\s\S]*?\bTYPE\b/i, `${f} must be additive only`);
@@ -164,7 +163,7 @@ test('deploys: pre-deploy SQL is additive and re-runnable, and runs before every
   const rls = readFileSync(join(repo, 'scripts', 'postdeploy', '0001-rls-default-deny.sql'), 'utf8');
   assert.match(rls, /ENABLE ROW LEVEL SECURITY/);
   assert.match(rls, /REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon/);
-  for (const s of ['db-push-if-render.js', 'db-push-if-vercel.js']) {
+  for (const s of ['db-push-if-vercel.js']) {
     const src = readFileSync(join(repo, 'scripts', s), 'utf8');
     assert.ok(src.indexOf('applyPostdeploySql();') > src.indexOf('execSync(`npx prisma db push'), `${s} applies row-level security after the push`);
     assert.ok(src.indexOf('applyPredeploySql();') > 0 && src.indexOf('applyPredeploySql();') < src.indexOf('execSync(`npx prisma db push'), `${s} runs the pre-deploy SQL first`);

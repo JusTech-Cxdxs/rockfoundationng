@@ -1,6 +1,6 @@
 /**
  * The workshop demo plan (lib/workshop/demo/plan.ts): seven invented months
- * of D'Phoenix Autocare's Victoria Island Workshop, the same every run, cut
+ * of Rock Foundation Automobile's Ota Workshop, the same every run, cut
  * at "now", with every stage present and every rule the portal enforces
  * holding inside it — so the demo never shows a thing EJO itself would
  * refuse.
@@ -61,11 +61,11 @@ test('every Job Card status today, repairs and services, at any hour of any day;
   assert.ok(plan.figures.jobCards! >= 100 && plan.figures.customers! >= 15);
 });
 
-test('the six fleets, on credit, with their contacts; Lagos fleet makes and models from 2006 to date; individuals with their own cars', () => {
-  assert.deepEqual(plan.customers.filter((c) => c.type === 'ORGANIZATION').map((c) => c.name), ['SEEPCO', 'RCL Africa', 'Nairda Limited', 'Desicon Engineering', 'Dori Construction', 'Inspiration FM']);
+test('the three invented fleets, on credit, with their contacts; fleet makes and models from 2006 to date; individuals with their own cars', () => {
+  assert.deepEqual(plan.customers.filter((c) => c.type === 'ORGANIZATION').map((c) => c.name), ['Bolaji Haulage Services', 'Greenfield Agro Logistics', 'Sunrise Staff Bus Company']);
   for (const c of plan.customers.filter((x) => x.type === 'ORGANIZATION')) {
     assert.ok(c.credit && c.credit.days > 0 && c.credit.limit > 0 && c.credit.approvedAt <= NOW, `${c.name} on credit`);
-    assert.ok(c.contacts.some((k) => k.role === 'Fleet Manager'), `${c.name} has a Fleet Manager`);
+    assert.ok(c.contacts.some((k) => k.role === 'Fleet Owner'), `${c.name} has a Fleet Owner on the account`);
     const fleet = plan.vehicles.filter((v) => v.customerKey === c.key);
     assert.ok(fleet.length >= 3 && fleet.length <= 6, `${c.name}: a handful of vehicles`);
   }
@@ -77,7 +77,7 @@ test('the six fleets, on credit, with their contacts; Lagos fleet makes and mode
   for (const m of MODELS) assert.ok(m.years[0] >= 2006, m.model);
 });
 
-test('the workshop’s rules hold in every job card: stages in order with their stamps; the customer’s answer, and an individual’s deposit, before work; VAT fixed at the Manager’s approval; large discounts approved by the Manager; an individual paid in full before closing; a fleet on credit leaves only with its invoice; refunds only after a cancellation', () => {
+test('the workshop’s rules hold in every job card: stages in order with their stamps; the customer’s answer, and an individual’s deposit, before work; VAT fixed at the Owner’s approval; large discounts approved by the Owner; an individual paid in full before closing; a fleet on credit leaves only with its invoice; refunds only after a cancellation', () => {
   const order = ['CHECKED_IN', 'AWAITING_CUSTOMER_APPROVAL', 'IN_PROGRESS', 'AWAITING_PARTS', 'QUALITY_CHECK', 'COMPLETED', 'READY_FOR_COLLECTION', 'CLOSED', 'CHECKED_OUT'];
   for (const j of plan.jobCards) {
     const est = j.estimate;
@@ -88,7 +88,7 @@ test('the workshop’s rules hold in every job card: stages in order with their 
       assert.deepEqual(est.totals, estimateTotals(est), `${j.key} totals are the one rule`);
       if (est.status !== 'DRAFT') assert.ok(est.submittedAt && est.submittedAt >= est.createdAt);
       if (est.status === 'MANAGER_APPROVED') assert.equal(est.vatRate, DEMO_VAT_RATE, `${j.key}: VAT fixed`); else assert.equal(est.vatRate, null);
-      if (est.discountAmount * 100 > est.totals.subtotal * 10 && est.status === 'MANAGER_APPROVED') assert.ok(est.discountApprovedAt, `${j.key}: a discount above 10% approved by the Manager`);
+      if (est.discountAmount * 100 > est.totals.subtotal * 10 && est.status === 'MANAGER_APPROVED') assert.ok(est.discountApprovedAt, `${j.key}: a discount above 10% approved by the Owner`);
       if (est.customerNotifiedAt) { assert.equal(est.status, 'MANAGER_APPROVED'); assert.ok(est.managerApprovedAt! <= est.customerNotifiedAt && est.approvedAt! <= est.managerApprovedAt!); }
       if (est.approval) { assert.ok(est.customerNotifiedAt && est.approval.at >= est.customerNotifiedAt, `${j.key}: answered after being told`); if (est.approval.via === 'PHONE') assert.ok(est.approval.byStaffKey); if (est.approval.via === 'DEPOSIT') assert.ok(!org); }
       if (est.link) { assert.ok(est.link.expiresAt > est.link.createdAt); assert.ok(!(est.link.usedAt && est.link.revokedAt)); if (est.approval?.via === 'LINK') assert.ok(est.link.usedAt); }
@@ -122,7 +122,8 @@ test('the workshop’s rules hold in every job card: stages in order with their 
     if (j.rework) { assert.ok(j.workStartedAt && j.rework.at > j.workStartedAt); assert.ok(REWORK_FROM_STATUSES.includes('QUALITY_CHECK')); assert.ok(j.audit.some((a) => a.action === 'job_card.rework_requested')); }
     assert.ok(j.audit.length >= 1 && j.audit[0]!.action === 'job_card.created');
     assert.ok(j.technicianKey !== j.supervisorKey);
-    const sup = DEMO_STAFF.find((s) => s.email === j.supervisorKey)!; assert.equal(sup.dept, j.dept, `${j.key} supervisor in its department`);
+    const sup = DEMO_STAFF.find((s) => s.email === j.supervisorKey)!; assert.equal(sup.role, 'workshop-supervisor', `${j.key}: supervised by the Service Advisor`);
+    const tech = DEMO_STAFF.find((s) => s.email === j.technicianKey)!; assert.equal(tech.role, 'technician', `${j.key}: worked by a technician`);
     if (org) assert.ok(j.onCredit, `${j.key}: the fleet is on credit`);
   }
   assert.deepEqual([...REWORK_FROM_STATUSES], ['QUALITY_CHECK', 'COMPLETED', 'READY_FOR_COLLECTION']);
@@ -164,7 +165,8 @@ test('support and Data Exchange: open complaints, the spreadsheet imports and ex
   assert.ok(plan.tickets.filter((t) => t.tags.includes('complaint') && t.status === 'OPEN').length >= 1);
   for (const t of plan.tickets) { if (t.firstResponseAt) assert.ok(t.firstResponseAt >= t.createdAt); if (t.customerKey) assert.ok(plan.customers.some((c) => c.key === t.customerKey), `${t.key} customer`); }
   assert.deepEqual(plan.imports.map((i) => i.entity).sort(), ['customers', 'invoices', 'jobs', 'staff', 'vehicles']);
-  assert.ok(plan.imports.some((i) => /zoho/i.test(i.fileName)) && plan.imports.every((i) => i.created + i.rejected <= i.rows));
+  assert.ok(plan.imports.some((i) => /quickbooks/i.test(i.fileName)) && plan.imports.every((i) => i.created + i.rejected <= i.rows));
+  assert.ok(!plan.imports.some((i) => /zoho|sap/i.test(i.fileName)), 'the old systems are QuickBooks and spreadsheets');
   assert.ok(plan.exports.some((e) => e.kind === 'invoices'));
   assert.ok(plan.broadcasts.length >= 5 && plan.broadcasts.every((b) => b.endsAt > b.startsAt));
 });
@@ -188,18 +190,15 @@ test('nothing real: every phone on the 0800 000 range, every email on a reserved
   for (const gone of ['Isuzu', 'warranty', 'Leadway']) assert.ok(!text.includes(gone), `nothing of ${gone}`);
 });
 
-test('the loader removes exactly what it made, in an order the foreign keys allow, and the trail under the recorded maintenance switch; only a demo organisation, never the real one; the reset loads people → workshop, never the plant; demo_records is declared', () => {
+test('the loader removes exactly what it made, in an order the foreign keys allow, and the trail under the recorded maintenance switch; only a demo organisation, never the real one; the reset loads people, then the workshop; demo_records is declared', () => {
   const src = read('apps/portal/lib/workshop/demo/load.ts');
   assert.match(src, /prisma\.demoRecord\.findMany\(\{ where: \{ organisationId \}/);
   assert.match(src, /SET LOCAL ejo\.audit_maintenance = 'on'/);
   assert.ok(src.indexOf("'Invoice'") < src.indexOf("'JobCard'") && src.indexOf("'EstimateApprovalLink'") < src.indexOf("'Estimate'") && src.indexOf("'Payment'") < src.indexOf("'JobCard'") && src.indexOf("'JobCard'") < src.indexOf("'Customer'") && src.indexOf("'CustomerVehicle'") < src.indexOf("'Customer',"));
   assert.match(src, /if \(!org\.isDemo\) throw/);
   assert.match(src, /if \(org\.slug === REAL_ORG_SLUG\) throw/);
-  assert.ok(!/plant/i.test(src.replace(/\/\*\*[\s\S]*?\*\//g, '')), 'the workshop loader touches nothing of the plant');
   const reset = read('apps/portal/scripts/demo-reset.ts');
   assert.ok(reset.indexOf('loadDemoPeople(') < reset.indexOf('loadWorkshopDemo('));
-  assert.ok(!reset.includes('loadPlantDemo') && !read('apps/portal/scripts/demo-ensure.ts').includes('loadPlantDemo') && !read('apps/portal/lib/actions/demo-console.ts').includes('loadPlantDemo'), 'the plant demo is never loaded');
-  assert.match(read('apps/portal/lib/plant/demo/load.ts'), /if \(!moduleIsOn\('plant'\)\) throw/);
   assert.match(read('apps/portal/lib/governance/data-inventory.ts'), /DemoRecord: \{ tenancy: 'ORGANISATION'/);
-  assert.match(read('scripts/predeploy/0018-demo-records.sql'), /CREATE TABLE IF NOT EXISTS "demo_records"/);
+  assert.match(read('packages/database/prisma/schema.prisma'), /model DemoRecord \{[\s\S]*?@@map\("demo_records"\)/);
 });

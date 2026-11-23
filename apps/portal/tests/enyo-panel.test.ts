@@ -84,26 +84,32 @@ test('greeting: time of day in Lagos, correct plurals', () => {
 });
 
 test('starter questions suit the role, at most four, always "What\'s waiting for me?"', () => {
-  for (const role of ['Administrator', 'Technician', 'Finance Officer', 'Store Manager', 'Security Officer', '']) {
+  for (const role of ['Owner', 'Front Desk', 'Workshop Supervisor', 'Technician', 'Store Keeper', 'Accounts', 'Security', '']) {
     const s = starterPrompts(role);
     assert.ok(s.length >= 2 && s.length <= 4, role);
     assert.equal(s[0], "What's waiting for me?");
     assert.equal(new Set(s).size, s.length);
   }
-  assert.ok(starterPrompts('Finance Officer').includes("Today's takings"));
+  assert.ok(starterPrompts('Accounts').includes("Today's takings"));
+  assert.ok(starterPrompts('Owner').includes('How is this month going compared with last month?'));
+  assert.ok(starterPrompts('Security').includes('Which vehicles are cleared to leave?'));
   // The Store's starter question only while Inventory is on (lib/modules.ts).
-  assert.equal(starterPrompts('Store Manager').includes('Which parts are out of stock or below their reorder point?'), moduleIsOn('inventory'));
+  assert.equal(starterPrompts('Store Keeper').includes('Which parts are out of stock or below their reorder level?'), moduleIsOn('inventory'));
   assert.ok(starterPrompts('Workshop Supervisor').includes('How do I open a Job Card?'));
-  for (const role of ['Administrator', 'Store Manager', 'Technician']) assert.ok(!starterPrompts(role).some((q) => /oil filter/i.test(q)), role);
+  assert.ok(starterPrompts('Front Desk').includes('How do I open a Job Card?'));
+  for (const role of ['Owner', 'Store Keeper', 'Technician']) assert.ok(!starterPrompts(role).some((q) => /oil filter/i.test(q)), role);
 });
 
 test('starter questions follow the page: a Job Card page asks about this Job Card', () => {
   const s = starterPrompts('Technician', '/workshop/job-cards/abc123');
   assert.equal(s[0], "What's waiting for me?");
   assert.equal(s[1], 'Summarise this Job Card and what happens next');
-  assert.ok(starterPrompts('Clerk', '/mail?m=1').includes('Anything important in my email?'));
-  assert.ok(starterPrompts('Administrator', '/dashboard').includes('How is this month going compared with last month?'));
-  for (const page of ['/workshop/job-cards/x', '/inventory', '/reminders', '/settings/enyo', '/whatever']) assert.equal(new Set(starterPrompts('Store Manager', page)).size, starterPrompts('Store Manager', page).length);
+  assert.ok(starterPrompts('Front Desk', '/crm/customers/c1').includes('Summarise this customer: vehicles, jobs and what they owe'));
+  assert.ok(starterPrompts('Security', '/security').includes('How do I let a vehicle out through the gate?'));
+  assert.ok(starterPrompts('Owner', '/dashboard').includes('How is this month going compared with last month?'));
+  for (const page of ['/workshop/job-cards/x', '/inventory', '/reminders', '/settings/enyo', '/whatever']) assert.equal(new Set(starterPrompts('Store Keeper', page)).size, starterPrompts('Store Keeper', page).length);
+  // Nothing for a removed module.
+  for (const page of ['/mail', '/warranty', '/plant', '/schedule']) for (const q of starterPrompts('Owner', page)) assert.doesNotMatch(q, /email|warrant|plant|meeting|appointment/i, `${page}: ${q}`);
 });
 
 // ------------------------------------------------------------ static guarantees
@@ -139,17 +145,18 @@ test('microphone allowed for this site only; camera and location still off', () 
 
 test('every Refine button points at a field with that id in the same file', () => {
   const files = [
-    'app/(app)/workshop/job-cards/[id]/page.tsx', 'app/(app)/workshop/vehicle-service/[id]/page.tsx', 'app/(app)/crm/customers/[id]/page.tsx',
-    'app/(app)/security/incidents/new/page.tsx', 'app/(app)/security/incidents/[id]/page.tsx', 'app/(app)/warranty/claims/[id]/page.tsx', 'app/(app)/warranty/[id]/page.tsx',
-    'components/BroadcastForm.tsx', 'components/JobCardStatusForm.tsx', 'components/ComplaintListInput.tsx', 'components/ServiceComplaintListInput.tsx',
+    'app/(app)/workshop/job-cards/[id]/page.tsx', 'app/(app)/crm/customers/[id]/page.tsx', 'app/(app)/workshop/parts-requests/[id]/page.tsx', 'app/(app)/workshop/custody/page.tsx',
+    'app/(app)/inventory/parts/[id]/edit/page.tsx', 'app/(app)/inventory/goods-receipts/[id]/page.tsx', 'app/(app)/integrity/[id]/page.tsx', 'app/(app)/branches/[id]/page.tsx',
+    'components/BroadcastForm.tsx', 'components/JobCardStatusForm.tsx', 'components/ComplaintListInput.tsx', 'components/InspectionWorkspace.tsx', 'components/GoodsReceiptForm.tsx',
+    'components/RecycleBinPanel.tsx', 'components/reminders/ReminderForm.tsx', 'components/support/SupportReplyForm.tsx', 'components/support/SupportNoteForm.tsx',
   ];
   let total = 0;
   for (const f of files) {
     const src = read(f);
-    const targets = [...src.matchAll(/<RefineTextButton targetId=(?:"([^"]+)"|\{`([^`]+)`\})/g)].map((m) => m[1] ?? m[2]!);
+    const targets = [...src.matchAll(/<RefineTextButton targetId=(?:"([^"]+)"|\{`([^`]+)`\})/g)].map((m) => ({ id: m[1] ?? m[2]!, template: !m[1] }));
     assert.ok(targets.length > 0, `${f} has a Refine button`);
-    for (const t of targets) {
-      const id = t.startsWith('complaint-') || t.startsWith('service-complaint-') ? `id={\`${t}\`}` : `id="${t}"`;
+    for (const { id: t, template } of targets) {
+      const id = template ? `id={\`${t}\`}` : `id="${t}"`;
       assert.ok(src.includes(id), `${f}: no field with ${id}`);
       total += 1;
     }
@@ -160,7 +167,7 @@ test('every Refine button points at a field with that id in the same file', () =
 test('the panel is mounted in the signed-in layout and the settings page is guarded by enyo.manage', () => {
   assert.match(read('app/(app)/layout.tsx'), /<EnyoPanel[\s\S]*canManage=\{decide\(principal, 'enyo\.manage'\)\.allowed\}/);
   assert.match(read('app/(app)/settings/enyo/page.tsx'), /guardPage\('enyo\.manage', '\/settings\/enyo'\)/);
-  assert.match(read('app/(app)/profile/enyo/page.tsx'), /currentAssist\(\)/);
+  assert.match(read('app/(app)/profile/enyo/page.tsx'), /await getPrincipal\(\)/, 'signed in: a person sees only their own memory');
 });
 
 test('answers with a table render as a table; a half-streamed table stays text until its separator arrives', () => {

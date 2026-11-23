@@ -5,7 +5,7 @@ import { logFailure } from '@/lib/log';
 import { countOpenIntegrityAlerts } from './integrity';
 import { prisma } from '@ejo/database';
 import { jobCardActive } from '@/lib/custody';
-import { allows, getPrincipal, myOrganisationId, reachWhere } from '@/lib/authz/server';
+import { allows, getPrincipal, myOrganisationId, reachWhere, jobCardReach } from '@/lib/authz/server';
 import { STORE_COST_PERMISSIONS } from '@/lib/authz/catalogue';
 import { reaches } from '@/lib/notification-rules';
 import { getWorkflowActionItems } from './workflow-actions';
@@ -244,8 +244,8 @@ export async function getDashboardTrend(): Promise<DashboardTrendPoint[]> {
   // Same reach as the lists (a branch-scoped person sees their branch).
   // Amounts only for people allowed to see business figures; they are never
   // sent to anyone else's browser.
-  const [reach, money] = await Promise.all([reachWhere('workshop.job_card.view'), allows('analytics.business.view')]);
-  const viaJob = reach.branchId ? { jobCard: reach } : {};
+  const [reach, money] = await Promise.all([jobCardReach(), allows('analytics.business.view')]);
+  const viaJob = { jobCard: reach };
   const none = Promise.resolve([] as { recordedAt: Date; amount: unknown }[]);
   const [jobCards, payments, refunds] = await Promise.all([
     prisma.jobCard.findMany({ where: { ...reach, createdAt: { gte: start } }, select: { createdAt: true } }),
@@ -294,7 +294,7 @@ export async function getPlatformGlance(): Promise<GlanceTile[]> {
   const n = (p: Promise<number>) => p.catch(() => 0);
   // Each tile counts what its list would show this person (same reach rules).
   const [work, store, me] = await Promise.all([
-    reachWhere('workshop.job_card.view'),
+    jobCardReach(),
     reachWhere('store.view'),
     requireUser().then((u) => prisma.user.findUnique({ where: { id: u.id }, select: { id: true, organisationId: true, branchId: true, departmentId: true, roles: { select: { role: { select: { slug: true } } } } } })),
   ]);

@@ -122,6 +122,8 @@ export async function setOptionalRole(slug: string, on: boolean): Promise<{ labe
   if (!p.organisationId) throw new Error('Your account is not placed in an organisation yet.');
   const label = ROLE_LABELS[slug] ?? slug;
   const changed = await prisma.$transaction(async (tx) => {
+    // Row lock: two administrators switching roles at once never lose one another's change.
+    await tx.$queryRaw`SELECT id FROM "organisations" WHERE id = ${p.organisationId!} FOR UPDATE`;
     const org = await tx.organisation.findUnique({ where: { id: p.organisationId! }, select: { optionalRoles: true } });
     const current = new Set(org?.optionalRoles ?? []);
     if (current.has(slug) === on) return false;

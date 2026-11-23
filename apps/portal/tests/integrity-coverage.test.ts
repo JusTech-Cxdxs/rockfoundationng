@@ -6,7 +6,7 @@
  *     where, checked with claimed()), so two people acting at once can't both
  *     win and a stale screen can't overwrite a newer decision.
  *  2. Totals that are checked and then added to (money against an estimate,
- *     stock against what is on hand, a room's calendar) are re-checked under
+ *     stock against what is on hand) are re-checked under
  *     a row lock.
  *  3. One-per-record requests are created under the parent's lock.
  *
@@ -71,8 +71,6 @@ const ALLOWED_PLAIN_STATUS_WRITES: Record<string, string> = {
   'lib/actions/vehicle-inspection.ts:vehicleInspection.update': 'inspection completion is idempotent',
   // Creating the estimate row (upsert's create branch) — no prior state to race.
   'lib/actions/workshop.ts:estimate.upsert': 'creates the DRAFT estimate',
-  // One-off repair of legacy rows, guarded by its own where (status not ESCALATED).
-  'lib/vehicle-service-cycle.ts:vehicleService.update': 'legacy normalisation',
   // Creates a PENDING learned answer; the update branch never touches status.
   'lib/enyo/learned.ts:enyoLearnedAnswer.upsert': 'creates the PENDING candidate',
   // A support mailbox's reading status (ACTIVE / ERROR / PAUSED) is configuration, not a workflow:
@@ -132,11 +130,10 @@ const read = (f: string) => readFileSync(join(LIB, 'actions', f), 'utf8');
 
 test('money: payments and refunds are decided again under the record lock', () => {
   assert.match(body('recordPayment', read('workshop.ts')), /lockExisting\(tx, 'jobCard'/);
-  assert.match(body('recordServicePayment', read('vehicle-service-payment.ts')), /lockExisting\(tx, 'vehicleService'/);
   const refund = body('recordRefund', read('refunds.ts'));
   assert.match(refund, /lockExisting\(tx,/);
   assert.match(refund, /retryOnNumberClash\('referenceNumber'/);
-  for (const [f, fn] of [['workshop.ts', 'recordPayment'], ['vehicle-service-payment.ts', 'recordServicePayment'], ['refunds.ts', 'recordRefund']] as const) {
+  for (const [f, fn] of [['workshop.ts', 'recordPayment'], ['refunds.ts', 'recordRefund']] as const) {
     assert.match(body(fn, read(f)), /exceedsBalance|toMinor/, `${fn} must compare money in whole kobo`);
   }
 });
@@ -164,28 +161,18 @@ test('one-per-record requests are created under the parent lock', () => {
   const checks: [string, string, RegExp][] = [
     ['workshop.ts', 'requestJobCardCancellation', /lockExisting\(tx, 'jobCard'/],
     ['workshop.ts', 'requestJobCardClose', /lockExisting\(tx, 'jobCard'/],
-    ['vehicle-service.ts', 'requestVehicleServiceCancellation', /lockExisting\(tx, 'vehicleService'/],
-    ['vehicle-service.ts', 'requestVehicleServiceClose', /lockExisting\(tx, 'vehicleService'/],
     ['sourcing.ts', 'requestPartRequestSlip', /lockExisting\(tx, 'jobCard'/],
-    ['sourcing.ts', 'requestServiceEstimatePartRequestSlip', /lockExisting\(tx, 'vehicleService'/],
-    ['sourcing.ts', 'requestExternalProcurementBatch', /lockExisting\(tx, 'jobCard'/],
   ];
   for (const [f, fn, re] of checks) assert.match(body(fn, read(f)), re, `${fn} must create under the parent lock`);
 });
 
-test('bookings: a room and a host can never be double-booked by two people at once', () => {
-  const src = read('scheduling.ts');
-  assert.match(body('createAppointment', src), /bookExclusively\(/);
-  assert.match(body('updateAppointment', src), /bookExclusively\(/);
-  assert.match(src, /lockRows\(tx, 'meetingRoom'[\s\S]{0,200}lockRows\(tx, 'user'/, 'always room first, then host — one lock order');
-});
-
-test('administration: the last Administrator / Master Administrator is counted under a lock', () => {
+test('administration: the last Platform Administrator and the last active Owner are counted under a lock', () => {
   const remove = body('removeRole', read('users-admin.ts'));
   assert.match(remove, /lockRows\(tx, 'role'/);
-  assert.match(remove, /last Master Administrator/);
-  assert.match(remove, /last active Administrator/);
-  assert.match(remove, /userId: \{ not: userId \}/, 'count the OTHER active administrators');
+  assert.match(remove, /last Platform Administrator/);
+  assert.match(remove, /last active Owner/);
+  assert.match(remove, /role\.slug === 'owner'/);
+  assert.match(remove, /userId: \{ not: userId \}/, 'count the OTHER active Owners');
 });
 
 test('inside a transaction, only the transaction client is used (no second connection)', () => {
@@ -222,41 +209,19 @@ test('every compare-and-set actually compares something besides the id', () => {
   assert.deepEqual(weak, [], `Compare-and-set without an expected state:\n${weak.join('\n')}`);
 });
 
-test('escalation can never open two Job Cards, nor a Job Card without its link', () => {
-  const esc = body('escalateVehicleServiceToJobCard', read('vehicle-service.ts'));
-  assert.match(esc, /'CANCELLED', 'ESCALATED'\]\.includes\(service\.status\)/, 'an escalated service is refused up front');
-  assert.match(esc, /escalatedToJobCardId: null,\s*OR: \[\{ escalatedAt: null \}/, 'claimed on escalatedAt before the Job Card is opened');
-  assert.ok(esc.indexOf('escalatedAt: claimedAt }') < esc.indexOf('await createJobCard('), 'claim first');
-  const create = body('createJobCard', read('workshop.ts'));
-  assert.match(create, /escalatedFromVehicleService: \{ connect: \{ id: escalatedServiceId \} \}/, 'Job Card created already linked');
-});
-
 test('close and cancellation approvals lock the parent first (no deadlock between them)', () => {
   for (const fn of ['approveCancellationRequest', 'approveCloseRequest']) {
     const b = body(fn, read('workshop.ts'));
     assert.ok(b.indexOf("lockExisting(tx, 'jobCard'") > -1 && b.indexOf("lockExisting(tx, 'jobCard'") < b.indexOf('claimed('), fn);
   }
-  for (const fn of ['approveVehicleServiceCancellationRequest', 'approveVehicleServiceCloseRequest']) {
-    const b = body(fn, read('vehicle-service.ts'));
-    assert.ok(b.indexOf("lockExisting(tx, 'vehicleService'") > -1 && b.indexOf("lockExisting(tx, 'vehicleService'") < b.indexOf('claimed('), fn);
-  }
 });
 
 test('estimates are submitted as one locked step (read, reprice, check, submit)', () => {
   assert.match(body('submitEstimateForValidation', read('workshop.ts')), /withEstimateUnchanged\(estimate\.id, 'DRAFT', async \(tx\) => \{\s*const lines = await tx\.estimateLineItem\.findMany/);
-  assert.match(body('submitServiceEstimate', read('vehicle-service-estimate.ts')), /withServiceEstimateUnchanged\(estimateId, 'DRAFT', async \(tx\) => \{\s*const lines = await tx\.serviceEstimateLineItem\.findMany/);
 });
 
 test('a resent payment or refund form is recognised under the lock, not refused as "over the balance"', () => {
   assert.match(body('recordPayment', read('workshop.ts')), /lockExisting\(tx, 'jobCard'[\s\S]{0,300}tx\.payment\.findUnique\(\{ where: \{ idempotencyKey \}/);
-  assert.match(body('recordServicePayment', read('vehicle-service-payment.ts')), /lockExisting\(tx, 'vehicleService'[\s\S]{0,300}tx\.payment\.findUnique\(\{ where: \{ idempotencyKey \}/);
   assert.match(body('recordRefund', read('refunds.ts')), /lockExisting\([\s\S]{0,400}tx\.refund\.findUnique\(\{ where: \{ idempotencyKey/);
 });
 
-test('a service being escalated is read-only until its Job Card is open', () => {
-  const cycle = readFileSync(join(LIB, 'vehicle-service-cycle.ts'), 'utf8');
-  assert.match(cycle, /if \(svc && escalationInFlight\(svc\)\)/, 'assertServiceNotEscalated refuses an in-flight escalation');
-  assert.match(body('approveVehicleServiceCancellationRequest', read('vehicle-service.ts')), /escalatedAt: \{ lt: new Date\(Date\.now\(\) - ESCALATION_CLAIM_MS\) \}/);
-  const esc = body('escalateVehicleServiceToJobCard', read('vehicle-service.ts'));
-  assert.ok(esc.indexOf('const [estimateNow, paymentsNow]') > esc.indexOf('data: { escalatedAt: claimedAt }'), 're-checked after the claim');
-});

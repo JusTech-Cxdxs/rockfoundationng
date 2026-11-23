@@ -3,7 +3,7 @@
  * file, access on, never invited from the import, never signed in, no portal
  * account), once each (compare-and-set), with the same welcome and one-time
  * link as a customer registered at the front desk; for the people who manage
- * customers; never during assist; audited; one additive column.
+ * customers; audited; one additive column.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +16,6 @@ test('wired in: who is invited, once, by whom, with what', () => {
   const a = read('lib/actions/data-exchange.ts');
   assert.match(a, /const portalWaiting = \(jobId: string, organisationId: string\): Prisma\.CustomerWhereInput => \(\{ importJobId: jobId, organisationId, isActive: true, email: \{ not: null \}, portalInvitedAt: null, lastLoginAt: null, accounts: \{ none: \{\} \} \}\)/);
   const fn = a.slice(a.indexOf('export async function sendCustomerPortalInvitations'), a.indexOf('/** Where a record brought in by an import came from'));
-  assert.match(fn, /refuseDuringAssist\('sendCustomerPortalInvitations'\)/);
   assert.match(fn, /authorize\('crm\.manage', undefined, 'sendCustomerPortalInvitations'/);
   assert.match(fn, /const job = await myImportJob\(jobId\)/, 'the import found inside the person’s organisation');
   assert.match(fn, /job\.entity !== 'customers'/);
@@ -31,12 +30,6 @@ test('wired in: who is invited, once, by whom, with what', () => {
   assert.match(view, /job\.me\.canInvitePortal/);
 });
 
-test('the column: additive, re-runnable, skipped on a brand-new database', () => {
-  for (const f of ['scripts/predeploy/0027-customer-portal-invited.sql', 'scripts/v-b-customer-portal-invited.sql']) {
-    const sql = read(`../../${f}`);
-    assert.match(sql, /ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "portalInvitedAt" TIMESTAMP\(3\);/);
-    assert.match(sql, /IF to_regclass\('public\.customers'\) IS NULL THEN/);
-    assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /\b(DROP|DELETE|TRUNCATE|UPDATE|RENAME)\b/i, 'additive only');
-  }
+test('the column: an optional date on the customer, so an invitation goes out once', () => {
   assert.match(read('../../packages/database/prisma/schema.prisma'), /portalInvitedAt DateTime\?/);
 });

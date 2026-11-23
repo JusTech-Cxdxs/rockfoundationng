@@ -71,7 +71,7 @@ async function lookups(db: Db, job: OpenJobsJob, checked: { c: ReturnType<typeof
     job.branchId ? db.jobCard.findMany({ where: { branchId: job.branchId, externalSource: src(job.sourceSystem), externalId: { in: vals.map((v) => v.jobNumber) } }, select: { id: true, externalId: true, jobNumber: true } }) : [],
     staffKeys.length ? db.user.findMany({ where: { organisationId: job.organisationId, AND: [{ OR: [{ isActive: true }, STAFF_AWAITING_INVITATION] }, { OR: [{ employeeId: { in: staffKeys } }, { fullName: { in: staffKeys, mode: 'insensitive' } }] }] }, select: { id: true, employeeId: true, fullName: true } }) : [],
     partNumbers.length && job.branchId ? db.part.findMany({ where: { branchId: job.branchId, partNumber: { in: partNumbers, mode: 'insensitive' } }, select: { id: true, partNumber: true, name: true } }) : [],
-    job.branchId ? db.department.findMany({ where: { branchId: job.branchId, slug: { in: ['workshop-passenger', 'workshop-commercial'] } }, select: { id: true, slug: true } }) : [],
+    job.branchId ? db.department.findMany({ where: { branchId: job.branchId, slug: { in: ['mechanical', 'workshop'] } }, select: { id: true, slug: true } }) : [],
     job.branchId ? db.branch.findUnique({ where: { id: job.branchId }, select: { name: true, code: true } }) : null,
   ]);
   const byVin = new Map(vehicles.map((v) => [String(v.chassisNumber).toUpperCase(), { id: v.id, customerId: v.customerId, vehicleType: v.vehicleType }]));
@@ -218,7 +218,8 @@ export async function loadOpenJobRows(tx: Tx, job: OpenJobsJob, mapping: Mapping
   for (const [i, { r, v, res }] of todo.entries()) {
     const vehicle = res.vehicle!;
     const openedAt = dayDate(v.openedAt);
-    const departmentId = L.departments.get(vehicle.vehicleType === 'PASSENGER' ? 'workshop-passenger' : 'workshop-commercial') ?? L.departments.get('workshop-commercial') ?? null;
+    // Brought-in jobs are filed as mechanical work (lib/workshop/routing.ts), else under the Workshop.
+    const departmentId = L.departments.get('mechanical') ?? L.departments.get('workshop') ?? null;
     const id = newId();
     const approved = v.estimateApproved && v.estimateTotal !== null;
     const noteLines = [`Brought into EJO from the old system (job card ${v.jobNumber}) by import ${job.number}.`, ...(v.notes ? [v.notes] : [])];

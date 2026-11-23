@@ -1,5 +1,5 @@
 /**
- * D'Phoenix phase 4 on the customer website: the deposit follows the one
+ * The customer website: the deposit follows the one
  * rule (off by default, never for an organisation), the customer's words
  * no longer say "paying the deposit approves the work", and the secure
  * approval link is never kept in the visit counts.

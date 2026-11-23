@@ -22,25 +22,28 @@ test('ticket fence: always the organisation; branch staff see their branch and t
   assert.deepEqual(ticketReachWhere({}, null), {}, 'the platform team (no organisation, every branch)');
 });
 
-test('who may handle tickets: front desk, workshop manager and administrators — not the workshop floor', () => {
-  for (const role of ['receptionist', 'workshop-manager', 'administrator', 'branch-administrator']) assert.equal(decide(who([role]), 'support.tickets.manage').allowed, true, role);
-  for (const role of ['technician', 'workshop-supervisor', 'finance-officer', 'security-officer', 'store-officer', 'branch-assistant']) assert.equal(decide(who([role]), 'support.tickets.manage').allowed, false, role);
+test('who may handle tickets: front desk and the Owner, not the workshop floor', () => {
+  for (const role of ['front-desk', 'owner']) assert.equal(decide(who([role]), 'support.tickets.manage').allowed, true, role);
+  for (const role of ['technician', 'workshop-supervisor', 'accounts', 'security', 'store-keeper']) assert.equal(decide(who([role]), 'support.tickets.manage').allowed, false, role);
   // Branch-scoped: another branch's ticket is out of reach.
-  assert.equal(decide(who(['receptionist']), 'support.tickets.manage', { branchId: 'b2' }).allowed, false);
-  assert.equal(decide(who(['administrator']), 'support.tickets.manage', { branchId: 'b2' }).allowed, true);
+  assert.equal(decide(who(['front-desk']), 'support.tickets.manage', { branchId: 'b2' }).allowed, false);
+  assert.equal(decide(who(['owner']), 'support.tickets.manage', { branchId: 'b2' }).allowed, true);
   // Another organisation's branch never.
-  assert.equal(decide(who(['administrator']), 'support.tickets.manage', { branchId: 'other-org-branch' }).allowed, false);
+  assert.equal(decide(who(['owner']), 'support.tickets.manage', { branchId: 'other-org-branch' }).allowed, false);
+  // Setting up the Support centre: the Owner only.
+  assert.equal(decide(who(['front-desk']), 'support.manage').allowed, false);
+  assert.equal(decide(who(['owner']), 'support.manage').allowed, true);
 });
 
 test('the menu: "Support centre" right under Customers, for people who handle tickets only', () => {
   const keys = (roles: string[]) => navigationFor(who(roles)).map((i) => i.key);
-  for (const role of ['receptionist', 'workshop-manager', 'administrator']) {
+  for (const role of ['front-desk', 'owner']) {
     const k = keys([role]);
     assert.ok(k.includes('support-inbox'), role);
     assert.equal(k.indexOf('support-inbox'), k.indexOf('crm') + 1, `${role}: under Customers`);
   }
-  for (const role of ['technician', 'workshop-supervisor', 'finance-officer']) assert.ok(!keys([role]).includes('support-inbox'), role);
-  assert.equal(navigationFor(who(['receptionist'])).find((i) => i.key === 'support-inbox')?.href, '/crm/support');
+  for (const role of ['technician', 'workshop-supervisor', 'accounts']) assert.ok(!keys([role]).includes('support-inbox'), role);
+  assert.equal(navigationFor(who(['front-desk'])).find((i) => i.key === 'support-inbox')?.href, '/crm/support');
 });
 
 test('inbox tabs', () => {

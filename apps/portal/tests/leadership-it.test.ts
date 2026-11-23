@@ -11,9 +11,9 @@ const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 const who = (roleSlugs: string[], extra: Partial<Principal> = {}): Principal => ({ userId: 'me', isSuperAdmin: false, roleSlugs, branchId: 'a', departmentId: null, ...extra });
 const h = (n: number) => new Date(Date.UTC(2026, 9, 1) + n * 3_600_000);
 
-test('the branch lens: headquarters roles get it; branch staff keep their own branch', () => {
-  for (const r of ['executive', 'administrator', 'it-administrator']) assert.equal(hasBranchLens(who([r])), true, r);
-  for (const r of ['technician', 'workshop-manager', 'finance-officer', 'receptionist', 'branch-administrator']) assert.equal(hasBranchLens(who([r])), false, r);
+test('the branch lens: the Owner (organisation-wide) gets it; branch staff keep their own branch', () => {
+  assert.equal(hasBranchLens(who(['owner'])), true, 'owner');
+  for (const r of ['technician', 'workshop-supervisor', 'accounts', 'front-desk', 'store-keeper', 'security']) assert.equal(hasBranchLens(who([r])), false, r);
   assert.equal(hasBranchLens(who([], { isSuperAdmin: true })), true);
 });
 
@@ -21,9 +21,8 @@ test('the lens narrows, never widens, and is never a permission', () => {
   const server = read('lib/authz/server.ts');
   // Only for organisation-wide scope, and only a branch of the person's own organisation.
   assert.match(server, /if \(d\.scope === 'ALL' && p\.lensBranchId && opts\.lens !== false\) return \{ branchId: p\.lensBranchId \};/);
-  // Only an active branch, never while working for a colleague.
+  // Only an active branch.
   assert.match(server, /where: \{ id: lens, isActive: true \}/);
-  assert.match(server, /signedInContext\(\)\.then\(\(c\) => Boolean\(c\?\.assist\)\)/);
   // One record, a write, or a person's own work: never hidden by the lens.
   const support = read('lib/actions/support.ts');
   for (const fn of ['getSupportTicket', 'replyToSupportTicket', 'assignSupportTicket', 'moveSupportTicket', 'setSupportTicketStatus']) {
@@ -40,11 +39,11 @@ test('the lens narrows, never widens, and is never a permission', () => {
   // Logs follow the lens by who acted; a quoted error reference is always found.
   assert.match(read('lib/actions/audit-logs.ts'), /f\.userId \? \{ userId: f\.userId \} : await lensPeopleWhere\(\)/);
   assert.match(read('lib/actions/error-log.ts'), /ref \? \{ ref \} : await lensPeopleWhere\(\)/);
-  assert.match(read('app/(app)/layout.tsx'), /assist \? null : await getBranchLensOptions\(\)/);
+  assert.match(read('app/(app)/layout.tsx'), /await getBranchLensOptions\(\)/);
 });
 
 test('team performance: counts, speed against the standard, rework, rating', () => {
-  const people = [{ id: 't1', name: 'Tunde', roles: 'Technician', branch: 'Ikeja' }, { id: 't2', name: 'Ada', roles: 'Technician', branch: 'Ikeja' }, { id: 'm', name: 'Musa', roles: 'Workshop Manager', branch: 'Ikeja' }, { id: 'q', name: 'Quiet', roles: 'Store Officer', branch: 'Ikeja' }];
+  const people = [{ id: 't1', name: 'Technician 1', roles: 'Technician', branch: 'Ota' }, { id: 't2', name: 'Technician 2', roles: 'Technician', branch: 'Ota' }, { id: 'm', name: 'Owner', roles: 'Owner / GMD', branch: 'Ota' }, { id: 'q', name: 'Store Keeper', roles: 'Store Keeper', branch: 'Ota' }];
   const items: Handled[] = [
     ...[10, 20, 30, 40, 50].map((x) => ({ userId: 't1', kind: 'job' as const, from: h(0), to: h(x), value: 1000 })),
     ...[100, 120, 10].map((x, i) => ({ userId: 't2', kind: 'job' as const, from: h(0), to: h(x), rework: i < 2 })),
@@ -68,15 +67,8 @@ test('team performance: counts, speed against the standard, rework, rating', () 
   assert.equal(rows[0]!.userId, 't1', 'most work first');
 });
 
-test('Headquarters tabs, IT control room and Enyo briefings are wired, guarded and in the menu', () => {
-  assert.ok(navigationFor(who(['it-administrator'])).some((i) => i.key === 'it'));
-  assert.ok(navigationFor(who(['administrator'])).some((i) => i.key === 'it'));
-  assert.ok(!navigationFor(who(['executive'])).some((i) => i.key === 'it'), 'directors: no audit trail');
-  assert.ok(!navigationFor(who(['technician'])).some((i) => i.key === 'it'));
-  assert.match(read('app/(app)/it/page.tsx'), /guardPage\('audit\.view', '\/it'\)/);
-  assert.match(read('lib/actions/it.ts'), /await authorize\('audit\.view'/);
-  assert.match(read('app/(app)/headquarters/team/page.tsx'), /guardOrganisationWide\('analytics\.business\.view'/);
-  assert.match(read('lib/actions/team.ts'), /await authorize\('analytics\.business\.view'/);
+test('Enyo’s briefings are guarded: the business figures for the Owner, the error log for those who read the audit trail; no IT or Headquarters pages', () => {
+  for (const r of ['owner', 'front-desk', 'technician']) for (const k of ['it', 'headquarters']) assert.ok(!navigationFor(who([r])).some((i) => i.key === k), `${r}: no ${k}`);
   const tools = read('lib/enyo/tools/leadership.ts');
   assert.match(tools, /name: 'branch_briefing'/);
   assert.match(tools, /if \(!\(await allows\('analytics\.business\.view'\)\)\) return refused/);
@@ -84,15 +76,14 @@ test('Headquarters tabs, IT control room and Enyo briefings are wired, guarded a
   assert.match(tools, /if \(!\(await allows\('audit\.view'\)\)\) return refused/);
   assert.match(tools, /where: \{ \.\.\.fence, ref \}/, 'an error is looked up inside the organisation only');
   assert.match(read('lib/enyo/tools/index.ts'), /\.\.\.leadershipTools/);
-  // Briefing buttons ask straight away and read the answer aloud.
   assert.match(read('components/enyo/EnyoPanel.tsx'), /prefsRef\.current\.speak \|\| opts\.speak/);
-  assert.match(read('app/(app)/headquarters/page.tsx'), /<AskEnyoButton variant="solid" send speak/);
   assert.match(read('app/(app)/audit-logs/errors/page.tsx'), /Explain with Enyo/);
 });
 
 test('sign-in pages tell staff and customers what the platform does, truthfully', () => {
   const staff = read('components/AuthShell.tsx');
-  for (const t of ['Workshop', 'Headquarters & analytics', 'IT & audit', 'Enyo, the assistant', 'Nobody approves their own request']) assert.ok(staff.includes(t), t);
+  for (const t of ['Front desk & workshop', 'Customer care', 'WhatsApp first', 'Parts store', 'Money & QuickBooks', 'Gate', 'Enyo, the assistant', 'Nobody approves their own request']) assert.ok(staff.includes(t), t);
+  for (const t of ['Headquarters', 'IT & audit', 'Visitors', 'exit passes', 'Warranty', 'Scheduling']) assert.ok(!staff.includes(t), `no ${t}`);
   const cust = read('../website/components/customer/CustomerAuthShell.tsx');
   for (const t of ['Follow every step', 'Ask Enyo, any time', 'Talk to a person', 'Your visit, step by step']) assert.ok(cust.includes(t), t);
 });

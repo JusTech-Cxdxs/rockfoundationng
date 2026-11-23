@@ -28,8 +28,8 @@ async function viaExcel(rows: (string | number)[][]): Promise<string[][]> {
 // ── Zoho Books / Zoho Invoice: Contacts → Export ──────────────────────────
 const CONTACTS_CSV = [
   'Contact ID,Display Name,Company Name,First Name,Last Name,EmailID,Phone,Mobile Phone,Billing Address,Billing City,Billing State,Customer Sub Type,Payment Terms,Payment Terms Label,Created Time,Contact Type',
-  '4627000000081011,RCL Africa,RCL Africa,Babatunde,Olaniyan,fleet@rclafrica.example.com,0800 000 0301,0800 000 0311,14 Idowu Taylor Street,Victoria Island,Lagos,business,30,Net 30,2023-05-12 14:23:45,customer',
-  '4627000000081029,Tolani Bamgbose,,Tolani,Bamgbose,tolani@example.com,0800 000 0101,,7 Ajose Adeogun Street,Victoria Island,Lagos,individual,0,Due on Receipt,2024-01-08 09:10:00,customer',
+  '4627000000081011,Bolaji Haulage Services,Bolaji Haulage Services,Babatunde,Olaniyan,fleet@bolajihaulage.example.com,0800 000 0301,0800 000 0311,14 Example Industrial Road,Sango Ota,Lagos,business,30,Net 30,2023-05-12 14:23:45,customer',
+  '4627000000081029,Tolani Bamgbose,,Tolani,Bamgbose,tolani@example.com,0800 000 0101,,7 Ajose Adeogun Street,Sango Ota,Lagos,individual,0,Due on Receipt,2024-01-08 09:10:00,customer',
 ].join('\n');
 
 function checkContacts(rows: string[][]) {
@@ -51,14 +51,14 @@ function checkContacts(rows: string[][]) {
   const [company, person] = data.map((cells) => checkCustomerRow(cells, m));
   assert.notEqual(company!.status, 'REJECTED', JSON.stringify(company!.issues));
   assert.equal(company!.values?.externalId, '4627000000081011');
-  assert.equal(company!.values?.fullName, 'RCL Africa');
+  assert.equal(company!.values?.fullName, 'Bolaji Haulage Services');
   assert.equal(company!.values?.customerType, 'ORGANIZATION');
-  assert.equal(company!.values?.companyName, 'RCL Africa');
-  assert.equal(company!.values?.email, 'fleet@rclafrica.example.com');
-  assert.equal(company!.values?.address, '14 Idowu Taylor Street, Victoria Island');
+  assert.equal(company!.values?.companyName, 'Bolaji Haulage Services');
+  assert.equal(company!.values?.email, 'fleet@bolajihaulage.example.com');
+  assert.equal(company!.values?.address, '14 Example Industrial Road, Sango Ota');
   assert.equal(company!.values?.customerSince, '2023-05-12');
   assert.ok(company!.values?.tags.includes('Terms 30'), JSON.stringify(company!.values?.tags));
-  assert.ok(company!.issues.some((i) => i.field === 'paymentTerms' && /Finance or the Manager/.test(i.message)), 'credit is set in EJO, not by the file');
+  assert.ok(company!.issues.some((i) => i.field === 'paymentTerms' && /the Owner sets the terms/.test(i.message)), 'credit is set in EJO, not by the file');
   assert.equal(person!.status, 'GOOD', JSON.stringify(person!.issues));
   assert.equal(person!.values?.customerType, 'INDIVIDUAL');
   assert.equal(person!.values?.fullName, 'Tolani Bamgbose');
@@ -76,28 +76,28 @@ test('Zoho Books contacts, as an Excel workbook: the same mapping and the same c
 });
 
 test('Zoho CRM: Contacts give the person from First and Last Name with their Account; Accounts give the organisation from Account Name', () => {
-  const contacts = parseCsv('Record Id,First Name,Last Name,Account Name,Email,Phone,Mobile,Mailing Street,Mailing City,Mailing State\nzcrm_101,Morenike,Fadipe,Nairda Limited,transport@nairda.example.com,0800 000 0312,0800 000 0322,3 Akin Adesola Street,Victoria Island,Lagos');
+  const contacts = parseCsv('Record Id,First Name,Last Name,Account Name,Email,Phone,Mobile,Mailing Street,Mailing City,Mailing State\nzcrm_101,Morenike,Fadipe,Greenfield Agro Logistics,transport@greenfield.example.com,0800 000 0312,0800 000 0322,3 Akin Adesola Street,Sango Ota,Lagos');
   const cm = autoMap('customers', contacts[0]!);
   assert.deepEqual(mappingProblems('customers', cm), [], 'no name column needed: first and last name make it');
   const c = checkCustomerRow(contacts[1]!, cm);
   assert.notEqual(c.status, 'REJECTED', JSON.stringify(c.issues));
   assert.equal(c.values?.fullName, 'Morenike Fadipe');
-  assert.equal(c.values?.companyName, 'Nairda Limited');
+  assert.equal(c.values?.companyName, 'Greenfield Agro Logistics');
   assert.equal(c.values?.externalId, 'zcrm_101');
-  assert.equal(c.values?.address, '3 Akin Adesola Street, Victoria Island');
-  const accounts = parseCsv('Record Id,Account Name,Phone,Account Type,Billing Street,Billing City,Billing State\nzcrm_201,Desicon Engineering,0800 000 0303,Customer,22 Kofo Abayomi Street,Victoria Island,Lagos');
+  assert.equal(c.values?.address, '3 Akin Adesola Street, Sango Ota');
+  const accounts = parseCsv('Record Id,Account Name,Phone,Account Type,Billing Street,Billing City,Billing State\nzcrm_201,Sunrise Staff Bus Company,0800 000 0303,Customer,22 Kofo Abayomi Street,Sango Ota,Lagos');
   const am = autoMap('customers', accounts[0]!);
   assert.deepEqual(mappingProblems('customers', am), []);
   const a = checkCustomerRow(accounts[1]!, am);
-  assert.equal(a.values?.fullName, 'Desicon Engineering');
+  assert.equal(a.values?.fullName, 'Sunrise Staff Bus Company');
   assert.equal(a.values?.customerType, 'ORGANIZATION');
 });
 
 // ── Zoho Books / Zoho Invoice: Invoices → Export (one row per item) ───────
 const INVOICES_CSV = [
   'Invoice Date,Invoice ID,Invoice Number,Invoice Status,Customer ID,Customer Name,Due Date,Item Name,Quantity,Item Price,Item Total,SubTotal,Total,Balance,Currency Code',
-  '2026-09-15,46270000001234,INV-000412,Overdue,4627000000081011,RCL Africa,2026-10-15,Brake pad set front,1,55000,55000,145000,155875,155875,NGN',
-  '2026-09-15,46270000001234,INV-000412,Overdue,4627000000081011,RCL Africa,2026-10-15,Labour: brakes,1,45000,45000,145000,155875,155875,NGN',
+  '2026-09-15,46270000001234,INV-000412,Overdue,4627000000081011,Bolaji Haulage Services,2026-10-15,Brake pad set front,1,55000,55000,145000,155875,155875,NGN',
+  '2026-09-15,46270000001234,INV-000412,Overdue,4627000000081011,Bolaji Haulage Services,2026-10-15,Labour: brakes,1,45000,45000,145000,155875,155875,NGN',
   '2026-10-02,46270000001301,INV-000431,Paid,4627000000081029,Tolani Bamgbose,2026-10-02,Routine service,1,98500,98500,98500,105887.50,0,NGN',
   '2026-10-03,46270000001302,INV-000432,Void,4627000000081029,Tolani Bamgbose,2026-10-03,Routine service,1,98500,98500,98500,105887.50,0,NGN',
 ].join('\n');
@@ -124,7 +124,7 @@ function checkInvoices(rows: string[][]) {
   assert.equal(first!.values?.invoiceNumber, 'INV-000412');
   assert.equal(first!.values?.invoiceDate, '2026-09-15');
   assert.equal(first!.values?.amount, 155875);
-  assert.deepEqual(first!.values?.customer, { externalId: '4627000000081011', phone: null, name: 'RCL Africa' });
+  assert.deepEqual(first!.values?.customer, { externalId: '4627000000081011', phone: null, name: 'Bolaji Haulage Services' });
   assert.equal(first!.values?.description, 'Brake pad set front @ ₦55,000.00 (Overdue, balance ₦155,875.00, due 15.10.2026)');
   // The same invoice's other item: the same key, so the importer reports it as the same invoice and loads the first only.
   assert.deepEqual(second!.keys, first!.keys);
@@ -143,17 +143,17 @@ test('Zoho invoices, as an Excel workbook: the same', async () => {
 });
 
 test('an invoice file with the customer’s name only is accepted (the name finds them when exactly one customer has it)', () => {
-  const rows = parseCsv('Invoice Number,Invoice Date,Customer Name,Total\nINV-9,2026-08-01,Dori Construction,250000');
+  const rows = parseCsv('Invoice Number,Invoice Date,Customer Name,Total\nINV-9,2026-08-01,Adaeze Okonkwo Motors,250000');
   const m = autoMap('invoices', rows[0]!);
   assert.deepEqual(mappingProblems('invoices', m), []);
   const r = checkInvoiceRow(rows[1]!, m, TODAY);
   assert.equal(r.status, 'GOOD', JSON.stringify(r.issues));
-  assert.equal(r.values?.customer.name, 'Dori Construction');
+  assert.equal(r.values?.customer.name, 'Adaeze Okonkwo Motors');
   assert.deepEqual(mappingProblems('invoices', autoMap('invoices', ['Invoice Number', 'Invoice Date', 'Total'])), ['Choose how to find each invoice’s customer: their customer number, phone or name.']);
 });
 
 test('a Zoho People staff list: first and last name make the full name; Email ID and Work Phone recognised', () => {
-  const rows = parseCsv('Employee ID,First Name,Last Name,Email ID,Work Phone,Location,Department\nDPA-014,Adaeze,Obi,adaeze.obi@example.com,0800 000 0401,Victoria Island Workshop,Cars and SUVs');
+  const rows = parseCsv('Employee ID,First Name,Last Name,Email ID,Work Phone,Location,Department\nDPA-014,Adaeze,Obi,adaeze.obi@example.com,0800 000 0401,Sango Ota Workshop,Cars and SUVs');
   const m = autoMap('staff', rows[0]!);
   assert.deepEqual(mappingProblems('staff', m), []);
   const r = checkStaffRow(rows[1]!, m);

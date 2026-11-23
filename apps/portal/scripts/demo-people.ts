@@ -5,13 +5,13 @@
  *   npm run demo:people                     the organisation(s) marked as a demo
  *   npm run demo:people -- --org <slug>     that organisation (made, or marked, first)
  *
- * The demo lives in its own organisation, "D'Phoenix Autocare (Demo)" (slug
- * dphoenix-demo, or DEMO_ORG_SLUG), never in the real one: with no
+ * The demo lives in its own organisation, "Rock Foundation Automobile (Demo)"
+ * (slug rock-foundation-demo, or DEMO_ORG_SLUG), never in the real one: with no
  * organisation marked yet, that demo organisation is made — its own
- * Victoria Island workshop and departments — and the log says so. The real
- * organisation (dphoenix-autocare), or any organisation that already holds
+ * Ota workshop and departments — and the log says so. The real
+ * organisation (rock-foundation), or any organisation that already holds
  * its own customers or job cards, is refused. To stop: set "isDemo" to false
- * on the demo organisation (scripts/v-d1-demo-people.sql shows how) and take
+ * on the demo organisation (in the Demo console) and take
  * the password out of the environment; the next run switches the demo
  * people off.
  *

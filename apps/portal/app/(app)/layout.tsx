@@ -73,7 +73,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         userName={user?.fullName ?? 'Unknown user'}
         roleName={roleName}
         initialCollapsed={collapsed}
-        lensBar={lens && lens.branches.length ? <BranchLensBar options={lens} /> : null}
+        // The branch bar only where there is a choice: a single workshop needs no "All branches".
+        lensBar={lens && lens.branches.length > 1 ? <BranchLensBar options={lens} /> : null}
       >
         {children}
       </AppShell>

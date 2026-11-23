@@ -3,7 +3,7 @@
  * Small framework-agnostic helpers shared across apps.
  */
 
-/** Turns "Victoria Island Workshop" -> "victoria-island-workshop" for slugs / routing / doc codes. */
+/** Turns "Ota Workshop" -> "ota-workshop" for slugs / routing / doc codes. */
 export function slugify(value: string): string {
   return value
     .toLowerCase()

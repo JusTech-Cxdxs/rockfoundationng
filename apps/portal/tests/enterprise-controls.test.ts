@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Enterprise controls (Stage 1): separation of duties on parts and outside
- * purchases, the append-only audit trail, and request ids in error logs.
+ * Enterprise controls: separation of duties on parts requests, the
+ * append-only audit trail, and request ids in error logs.
  * Static checks: each rule is in the code where the step happens, so a later
  * edit that drops one fails here before it reaches a review.
  */
@@ -23,12 +23,9 @@ function body(src: string, name: string): string {
 const SOD: Array<{ fn: string; perm: string; refused: string[] }> = [
   { fn: 'approvePartRequestSlipByHod', perm: 'store.prs.approve_hod', refused: ['slip.requestedById'] },
   { fn: 'approvePartRequestSlipByStore', perm: 'store.prs.release', refused: ['slip.requestedById', 'slip.hodApprovedById'] },
-  { fn: 'sendExternalProcurementToManager', perm: 'procurement.epr.review', refused: ['request.requestedById'] },
-  { fn: 'approveExternalProcurementRequest', perm: 'procurement.epr.approve', refused: ['request.requestedById', 'request.financeReviewedById'] },
-  { fn: 'disburseExternalProcurementRequest', perm: 'procurement.epr.disburse', refused: ['request.requestedById', 'request.managerApprovedById'] },
 ];
 
-test('separation of duties: nobody approves, reviews or pays out a request they raised or already approved', () => {
+test('separation of duties: nobody approves or releases a parts request they raised or already approved', () => {
   const src = read('lib/actions/sourcing.ts');
   for (const s of SOD) {
     const b = body(src, s.fn);
@@ -45,9 +42,11 @@ test('separation of duties: nobody approves, reviews or pays out a request they 
   }
 });
 
-test('the integrity watch flags the same Finance colleague reviewing and paying out', () => {
+test('the integrity watch flags the same person asking for and deciding a parts request or a cancellation', () => {
   const scan = read('lib/integrity/scan.ts');
-  assert.match(scan, /spa:epr-review-pay:/);
+  assert.match(scan, /fingerprint: `spa:prs:\$\{s\.id\}`/);
+  assert.match(scan, /if \(c\.decidedById && c\.decidedById === c\.requestedById\)/);
+  assert.match(scan, /fingerprint: `spa:cancel:\$\{c\.id\}`/);
 });
 
 test('the audit trail is append-only in the database (postdeploy 0005)', () => {
@@ -78,12 +77,8 @@ test('error references are tied to the request id in the logs', () => {
 
 test('the person whose step it now is gets an email, end to end', () => {
   const src = read('lib/actions/sourcing.ts');
-  // Finance hears when an outside purchase is ready to pay out; the reviewer hears when the manager turns it down.
-  assert.match(body(src, 'approveExternalProcurementRequest'), /where: 'external_procurement\.approved'/);
-  assert.match(body(src, 'rejectExternalProcurementRequest'), /if \(stage === 'MANAGER_APPROVAL'\)[\s\S]*financeReviewedById/);
-  // Whoever raised a parts request or outside purchase hears every outcome; a Store rejection also tells the HOD.
+  // Whoever raised a parts request hears every outcome; a store rejection also tells the first approver.
   assert.match(src, /slip\?\.requestedById, kind === 'rejected' && slip\?\.rejectionStage === 'STORE' \? slip\.hodApprovedById/);
-  assert.match(src, /jobCard\.assignedTechnicianId, req\?\.requestedById/);
   // After the response: a slow mail server never delays approve, reject or rework.
   assert.doesNotMatch(src, /await emailColleagues\(/);
   const ws = read('lib/actions/workshop.ts');
@@ -96,7 +91,6 @@ test('the person whose step it now is gets an email, end to end', () => {
   assert.match(body(sup, 'moveSupportTicket'), /nextAssignee\(t\.organisationId, target\.id\)/);
   assert.match(body(sup, 'moveSupportTicket'), /nobody_free_alerted/);
   assert.match(sup, /where: 'support\.reassigned'/);
-  assert.match(read('lib/actions/security.ts'), /Department Head authorised/);
   assert.match(read('lib/actions/users-admin.ts'), /if \(active\) after\(\(\) => tellReactivated\(user\.id\)\)/);
   assert.match(read('lib/auth.ts'), /onPasswordReset: async/);
   assert.match(read('lib/auth.ts'), /ctx\.path === '\/change-password'[\s\S]*sendPasswordChangedNotice/);

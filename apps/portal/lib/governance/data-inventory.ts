@@ -125,7 +125,7 @@ export const DATA_INVENTORY: Record<string, DataEntry> = {
   CloseRequest: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['INTERNAL'], lifecycle: 'STATE_MACHINE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
 
   // ── Workshop: inspections ──────────────────────────────────────────
-  VehicleInspection: { tenancy: 'VIA_PARENT', owner: 'vehicleServiceId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
+  VehicleInspection: { tenancy: 'VIA_PARENT', owner: 'jobCardId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
   VehicleInspectionItem: { tenancy: 'VIA_PARENT', owner: 'inspectionId', classification: ['INTERNAL'], lifecycle: 'CASCADE', retention: FIN_RETENTION, ai: 'AUTHORISED_USER' },
 
   // ── Store & procurement ────────────────────────────────────────────

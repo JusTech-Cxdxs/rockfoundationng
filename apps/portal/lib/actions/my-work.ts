@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@ejo/database';
-import { allows, getPrincipal, myOrganisationId, reachWhere } from '@/lib/authz/server';
+import { allows, getPrincipal, myOrganisationId, reachWhere, jobCardReach } from '@/lib/authz/server';
 import { ticketReachWhere } from '@/lib/support-rules';
 import { requireUser } from './workshop';
 import { lagosYmd } from '@/lib/nigeria-calendar';
@@ -31,7 +31,7 @@ function monthStart(): Date {
  * reminders that are due. */
 export async function getMyWorkItems(): Promise<MyWorkItem[]> {
   const user = await requireUser();
-  const work = await reachWhere('workshop.job_card.view', { lens: false });
+  const work = await jobCardReach({ lens: false });
   const [jcs, reminders] = await Promise.all([
     prisma.jobCard.findMany({ where: { ...work, supervisorId: user.id, approvalStatus: 'APPROVED', assignedTechnicianId: null, status: { in: [...JC_OPEN] } }, take: 20, select: { id: true, jobNumber: true, updatedAt: true } }),
     // My own reminders that are due: delivered by the 10-minute job, or past due and not yet delivered.
@@ -79,7 +79,7 @@ async function supportItems(userId: string): Promise<MyWorkItem[]> {
 /** Open jobs where this person is the technician or the supervisor. */
 export async function getMyJobs(): Promise<MyJob[]> {
   const user = await requireUser();
-  const work = await reachWhere('workshop.job_card.view', { lens: false });
+  const work = await jobCardReach({ lens: false });
   const veh = { select: { plateNumber: true, make: true, model: true } } as const;
   const jcs = await prisma.jobCard.findMany({ where: { ...work, status: { in: [...JC_OPEN, 'COMPLETED', 'READY_FOR_COLLECTION'] }, OR: [{ assignedTechnicianId: user.id }, { supervisorId: user.id }] }, orderBy: { updatedAt: 'desc' }, take: 12, select: { id: true, jobNumber: true, status: true, supervisorId: true, updatedAt: true, vehicle: veh } });
   type V = { plateNumber: string | null; make: string | null; model: string | null } | null;
@@ -98,21 +98,21 @@ export async function getMyNumbers(): Promise<MyNumber[]> {
     on('workshop.job.work'), on('workshop.job.supervise'), on('sourcing.request'), on('workshop.job_card.create'), on('workshop.close.approve'),
     on('store.prs.release'), on('workshop.payment.record'), on('security.gate.operate'),
   ]);
-  const [work, store] = await Promise.all([reachWhere('workshop.job_card.view', { lens: false }), reachWhere('store.view', { lens: false })]);
+  const [work, jobs, store] = await Promise.all([reachWhere('workshop.job_card.view', { lens: false }), jobCardReach({ lens: false }), reachWhere('store.view', { lens: false })]);
   const n = (p: Promise<number>) => p.catch(() => 0);
   const out: MyNumber[] = [];
 
   if (canWork) {
-    const done = await prisma.jobCard.findMany({ where: { ...work, assignedTechnicianId: user.id, completedAt: { gte: since } }, take: 500, select: { workStartedAt: true, completedAt: true } });
+    const done = await prisma.jobCard.findMany({ where: { ...jobs, assignedTechnicianId: user.id, completedAt: { gte: since } }, take: 500, select: { workStartedAt: true, completedAt: true } });
     const timed = done.filter((d: { workStartedAt: Date | null; completedAt: Date | null }) => d.workStartedAt && d.completedAt && d.completedAt > d.workStartedAt);
     const hours = timed.length ? timed.reduce((s: number, d: { workStartedAt: Date | null; completedAt: Date | null }) => s + (d.completedAt!.getTime() - d.workStartedAt!.getTime()), 0) / timed.length / 3600000 : 0;
-    const open = await n(prisma.jobCard.count({ where: { ...work, assignedTechnicianId: user.id, status: { in: [...JC_OPEN] } } }));
+    const open = await n(prisma.jobCard.count({ where: { ...jobs, assignedTechnicianId: user.id, status: { in: [...JC_OPEN] } } }));
     out.push({ label: 'My jobs in progress', value: open, hint: 'Assigned to you, not yet completed', icon: 'wrench' });
     out.push({ label: 'Completed this month', value: done.length, hint: 'Jobs you finished', icon: 'check-circle', tone: 'success' });
     out.push({ label: 'Average time per job', value: Math.round(hours * 10) / 10, decimals: 1, suffix: ' h', hint: timed.length ? `From start to completed, ${timed.length === 1 ? '1 job' : `${timed.length} jobs`} this month` : 'No timed jobs yet this month', icon: 'clock' });
   }
   if (canSupervise) {
-    const sup = await n(prisma.jobCard.count({ where: { ...work, supervisorId: user.id, status: { in: [...JC_OPEN, 'COMPLETED'] } } }));
+    const sup = await n(prisma.jobCard.count({ where: { ...jobs, supervisorId: user.id, status: { in: [...JC_OPEN, 'COMPLETED'] } } }));
     out.push({ label: 'Jobs I supervise', value: sup, hint: 'Open jobs you are responsible for', icon: 'users' });
   }
   if (canSource) {
@@ -121,16 +121,16 @@ export async function getMyNumbers(): Promise<MyNumber[]> {
   }
   if (frontDesk) {
     const [ready, opened] = await Promise.all([
-      n(prisma.jobCard.count({ where: { ...work, status: 'READY_FOR_COLLECTION' } })),
-      n(prisma.jobCard.count({ where: { ...work, createdById: user.id, createdAt: { gte: since } } })),
+      n(prisma.jobCard.count({ where: { ...jobs, status: 'READY_FOR_COLLECTION' } })),
+      n(prisma.jobCard.count({ where: { ...jobs, createdById: user.id, createdAt: { gte: since } } })),
     ]);
     out.push({ label: 'Ready for collection', value: ready, hint: 'Vehicles waiting for their customers', href: '/workshop/custody', icon: 'car', tone: ready ? 'warning' : 'neutral' });
     out.push({ label: 'Opened by me this month', value: opened, hint: 'Job Cards', icon: 'clipboard' });
   }
   if (closes) {
     const [inWork, closed] = await Promise.all([
-      n(prisma.jobCard.count({ where: { ...work, status: { in: [...JC_OPEN] } } })),
-      n(prisma.jobCard.count({ where: { ...work, closedAt: { gte: since } } })),
+      n(prisma.jobCard.count({ where: { ...jobs, status: { in: [...JC_OPEN] } } })),
+      n(prisma.jobCard.count({ where: { ...jobs, closedAt: { gte: since } } })),
     ]);
     out.push({ label: 'Jobs in the workshop', value: inWork, hint: 'Job Cards being worked on', href: '/workshop/custody', icon: 'garage' });
     out.push({ label: 'Closed this month', value: closed, hint: 'Job Cards', icon: 'check-circle', tone: 'success' });
@@ -149,7 +149,7 @@ export async function getMyNumbers(): Promise<MyNumber[]> {
     out.push({ label: 'Payments I recorded this month', value: recorded, hint: 'On Job Cards', icon: 'money' });
   }
   if (gate) {
-    const waiting = await n(prisma.jobCard.count({ where: { ...work, status: 'READY_FOR_COLLECTION' } }));
+    const waiting = await n(prisma.jobCard.count({ where: { ...jobs, status: 'READY_FOR_COLLECTION' } }));
     out.push({ label: 'Vehicles ready to leave', value: waiting, hint: 'Ready for collection, not yet through the gate', href: '/security/vehicles-inside', icon: 'car' });
   }
   if (out.length === 0) {

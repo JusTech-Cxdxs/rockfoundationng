@@ -1,7 +1,7 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { prisma } from '@ejo/database';
+import { prisma, type Prisma } from '@ejo/database';
 import { requireUser } from '@/lib/actions/workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
 import { decide as catalogueDecide, effectiveRoles, hasBranchLens, scopeFor, type Decision, type PermissionKey, type Principal, type RecordContext, PERMISSIONS } from './catalogue';
@@ -275,6 +275,21 @@ export async function reachWhere(key: PermissionKey, opts: { lens?: boolean } = 
 }
 
 /**
+ * Job Card lists: the person's reach and, for someone who sees only their own
+ * work (a technician: scope ASSIGNED), only the jobs they are assigned to,
+ * supervise or opened. Every list, count, search and export of Job Cards
+ * uses this, so it never shows more than the Job Card page would open.
+ */
+export async function jobCardReach(opts: { lens?: boolean } = {}): Promise<Prisma.JobCardWhereInput> {
+  const p = await getPrincipal();
+  const base = (await reachWhere('workshop.job_card.view', opts)) as Prisma.JobCardWhereInput;
+  const scope = scopeFor(p, 'workshop.job_card.view');
+  if (scope === 'ASSIGNED') return { AND: [base, { OR: [{ assignedTechnicianId: p.userId }, { supervisorId: p.userId }, { createdById: p.userId }] }] };
+  if (scope === 'OWN') return { AND: [base, { createdById: p.userId }] };
+  return base;
+}
+
+/**
  * The branches of one kind within the person's reach (lib/branch-types.ts):
  * the plant pages see only assembly-plant branches, the workshop only
  * workshop branches. `branchIds` is what the lists filter on (empty: nothing
@@ -399,7 +414,8 @@ export const NOT_AVAILABLE = 'This record is not available — it may have been 
  */
 export async function seeJobCard(jobCardId: string, where: string, key: PermissionKey = 'workshop.job_card.view'): Promise<void> {
   const j = jobCardId ? await jobCardParent(jobCardId) : null;
-  if (!j || !(await canSeeRecord(key, { branchId: j.branchId }, where))) throw new Error(NOT_AVAILABLE);
+  // Assignment-aware: a technician sees the jobs given to them (and ones they opened), nothing else.
+  if (!j || !(await canSeeRecord(key, { branchId: j.branchId, assigneeIds: [j.supervisorId, j.assignedTechnicianId], ownerIds: [j.createdById] }, where))) throw new Error(NOT_AVAILABLE);
 }
 
 /** Records that belong to a branch directly (parts, goods receipts, slips …). */
@@ -447,5 +463,5 @@ export const branchOwnedByMyOrganisation = partsOfMyOrganisation;
  * out-of-reach id, before loading its parts (each of which checks again). */
 export async function jobCardVisible(id: string, where: string): Promise<boolean> {
   const j = id ? await jobCardParent(id) : null;
-  return Boolean(j) && canSeeRecord('workshop.job_card.view', { branchId: j!.branchId }, where);
+  return Boolean(j) && canSeeRecord('workshop.job_card.view', { branchId: j!.branchId, assigneeIds: [j!.supervisorId, j!.assignedTechnicianId], ownerIds: [j!.createdById] }, where);
 }

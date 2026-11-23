@@ -1,5 +1,6 @@
 'use server';
 import { checkIn } from '@/lib/workshop/job-types';
+import { supervisorWhere, workshopHandSlugs } from '@/lib/duty-roles';
 import { dutyRoleSlugs } from '@/lib/duty-roles';
 import { NO_CUSTOMER_EMAIL } from '@/lib/customer-email';
 import { parseSourceFilter, sourceWhere, type SOURCE_PARAMS } from '@/lib/source-filter';
@@ -9,7 +10,7 @@ import { portalBaseUrl, websiteBaseUrl } from '@/lib/portal-url';
 import { logFailure } from '@/lib/log';
 import { emailColleaguesLater } from '@/lib/workflow-notify';
 
-import { allows, authorize, authorizeOnJobCard, getPrincipal, canSeeRecord, inMyOrganisation, myOrganisationId, orgWhere, reachWhere, refuse, seeJobCard, seeVehicle, seePart, NOT_AVAILABLE } from '@/lib/authz/server';
+import { allows, authorize, authorizeOnJobCard, getPrincipal, canSeeRecord, inMyOrganisation, myOrganisationId, orgWhere, refuse, seeJobCard, seeVehicle, seePart, NOT_AVAILABLE, jobCardReach } from '@/lib/authz/server';
 import { cleanEmail, cleanName, cleanPhone, cleanPrimaryAddress, normaliseTags } from '@/lib/crm';
 import { sendCustomerAccessEmail } from '@/lib/customer-access';
 import { withdrawOpenSourcing } from '@/lib/sourcing-lifecycle';
@@ -19,7 +20,7 @@ import { jobCardActive, jobCardInside } from '@/lib/custody';
 import { bankDetailsFor } from '@/lib/workshop-core';
 import { after } from 'next/server';
 import { onJobCheckedOut } from '@/lib/customer-care/server';
-import { writeAuditLog, getWorkshopOrgContext, getWorkshopDepartmentForVehicleType, isEligibleSupervisor, getWorkshopBranchId, branchInMyOrganisationOrSystem } from '@/lib/workshop-core';
+import { writeAuditLog, getWorkshopOrgContext, getWorkshopDepartmentFor, isEligibleSupervisor, getWorkshopBranchId, branchInMyOrganisationOrSystem } from '@/lib/workshop-core';
 
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
@@ -235,24 +236,19 @@ export type EligibleSupervisorResult = {
   usingFallback: boolean;
 };
 
-/** Users eligible to supervise a Job Card for the given vehicle type: members
- * of that type's Workshop department holding the "Workshop Supervisor" role,
- * so a Passenger job can never be given a Commercial supervisor.
- * Falls back to Platform Administrators when the department has nobody yet,
- * flagged with `usingFallback: true`. */
-/** The eligibility query shared by the creation picker (by vehicle type) and
- * the reassignment picker (by Job Card), so the rule and its fallback live
- * in one place. */
+/** Who the pickers offer as a Job Card's supervisor: the Owner and the
+ * branch's Workshop Supervisors (or Front Desk while that role is off), as
+ * lib/duty-roles.ts decides. With nobody yet, the platform administrators,
+ * flagged with `usingFallback: true`. Shared by the opening picker and the
+ * reassignment picker so the rule lives in one place. */
 async function listEligibleSupervisorsForDepartmentId(departmentId: string): Promise<EligibleSupervisorResult> {
-  const departmentSupervisors = await prisma.user.findMany({
-    where: {
-      departmentId,
-      isActive: true,
-      roles: { some: { role: { slug: 'workshop-supervisor' } } },
-    },
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { branchId: true, branch: { select: { businessUnit: { select: { organisationId: true } } } } } });
+  const organisationId = dept?.branch.businessUnit.organisationId;
+  const departmentSupervisors = organisationId ? await prisma.user.findMany({
+    where: await supervisorWhere(organisationId, dept?.branchId ?? null),
     orderBy: { fullName: 'asc' },
     select: { id: true, fullName: true, email: true },
-  });
+  }) : [];
   if (departmentSupervisors.length > 0) {
     return { supervisors: departmentSupervisors, usingFallback: false };
   }
@@ -267,11 +263,10 @@ async function listEligibleSupervisorsForDepartmentId(departmentId: string): Pro
   return { supervisors: masterAdmins, usingFallback: true };
 }
 
-export async function listEligibleSupervisorsForVehicleType(
-  vehicleType: 'PASSENGER' | 'COMMERCIAL',
-): Promise<EligibleSupervisorResult> {
+/** Opening picker: the supervisors for a new Job Card of this kind of work. */
+export async function listEligibleSupervisors(kind?: string | null): Promise<EligibleSupervisorResult> {
   await requireUser();
-  const department = await getWorkshopDepartmentForVehicleType(vehicleType);
+  const department = await getWorkshopDepartmentFor(kind);
   return listEligibleSupervisorsForDepartmentId(department.id);
 }
 
@@ -757,7 +752,7 @@ async function generateJobNumber(): Promise<string> {
 export async function listJobCards(status?: JobCardStatus, search?: string, vehicleType?: 'PASSENGER' | 'COMMERCIAL') {
   await requireUser();
   const q = search?.trim();
-  const reach = await reachWhere('workshop.job_card.view');
+  const reach = await jobCardReach();
 
   return prisma.jobCard.findMany({
     where: {
@@ -901,8 +896,8 @@ export async function createJobCard(input: CreateJobCardInput) {
   if (typeof visit === 'string') throw new WorkshopActionError(visit);
   const complaints = visit.complaints;
 
-  // The department is derived from the vehicle's recorded type, never from
-  // client input. The vehicle must belong to this organisation.
+  // The department follows the work (lib/workshop/routing.ts), never client
+  // input. The vehicle must belong to this organisation.
   const vehicle = await prisma.customerVehicle.findFirst({
     where: { id: input.vehicleId, customer: await orgWhere() },
     select: { vehicleType: true, make: true, model: true, plateNumber: true, customerId: true },
@@ -914,15 +909,10 @@ export async function createJobCard(input: CreateJobCardInput) {
   if (vehicle.customerId !== input.customerId) {
     throw new WorkshopActionError('That vehicle belongs to a different customer — choose the customer again.');
   }
-  if (!vehicle.vehicleType) {
-    throw new WorkshopActionError(
-      'This vehicle has no Passenger/Commercial type on file yet — set it on the Vehicles page before opening a Job Card for it.',
-    );
-  }
-  const department = await getWorkshopDepartmentForVehicleType(vehicle.vehicleType);
+  const department = await getWorkshopDepartmentFor(visit.jobType);
 
   if (!(await isEligibleSupervisor(input.supervisorId, department.id))) {
-    throw new WorkshopActionError('The selected supervisor is not eligible for this vehicle\'s Workshop department.');
+    throw new WorkshopActionError('The selected person cannot supervise Job Cards in this workshop.');
   }
 
   const branchId = await getWorkshopBranchId();
@@ -1057,7 +1047,7 @@ export async function createJobCard(input: CreateJobCardInput) {
     action: 'job_card.created',
     entityType: 'JobCard',
     entityId: created.id,
-    metadata: { jobNumber: created.jobNumber, departmentId: department.id, supervisorId: input.supervisorId, isService },
+    metadata: { jobNumber: created.jobNumber, departmentId: department.id, supervisorId: input.supervisorId, isService, jobType: visit.jobType },
   });
 
 
@@ -1637,7 +1627,8 @@ export async function assignTechnician(jobCardId: string, technicianId: string) 
   }
   if (['CLOSED', 'CHECKED_OUT', 'CANCELLED'].includes(current.status)) throw new WorkshopActionError('This Job Card is finished — the technician can no longer change.');
   const org = (await prisma.user.findUnique({ where: { id: actor.id }, select: { organisationId: true } }))?.organisationId;
-  const tech = await prisma.user.findFirst({ where: { id: technicianId, isActive: true, ...(org ? { organisationId: org } : {}), roles: { some: { role: { OR: [{ slug: { in: [...WORKSHOP_HANDS] } }, { isSuperAdmin: true }] } } } }, select: { id: true } });
+  const hands = org ? await workshopHandSlugs(org) : [];
+  const tech = await prisma.user.findFirst({ where: { id: technicianId, isActive: true, ...(org ? { organisationId: org } : {}), roles: { some: { role: { OR: [{ slug: { in: hands } }, { isSuperAdmin: true }] } } } }, select: { id: true } });
   if (!tech) throw new WorkshopActionError('Choose an active technician (or supervisor) — only workshop staff can be assigned to a job.');
   // Compare-and-set: still the same supervisor, and not finished meanwhile.
   claimed(await prisma.jobCard.updateMany({
@@ -1846,15 +1837,14 @@ export async function rejectTechnicianAssignment(jobCardId: string, reason: stri
   });
 }
 
-/** People who can be assigned to a Job Card, with their role names shown. */
-const WORKSHOP_HANDS = ['technician', 'workshop-supervisor'] as const;
+/** People who can be assigned to a Job Card, with their role names shown (lib/duty-roles.ts, workshopHandSlugs). */
 
 export async function listTechnicianCandidates() {
   await requireUser();
   const select = { id: true, fullName: true, roles: { select: { role: { select: { name: true } } } } } as const;
   const hands = await prisma.user.findMany({
-    // Technicians and supervisors (a supervisor can do anything a technician can).
-    where: { isActive: true, ...(await orgWhere()), roles: { some: { role: { slug: { in: [...WORKSHOP_HANDS] } } } } },
+    // Technicians, and whoever supervises (a supervisor can do anything a technician can): the roles switched on.
+    where: { isActive: true, ...(await orgWhere()), roles: { some: { role: { slug: { in: await workshopHandSlugs((await getPrincipal()).organisationId ?? '') } } } } },
     orderBy: { fullName: 'asc' },
     select,
   });
@@ -1877,7 +1867,7 @@ export async function getWorkshopDashboardCounts() {
   // Uses the shared definitions in lib/custody.ts (the same "active" and
   // "still inside" as the custody pages and Security dashboard) and the same
   // reach (a branch-scoped person counts their branch).
-  const reach = await reachWhere('workshop.job_card.view');
+  const reach = await jobCardReach();
   const [activeJobCards, totalCustomers, totalVehicles, inWorkshop] = await Promise.all([
     prisma.jobCard.count({ where: { ...reach, ...jobCardActive() } }),
     prisma.customer.count({ where: await orgWhere() }),
@@ -4068,7 +4058,7 @@ export async function getWorkshopCustodySummary(search?: string): Promise<{
       // Only CHECKED_OUT means the vehicle has left. CLOSED is an administrative
       // sign-off and the vehicle may still be in the yard.
       status: { not: JobCardStatus.CHECKED_OUT },
-      ...(await reachWhere('workshop.job_card.view')),
+      ...(await jobCardReach()),
       ...(trimmedSearch
         ? {
             OR: [
@@ -4520,6 +4510,8 @@ export async function listEligibleManagersForBranch(branchId: string): Promise<E
 export async function getJobCard(id: string) {
   const rec = await getJobCardUnscoped(id);
   if (!rec) return rec;
-  const allowed = await canSeeRecord('workshop.job_card.view', { branchId: (rec as { branchId?: string | null }).branchId ?? null }, `JobCard:${id}`);
+  const r = rec as { branchId?: string | null; supervisorId?: string | null; assignedTechnicianId?: string | null; createdById?: string | null };
+  // Assignment-aware: a technician opens the jobs given to them (and ones they opened), nothing else.
+  const allowed = await canSeeRecord('workshop.job_card.view', { branchId: r.branchId ?? null, assigneeIds: [r.supervisorId, r.assignedTechnicianId], ownerIds: [r.createdById] }, `JobCard:${id}`);
   return allowed ? rec : null;
 }

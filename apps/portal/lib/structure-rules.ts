@@ -1,10 +1,10 @@
 import { moduleIsOn } from './modules';
+import { WORK_DEPARTMENTS } from './workshop/routing';
 
 /** Departments the workflows depend on — renameable, never switched off. (Every edition's; see systemDepartments.) */
 const ALL_SYSTEM_DEPARTMENTS: { slug: string; name: string; why: string }[] = [
-  { slug: 'workshop', name: 'Workshop', why: 'Anchors the branch’s workshop (Job Cards, Vehicle Services, numbering).' },
-  { slug: 'workshop-passenger', name: 'Passenger Vehicle Workshop', why: 'Job Cards for passenger vehicles route here.' },
-  { slug: 'workshop-commercial', name: 'Commercial Vehicle Workshop', why: 'Job Cards for commercial vehicles route here.' },
+  { slug: 'workshop', name: 'Workshop', why: 'Anchors the branch’s workshop (Job Cards and their numbering).' },
+  ...WORK_DEPARTMENTS,
   { slug: 'store', name: 'Store', why: 'Parts, stock, receipts and releases.' },
 ];
 /** A department of one of these kinds is protected wherever it exists, whichever edition made it. */

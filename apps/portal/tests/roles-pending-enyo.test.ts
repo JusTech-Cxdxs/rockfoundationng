@@ -8,26 +8,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ROLE_LABELS, SENIOR_REQUESTER_SLUGS, isHqRole, nameWithRole, primaryRoleLabel } from '../lib/authz/catalogue';
+import { ROLE_LABELS, isOwnerRole, nameWithRole, primaryRoleLabel } from '../lib/authz/catalogue';
 import { CORE_TOOLS, selectToolNames, slimToolNames } from '../lib/enyo/tool-select';
 
 const ROOT = join(__dirname, '..', '..');
 const read = (rel: string) => readFileSync(join(ROOT, rel), 'utf8');
 
-test('"Manager", not "Workshop Manager"; names carry their role, the reader is "You"', () => {
-  assert.equal(ROLE_LABELS['workshop-manager'], 'Manager');
-  assert.equal(primaryRoleLabel(['technician', 'workshop-manager']), 'Manager');
-  assert.equal(primaryRoleLabel([], true), 'Master Administrator');
-  // Short form inside brackets: no "Executive (director / general manager)".
-  assert.equal(nameWithRole('Tunde Bello', ['executive']), 'Tunde Bello (Executive)');
-  assert.equal(nameWithRole('Ada Obi', ['workshop-manager'], { isMe: true }), 'You (Manager)');
-  assert.equal(nameWithRole('Ada', ['receptionist']), 'Ada (Front Desk)');
+test('names carry their role in its short form; the reader is "You"', () => {
+  assert.equal(ROLE_LABELS.owner, 'Owner / GMD');
+  assert.equal(primaryRoleLabel(['technician', 'owner']), 'Owner');
+  assert.equal(primaryRoleLabel(['front-desk', 'store-keeper']), 'Front Desk');
+  assert.equal(primaryRoleLabel(['workshop-supervisor']), 'Workshop Supervisor');
+  assert.equal(primaryRoleLabel([], true), 'Platform Administrator');
+  assert.equal(nameWithRole('Tunde Bello', ['owner']), 'Tunde Bello (Owner)');
+  assert.equal(nameWithRole('Ada Obi', ['accounts'], { isMe: true }), 'You (Accounts)');
+  assert.equal(nameWithRole('Ada', ['front-desk']), 'Ada (Front Desk)');
   assert.equal(nameWithRole('No Role', []), 'No Role');
-  assert.equal(isHqRole(['it-administrator']), true);
-  assert.equal(isHqRole(['workshop-manager']), false);
-  // The database name follows (additive: a rename, never a delete).
-  assert.match(read('../../scripts/postdeploy/0006-manager-role-name.sql'), /UPDATE "roles" SET "name" = 'Manager' WHERE "slug" = 'workshop-manager'/);
-  assert.doesNotMatch(read('../../scripts/postdeploy/0006-manager-role-name.sql'), /\b(DROP|DELETE|TRUNCATE)\b/i);
+  assert.equal(isOwnerRole(['owner']), true);
+  assert.equal(isOwnerRole(['front-desk']), false);
 });
 
 test('activity and the audit trail show "Name (Role)"', () => {
@@ -53,9 +51,9 @@ test('the master admin gets an observer copy of every email (switchable off), ne
   assert.deepEqual(observerCopies('a@x.com', { MAIL_OBSERVER_BCC: 'it@x.com, not-an-email' }), ['it@x.com']);
 });
 
-test('support action items belong to the support team, not to managers', () => {
+test('support action items belong to Front Desk (customer care), not to the workshop floor', () => {
   const src = read('lib/actions/my-work.ts');
-  assert.match(src, /customer-care/);
+  assert.match(src, /const care = p\.isSuperAdmin \|\| p\.roleSlugs\.includes\('front-desk'\);/);
   assert.match(src, /supportQueueMember/);
 });
 
@@ -71,14 +69,14 @@ test('only headquarters gets the overviews; a manager keeps the branch dashboard
 
 test('"Waiting on others" covers every workflow, names who has it, and is on Approvals, the dashboard, the brief and Enyo', () => {
   const src = read('lib/actions/pending.ts');
-  for (const m of ['jobCard', 'vehicleService', 'estimate', 'serviceEstimate', 'partRequestSlip', 'externalProcurementRequest', 'exitPass', 'warrantyClaim', 'closeRequest', 'cancellationRequest', 'vehicleServiceCloseRequest', 'vehicleServiceCancellationRequest', 'roadTestPermit', 'supportTicket', 'contractorPass']) {
+  for (const m of ['jobCard', 'estimate', 'partRequestSlip', 'closeRequest', 'cancellationRequest', 'supportTicket']) {
     assert.ok(src.includes(`prisma.${m}.findMany`), m);
   }
   // Only the person's own requests.
   for (const k of ['createdById: mine', 'requestedById: mine', 'requesterUserId: mine']) assert.ok(src.includes(k), k);
   assert.match(src, /organisationId: p\.organisationId, requesterUserId: mine/);
-  assert.match(src, /'Manager', 'the Manager'/);
-  assert.match(src, /\(Executive\)/);
+  assert.match(src, /'Owner', 'the Owner'/, 'decisions waiting on the Owner name the Owner');
+  assert.match(src, /\(Owner\)/);
   assert.match(read('app/(app)/approvals/page.tsx'), /<WaitingOnOthers items=\{waiting\} \/>/);
   assert.match(read('app/(app)/dashboard/page.tsx'), /<WaitingOnOthers items=\{waiting\} limit=\{5\} compact \/>/);
   assert.match(read('lib/brief/collect.ts'), /key: 'waiting'/);
@@ -90,15 +88,15 @@ test('Enyo offers only the tools a question needs, so "hi" fits the free model t
   const dir = join(ROOT, 'lib', 'enyo', 'tools');
   const all = new Set(readdirSync(dir).filter((f) => f.endsWith('.ts')).flatMap((f) => [...readFileSync(join(dir, f), 'utf8').matchAll(/^\s{4}name: '([a-z_]+)'/gm)].map((m) => m[1]!)));
   for (const t of CORE_TOOLS) assert.ok(all.has(t), `core tool ${t} exists`);
-  for (const t of ['my_pending', 'staff_directory', 'website_traffic', 'branch_briefing', 'explain_error']) assert.ok(all.has(t), t);
+  for (const t of ['my_pending', 'staff_directory', 'branch_briefing', 'explain_error']) assert.ok(all.has(t), t);
+  for (const t of ['website_traffic', 'warranty_watch', 'vehicle_service_details', 'my_schedule', 'my_security', 'mail_brief']) assert.ok(!all.has(t), `${t} belongs to a removed module`);
   const hi = selectToolNames('hi');
   assert.ok(hi.names.length <= 12, `hi offers ${hi.names.length}`);
   assert.ok(hi.names.includes('daily_brief') && hi.names.includes('my_pending'));
   assert.equal(hi.web, false);
-  assert.ok(selectToolNames('who is Bhushan Salgar').names.includes('staff_directory'));
-  assert.ok(selectToolNames('brief me on Ajah branch').names.includes('branch_briefing'));
+  assert.ok(selectToolNames('who is the store keeper').names.includes('staff_directory'));
+  assert.ok(selectToolNames('brief me on Ota Workshop').names.includes('branch_briefing'));
   assert.ok(selectToolNames('explain error 1914370005').names.includes('explain_error'));
-  assert.ok(selectToolNames('how many website visitors this week').names.includes('website_traffic'));
   assert.ok(selectToolNames('has my PRS been approved?').names.includes('my_pending'));
   // A follow-up keeps the previous question's tools.
   assert.ok(selectToolNames('and last month?', 'what was revenue this month').names.includes('business_summary'));

@@ -4,7 +4,7 @@
  * deposit), the period rules, the parts, the file names, and the wiring —
  * the email to the customer and the bulk copies use the same builders; the
  * zip needs both export rights at a workshop of the organisation, is never
- * cached or given during assist, and each download is audited.
+ * cached, and each download is audited.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +16,7 @@ import { checkPeriod, documentFileName, DOCUMENTS_PER_ZIP, partsOf, periodWindow
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
 const head = letterhead({ name: 'Demo Motors', legalName: null, hqAddress: null, poBox: null, rcNumber: null, hotlines: [], website: null, email: null, secret: 'x' } as never, { name: 'Ikeja', address: null, hotlines: [], email: null, bankAccountNumber: '1' } as never, 'https://portal.example/');
 const bank = { bankName: 'Bank', accountName: 'Demo', accountNumber: '0001112223' };
-const vehicle = { make: 'Isuzu', model: 'NQR', year: 2024, plateNumber: 'ABC-123XY', chassisNumber: 'JAAN1R75K00000001' };
+const vehicle = { make: 'Toyota', model: 'Hilux', year: 2024, plateNumber: 'ABC-123XY', chassisNumber: 'JAAN1R75K00000001' };
 const customer = { fullName: 'Ada Obi', address: '3 Street' };
 
 test('the letterhead: only its own fields, the portal’s logo', () => {
@@ -30,7 +30,7 @@ test('a Job Card estimate: covered lines are shown but never charged; three figu
     { type: 'STORE_PART', description: 'Oil filter', quantity: 2, amount: '5000.00', unitOfMeasure: 'piece' },
     { type: 'EXTERNAL_JOB', description: 'Machining', quantity: 1, amount: 2500, unitOfMeasure: null },
     { type: 'LABOUR', description: 'Fit', quantity: 1, amount: 3000, unitOfMeasure: null },
-    { type: 'LABOUR', description: 'Warranty labour', quantity: 1, amount: 9000, unitOfMeasure: null, billTo: 'WARRANTY', coveringWarranty: { warrantyNumber: 'WR-1' } },
+    { type: 'LABOUR', description: 'Warranty labour', quantity: 1, amount: 9000, unitOfMeasure: null, billTo: 'WARRANTY' },
     { type: 'SUNDRY', description: 'Rags', quantity: 1, amount: 500, unitOfMeasure: null },
   ];
   // A deposit switched on at 70% (depositFractionFor gives 0.7 for an individual).
@@ -45,9 +45,9 @@ test('a Job Card estimate: covered lines are shown but never charged; three figu
   assert.deepEqual([p.servicesSubtotal, p.labourSubtotal, p.sundrySubtotal], ['₦7,500.00', '₦3,000.00', '₦500.00']);
   assert.deepEqual([p.discountAmount, p.vatLabel, p.vatAmount], [null, null, null], 'no discount, VAT off');
   assert.deepEqual(p.lineItems[0], { description: 'Oil filter', quantity: 2, unitLabel: 'pieces', amount: '₦5,000.00' });
-  assert.equal(p.lineItems[3]!.amount, 'Covered by warranty WR-1 — not charged');
-  assert.equal(p.paymentRemarkSuggestion, 'JC-2026-000001 Isuzu NQR ABC-123XY');
-  assert.equal(p.vehicleDescription, 'Isuzu NQR');
+  assert.equal(p.lineItems[3]!.amount, 'Under warranty — not charged', 'covered by the workshop’s own warranty');
+  assert.equal(p.paymentRemarkSuggestion, 'JC-2026-000001 Toyota Hilux ABC-123XY');
+  assert.equal(p.vehicleDescription, 'Toyota Hilux');
   assert.equal(p.accountNumber, '0001112223');
   assert.ok(!('type' in p.lineItems[0]!), 'the internal line types never reach the customer');
   assert.equal(nairaForPdf(0), '₦0.00');
@@ -85,14 +85,11 @@ test('the parts and the names', () => {
   assert.equal(zipFileName('JOB_ESTIMATE', '2026-11-01', '2026-11-12', 2, 3), 'EJO-job-card-estimates-2026-11-01-to-2026-11-12-part-2-of-3.zip');
 });
 
-test('wired in: the email and the bulk copies use the same builders; both rights at a workshop of the organisation; audited; never cached or during assist', () => {
+test('wired in: the email and the bulk copies use the same builders; both rights at a workshop of the organisation; audited; never cached', () => {
   // The Job Card estimate is drawn once (lib/document-pdfs), for the email and the WhatsApp document link alike.
   assert.match(read('lib/actions/workshop.ts'), /await estimatePdfFor\(jobCardId\)/);
   const job = read('lib/document-pdfs.ts');
   assert.match(job, /EstimatePdf\(jobEstimatePdfProps\(\{/);
-  const svc = read('lib/actions/vehicle-service-estimate.ts');
-  assert.match(svc, /EstimatePdf\(serviceEstimatePdfProps\(\{/);
-  assert.match(svc, /InspectionPdf\(inspectionPdfProps\(\{/);
   const srv = read('lib/exports/documents-server.ts');
   assert.match(srv, /jobEstimatePdfProps\(\{ letterhead: head/);
   assert.match(srv, /branch: \{ businessUnit: \{ organisationId: s\.organisationId \} \}/, 'every query hangs on the branch inside the organisation');
@@ -101,7 +98,6 @@ test('wired in: the email and the bulk copies use the same builders; both rights
   assert.match(route, /allows\('dataexchange\.export\.sensitive'\)/);
   assert.match(route, /allows\('dataexchange\.export\.run', \{ branchId: branch\.id \}\)\) \|\| !\(await allows\('dataexchange\.export\.sensitive', \{ branchId: branch\.id \}\)/);
   assert.match(route, /type: 'WORKSHOP', businessUnit: \{ organisationId \}/);
-  assert.match(route, /refuseDuringAssist\('documentsDownload'\)/);
   assert.match(route, /action: 'data_exchange\.documents_downloaded'/);
   assert.match(route, /'Cache-Control': 'no-store'/);
   const shared = read('lib/exports/documents.ts');

@@ -1,94 +1,153 @@
-# The demo: Rock Foundation Automobile (Demo)
+# The Rock Foundation Automobile demo: sign in as anyone
 
-How to show the system to the GMD and the board without touching real
-records.
+The demo is a working copy of the Ota workshop that anyone can be shown
+without touching a real customer: its own organisation,
+**Rock Foundation Automobile (Demo)** (`rock-foundation-demo`), with its own Ota workshop,
+kept apart from the real organisation (`rock-foundation`), which never
+receives a demo record. Marked *Sample data*. It has a person for every
+role (the Owner, business-wide, and the people of the **Ota Workshop**,
+with every optional role switched on) plus two customer-portal sign-ins. Pick a row, sign in, and
+the portal shows that person's own view: their menu, their dashboard and
+nothing else.
 
-## The demo organisation
+Each row says what that person sees first, **three clicks** that show
+their job, and what they **must not** be able to do — try it: the portal
+answers *Access denied*. Every demo person is named by their role; no real
+person's name is used anywhere in the demo.
 
-The demo lives in its own organisation, **Rock Foundation Automobile
-(Demo)** (short name `rock-foundation-demo`, or `DEMO_ORG_SLUG`), with its
-own Ota Workshop, invented customers and fleet companies, vehicles, Job
-Cards, parts and payments. Every record is marked as sample data. It never
-mixes with the real organisation: the demo tools refuse the real
-organisation, and any organisation that already has its own customers or
-Job Cards.
+*Generated from `apps/portal/lib/demo/people.ts` and `lib/demo/tour.ts`
+by `npm run demo:tour-doc`. A test fails if this file and those two ever
+differ, and checks every "must not" and every click against the
+authorization catalogue; `e2e/demo-tour.spec.ts` signs in as every person
+and proves each one in the browser.*
 
-Every demo address ends with `@demo.rockfoundation.example.com`, a domain
-that can never receive email, and the names are roles, not people.
+## Switching the demo on
 
-## Switching it on
+The demo is made only when the platform owner asks for it — never by a
+normal deploy:
 
-On Vercel (staff portal project), set `DEMO_STAFF_PASSWORD` (8 characters or
-more) and, optionally, `DEMO_CUSTOMER_PASSWORD`, then redeploy. The build
-makes the demo organisation, its people and sign-ins and, the first time, its
-records. To load it again from scratch on a computer with the database
-details:
+1. **On the hosting (Vercel):** set `DEMO_STAFF_PASSWORD` (8 characters or
+   more) under Settings → Environment Variables → Production, and redeploy.
+   The production build makes the demo organisation, its people and
+   sign-ins (`scripts/db-push-if-vercel.js`, right after the schema), and
+   the first time only, the workshop's seven months of records
+   (`npm run demo:ensure`). A later deploy leaves what people did in the
+   demo alone.
+2. **From the portal:** the platform team (the Platform Administrator) opens
+   the **demo console**: *Make the demo organisation*,
+   then *Load / refresh the demo now*, or *Remove the demo records*. Typed
+   words confirm each step; every step is audited.
+3. **From a terminal:** `npm run demo:people` (the organisation and the
+   sign-ins), `npm run demo:reset` (everything again as of now),
+   `npm run demo:reset -- --remove` (the records out), `npm run demo:pulse`
+   (today's working day).
 
-```bash
-npm run demo:reset
-```
+`DEMO_ORG_SLUG` names a different demo organisation (default
+`rock-foundation-demo`). The real organisation, or any organisation that
+already holds its own customers or job cards, is refused. To switch the
+demo off: *Not a demo* on the console (its sign-ins are switched off on the
+spot), then take `DEMO_STAFF_PASSWORD` out of the environment.
 
-Against a production database the reset also needs
-`DEMO_RESET_CONFIRM="replace the demo records"`; it replaces only the
-previous demo's records. To remove the demo records and load nothing:
+## The 15-minute tour for the directors
 
-```bash
-npm run demo:reset -- --remove
-```
+Sign in as each person in turn (every address ends with
+`@demo.rockfoundation.example.com`; the customer at the customer portal's sign-in page).
 
-To stop the demo altogether, take `DEMO_STAFF_PASSWORD` out of Vercel and
-redeploy; the demo people are switched off.
+| Minutes | Sign in as | Open | Show |
+|---|---|---|---|
+| 0–2 | `gmd` | `/dashboard` | The owner dashboard: vehicles in the workshop, revenue invoiced against collected, what customers owe, stock value and low stock. |
+| 2–4 | `frontdesk` | `/workshop/customers` | A fleet vehicle checked in this morning: the company on 30-day credit, the vehicle’s history, the Job Card opened as a service. |
+| 4–6 | `tech.1` | `/workshop/job-cards` | Only their jobs. Open one: the diagnosis and the estimate: labour, parts from the store and sundries, in naira. |
+| 6–8 | `gmd` | `/approvals` | Approvals in one place: an estimate with a discount above 10% (the Owner’s final word, VAT fixed) and a cancellation. |
+| 8–9 | `frontdesk` | `/workshop/job-cards` | The estimate sent to the customer on WhatsApp with its link; the answer by link, in the portal or by phone; the deposit for a private customer. |
+| 9–10 | `store` | `/inventory/parts` | The parts store: a part issued to the job card, low stock and the reorder list. |
+| 10–11 | `accounts` | `/workshop/job-cards` | A finished job: the invoice with VAT, the receipt for each payment, a fleet invoice on credit and one past its due date. |
+| 11–12 | `frontdesk` | `/workshop/service-tracker` | The Service Tracker: who is due, who is overdue, the reminders already sent on WhatsApp or by email. |
+| 12–13 | `gate` | `/security` | The gate: the released vehicle leaves against its gate pass; the vehicles still in the compound. |
+| 13–14 | `customer.individual` | `/customer-portal` | The customer portal: the estimate waiting for approval, last month’s invoice and receipt, the next service due. |
+| 14–15 | `gmd` | `/audit-logs` | Control: every action in the audit trail, nothing deleted for good (the Recycle bin), each role only where it belongs. |
 
-## Who to sign in as
+## The password
 
-All demo staff share `DEMO_STAFF_PASSWORD`. All five optional roles are
-switched on in the demo organisation, so every role can be shown.
+There is **one password for every demo sign-in**, and it is never written
+down anywhere in the code or the documentation. It is whatever
+`DEMO_STAFF_PASSWORD` is set to in the hosting environment, 8 characters
+or more; the customer-portal sign-ins use `DEMO_CUSTOMER_PASSWORD` when
+that is set and the staff password otherwise.
 
-| Sign in as | Address | Shows |
+- **Not set:** no demo sign-ins exist at all. From a terminal:
+  `npm run demo:people`.
+- **Already made:** a later build changes nothing — not a password, not an
+  account an administrator switched off. To set every demo password again
+  (for example after a presentation), set `RESET_DEMO_PASSWORDS=yes` for
+  one deploy and remove it; everyone signed in as a demo person is signed
+  out.
+- **Only the demo organisation** gets demo people: the one marked
+  `isDemo` in `organisations`. A demo person found in any other
+  organisation is switched off on the next run — never deleted.
+- Every address ends with `@demo.rockfoundation.example.com`, a reserved name that is never
+  routed: nothing is ever emailed to a demo person, and no real colleague
+  can collide with one. Company contacts use example.com addresses. Phone
+  numbers are on the 0800 000 range. Employee numbers start with `DEMO-`.
+- Every run is audited (`demo.people_loaded`, with counts).
+
+## The people
+
+### The whole business (no branch)
+
+| Sign in as | Role · employee no. | First view | Three clicks | Must not |
+|---|---|---|---|---|
+| `gmd@demo.rockfoundation.example.com` — Owner (Demo) | Group Managing Director · DEMO-BIZ-001 | The owner dashboard: vehicles in the workshop, revenue invoiced against collected, what customers owe, stock value and low stock, approvals waiting. | 1. Approvals (`/approvals`)<br>2. Business analytics (`/analytics`)<br>3. Roles in use (`/roles`) | Sees everything read-only; opens no job and approves no money (no page to refuse). |
+
+### Ota Workshop
+
+| Sign in as | Role · employee no. | First view | Three clicks | Must not |
+|---|---|---|---|---|
+| `frontdesk@demo.rockfoundation.example.com` — Front Desk (Demo) | Front Desk and Customer Care Officer · DEMO-OTA-001 | Today’s work: vehicles checked in, estimates to send, vehicles ready for collection, complaints to follow up. | 1. Customers (`/workshop/customers`)<br>2. Job Cards (`/workshop/job-cards`)<br>3. The Service Tracker: remind by WhatsApp or email (`/workshop/service-tracker`) | manage users (`/users`)<br>read the audit trail (`/audit-logs`)<br>change billing & tax and the organisation’s details (`/organisation`) |
+| `advisor@demo.rockfoundation.example.com` — Service Advisor (Demo) | Workshop Supervisor and Service Advisor · workshop · DEMO-OTA-002 | Job cards to assign, inspect, check and pass through the quality check. | 1. Job Cards (`/workshop/job-cards`)<br>2. Vehicles (`/workshop/vehicles`)<br>3. Vehicles in custody (`/workshop/custody`) | manage users (`/users`)<br>bring records in (Data Exchange) (`/data-exchange`)<br>change the organisation’s structure (`/structure`) |
+| `tech.1@demo.rockfoundation.example.com` — Technician 1 (Demo) | Technician, Mechanical · mechanical · DEMO-OTA-003 | Their own jobs only, with what to do next on each. | 1. My job cards (`/workshop/job-cards`)<br>2. Vehicles (`/workshop/vehicles`)<br>3. My profile (`/profile`) | manage users (`/users`)<br>read the audit trail (`/audit-logs`)<br>bring records in (Data Exchange) (`/data-exchange`) |
+| `tech.2@demo.rockfoundation.example.com` — Technician 2 (Demo) | Technician, Electrical and Diagnostics · electrical · DEMO-OTA-004 | A diagnostics job waiting for parts; an estimate to write. | 1. My job cards (`/workshop/job-cards`)<br>2. Parts requests (`/workshop/parts-requests`)<br>3. My profile (`/profile`) | manage users (`/users`)<br>read the audit trail (`/audit-logs`)<br>bring records in (Data Exchange) (`/data-exchange`) |
+| `tech.3@demo.rockfoundation.example.com` — Technician 3 (Demo) | Technician, Body and Spraying · body-spray · DEMO-OTA-005 | Spraying in the booth: the panels and colour on the job card. | 1. My job cards (`/workshop/job-cards`)<br>2. Vehicles (`/workshop/vehicles`)<br>3. My profile (`/profile`) | manage users (`/users`)<br>read the audit trail (`/audit-logs`)<br>bring records in (Data Exchange) (`/data-exchange`) |
+| `store@demo.rockfoundation.example.com` — Store Keeper (Demo) | Store Keeper · DEMO-OTA-006 | The parts store: low stock, parts requests to issue, goods received. | 1. Parts (`/inventory/parts`)<br>2. Parts requests (`/workshop/parts-requests`)<br>3. Goods received (`/inventory/goods-receipts`) | manage users (`/users`)<br>open business analytics (`/analytics`)<br>bring records in (Data Exchange) (`/data-exchange`) |
+| `accounts@demo.rockfoundation.example.com` — Accounts (Demo) | Accountant · DEMO-OTA-007 | Money: deposits and balances, invoices and receipts, the fleet accounts on credit. | 1. Job Cards and their invoices (`/workshop/job-cards`)<br>2. Refunds (`/workshop/refunds`)<br>3. Customers and fleet accounts (`/crm`) | manage users (`/users`)<br>change settings (`/settings`) |
+| `gate@demo.rockfoundation.example.com` — Security (Demo) | Security, Main Gate · DEMO-OTA-008 | The gate: vehicles in the compound and vehicles released to leave. | 1. The gate (`/security`)<br>2. Vehicles inside (`/security/vehicles-inside`)<br>3. Vehicles (`/security/vehicles`) | manage users (`/users`)<br>see refunds (`/workshop/refunds`)<br>bring records in (Data Exchange) (`/data-exchange`) |
+
+### Customer portal
+
+| Sign in as | Who | What to show |
 |---|---|---|
-| Owner (Demo) | `gmd@demo.rockfoundation.example.com` | Everything: approvals, cost prices and profit, analytics, settings |
-| Front Desk (Demo) | `frontdesk@demo.rockfoundation.example.com` | Receiving vehicles, Job Cards, estimates, payments, customers, the Support centre |
-| Service Advisor (Demo) | `advisor@demo.rockfoundation.example.com` | Assigning technicians, inspections, checking estimates |
-| Technician 1 (Demo) | `tech.1@demo.rockfoundation.example.com` | Only their own jobs |
-| Store Keeper (Demo) | `store@demo.rockfoundation.example.com` | Parts, stock, goods received, issuing parts; no cost prices |
-| Accounts (Demo) | `accounts@demo.rockfoundation.example.com` | Payments, refunds, exports |
-| Security (Demo) | `gate@demo.rockfoundation.example.com` | The gate |
+| `customer.individual@demo.rockfoundation.example.com` | Adaeze Okonkwo | Her Toyota Corolla: the estimate waiting for her approval in the portal, the invoice and receipt for last month’s service, the next service due. |
+| `customer.fleet@demo.rockfoundation.example.com` | Bolaji Haulage Services (fleet, on credit) | A fleet of Hilux, Hiace and Sienna vehicles on 30-day credit: the job cards open today, an invoice past its due date, the vehicles due for service. |
 
-Technicians 2 and 3 (`tech.2@…`, `tech.3@…`) work electrical and body
-jobs. Demo customers sign in to the customer portal with
-`DEMO_CUSTOMER_PASSWORD` (or the staff password when it is not set); their
-addresses are on each customer's page in the staff portal.
+## What each scenario shows
 
-## A 15-minute tour for the GMD and the board
+- **Fleets on credit.** Invented fleet companies, each with a contact on the
+  account, credit terms approved by the Owner and a handful of vehicles.
+  They pay no deposit; their vehicles leave once the invoice is issued, and
+  the invoice is due on the issue date plus their terms. Some are paid,
+  some not yet due, and a few are **past their due date**.
+- **Private customers.** Individuals with their own cars. They pay a
+  deposit before work starts and the balance on collection.
+- **Service and repair, one Job Card.** Job Cards in every status today:
+  checked in, waiting for the customer, in progress, waiting for parts,
+  quality check, ready for collection, checked out and cancelled.
+- **Estimates in naira.** Labour, parts from the store, parts bought outside
+  and sundries, VAT at 7.5% fixed when the Owner approves, and discounts
+  above the limit approved by the Owner.
+- **The customer's answer.** By the secure link (sent on WhatsApp or by
+  email), in the customer portal, or by phone (taken down by Front Desk).
+- **Invoices and receipts.** Every finished Job Card has its invoice and
+  every payment its receipt.
+- **The Service Tracker.** Vehicles due for service soon and overdue, with
+  the reminders already sent; *Send on WhatsApp* or by email for the rest.
+- **The gate and Support.** Vehicles released and leaving through the gate,
+  support requests and a complaint.
 
-Use a laptop on a projector for the staff portal and a phone for the
-customer's side.
+## Every day after
 
-1. **Sign in as Front Desk (2 minutes).** The dashboard shows today's work:
-   vehicles in the workshop, estimates waiting, payments due. Open
-   **Workshop → Job Cards** and receive a vehicle: customer, vehicle,
-   mileage, complaints. The Job Card number is given at once.
-2. **The estimate and the customer's approval (3 minutes).** Add labour and
-   parts at selling price; VAT is worked out. Send the estimate: the email
-   goes out and **Send on WhatsApp** opens WhatsApp with the message and a
-   secure link. On the phone, open the link and approve. The Job Card moves
-   on by itself.
-3. **Sign in as Service Advisor and Technician (2 minutes).** The advisor
-   assigns a technician; the technician sees only their own jobs, inspects
-   the vehicle item by item and raises a parts request.
-4. **Sign in as Store Keeper (2 minutes).** Approve and issue the parts to
-   the Job Card. The Store Keeper sees selling prices, not cost prices.
-5. **Back to Front Desk (2 minutes).** The work is done: invoice, record a
-   payment (cash or bank transfer), and print or WhatsApp the receipt. The
-   vehicle is released and leaves through the gate with a gate pass.
-6. **Sign in as the Owner (3 minutes).** Approvals waiting; revenue invoiced
-   against money collected; outstanding balances; the parts store's value
-   and low stock; Business Analytics with cost and profit, which only the
-   Owner sees. Open **Settings → Roles** to show the optional roles and how
-   Front Desk covers a role that is off.
-7. **The customer portal (1 minute).** On the phone, a fleet company's
-   customer sees its vehicles, live job status, estimates, invoices and
-   payments.
-
-Close on the audit trail (every step, who and when) and the plan for the
-next phases (README, "Build phases").
+The demo does not go stale: each Lagos day adds its own working day —
+check-ins this morning (repairs and a service), yesterday's estimates
+written and approved and waiting for the Owner, and new support requests.
+`DEMO_DAILY_ACTIVITY=off` stops it. The platform team reloads the whole
+story from the **demo console**, or from a terminal with
+`npm run demo:reset`.

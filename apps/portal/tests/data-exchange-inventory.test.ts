@@ -1,3 +1,4 @@
+import { ROLE_GRANTS } from '../lib/authz/catalogue';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -101,15 +102,15 @@ test('opening stock goes in as an opening-balance goods receipt; its reversal ch
   assert.match(rev, /quantityReserved: \{ not: 0 \}/);
 });
 
-test('approvals belong to the department; Finance confirms opening stock and invoice history, and sees only those imports', () => {
+test('the Owner approves imports someone else prepared; a second person confirms opening stock and invoice history totals', () => {
   const src = read('lib/actions/data-exchange.ts');
   assert.match(src, /await authorize\(ENTITIES\[asEntity\(job\.entity\)\]\.needs, undefined, 'approveImport'/);
   assert.match(src, /if \(!run && !approve && !financeSigned\(job\.entity\)\) throw new DataExchangeError\('This import was not found\.'\);/);
   assert.match(src, /const financeSigned = \(e: string\): boolean => Boolean\(ENTITIES\[asEntity\(e\)\]\.financeSignOff\);/);
   assert.match(src, /You prepared or approved this import, so someone else in Finance confirms its totals\./);
-  const cat = read('lib/authz/catalogue.ts');
-  const store = cat.slice(cat.indexOf("'store-manager': {"), cat.indexOf("'store-officer':"));
-  assert.match(store, /'dataexchange\.import\.approve': B/);
+  // Two people for every import: Front Desk prepares it, the Owner approves and loads it.
+  for (const [slug, grants] of Object.entries(ROLE_GRANTS)) assert.equal(Boolean(grants['dataexchange.import.approve']), slug === 'owner', `${slug}: approves imports`);
+  assert.equal(ROLE_GRANTS['front-desk']!['dataexchange.import.run'], 'BRANCH');
 });
 
 test('the Store’s lists stay fast with a catalogue of any size', () => {

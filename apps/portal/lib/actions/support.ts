@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma, type Prisma } from '@ejo/database';
-import { authorize, allows, getPrincipal, myOrganisationId, reachWhere, NOT_AVAILABLE } from '@/lib/authz/server';
+import { authorize, allows, getPrincipal, myOrganisationId, reachWhere, NOT_AVAILABLE, jobCardReach } from '@/lib/authz/server';
 import { decide, type Principal, PERMISSIONS, type PermissionKey } from '@/lib/authz/catalogue';
 import { requireUser } from './workshop';
 import { writeAuditLog } from '@/lib/workshop-core';
@@ -181,7 +181,7 @@ export async function getSupportTicket(ticketId: string): Promise<SupportTicketD
   if (!t) throw new SupportError(NOT_AVAILABLE);
   const authorIds = [...new Set([t.assignedToId, ...t.replies.map((r) => r.authorUserId)].filter((x): x is string => Boolean(x)))];
   const canJobs = await allows('workshop.job_card.view');
-  const jobReach = canJobs ? await reachWhere('workshop.job_card.view', { lens: false }) : null;
+  const jobReach = canJobs ? await jobCardReach({ lens: false }) : null;
   const [authors, customer, branch, transcript, colleagues, canCrm, queues] = await Promise.all([
     authorIds.length ? prisma.user.findMany({ where: { id: { in: authorIds } }, select: { id: true, fullName: true } }) : [],
     t.customerId ? prisma.customer.findFirst({ where: { id: t.customerId, organisationId: t.organisationId }, select: { id: true, fullName: true, email: true, vehicles: { take: 6, select: { id: true, make: true, model: true, plateNumber: true } } } }) : null,

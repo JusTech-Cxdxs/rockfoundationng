@@ -131,7 +131,7 @@ test('one list of prefixes: the pattern, the URLs and every generator agree', ()
   const src = readdirSync(join(ROOT, 'lib', 'actions')).filter((f) => f.endsWith('.ts')).map((f) => readFileSync(join(ROOT, 'lib', 'actions', f), 'utf8')).join('\n');
   const generated = new Set([...src.matchAll(/`([A-Z]{2,3})-\$\{(?:year|lagosYear\(\))\}-`/g)].map((m) => m[1]!));
   for (const m of src.matchAll(/nextNumber\('([A-Z]{2,3})'\)/g)) generated.add(m[1]!);
-  assert.ok(generated.size >= 15, `found ${generated.size} generators`);
+  assert.ok(generated.size >= 8, `found ${generated.size} generators`);
   for (const g of generated) assert.ok((REFERENCE_PREFIXES as string[]).includes(g), `${g} is generated but not searchable`);
 });
 

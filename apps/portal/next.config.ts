@@ -24,14 +24,9 @@ const nextConfig: NextConfig = {
   // Don't advertise the framework.
   poweredByHeader: false,
   ...(serverActionOrigins.length > 0 ? { experimental: { serverActions: { allowedOrigins: serverActionOrigins } } } : {}),
-  // Addresses of modules planned next open their roadmap page.
+  // Old addresses of the structure pages open the one Departments page.
   async redirects() {
-    const planned = ['hr', 'payroll', 'finance', 'procurement', 'suppliers', 'warehouse', 'manufacturing', 'documents', 'reports', 'branding', 'help'];
-    return [
-      ...planned.map((k) => ({ source: `/${k}`, destination: `/roadmap/${k}`, permanent: false })),
-      { source: '/module-registry', destination: '/roadmap', permanent: false },
-      ...['business-units', 'departments', 'teams', 'countries', 'states', 'cities'].map((k) => ({ source: `/${k}`, destination: '/structure', permanent: false })),
-    ];
+    return ['business-units', 'departments', 'teams', 'countries', 'states', 'cities'].map((k) => ({ source: `/${k}`, destination: '/structure', permanent: false }));
   },
   // Security headers on every response. The Content-Security-Policy is set
   // per request by middleware.ts, because it carries a fresh nonce.
