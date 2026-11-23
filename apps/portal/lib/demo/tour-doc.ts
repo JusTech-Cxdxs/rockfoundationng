@@ -47,7 +47,7 @@ normal deploy:
    more) under Settings → Environment Variables → Production, and redeploy.
    The production build makes the demo organisation, its people and
    sign-ins (\`scripts/db-push-if-vercel.js\`, right after the schema), and
-   the first time only, the workshop's seven months of records
+   the first time only, the workshop's four months of records
    (\`npm run demo:ensure\`). A later deploy leaves what people did in the
    demo alone.
 2. **From the portal:** the platform team (the Platform Administrator) opens

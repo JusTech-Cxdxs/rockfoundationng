@@ -2,7 +2,7 @@
  * The daily demo pulse — a working day at the Ota Workshop,
  * dated today (Lagos), added at most once per Lagos day to the demo
  * organisation, so the demo looks alive whenever someone signs in (the
- * workshop demo, lib/workshop/demo, is the seven months before):
+ * workshop demo, lib/workshop/demo, is the four months before):
  *
  *   Workshop   3 vehicles checked in this morning (1 on Saturday), two
  *              accepted by their supervisor; earlier pulse job cards move on

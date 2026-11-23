@@ -131,7 +131,18 @@ export const SERVICE_TEXTS = ['Routine service', 'Carry out 5,000 km service', '
 export const OTHER_JOBS = [
   ['Full valet before a company inspection', 'Interior stained; engine bay dusty', 'detailing'],
   ['Roadside call-out: vehicle will not start at the office', 'Battery flat; jump-started on site, towed in for a new battery', 'roadside'],
+  ['Scratches and a dent on the rear bumper and boot lid after a parking knock', 'Dent pulled; filler and primer on two panels; colour matched to the factory code', 'spraying'],
+  ['Car wash', 'Washed and dried; tyres dressed', 'wash'],
 ] as const satisfies readonly (readonly [string, string, string])[];
+/** Spraying jobs: the colour as the customer knows it, its paint code, and the panels. */
+export const SPRAY_JOBS: { colour: string; code: string; panels: string[] }[] = [
+  { colour: 'Pearl white', code: '070', panels: ['REAR_BUMPER', 'BOOT'] },
+  { colour: 'Silver metallic', code: '1F7', panels: ['FRONT_BUMPER', 'BONNET'] },
+  { colour: 'Attitude black', code: '218', panels: ['FRONT_LEFT_DOOR', 'REAR_LEFT_DOOR'] },
+  { colour: 'Super white', code: '040', panels: ['FRONT_RIGHT_WING', 'FRONT_BUMPER'] },
+];
+/** Car wash packages and their list prices (Settings → Estimates, car wash and warranty). */
+export const WASH_PRICES = { EXTERIOR: 3_000, FULL: 5_000, FULL_ENGINE: 8_000, DETAILING: 25_000 } as const;
 
 /** What the technician writes on the estimate for each kind of job. Prices in naira. */
 export type LineSpec = { type: 'LABOUR' | 'STORE_PART' | 'EXTERNAL_PART' | 'EXTERNAL_JOB' | 'INTERNAL_JOB' | 'SUNDRY'; description: string; qty?: number; price: number; uom?: string };
@@ -161,6 +172,7 @@ export const JOB_LINES: Record<string, LineSpec[]> = {
   spring: [L('Remove rear spring pack; replace cracked leaf and shackle bushes', 55_000), P('Rear leaf spring (main leaf)', 98_000), P('Shackle bush kit', 18_000)],
   propshaft: [L('Remove propeller shaft; replace centre bearing; balance check', 40_000), P('Propeller shaft centre bearing', 62_000)],
   detailing: [L('Full valet: interior shampoo, engine wash, polish and wax', 45_000), S('Detailing chemicals and microfibre', 8_000)],
+  spraying: [L('Panel beating, filler and primer, two panels', 45_000), L('Spray two panels in the booth: base coat and clear coat, polish', 70_000), X('Paint mixed to the factory code (outside paint shop)', 38_000), S('Masking tape, sandpaper and thinner', 9_500)],
   roadside: [L('Roadside call-out, Ota and environs', 35_000), X('Tow to the workshop', 45_000), L('Battery load test, replace battery, clean terminals', 5_000), P('Battery 12V 75Ah (sealed)', 115_000)],
 };
 
@@ -196,11 +208,11 @@ export const TICKETS: { channel: 'CUSTOMER_PORTAL' | 'WEBSITE' | 'EMAIL' | 'STAF
 ];
 /** The records brought in before the demo's first day: QuickBooks lists and the workshop's own spreadsheets. */
 export const IMPORTS: { entity: string; fileName: string; rows: number; created: number; warnings: number; rejected: number; daysAgo: number; totals?: { lines: number; quantity?: number; value: number } }[] = [
-  { entity: 'customers', fileName: 'QuickBooks customer list.csv', rows: 214, created: 209, warnings: 7, rejected: 5, daysAgo: 214 },
-  { entity: 'vehicles', fileName: 'Vehicles register (our spreadsheet).xlsx', rows: 286, created: 281, warnings: 9, rejected: 5, daysAgo: 213 },
-  { entity: 'invoices', fileName: 'QuickBooks invoices 2024-2026.xlsx', rows: 1_640, created: 1_622, warnings: 21, rejected: 18, daysAgo: 212, totals: { lines: 1_622, value: 187_420_500 } },
-  { entity: 'jobs', fileName: 'Past job cards 2024-2026.xlsx', rows: 1_180, created: 1_162, warnings: 30, rejected: 18, daysAgo: 211 },
-  { entity: 'staff', fileName: 'Staff list.xlsx', rows: 18, created: 18, warnings: 0, rejected: 0, daysAgo: 215 },
+  { entity: 'customers', fileName: 'QuickBooks customer list.csv', rows: 214, created: 209, warnings: 7, rejected: 5, daysAgo: 125 },
+  { entity: 'vehicles', fileName: 'Vehicles register (our spreadsheet).xlsx', rows: 286, created: 281, warnings: 9, rejected: 5, daysAgo: 124 },
+  { entity: 'invoices', fileName: 'QuickBooks invoices 2024-2026.xlsx', rows: 1_640, created: 1_622, warnings: 21, rejected: 18, daysAgo: 123, totals: { lines: 1_622, value: 187_420_500 } },
+  { entity: 'jobs', fileName: 'Past job cards 2024-2026.xlsx', rows: 1_180, created: 1_162, warnings: 30, rejected: 18, daysAgo: 122 },
+  { entity: 'staff', fileName: 'Staff list.xlsx', rows: 18, created: 18, warnings: 0, rejected: 0, daysAgo: 126 },
 ];
 export const EXPORTS: { kind: string; format: 'xlsx' | 'csv'; summary: string; rows: number; daysAgo: number }[] = [
   { kind: 'job-cards', format: 'xlsx', summary: 'Job Cards · Ota Workshop · last 30 days', rows: 48, daysAgo: 1 },

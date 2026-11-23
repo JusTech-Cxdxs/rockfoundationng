@@ -92,7 +92,7 @@ export async function setDemoOrganisation(organisationId: string, isDemo: boolea
   return { ok: true, summary: isDemo ? `${org.name} is now the demo organisation. Load the demo to fill it.` : `${org.name} is no longer a demo: ${switchedOff} demo sign-ins switched off. Its demo records stay until you remove them.` };
 }
 
-/** Loads the whole demo again as of now: the people (when the password is set) and the workshop's seven months. */
+/** Loads the whole demo again as of now: the people (when the password is set) and the workshop's four months. */
 export async function refreshDemoNow(organisationId: string, confirm: string): Promise<Done<{ summary: string }>> {
   const userId = await platformTeam('refreshDemoNow');
   if (String(confirm ?? '').trim().toLowerCase() !== 'refresh the demo') return fail('Type “refresh the demo” to go ahead: the demo records are replaced as of now (nobody’s own records are touched).');

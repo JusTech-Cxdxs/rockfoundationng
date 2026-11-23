@@ -1,8 +1,11 @@
 /**
- * The workshop demo (Sample data): seven months of Rock Foundation
+ * The workshop demo (Sample data): four months of Rock Foundation
  * Automobile's Ota Workshop, with the invented fleets it maintains on credit
  * and its private customers, their vehicles, and one Job Card for every visit:
- * repairs and services (Service ticked), in every status, with estimates
+ * services, repairs, diagnostics, spraying and quick car washes (each Job
+ * Card's job type, filed under the department that does the work), in every
+ * status, with the guarantee fixed at checkout and one comeback under it,
+ * with estimates
  * (labour, parts bought outside, sundries) in naira with VAT and some
  * discounts, the customer's answer (by link, in the portal, by phone or by
  * paying the deposit at the counter), deposits, invoices and receipts for
@@ -24,8 +27,10 @@ import { billingTotals, depositOf, type BillingTotals } from '@ejo/utils/billing
 import { DEMO_CUSTOMERS, DEMO_STAFF, demoPerson, type DemoStaff } from '../../demo/people';
 import {
   BROADCASTS, COLOURS, COMMERCIAL_COMPLAINTS, COMPANIES, DEMO_SOURCE, EXPORTS, IMPORTS, INDIVIDUALS, JOB_LINES, MODELS, OTHER_JOBS, PASSENGER_COMPLAINTS,
-  PLATE_PREFIXES, SERVICE_TEXTS, TICKETS, serviceKindFor, type CatalogueCustomer, type CatalogueModel, type LineSpec,
+  PLATE_PREFIXES, SERVICE_TEXTS, SPRAY_JOBS, TICKETS, WASH_PRICES, serviceKindFor, type CatalogueCustomer, type CatalogueModel, type LineSpec,
 } from './catalogue';
+import { departmentSlugFor, type WorkDepartmentSlug } from '../routing';
+import { DEFAULT_WARRANTY, guaranteeAtCheckout } from '../../money/warranty';
 
 export { DEMO_SOURCE };
 
@@ -98,11 +103,20 @@ export const DEMO_VAT_RATE = 7.5;
 export const DEMO_DEPOSIT_FRACTION = 0.5;
 /** A whole-estimate discount above this share of the subtotal needs the Owner. */
 export const DEMO_DISCOUNT_APPROVAL_PERCENT = 10;
-/** Every 5,000 km or 180 days, whichever comes first. */
-export const DEMO_SERVICE_INTERVAL = { km: 5000, days: 180 } as const;
+/** Every 5,000 km or three months, whichever comes first. */
+export const DEMO_SERVICE_INTERVAL = { km: 5000, days: 90 } as const;
 
 // ── What the plan holds ─────────────────────────────────────────────────
-export type Dept = 'mechanical' | 'electrical';
+export type Dept = WorkDepartmentSlug;
+export type DemoJobType = 'SERVICE' | 'REPAIR' | 'SERVICE_AND_REPAIR' | 'DIAGNOSTICS' | 'SPRAYING' | 'CAR_WASH';
+/** The job type a kind of work is opened as (front desk's "What is this visit for?"). */
+export function jobTypeOf(kind: string, service: boolean, complaints: number): DemoJobType {
+  if (service) return complaints > 1 ? 'SERVICE_AND_REPAIR' : 'SERVICE';
+  if (kind === 'diagnostics') return 'DIAGNOSTICS';
+  if (kind === 'spraying') return 'SPRAYING';
+  if (kind === 'wash' || kind === 'detailing') return 'CAR_WASH';
+  return 'REPAIR';
+}
 export type DemoContact = { name: string; role: string; phone: string; email: string };
 export type DemoCustomer = {
   key: string; name: string; type: 'INDIVIDUAL' | 'ORGANIZATION'; company: string | null; phone: string; address: string; email: string | null; since: Date; contacts: DemoContact[]; tags: string[]; createdAt: Date;
@@ -110,7 +124,7 @@ export type DemoCustomer = {
   credit: { days: number; limit: number; approvedAt: Date; byKey: string } | null;
 };
 export type DemoVehicle = { key: string; customerKey: string; modelKey: string; make: string; model: string; type: 'PASSENGER' | 'COMMERCIAL'; year: number; plate: string; vin: string; engineNumber: string; engineType: string; colour: string; mileage: number; createdAt: Date };
-export type EstimateLine = { key: string; type: LineSpec['type']; description: string; quantity: number; unitPrice: number; amount: number; discount: number; uom: string | null };
+export type EstimateLine = { key: string; type: LineSpec['type']; description: string; quantity: number; unitPrice: number; amount: number; discount: number; uom: string | null; billTo: 'CUSTOMER' | 'WARRANTY' };
 export type CustomerAnswer = { via: 'LINK' | 'PORTAL' | 'PHONE' | 'DEPOSIT'; at: Date; byStaffKey: string | null; note: string | null };
 export type DemoEstimate = {
   status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'MANAGER_APPROVED'; lines: EstimateLine[]; createdAt: Date; submittedAt: Date | null; approvedAt: Date | null; managerApprovedAt: Date | null; customerNotifiedAt: Date | null;
@@ -123,13 +137,19 @@ export type DemoEstimate = {
   link: { createdAt: Date; expiresAt: Date; usedAt: Date | null; revokedAt: Date | null } | null;
   totals: BillingTotals;
 };
-export type DemoPayment = { key: string; amount: number; method: 'BANK_TRANSFER' | 'CASH'; at: Date; note: string; byKey: string };
+export type DemoPayment = { key: string; amount: number; method: 'BANK_TRANSFER' | 'CASH' | 'POS'; at: Date; note: string; byKey: string; posReference?: string };
 export type DemoInvoice = { issuedAt: Date; byKey: string; dueDate: Date | null; amountPaidAtIssue: number };
 /** byKey null: the customer did it themselves (by link or in the portal). */
 export type AuditEntry = { action: string; at: Date; byKey: string | null; metadata?: Record<string, unknown> };
 export type JobCardStatus = 'CHECKED_IN' | 'AWAITING_CUSTOMER_APPROVAL' | 'IN_PROGRESS' | 'AWAITING_PARTS' | 'QUALITY_CHECK' | 'COMPLETED' | 'READY_FOR_COLLECTION' | 'CLOSED' | 'CHECKED_OUT' | 'CANCELLED';
 export type DemoJobCard = {
-  key: string; vehicleKey: string; customerKey: string; dept: Dept; kind: string; service: boolean; openedAt: Date; status: JobCardStatus;
+  key: string; vehicleKey: string; customerKey: string; dept: Dept; kind: string; service: boolean; jobType: DemoJobType; openedAt: Date; status: JobCardStatus;
+  /** Check-in: fuel in eighths, what was left in the vehicle; spraying colour and panels; the car wash package. */
+  fuelLevel: number; itemsInVehicle: string | null; spray: { colour: string; code: string; panels: string[] } | null; wash: keyof typeof WASH_PRICES | null;
+  /** The guarantee fixed at checkout (lib/money/warranty.ts); null for none. */
+  guarantee: { until: Date | null; untilKm: number | null } | null;
+  /** A comeback: the earlier Job Card whose work this visit puts right under its guarantee. */
+  comebackOfKey: string | null;
   complaints: string[]; diagnosis: string | null; notes: string | null; mileage: number; technicianKey: string; supervisorKey: string;
   approvalStatus: 'PENDING' | 'APPROVED'; approvedAt: Date | null; technicianAcceptance: 'PENDING' | 'ACCEPTED'; technicianRespondedAt: Date | null;
   workStartedAt: Date | null; completedAt: Date | null; readyForCollectionAt: Date | null; closedAt: Date | null; checkedOutAt: Date | null; collectedByName: string | null;
@@ -163,7 +183,7 @@ export type WorkshopDemoPlan = {
 /** What the customer pays on an estimate (the one rule, @ejo/utils/billing), with VAT once it is fixed. */
 export function estimateTotals(e: Pick<DemoEstimate, 'lines' | 'discountAmount' | 'vatRate'>, vatRateIfOpen: number = DEMO_VAT_RATE): BillingTotals {
   const rate = e.vatRate ?? vatRateIfOpen;
-  return billingTotals({ lines: e.lines.map((l) => ({ amount: l.amount, discountAmount: l.discount })), discountAmount: e.discountAmount, vat: { vatEnabled: rate > 0, vatRate: rate } });
+  return billingTotals({ lines: e.lines.filter((l) => l.billTo === 'CUSTOMER').map((l) => ({ amount: l.amount, discountAmount: l.discount })), discountAmount: e.discountAmount, vat: { vatEnabled: rate > 0, vatRate: rate } });
 }
 /** The deposit an individual pays before work starts (none for an organisation). */
 export const depositFor = (total: number, organisation: boolean) => (organisation ? 0 : depositOf(total, DEMO_DEPOSIT_FRACTION));
@@ -177,7 +197,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
   const r = mulberry32(20261121);
   const now = anchor;
   const today = utcMidnight(now);
-  const from = plus(today, -212 * DAY);
+  const from = plus(today, -122 * DAY);
 
   // ── Customers and their vehicles ───────────────────────────────────────
   const customers: DemoCustomer[] = [];
@@ -212,7 +232,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     vehicles.push(v);
   };
   const addCustomer = (c: CatalogueCustomer, organisation: boolean) => {
-    const createdAt = regDay(205, 211);
+    const createdAt = regDay(116, 121);
     const email = portalEmail(c.key) ?? c.email ?? null;
     const cust: DemoCustomer = {
       key: c.key, name: c.name, type: organisation ? 'ORGANIZATION' : 'INDIVIDUAL', company: c.company ?? null, phone: c.phone, address: c.address, email, since: plus(createdAt, -int(r, 200, 2400) * DAY),
@@ -237,15 +257,15 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     const left = jc.checkedOutAt ?? (jc.status === 'CANCELLED' ? jc.cancellation?.decidedAt ?? now : jc.status === 'CLOSED' ? plus(now, DAY) : plus(now, 30 * DAY));
     stays.set(v.key, [...(stays.get(v.key) ?? []), { from: jc.openedAt, to: left }]);
   };
-  const peopleFor = (dept: Dept) => (dept === 'mechanical' ? { tech: P.tech1, sup: P.advisor } : { tech: P.tech2, sup: P.advisor });
-  const deptOf = (v: DemoVehicle): Dept => (v.type === 'PASSENGER' && chance(r, 0.4) ? 'electrical' : 'mechanical');
+  // Technician 1 does mechanical work, 2 electrical and diagnostics, 3 the spray booth and the wash bay.
+  const peopleFor = (dept: Dept) => ({ tech: dept === 'mechanical' ? P.tech1 : dept === 'electrical' ? P.tech2 : P.tech3, sup: P.advisor });
   const collectorName = (c: DemoCustomer) => (c.type === 'ORGANIZATION' ? `${c.name} driver` : c.name);
   let lineSeq = 0;
 
   const makeEstimate = (specs: LineSpec[], createdAt: Date, customer: DemoCustomer): DemoEstimate => {
     const lines: EstimateLine[] = specs.map((l) => {
       const qty = l.qty ?? 1;
-      return { key: `el${(lineSeq += 1)}`, type: l.type, description: l.description, quantity: qty, unitPrice: l.price, amount: qty * l.price, discount: 0, uom: l.uom ?? null };
+      return { key: `el${(lineSeq += 1)}`, type: l.type, description: l.description, quantity: qty, unitPrice: l.price, amount: qty * l.price, discount: 0, uom: l.uom ?? null, billTo: 'CUSTOMER' as const };
     });
     const est: DemoEstimate = { status: 'DRAFT', lines, createdAt, submittedAt: null, approvedAt: null, managerApprovedAt: null, customerNotifiedAt: null, discountAmount: 0, discountReason: null, discountApprovedAt: null, vatRate: null, approval: null, declined: null, link: null, totals: billingTotals({ lines: [] }) };
     // Discounts: fleets often have 10% off labour; a few estimates carry a whole-estimate discount (above 10%, the Owner approves it).
@@ -259,6 +279,42 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     est.totals = estimateTotals(est);
     return est;
   };
+  /**
+   * A quick car wash (Phase 5): the package's list price is the one line, approved and started at check-in;
+   * finished, invoiced, paid at the counter and checked out, with no close request and no guarantee.
+   */
+  const quickWash = (jc: DemoJobCard, o: { target?: JobCardStatus; openedAt: Date }, customer: DemoCustomer, tech: DemoStaff): DemoJobCard => {
+    const log = (action: string, when: Date, by: DemoStaff | null, metadata?: Record<string, unknown>) => jc.audit.push({ action, at: when, byKey: by ? who(by) : null, metadata });
+    const pkg = jc.wash ?? 'FULL';
+    const price = WASH_PRICES[pkg];
+    const start = o.openedAt;
+    const label = pkg === 'EXTERIOR' ? 'Exterior wash' : pkg === 'FULL' ? 'Full wash (inside and out)' : pkg === 'FULL_ENGINE' ? 'Full wash with engine wash' : 'Interior detailing';
+    const est: DemoEstimate = {
+      status: 'MANAGER_APPROVED', lines: [{ key: `el${(lineSeq += 1)}`, type: 'LABOUR', description: `Car wash: ${label}`, quantity: 1, unitPrice: price, amount: price, discount: 0, uom: null, billTo: 'CUSTOMER' }],
+      createdAt: start, submittedAt: start, approvedAt: start, managerApprovedAt: start, customerNotifiedAt: null, discountAmount: 0, discountReason: null, discountApprovedAt: null, vatRate: DEMO_VAT_RATE,
+      approval: { via: 'PHONE', at: start, byStaffKey: who(P.frontdesk), note: 'Quick car wash: the customer chose the package at the counter.' }, declined: null, link: null, totals: billingTotals({ lines: [] }),
+    };
+    est.totals = estimateTotals(est);
+    jc.estimate = est;
+    jc.approvalStatus = 'APPROVED'; jc.approvedAt = start; jc.technicianAcceptance = 'ACCEPTED'; jc.technicianRespondedAt = start;
+    jc.status = 'IN_PROGRESS'; jc.workStartedAt = start; log('job_card.status_updated', start, P.frontdesk, { status: 'IN_PROGRESS', quickCarWash: true });
+    if (o.target === 'IN_PROGRESS' || o.target === 'CHECKED_IN') return jc;
+    let t = wm(start, int(r, 25, 70)); if (t > now) return jc;
+    jc.status = 'COMPLETED'; jc.completedAt = t; log('job_card.status_updated', t, tech, { status: 'COMPLETED' });
+    const onCredit = Boolean(customer.credit && customer.credit.approvedAt <= start);
+    jc.invoice = { issuedAt: t, byKey: who(P.frontdesk), dueDate: onCredit ? plus(t, customer.credit!.days * DAY) : null, amountPaidAtIssue: 0 };
+    log('invoice.issued', t, P.frontdesk, { invoiceNumber: '{invoice}' });
+    if (o.target === 'COMPLETED') return jc;
+    t = wm(t, int(r, 5, 30)); if (t > now) return jc;
+    if (!onCredit) {
+      const method = pick(r, ['CASH', 'POS', 'POS', 'BANK_TRANSFER'] as const);
+      jc.payments.push({ key: `${jc.key}-p1`, amount: est.totals.total, method, at: t, note: 'Car wash paid at the counter', byKey: who(P.frontdesk), ...(method === 'POS' ? { posReference: `POS-${String(int(r, 100_000, 999_999))}` } : {}) });
+      log('payment.recorded', t, P.frontdesk, { amount: est.totals.total });
+    }
+    t = wm(t, int(r, 5, 25)); if (t > now) return jc;
+    jc.status = 'CHECKED_OUT'; jc.checkedOutAt = t; jc.collectedByName = collectorName(customer); jc.gateExit = { at: plus(t, int(r, 3, 10) * 60_000), driverName: jc.collectedByName }; log('job_card.status_updated', t, P.frontdesk, { status: 'CHECKED_OUT' });
+    return jc;
+  };
   const needsManagerForDiscount = (est: DemoEstimate) => est.discountAmount * 100 > est.totals.subtotal * DEMO_DISCOUNT_APPROVAL_PERCENT;
 
   type JobOpts = {
@@ -269,6 +325,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     /** At AWAITING_CUSTOMER_APPROVAL: the customer declined (asked for changes). */ declined?: boolean;
     /** A fleet invoice on credit: paid, or still open. */ creditPaid?: boolean;
     /** A cancelled card whose deposit was paid (and is refunded). */ refund?: boolean;
+    /** A comeback on this earlier Job Card: the lines are covered by its guarantee. */ comebackOf?: DemoJobCard;
   };
   /**
    * One job card from check-in to its state at the anchor. The timeline is
@@ -282,26 +339,32 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     const customer = customerByKey.get(v.customerKey)!;
     const org = customer.type === 'ORGANIZATION';
     const onCredit = Boolean(customer.credit && customer.credit.approvedAt <= o.openedAt);
-    const dept = deptOf(v);
-    const { tech, sup } = peopleFor(dept);
     const service = o.service ?? false;
     const complaintsList = (v.type === 'COMMERCIAL' ? COMMERCIAL_COMPLAINTS : PASSENGER_COMPLAINTS) as readonly (readonly [string, string, string])[];
     const all = [...complaintsList, ...(OTHER_JOBS as readonly (readonly [string, string, string])[])];
     const kind = o.kind ?? (service ? serviceKindFor(modelByKey.get(v.modelKey)!) : pick(r, complaintsList)[2]);
     const row = all.find((c) => c[2] === kind);
-    const complaints = service ? [pick(r, SERVICE_TEXTS)] : [row?.[0] ?? kind];
-    if (chance(r, 0.2)) complaints.push(pick(r, ['Also check the horn', 'Customer asks for a wash before collection', 'Spare key not with the vehicle', 'Check tyre pressures', 'Wiper blades smearing']));
+    const complaints = service ? [pick(r, SERVICE_TEXTS)] : kind === 'wash' ? ['Car wash'] : [row?.[0] ?? kind];
+    if (o.comebackOf) complaints[0] = `Comeback: ${o.comebackOf.complaints[0]} again after the last visit`;
+    if (kind !== 'wash' && !o.comebackOf && chance(r, 0.2)) complaints.push(pick(r, ['Also check the horn', 'Customer asks for a wash before collection', 'Spare key not with the vehicle', 'Check tyre pressures', 'Wiper blades smearing']));
+    const jobType = jobTypeOf(kind, service, complaints.length);
+    const dept = departmentSlugFor(jobType);
+    const { tech, sup } = peopleFor(dept);
     const mileage = mileageAt(v, o.openedAt);
     const audit: AuditEntry[] = [];
     const log = (action: string, when: Date, by: DemoStaff | null, metadata?: Record<string, unknown>) => audit.push({ action, at: when, byKey: by ? who(by) : null, metadata });
     const jc: DemoJobCard = {
-      key: `jc${jobCards.length + 1}`, vehicleKey: v.key, customerKey: v.customerKey, dept, kind, service, openedAt: o.openedAt, status: 'CHECKED_IN', complaints, diagnosis: null, notes: null, mileage,
+      key: `jc${jobCards.length + 1}`, vehicleKey: v.key, customerKey: v.customerKey, dept, kind, service, jobType, openedAt: o.openedAt, status: 'CHECKED_IN', complaints, diagnosis: null, notes: null, mileage,
+      fuelLevel: int(r, 1, 8), itemsInVehicle: chance(r, 0.5) ? pick(r, ['Spare tyre and jack', 'Car documents in the glovebox', 'Child seat in the back', 'Umbrella and phone charger', 'Fire extinguisher and warning triangle']) : null,
+      spray: kind === 'spraying' ? pick(r, SPRAY_JOBS) : null, wash: kind === 'wash' ? pick(r, ['EXTERIOR', 'FULL', 'FULL', 'FULL_ENGINE'] as const) : null, guarantee: null, comebackOfKey: null,
       technicianKey: who(tech), supervisorKey: who(sup), approvalStatus: 'PENDING', approvedAt: null, technicianAcceptance: 'PENDING', technicianRespondedAt: null,
       workStartedAt: null, completedAt: null, readyForCollectionAt: null, closedAt: null, checkedOutAt: null, collectedByName: null, estimate: null, payments: [], invoice: null, onCredit,
       rework: null, cancellation: null, close: null, refund: null, gateExit: null, audit,
     };
-    log('job_card.created', o.openedAt, P.frontdesk, { jobNumber: '{number}', isService: service });
-    if (o.target === 'CHECKED_IN') return jc;
+    log('job_card.created', o.openedAt, P.frontdesk, { jobNumber: '{number}', isService: service, jobType });
+    if (o.target === 'CHECKED_IN' && kind !== 'wash') return jc;
+    // A quick car wash (the package has a list price): approved and started at check-in, one priced line, no supervisor review or estimate to send.
+    if (kind === 'wash') return quickWash(jc, o, customer, tech);
     // 1. The supervisor accepts, the technician accepts, inspects and writes the estimate.
     let t = wm(o.openedAt, q(20, 70));
     if (t > now) return jc;
@@ -311,6 +374,12 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     t = wm(t, q(40, 150)); if (t > now) return jc;
     jc.diagnosis = service ? `Service at ${mileage.toLocaleString('en-NG')} km; ${pick(r, ['brake pads 50% left', 'tyres fine', 'coolant topped up', 'wiper blades due next visit', 'battery tested OK', 'drive belt fine'])}.` : row?.[1] ?? null;
     const est = makeEstimate(JOB_LINES[kind] ?? JOB_LINES.service!, t, customer);
+    if (o.comebackOf) {
+      // Put right under the earlier job's guarantee: nothing charged to the customer; the Owner approves.
+      for (const l of est.lines) { l.billTo = 'WARRANTY'; l.discount = 0; }
+      est.discountAmount = 0; est.discountReason = null;
+      est.totals = estimateTotals(est);
+    }
     jc.estimate = est;
     log('estimate.line_item_added', t, tech, { lines: est.lines.length });
     const deposit = () => depositFor(est.totals.total, org);
@@ -429,6 +498,8 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     if (o.target === 'CLOSED') return jc;
     t = wm(closeDec, int(r, 10, 200)); if (t > now) return jc;
     jc.status = 'CHECKED_OUT'; jc.checkedOutAt = t; jc.collectedByName = collectorName(customer); jc.gateExit = { at: plus(t, int(r, 5, 20) * 60_000), driverName: jc.collectedByName }; log('job_card.status_updated', t, P.frontdesk, { status: 'CHECKED_OUT' });
+    const g = guaranteeAtCheckout(DEFAULT_WARRANTY[jobType], t, mileage);
+    if (g.until || g.untilKm) jc.guarantee = g;
     // A fleet on credit pays by transfer within its terms (or a little after), or still owes it.
     if (onCredit && balance > 0) {
       // Older invoices have all been paid by now; a recent one may still be open.
@@ -457,32 +528,49 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
   add({ vehicle: fleetCars[2]!, openedAt: plus(now, -40 * 60_000) < at(today, 8, 0) || !isWorkDay(today) ? plus(now, -40 * 60_000) : at(today, 8, 10), service: true, target: 'CHECKED_IN' });
   add({ vehicle: fleetCars[3]!, openedAt: at(workingDayBack(2), 9, 10), kind: 'cooling', target: 'IN_PROGRESS', quick: true, via: 'PORTAL' });
 
-  // Each vehicle's visits over the seven months: services at its interval, repairs in between.
+  // Each vehicle's visits over the four months: services at its interval, repairs in between.
   const SERVICE_EVERY: Record<'ORGANIZATION' | 'INDIVIDUAL', [number, number]> = { ORGANIZATION: [70, 100], INDIVIDUAL: [130, 185] };
   const visitsOf: { v: DemoVehicle; at: Date; service: boolean; kind?: string }[] = [];
+  /** Vehicles whose service is lapsing or due: the Service Tracker's story, kept out of today's open job cards. */
+  const trackerStory = new Set<string>();
   for (const [i, v] of vehicles.entries()) {
     const c = customerByKey.get(v.customerKey)!;
     const [lo, hi] = SERVICE_EVERY[c.type];
     // Where the vehicle's service count stands at the start: some services fall early and are not repeated (the Service Tracker's overdue list), some fall due in the coming weeks.
     const pattern = i % 9 === 4 ? 'lapsed' : i % 9 === 7 ? 'due-soon' : 'regular';
-    let day = pattern === 'lapsed' ? int(r, 186, 205) : pattern === 'due-soon' ? int(r, 152, 172) : int(r, 100, Math.max(101, hi + 60));
+    // About half the vehicles were serviced before the four months began (their history is the old system's): no service here.
+    // A lapsed vehicle works hard: past its 5,000 km since that service (the tracker's overdue list).
+    if (pattern === 'lapsed') dailyKm.set(v.key, Math.max(dailyKm.get(v.key)!, 55));
+    if (pattern !== 'regular') trackerStory.add(v.key);
+    const servicedBefore = pattern === 'regular' && i % 2 === 1;
+    let day = servicedBefore ? 0 : pattern === 'lapsed' ? int(r, 100, 115) : pattern === 'due-soon' ? int(r, 65, 82) : int(r, 15, 58);
     while (day > 3) {
       visitsOf.push({ v, at: at(plus(today, -day * DAY), int(r, 7, 13), int(r, 0, 59)), service: true });
       if (pattern !== 'regular') break;
       day -= int(r, lo, hi);
     }
     // Repairs, washes and the odd roadside call-out between the services.
-    const repairs = c.type === 'ORGANIZATION' ? int(r, 1, 3) : int(r, 0, 2);
-    for (let k = 0; k < repairs; k += 1) visitsOf.push({ v, at: at(plus(today, -int(r, 8, 200) * DAY), int(r, 7, 14), int(r, 0, 59)), service: false, kind: chance(r, 0.12) ? pick(r, ['detailing', 'roadside', 'tyres']) : undefined });
+    const repairs = trackerStory.has(v.key) ? 0 : c.type === 'ORGANIZATION' ? int(r, 0, 1) : chance(r, 0.35) ? 1 : 0;
+    for (let k = 0; k < repairs; k += 1) visitsOf.push({ v, at: at(plus(today, -int(r, 8, 115) * DAY), int(r, 7, 14), int(r, 0, 59)), service: false, kind: chance(r, 0.12) ? pick(r, ['roadside', 'tyres']) : undefined });
   }
+  // The spray booth (private cars) and the wash bay (anyone): a few of each over the months.
+  const cars = vehicles.filter((v) => v.type === 'PASSENGER' && !trackerStory.has(v.key));
+  for (let k = 0; k < 4; k += 1) visitsOf.push({ v: pick(r, cars), at: at(plus(today, -int(r, 10, 110) * DAY), int(r, 8, 11), int(r, 0, 59)), service: false, kind: 'spraying' });
+  for (let k = 0; k < 6; k += 1) visitsOf.push({ v: pick(r, vehicles.filter((v) => !trackerStory.has(v.key))), at: at(plus(today, -int(r, 5, 115) * DAY), int(r, 8, 15), int(r, 0, 59)), service: false, kind: 'wash' });
   visitsOf.sort((a, b) => a.at.getTime() - b.at.getTime());
   for (const x of visitsOf) {
     let openedAt = x.at;
     while (!isWorkDay(openedAt)) openedAt = plus(openedAt, DAY);
     if (openedAt > plus(now, -3 * DAY)) continue;
-    if (!free(x.v, openedAt, plus(openedAt, 6 * DAY))) continue;
-    add({ vehicle: x.v, openedAt, service: x.service, kind: x.kind, target: chance(r, 0.03) ? 'CANCELLED' : undefined, slow: chance(r, 0.04) ? 'customer' : null, rework: !x.service && chance(r, 0.08) });
+    // Room for the whole visit, however long the job runs.
+    if (!free(x.v, openedAt, plus(openedAt, 12 * DAY))) continue;
+    const wash = x.kind === 'wash';
+    add({ vehicle: x.v, openedAt, service: x.service, kind: x.kind, target: !wash && chance(r, 0.03) ? 'CANCELLED' : undefined, slow: !wash && chance(r, 0.04) ? 'customer' : null, rework: !wash && !x.service && chance(r, 0.08) });
   }
+  // One comeback: a repair checked out in the last few weeks, back under its guarantee.
+  const comebackOf = jobCards.filter((j) => j.jobType === 'REPAIR' && !trackerStory.has(j.vehicleKey) && j.checkedOutAt && j.guarantee && j.checkedOutAt > plus(now, -45 * DAY) && j.checkedOutAt < plus(now, -6 * DAY) && free(vehicleByKey.get(j.vehicleKey)!, plus(now, -3 * DAY), plus(now, 30 * DAY))).at(-1);
+  const comebackPairs: [DemoJobCard, DemoJobCard][] = [];
+  if (comebackOf) comebackPairs.push([add({ vehicle: vehicleByKey.get(comebackOf.vehicleKey)!, openedAt: at(workingDayBack(2), 9, 20), kind: comebackOf.kind, target: 'IN_PROGRESS', quick: true, comebackOf, via: 'PHONE' }), comebackOf]);
 
   // Job cards that show every stage today, whatever the dice did above.
   const stageDays: [JobCardStatus, number, Partial<JobOpts>][] = [
@@ -490,16 +578,18 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     ['IN_PROGRESS', 2, { quick: true }], ['IN_PROGRESS', 1, { service: true, quick: true }], ['AWAITING_PARTS', 3, { quick: true, kind: 'suspension' }], ['AWAITING_PARTS', 2, { quick: true, kind: 'cooling' }],
     ['QUALITY_CHECK', 3, { quick: true }], ['QUALITY_CHECK', 4, { quick: true, rework: true, kind: 'diagnostics' }], ['COMPLETED', 4, { quick: true }], ['COMPLETED', 5, { quick: true, service: true }],
     ['READY_FOR_COLLECTION', 5, { quick: true }], ['READY_FOR_COLLECTION', 6, { quick: true, service: true }], ['CLOSED', 7, { quick: true }], ['CANCELLED', 2, { collected: false }], ['CANCELLED', 6, { collected: true, refund: true }],
+    ['IN_PROGRESS', 0, { kind: 'wash' }], ['IN_PROGRESS', 3, { kind: 'spraying', quick: true }], ['IN_PROGRESS', 1, { kind: 'diagnostics', quick: true }],
   ];
   for (const [target, daysAgo, extra] of stageDays) {
     const d = workingDaysBack(daysAgo);
     let openedAt = daysAgo === 0 ? plus(now, -int(r, 30, 150) * 60_000) : at(d, int(r, 8, 10), int(r, 0, 59));
     if (openedAt > now) openedAt = plus(now, -int(r, 15, 60) * 60_000);
-    const v = freeVehicle(openedAt, (x) => !['customer.individual'].includes(x.customerKey) && (extra.kind !== 'brakes' || x.type === 'PASSENGER') && (!extra.refund || customerByKey.get(x.customerKey)!.type === 'INDIVIDUAL'));
+    const v = freeVehicle(openedAt, (x) => !trackerStory.has(x.key) && !['customer.individual'].includes(x.customerKey) && (!['brakes', 'spraying'].includes(extra.kind ?? '') || x.type === 'PASSENGER') && (!extra.refund || customerByKey.get(x.customerKey)!.type === 'INDIVIDUAL'));
     if (v) add({ vehicle: v, openedAt, target, ...extra });
   }
   jobCards.sort((a, b) => a.openedAt.getTime() - b.openedAt.getTime());
   jobCards.forEach((j, i) => { j.key = `jc${i + 1}`; });
+  for (const [cb, original] of comebackPairs) cb.comebackOfKey = original.key;
   for (const v of vehicles) v.mileage = Math.max(mileageAt(v, v.createdAt), ...jobCards.filter((j) => j.vehicleKey === v.key).map((j) => j.mileage));
 
   // ── The Service Tracker: where each vehicle's count stands today ───────
@@ -517,7 +607,7 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     const { due, status } = dueOf(j);
     if (status === 'ON_TRACK') continue;
     const inNow = jobCards.some((x) => x.vehicleKey === j.vehicleKey && x.openedAt > j.checkedOutAt! && !x.checkedOutAt && x.status !== 'CANCELLED');
-    if (inNow || reminders.length >= 6 || chance(r, 0.35)) continue;
+    if (inNow || reminders.length >= 6 || (reminders.length > 0 && chance(r, 0.35))) continue;
     const sentAt = wm(at(workingDayBack(int(r, 1, 8)), 9), int(r, 0, 240));
     if (sentAt > now || sentAt < j.checkedOutAt!) continue;
     reminders.push({ vehicleKey: j.vehicleKey, sentAt, byKey: who(P.frontdesk), dueOdometer: due.km, dueDate: due.date, odometerAtSend: vehicleByKey.get(j.vehicleKey)!.mileage, reminderNumber: status === 'OVERDUE' ? 3 : 1, trigger: status === 'OVERDUE' ? 'OVERDUE' : 'DUE_SOON' });
@@ -553,7 +643,8 @@ export function planWorkshopDemo(anchor: Date): WorkshopDemoPlan {
     discounts: jobCards.filter((j) => j.estimate && (j.estimate.discountAmount > 0 || j.estimate.lines.some((l) => l.discount > 0))).length,
     approvedByLink: jobCards.filter((j) => j.estimate?.approval?.via === 'LINK').length, approvedInPortal: jobCards.filter((j) => j.estimate?.approval?.via === 'PORTAL').length, approvedByPhone: jobCards.filter((j) => j.estimate?.approval?.via === 'PHONE').length, approvedByDeposit: jobCards.filter((j) => j.estimate?.approval?.via === 'DEPOSIT').length,
     serviceDueSoon: tracker.filter((x) => x.status === 'DUE_SOON').length, serviceOverdue: tracker.filter((x) => x.status === 'OVERDUE').length, reminders: reminders.length,
-    tickets: tickets.length,
+    tickets: tickets.length, comebacks: jobCards.filter((j) => j.comebackOfKey).length,
+    ...Object.fromEntries(Object.entries(jobCards.reduce<Record<string, number>>((m, j) => { m[j.jobType] = (m[j.jobType] ?? 0) + 1; return m; }, {})).map(([k, v]) => [`type_${k}`, v])),
     ...Object.fromEntries(Object.entries(byStatus(jobCards)).map(([k, v]) => [`jc_${k}`, v])),
   };
   return { anchor, from, customers, vehicles, jobCards, reminders, broadcasts, announcement, tickets, imports, exports: exportsOut, figures };

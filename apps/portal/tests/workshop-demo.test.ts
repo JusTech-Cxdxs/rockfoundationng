@@ -7,6 +7,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { departmentSlugFor } from '../lib/workshop/routing';
+import { DEFAULT_WARRANTY } from '../lib/money/warranty';
+import { planWorkshopExtras } from '../lib/workshop/demo/extras';
 import { OLD_ORGANISATION, PLANT_MAKE } from './leftovers';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,17 +26,17 @@ const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 const STATUSES: JobCardStatus[] = ['CHECKED_IN', 'AWAITING_CUSTOMER_APPROVAL', 'IN_PROGRESS', 'AWAITING_PARTS', 'QUALITY_CHECK', 'COMPLETED', 'READY_FOR_COLLECTION', 'CLOSED', 'CHECKED_OUT', 'CANCELLED'];
 const paidOn = (j: (typeof plan.jobCards)[number]) => j.payments.reduce((s, p) => s + p.amount, 0);
 
-test('the same plan every run; nothing dated after now; seven months back', () => {
+test('the same plan every run; nothing dated after now; four months back', () => {
   const again = planWorkshopDemo(NOW);
   assert.equal(JSON.stringify(again.figures), JSON.stringify(plan.figures));
   assert.equal(again.jobCards[40]!.openedAt.toISOString(), plan.jobCards[40]!.openedAt.toISOString());
   // Every date is in the past except the ones that are meant to be ahead: due, expiry, end and expected times.
-  const AHEAD = new Set(['endsAt', 'dueDate', 'validUntil', 'expiresAt', 'expectedAt', 'expectedReturnAt', 'expectedOutAt', 'dueFirstResponseAt', 'dueResolutionAt', 'startsAt']);
+  const AHEAD = new Set(['until', 'endsAt', 'dueDate', 'validUntil', 'expiresAt', 'expectedAt', 'expectedReturnAt', 'expectedOutAt', 'dueFirstResponseAt', 'dueResolutionAt', 'startsAt']);
   const dates: [string, Date][] = [];
   const walk = (v: unknown, key: string) => { if (v instanceof Date) dates.push([key, v]); else if (Array.isArray(v)) v.forEach((x) => walk(x, key)); else if (v && typeof v === 'object') Object.entries(v).forEach(([k, x]) => walk(x, k)); };
   walk({ ...plan, figures: undefined }, '');
   for (const [key, d] of dates) if (!AHEAD.has(key)) assert.ok(d <= NOW, `${key} ${d.toISOString()} is after now`);
-  assert.ok(NOW.getTime() - plan.from.getTime() >= 200 * 86_400_000);
+  assert.ok(NOW.getTime() - plan.from.getTime() >= 115 * 86_400_000 && NOW.getTime() - plan.from.getTime() <= 130 * 86_400_000);
 });
 
 test('every Job Card status today, repairs and services, at any hour of any day; the sign-ins have their stories', () => {
@@ -58,7 +61,7 @@ test('every Job Card status today, repairs and services, at any hour of any day;
   assert.ok(plan.jobCards.some((j) => j.customerKey === 'customer.individual' && j.service && j.invoice && j.payments.length >= 2), 'the individual’s last service: invoice and receipts');
   assert.ok(plan.jobCards.some((j) => j.customerKey === 'customer.fleet' && j.invoice?.dueDate && j.invoice.dueDate < NOW && paidOn(j) < j.estimate!.totals.total), 'the fleet’s invoice past its due date');
   assert.ok(plan.jobCards.some((j) => j.customerKey === 'customer.fleet' && ['CHECKED_IN', 'IN_PROGRESS'].includes(j.status)), 'the fleet’s job cards open today');
-  assert.ok(plan.figures.jobCards! >= 100 && plan.figures.customers! >= 15);
+  assert.ok(plan.figures.jobCards! >= 40 && plan.figures.jobCards! <= 90 && plan.figures.customers! >= 15, `${plan.figures.jobCards} job cards`);
 });
 
 test('the three invented fleets, on credit, with their contacts; fleet makes and models from 2006 to date; individuals with their own cars', () => {
@@ -83,6 +86,14 @@ test('the workshop’s rules hold in every job card: stages in order with their 
     const est = j.estimate;
     const customer = plan.customers.find((c) => c.key === j.customerKey)!;
     const org = customer.type === 'ORGANIZATION';
+    // A quick car wash (lib/workshop/car-wash.ts): approved and started at check-in, finished, paid and out; no estimate to send, no close request.
+    const wash = j.jobType === 'CAR_WASH';
+    if (wash) {
+      assert.ok(est && est.lines.length === 1 && est.status === 'MANAGER_APPROVED' && est.approval?.at.getTime() === j.openedAt.getTime() && j.workStartedAt?.getTime() === j.openedAt.getTime(), `${j.key}: a quick car wash starts at check-in`);
+      assert.ok(!j.close && !j.readyForCollectionAt && !j.guarantee, `${j.key}: a car wash has no close request and no guarantee`);
+      if (j.status === 'CHECKED_OUT' && !j.onCredit) assert.ok(Math.abs(paidOn(j) - est.totals.total) < 0.01, `${j.key}: paid at the counter`);
+      continue;
+    }
     if (est) {
       for (const l of est.lines) { assert.equal(l.amount, l.quantity * l.unitPrice, `${j.key} line amount`); assert.ok(l.unitPrice > 0 && l.discount >= 0 && l.discount <= l.amount); assert.ok(['LABOUR', 'EXTERNAL_PART', 'EXTERNAL_JOB', 'SUNDRY'].includes(l.type), `${j.key}: no Store parts (${l.type})`); }
       assert.deepEqual(est.totals, estimateTotals(est), `${j.key} totals are the one rule`);
@@ -201,4 +212,63 @@ test('the loader removes exactly what it made, in an order the foreign keys allo
   assert.ok(reset.indexOf('loadDemoPeople(') < reset.indexOf('loadWorkshopDemo('));
   assert.match(read('apps/portal/lib/governance/data-inventory.ts'), /DemoRecord: \{ tenancy: 'ORGANISATION'/);
   assert.match(read('packages/database/prisma/schema.prisma'), /model DemoRecord \{[\s\S]*?@@map\("demo_records"\)/);
+});
+
+test('job types: every kind of visit, each filed under the department that does the work; the guarantee at checkout; one comeback under it', () => {
+  for (const t of ['SERVICE', 'SERVICE_AND_REPAIR', 'REPAIR', 'DIAGNOSTICS', 'SPRAYING', 'CAR_WASH']) assert.ok(plan.jobCards.some((j) => j.jobType === t), `a ${t} job`);
+  for (const j of plan.jobCards) {
+    assert.equal(j.dept, departmentSlugFor(j.jobType), `${j.key}: ${j.jobType} filed under ${j.dept}`);
+    assert.equal(j.service, j.jobType === 'SERVICE' || j.jobType === 'SERVICE_AND_REPAIR', `${j.key}: a service is a service job type`);
+    if (j.jobType === 'SPRAYING') assert.ok(j.spray && j.spray.colour && j.spray.code && j.spray.panels.length > 0, `${j.key}: colour, code and panels`);
+    else assert.equal(j.spray, null);
+    if (j.jobType === 'CAR_WASH') assert.ok(j.wash, `${j.key}: the package`); else assert.equal(j.wash, null);
+    assert.ok(j.fuelLevel >= 0 && j.fuelLevel <= 8);
+    if (j.status === 'CHECKED_OUT' && j.completedAt) {
+      const term = DEFAULT_WARRANTY[j.jobType];
+      assert.equal(Boolean(j.guarantee), Boolean(term.days || term.km), `${j.key}: the ${j.jobType} guarantee is fixed at checkout`);
+      if (j.guarantee && term.days) assert.equal(j.guarantee.until!.getTime(), j.checkedOutAt!.getTime() + term.days * 86_400_000);
+    } else assert.equal(j.guarantee, null, `${j.key}: no guarantee before checkout`);
+  }
+  const comebacks = plan.jobCards.filter((j) => j.comebackOfKey);
+  assert.equal(comebacks.length, 1, 'one comeback');
+  const cb = comebacks[0]!;
+  const original = plan.jobCards.find((j) => j.key === cb.comebackOfKey)!;
+  assert.equal(original.vehicleKey, cb.vehicleKey);
+  assert.ok(original.guarantee?.until && original.guarantee.until > cb.openedAt, 'back while its guarantee still runs');
+  assert.ok(cb.estimate && cb.estimate.lines.every((l) => l.billTo === 'WARRANTY') && cb.estimate.totals.total === 0, 'covered by the guarantee: nothing charged to the customer');
+});
+
+test('the parts store and customer care in the demo: 80 parts priced above cost, stock never below nothing, counter sales with VAT to the kobo, a stock count the counter cannot approve, credit notes within the invoice, bookings, ratings and callbacks', () => {
+  const staff = { owner: 'owner@x', frontdesk: 'fd@x', store: 'store@x', accounts: 'acc@x' };
+  const x = planWorkshopExtras(plan, staff);
+  assert.equal(JSON.stringify(planWorkshopExtras(plan, staff).figures), JSON.stringify(x.figures), 'the same every run');
+  assert.ok(x.parts.length >= 75 && x.parts.length <= 85, `${x.parts.length} parts`);
+  assert.equal(new Set(x.parts.map((p) => p.partNumber)).size, x.parts.length, 'part numbers unique');
+  for (const p of x.parts) { assert.ok(p.sellingPrice > p.cost, `${p.partNumber} sells above cost`); assert.ok(x.onHand[p.key]! >= 0, `${p.partNumber} never below nothing`); }
+  assert.ok(x.receipts[0]!.opening && x.receipts[0]!.receivedAt < plan.from, 'the opening balance at the cut-over');
+  assert.ok(x.counterSales.length >= 5);
+  for (const c of x.counterSales) {
+    assert.ok(c.soldAt <= NOW);
+    assert.equal(c.subtotal, Math.round(c.lines.reduce((s, l) => s + l.amount, 0) * 100) / 100);
+    assert.equal(c.vatAmount, Math.round(c.subtotal * DEMO_VAT_RATE) / 100);
+    assert.equal(c.total, Math.round((c.subtotal + c.vatAmount) * 100) / 100);
+    if (c.method === 'POS') assert.ok(c.paymentReference);
+  }
+  const waiting = x.stockCounts.find((s) => s.status === 'PENDING_APPROVAL');
+  assert.ok(waiting && waiting.lines.some((l) => l.counted !== l.system) && waiting.lines.every((l) => l.counted === l.system || l.reason), 'a count with a difference, each with its reason');
+  assert.ok(x.stockCounts.every((s) => s.decidedByKey !== s.countedByKey || !s.decidedByKey), 'never approved by the person who counted');
+  for (const n of x.creditNotes) {
+    const j = plan.jobCards.find((k) => k.key === n.jobCardKey)!;
+    assert.ok(j.invoice && n.amount > 0 && n.amount <= j.estimate!.totals.total, `${n.key} within the invoice`);
+    assert.equal(n.vatAmount, Math.round((n.amount * DEMO_VAT_RATE) / (100 + DEMO_VAT_RATE) * 100) / 100);
+  }
+  assert.ok(x.creditNotes.some((n) => n.status === 'APPROVED') && x.creditNotes.some((n) => n.status === 'PENDING'));
+  assert.ok(x.appointments.some((a) => a.status === 'REQUESTED' && a.source === 'WEBSITE') && x.appointments.some((a) => a.status === 'CONFIRMED'));
+  for (const a of x.appointments) assert.match(a.day, /^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(x.ratings.some((r) => r.respondedAt) && x.ratings.every((r) => r.sentAt <= NOW && (!r.respondedAt || r.respondedAt <= NOW)));
+  assert.ok(x.followUps.some((f) => f.reason === 'AFTER_JOB') && x.followUps.some((f) => f.status === 'OPEN'));
+  assert.ok(x.whatsappOptIn.length >= plan.customers.length / 2, 'most customers agreed to WhatsApp');
+  assert.ok(Object.keys(x.complaints).length >= 1, 'complaints among the support tickets');
+  const text = JSON.stringify(x);
+  for (const gone of ['Isuzu', 'warranty', 'Leadway']) assert.ok(!text.includes(gone), `nothing of ${gone}`);
 });

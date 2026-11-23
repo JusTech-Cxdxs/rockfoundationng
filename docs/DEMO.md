@@ -30,7 +30,7 @@ normal deploy:
    more) under Settings → Environment Variables → Production, and redeploy.
    The production build makes the demo organisation, its people and
    sign-ins (`scripts/db-push-if-vercel.js`, right after the schema), and
-   the first time only, the workshop's seven months of records
+   the first time only, the workshop's four months of records
    (`npm run demo:ensure`). A later deploy leaves what people did in the
    demo alone.
 2. **From the portal:** the platform team (the Platform Administrator) opens
@@ -60,8 +60,8 @@ Sign in as each person in turn (every address ends with
 | 4–6 | `tech.1` | `/workshop/job-cards` | Only their jobs. Open one: the diagnosis and the estimate: labour, parts from the store and sundries, in naira. |
 | 6–8 | `gmd` | `/approvals` | Approvals in one place: an estimate with a discount above 10% (the Owner’s final word, VAT fixed) and a cancellation. |
 | 8–9 | `frontdesk` | `/workshop/job-cards` | The estimate sent to the customer on WhatsApp with its link; the answer by link, in the portal or by phone; the deposit for a private customer. |
-| 9–10 | `store` | `/inventory/parts` | The parts store: a part issued to the job card, low stock and the reorder list. |
-| 10–11 | `accounts` | `/workshop/job-cards` | A finished job: the invoice with VAT, the receipt for each payment, a fleet invoice on credit and one past its due date. |
+| 9–10 | `store` | `/inventory/counter-sales` | The parts store: a counter sale with VAT, low stock, and a stock count waiting for the Owner (the Store Keeper never sees a cost). |
+| 10–11 | `accounts` | `/money/statements` | Money: a fleet statement with what is owed by age, a credit note, and the QuickBooks export of the month. |
 | 11–12 | `frontdesk` | `/workshop/service-tracker` | The Service Tracker: who is due, who is overdue, the reminders already sent on WhatsApp or by email. |
 | 12–13 | `gate` | `/security` | The gate: the released vehicle leaves against its gate pass; the vehicles still in the compound. |
 | 13–14 | `customer.individual` | `/customer-portal` | The customer portal: the estimate waiting for approval, last month’s invoice and receipt, the next service due. |
@@ -108,8 +108,8 @@ that is set and the staff password otherwise.
 | `tech.1@demo.rockfoundation.example.com` — Technician 1 (Demo) | Technician, Mechanical · mechanical · DEMO-OTA-003 | Their own jobs only, with what to do next on each. | 1. My job cards (`/workshop/job-cards`)<br>2. Vehicles (`/workshop/vehicles`)<br>3. My profile (`/profile`) | manage users (`/users`)<br>read the audit trail (`/audit-logs`)<br>bring records in (Data Exchange) (`/data-exchange`) |
 | `tech.2@demo.rockfoundation.example.com` — Technician 2 (Demo) | Technician, Electrical and Diagnostics · electrical · DEMO-OTA-004 | A diagnostics job waiting for parts; an estimate to write. | 1. My job cards (`/workshop/job-cards`)<br>2. Parts requests (`/workshop/parts-requests`)<br>3. My profile (`/profile`) | manage users (`/users`)<br>read the audit trail (`/audit-logs`)<br>bring records in (Data Exchange) (`/data-exchange`) |
 | `tech.3@demo.rockfoundation.example.com` — Technician 3 (Demo) | Technician, Body and Spraying · body-spray · DEMO-OTA-005 | Spraying in the booth: the panels and colour on the job card. | 1. My job cards (`/workshop/job-cards`)<br>2. Vehicles (`/workshop/vehicles`)<br>3. My profile (`/profile`) | manage users (`/users`)<br>read the audit trail (`/audit-logs`)<br>bring records in (Data Exchange) (`/data-exchange`) |
-| `store@demo.rockfoundation.example.com` — Store Keeper (Demo) | Store Keeper · store · DEMO-OTA-006 | The parts store: low stock, parts requests to issue, goods received. | 1. Parts (`/inventory/parts`)<br>2. Parts requests (`/workshop/parts-requests`)<br>3. Goods received (`/inventory/goods-receipts`) | manage users (`/users`)<br>open business analytics (`/analytics`)<br>bring records in (Data Exchange) (`/data-exchange`) |
-| `accounts@demo.rockfoundation.example.com` — Accounts (Demo) | Accountant · DEMO-OTA-007 | Money: deposits and balances, invoices and receipts, the fleet accounts on credit. | 1. Job Cards and their invoices (`/workshop/job-cards`)<br>2. Refunds (`/workshop/refunds`)<br>3. Customers and fleet accounts (`/crm`) | manage users (`/users`)<br>change settings (`/settings`) |
+| `store@demo.rockfoundation.example.com` — Store Keeper (Demo) | Store Keeper · store · DEMO-OTA-006 | The parts store: 80 parts, low stock, counter sales, a stock count waiting for the Owner, goods received (without their cost). | 1. Parts (`/inventory/parts`)<br>2. Counter sales (`/inventory/counter-sales`)<br>3. Stock counts (`/inventory/stock-counts`) | manage users (`/users`)<br>open business analytics (`/analytics`)<br>bring records in (Data Exchange) (`/data-exchange`) |
+| `accounts@demo.rockfoundation.example.com` — Accounts (Demo) | Accountant · DEMO-OTA-007 | Money: what customers owe by age, payments today, credit notes, the fleet accounts on credit and the QuickBooks export. | 1. Statements and ageing (`/money/statements`)<br>2. Credit notes (`/money/credit-notes`)<br>3. QuickBooks export (`/money/quickbooks`) | manage users (`/users`)<br>change settings (`/settings`) |
 | `gate@demo.rockfoundation.example.com` — Security (Demo) | Security, Main Gate · DEMO-OTA-008 | The gate: vehicles in the compound and vehicles released to leave. | 1. The gate (`/security`)<br>2. Vehicles inside (`/security/vehicles-inside`)<br>3. Vehicles (`/security/vehicles`) | manage users (`/users`)<br>see refunds (`/workshop/refunds`)<br>bring records in (Data Exchange) (`/data-exchange`) |
 
 ### Customer portal

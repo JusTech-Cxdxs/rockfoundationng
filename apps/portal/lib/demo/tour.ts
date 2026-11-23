@@ -40,8 +40,8 @@ export const TOUR: Record<string, TourStop> = {
   'tech.1': { firstView: 'Their own jobs only, with what to do next on each.', clicks: [L('My job cards', '/workshop/job-cards'), L('Vehicles', '/workshop/vehicles'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_AUDIT, NO_IMPORTS] },
   'tech.2': { firstView: 'A diagnostics job waiting for parts; an estimate to write.', clicks: [L('My job cards', '/workshop/job-cards'), L('Parts requests', '/workshop/parts-requests'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_AUDIT, NO_IMPORTS] },
   'tech.3': { firstView: 'Spraying in the booth: the panels and colour on the job card.', clicks: [L('My job cards', '/workshop/job-cards'), L('Vehicles', '/workshop/vehicles'), L('My profile', '/profile')], mustNot: [NO_USERS, NO_AUDIT, NO_IMPORTS] },
-  store: { firstView: 'The parts store: low stock, parts requests to issue, goods received.', clicks: [L('Parts', '/inventory/parts'), L('Parts requests', '/workshop/parts-requests'), L('Goods received', '/inventory/goods-receipts')], mustNot: [NO_USERS, NO_ANALYTICS, NO_IMPORTS] },
-  accounts: { firstView: 'Money: deposits and balances, invoices and receipts, the fleet accounts on credit.', clicks: [L('Job Cards and their invoices', '/workshop/job-cards'), L('Refunds', '/workshop/refunds'), L('Customers and fleet accounts', '/crm')], mustNot: [NO_USERS, NO_SETTINGS] },
+  store: { firstView: 'The parts store: 80 parts, low stock, counter sales, a stock count waiting for the Owner, goods received (without their cost).', clicks: [L('Parts', '/inventory/parts'), L('Counter sales', '/inventory/counter-sales'), L('Stock counts', '/inventory/stock-counts')], mustNot: [NO_USERS, NO_ANALYTICS, NO_IMPORTS] },
+  accounts: { firstView: 'Money: what customers owe by age, payments today, credit notes, the fleet accounts on credit and the QuickBooks export.', clicks: [L('Statements and ageing', '/money/statements'), L('Credit notes', '/money/credit-notes'), L('QuickBooks export', '/money/quickbooks')], mustNot: [NO_USERS, NO_SETTINGS] },
   gate: { firstView: 'The gate: vehicles in the compound and vehicles released to leave.', clicks: [L('The gate', '/security'), L('Vehicles inside', '/security/vehicles-inside'), L('Vehicles', '/security/vehicles')], mustNot: [NO_USERS, NO_REFUNDS, NO_IMPORTS] },
 };
 
@@ -55,8 +55,8 @@ export const DIRECTOR_TOUR: { minute: string; as: string; show: string; href: st
   { minute: '4–6', as: 'tech.1', show: 'Only their jobs. Open one: the diagnosis and the estimate: labour, parts from the store and sundries, in naira.', href: '/workshop/job-cards' },
   { minute: '6–8', as: 'gmd', show: 'Approvals in one place: an estimate with a discount above 10% (the Owner’s final word, VAT fixed) and a cancellation.', href: '/approvals' },
   { minute: '8–9', as: 'frontdesk', show: 'The estimate sent to the customer on WhatsApp with its link; the answer by link, in the portal or by phone; the deposit for a private customer.', href: '/workshop/job-cards' },
-  { minute: '9–10', as: 'store', show: 'The parts store: a part issued to the job card, low stock and the reorder list.', href: '/inventory/parts' },
-  { minute: '10–11', as: 'accounts', show: 'A finished job: the invoice with VAT, the receipt for each payment, a fleet invoice on credit and one past its due date.', href: '/workshop/job-cards' },
+  { minute: '9–10', as: 'store', show: 'The parts store: a counter sale with VAT, low stock, and a stock count waiting for the Owner (the Store Keeper never sees a cost).', href: '/inventory/counter-sales' },
+  { minute: '10–11', as: 'accounts', show: 'Money: a fleet statement with what is owed by age, a credit note, and the QuickBooks export of the month.', href: '/money/statements' },
   { minute: '11–12', as: 'frontdesk', show: 'The Service Tracker: who is due, who is overdue, the reminders already sent on WhatsApp or by email.', href: '/workshop/service-tracker' },
   { minute: '12–13', as: 'gate', show: 'The gate: the released vehicle leaves against its gate pass; the vehicles still in the compound.', href: '/security' },
   { minute: '13–14', as: 'customer.individual', show: 'The customer portal: the estimate waiting for approval, last month’s invoice and receipt, the next service due.', href: '/customer-portal' },
