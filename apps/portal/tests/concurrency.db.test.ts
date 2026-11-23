@@ -53,9 +53,6 @@ before(async () => {
     CREATE TABLE job_cards (id text PRIMARY KEY, status text NOT NULL, total numeric NOT NULL);
     CREATE TABLE payments (id serial PRIMARY KEY, "jobCardId" text NOT NULL, amount numeric NOT NULL);
     CREATE TABLE part_stock ("partId" text PRIMARY KEY, "quantityOnHand" numeric NOT NULL, "quantityReserved" numeric NOT NULL DEFAULT 0);
-    CREATE TABLE meeting_rooms (id text PRIMARY KEY);
-    CREATE TABLE users (id text PRIMARY KEY);
-    CREATE TABLE appointments (id serial PRIMARY KEY, "roomId" text, "ownerId" text, "startsAt" timestamptz, "endsAt" timestamptz, status text NOT NULL DEFAULT 'SCHEDULED');
   `);
 });
 

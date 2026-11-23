@@ -1,4 +1,5 @@
 'use server';
+import { supervisorWhere, workshopHandSlugs } from '@/lib/duty-roles';
 import { dutyRoleSlugs } from '@/lib/duty-roles';
 import { NO_CUSTOMER_EMAIL } from '@/lib/customer-email';
 import { parseSourceFilter, sourceWhere, type SOURCE_PARAMS } from '@/lib/source-filter';
@@ -241,15 +242,14 @@ export type EligibleSupervisorResult = {
  * the reassignment picker (by Job Card), so the rule and its fallback live
  * in one place. */
 async function listEligibleSupervisorsForDepartmentId(departmentId: string): Promise<EligibleSupervisorResult> {
-  const departmentSupervisors = await prisma.user.findMany({
-    where: {
-      departmentId,
-      isActive: true,
-      roles: { some: { role: { slug: 'workshop-supervisor' } } },
-    },
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { branch: { select: { businessUnit: { select: { organisationId: true } } } } } });
+  const organisationId = dept?.branch.businessUnit.organisationId;
+  // The Owner, the department's Workshop Supervisors (or Front Desk while that role is off): lib/duty-roles.ts.
+  const departmentSupervisors = organisationId ? await prisma.user.findMany({
+    where: await supervisorWhere(organisationId, departmentId),
     orderBy: { fullName: 'asc' },
     select: { id: true, fullName: true, email: true },
-  });
+  }) : [];
   if (departmentSupervisors.length > 0) {
     return { supervisors: departmentSupervisors, usingFallback: false };
   }
@@ -1616,7 +1616,8 @@ export async function assignTechnician(jobCardId: string, technicianId: string) 
   }
   if (['CLOSED', 'CHECKED_OUT', 'CANCELLED'].includes(current.status)) throw new WorkshopActionError('This Job Card is finished — the technician can no longer change.');
   const org = (await prisma.user.findUnique({ where: { id: actor.id }, select: { organisationId: true } }))?.organisationId;
-  const tech = await prisma.user.findFirst({ where: { id: technicianId, isActive: true, ...(org ? { organisationId: org } : {}), roles: { some: { role: { OR: [{ slug: { in: [...WORKSHOP_HANDS] } }, { isSuperAdmin: true }] } } } }, select: { id: true } });
+  const hands = org ? await workshopHandSlugs(org) : [];
+  const tech = await prisma.user.findFirst({ where: { id: technicianId, isActive: true, ...(org ? { organisationId: org } : {}), roles: { some: { role: { OR: [{ slug: { in: hands } }, { isSuperAdmin: true }] } } } }, select: { id: true } });
   if (!tech) throw new WorkshopActionError('Choose an active technician (or supervisor) — only workshop staff can be assigned to a job.');
   // Compare-and-set: still the same supervisor, and not finished meanwhile.
   claimed(await prisma.jobCard.updateMany({
@@ -1825,15 +1826,14 @@ export async function rejectTechnicianAssignment(jobCardId: string, reason: stri
   });
 }
 
-/** People who can be assigned to a Job Card, with their role names shown. */
-const WORKSHOP_HANDS = ['technician', 'workshop-supervisor'] as const;
+/** People who can be assigned to a Job Card, with their role names shown (lib/duty-roles.ts, workshopHandSlugs). */
 
 export async function listTechnicianCandidates() {
   await requireUser();
   const select = { id: true, fullName: true, roles: { select: { role: { select: { name: true } } } } } as const;
   const hands = await prisma.user.findMany({
-    // Technicians and supervisors (a supervisor can do anything a technician can).
-    where: { isActive: true, ...(await orgWhere()), roles: { some: { role: { slug: { in: [...WORKSHOP_HANDS] } } } } },
+    // Technicians, and whoever supervises (a supervisor can do anything a technician can): the roles switched on.
+    where: { isActive: true, ...(await orgWhere()), roles: { some: { role: { slug: { in: await workshopHandSlugs((await getPrincipal()).organisationId ?? '') } } } } },
     orderBy: { fullName: 'asc' },
     select,
   });

@@ -32,13 +32,13 @@ test('Lagos time: 08:00 Lagos is 07:00 UTC; weekdays and the next working day sk
 
 test('a busy weekday (Monday with the notice), a half Saturday, a quiet Sunday', () => {
   const mon = pulseDay(new Date('2026-11-09T08:00:00Z'));
-  assert.deepEqual([mon.jobCards, mon.servicesToday, mon.servicesBooked, mon.visitors, mon.tickets, mon.meeting, mon.broadcast], [3, 1, 1, 2, 2, true, true]);
+  assert.deepEqual([mon.jobCards, mon.servicesToday, mon.tickets, mon.broadcast], [3, 1, 2, true]);
   const tue = pulseDay(new Date('2026-11-10T08:00:00Z'));
-  assert.equal(tue.broadcast, false); assert.equal(tue.meeting, true);
+  assert.equal(tue.broadcast, false); assert.equal(tue.jobCards, 3);
   const sat = pulseDay(new Date('2026-11-07T08:00:00Z'));
-  assert.deepEqual([sat.jobCards, sat.servicesToday, sat.meeting], [1, 0, false]);
+  assert.deepEqual([sat.jobCards, sat.servicesToday, sat.broadcast], [1, 0, false]);
   const sun = pulseDay(new Date('2026-11-08T08:00:00Z'));
-  assert.deepEqual([sun.jobCards, sun.visitors, sun.tickets, sun.meeting], [0, 0, 1, false]);
+  assert.deepEqual([sun.jobCards, sun.servicesToday, sun.tickets, sun.broadcast], [0, 0, 1, false]);
 });
 
 test('things that already happened are dated through the morning and never after now; the choices are the same all day', () => {
@@ -72,20 +72,19 @@ test('the pulse keeps its promises in code: demo only, the switch, the claim fir
   assert.match(read('apps/portal/scripts/demo-ensure.ts'), /runDemoPulse\(org\.id\)/);
 });
 
-test('the console is the platform team’s only: every action checks the Master Administrator, refuses during an assisted session, takes typed words, is audited; only a demo organisation is loaded or emptied', () => {
+test('the console is the platform team’s only: every action checks the platform administrator, takes typed words, is audited; only a demo organisation is loaded or emptied', () => {
   const src = read('apps/portal/lib/actions/demo-console.ts');
   for (const fn of ['getDemoConsoleState', 'createDemoOrganisationNow', 'setDemoOrganisation', 'refreshDemoNow', 'removeDemoNow']) {
     const start = src.indexOf(`export async function ${fn}(`);
     const next = src.indexOf('\nexport ', start + 10);
     const body = src.slice(start, next === -1 ? undefined : next);
     assert.match(body, /await platformTeam\(/, `${fn} is the platform team's`);
-    if (fn !== 'getDemoConsoleState') { assert.match(body, /refuseDuringAssist\(/); assert.match(body, /writeAuditLog\(/); assert.match(body, /confirm/); }
+    if (fn !== 'getDemoConsoleState') { assert.match(body, /writeAuditLog\(/); assert.match(body, /confirm/); }
   }
   assert.match(src, /if \(!p\.isSuperAdmin\) return refuse\(/);
   assert.match(src, /if \(!org\.isDemo\) return fail\(/);
-  // Never the real organisation, never one with its own records; the plant demo is never loaded.
+  // Never the real organisation, never one with its own records.
   assert.match(src, /const refusal = await demoMarkRefusal\(prisma, org\); if \(refusal\) return fail\(refusal\)/);
   assert.match(src, /if \(org\.slug === REAL_ORG_SLUG\) return fail\(/);
-  assert.ok(!src.includes('loadPlantDemo'));
-  assert.match(read('apps/portal/app/(app)/it/page.tsx'), /\(await getPrincipal\(\)\)\.isSuperAdmin \? await getDemoConsoleState\(\) : null/);
+  assert.match(read('apps/portal/app/(app)/settings/page.tsx'), /p\.isSuperAdmin \? await getDemoConsoleState\(\) : null/);
 });

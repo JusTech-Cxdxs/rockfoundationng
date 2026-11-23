@@ -1,5 +1,5 @@
 /**
- * D'Phoenix phase 4 — the customer's approval, the deposit switch and credit.
+ * the customer's approval, the deposit switch and credit.
  *
  *  1. One deposit rule (@ejo/utils depositFractionFor): off by default, then
  *     the organisation's percentage for individual customers only — never
@@ -123,10 +123,9 @@ test('the move to In Progress: one compare-and-set, from Awaiting Customer Appro
   assert.match(pay, /invoiced && ON_ACCOUNT_STATUSES\.includes\(status\)/);
 });
 
-test('approval by phone: the front desk, the supervisor or a Manager; who they spoke with; audited; never during an assisted session', () => {
+test('approval by phone: the front desk, the supervisor or a Manager; who they spoke with; audited;', () => {
   const a = read('lib/actions/customer-approval.ts');
   const phone = body(a, 'recordCustomerApprovalByPhone');
-  assert.match(phone, /await refuseDuringAssist\('recordCustomerApprovalByPhone'\)/);
   assert.match(phone, /authorizeOnJobCard\('workshop\.job_card\.view', jobCardId/);
   assert.match(phone, /requireAnswerTaker\(jc, 'recordCustomerApprovalByPhone'\)/);
   assert.match(phone, /if \(who\.length < 2\) throw/, 'who they spoke with is required');
@@ -267,7 +266,6 @@ test('checkout and close on credit: the invoice is issued, the limit holds, a Ma
 test('credit terms are set by Finance or a Manager, for organisations only, audited; the customer page shows the account', () => {
   const crm = read('lib/actions/crm.ts');
   const set = body(crm, 'setCustomerCreditTerms');
-  assert.match(set, /refuseDuringAssist\('setCustomerCreditTerms'\)/);
   assert.match(set, /await fencedCustomer\(customerId\)/);
   assert.match(set, /allows\('workshop\.payment\.record'\)\) && !\(await allows\('workshop\.close\.approve'\)\)/);
   assert.match(set, /c\.customerType !== 'ORGANIZATION'/);
@@ -292,17 +290,10 @@ test('the deposit switch lives in Billing & tax, saved by the same audited actio
   assert.match(read('lib/actions/organisation-form-handlers.ts'), /depositRequired: formData\.get\('depositRequired'\) === 'on'/);
 });
 
-test('the schema change is additive: the deploy SQL, its manual mirror and the migration note', () => {
-  for (const f of ['scripts/predeploy/0030-approval-credit.sql', 'scripts/v-dp4-approval-credit.sql']) {
-    const sql = readRepo(f);
-    assert.match(sql, /IF to_regclass\('public\.organisations'\) IS NULL OR to_regclass\('public\.job_cards'\) IS NULL THEN/);
-    assert.match(sql, /ADD COLUMN IF NOT EXISTS "depositRequired" BOOLEAN NOT NULL DEFAULT false;/);
-    assert.match(sql, /ADD COLUMN IF NOT EXISTS "depositPercent" INTEGER NOT NULL DEFAULT 70;/);
-    assert.match(sql, /CREATE TABLE IF NOT EXISTS "estimate_approval_links"/);
-    assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS "estimate_approval_links_tokenHash_key"/);
-    assert.match(sql, /ALTER TABLE "invoices" ADD COLUMN IF NOT EXISTS "dueDate" TIMESTAMP\(3\);/);
-    assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /\b(DROP|DELETE|TRUNCATE|UPDATE|RENAME)\b/i, 'additive only');
-  }
-  assert.equal(readRepo('scripts/predeploy/0030-approval-credit.sql'), readRepo('scripts/v-dp4-approval-credit.sql'));
-  assert.match(readRepo('docs/DATA_MIGRATION.md'), /0030-approval-credit\.sql[\s\S]{0,40}v-dp4-approval-credit\.sql/);
+test('the schema: deposits on the organisation, one hashed approval link per token, a due date on the invoice', () => {
+  const schema = readRepo('packages/database/prisma/schema.prisma');
+  assert.match(schema, /depositRequired Boolean @default\(false\)/);
+  assert.match(schema, /depositPercent  Int     @default\(70\)/);
+  assert.match(schema, /model EstimateApprovalLink \{[\s\S]*?tokenHash\s+String\s+@unique/);
+  assert.match(schema, /model Invoice \{[\s\S]*?dueDate\s+DateTime\?/);
 });

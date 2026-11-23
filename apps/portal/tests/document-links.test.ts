@@ -1,5 +1,5 @@
 /**
- * D'Phoenix phase 6A — documents on WhatsApp.
+ * documents on WhatsApp.
  *
  *  1. The secure document link: 32 random bytes in base64url, only its
  *     SHA-256 stored, 30 days, a strict format; the plain token is never
@@ -13,7 +13,7 @@
  *     welcome and the estimate — that the new link replaces the earlier one.
  *  4. The receipt PDF: the printed receipt's figures, Noto Sans and the ₦.
  *  5. The wiring: authorised like the matching email, never during an
- *     assisted session, audited without the link; buttons only with a
+ *     audited without the link; buttons only with a
  *     usable phone; the schema change additive.
  */
 import { test, before, after } from 'node:test';
@@ -326,11 +326,10 @@ test('the receipt PDF: the printed receipt\'s figures, the letterhead, Noto Sans
 
 // ── 5. The wiring ────────────────────────────────────────────────────
 
-test('makeWhatsAppMessage: authorised like the matching email, never during assist, audited with the kind and number only', () => {
+test('makeWhatsAppMessage: authorised like the matching email, audited with the kind and number only', () => {
   const a = read('lib/actions/whatsapp.ts');
   assert.match(a, /^'use server';/);
   const make = body(a, 'makeWhatsAppMessage');
-  assert.match(make, /await refuseDuringAssist\('makeWhatsAppMessage'\);/);
   assert.match(make, /if \(!isDocumentKind\(input\?\.kind\) \|\| !id\)/);
   const inv = body(a, 'invoiceWhatsApp');
   assert.match(inv, /await seeJobCard\(inv\.jobCardId, 'makeWhatsAppMessage'\);\s*const user = await requireBiller\(inv\.branchId/, 'as "Email invoice"');
@@ -343,7 +342,6 @@ test('makeWhatsAppMessage: authorised like the matching email, never during assi
     assert.ok(fn.indexOf('whatsAppShareUrlFor(') < fn.indexOf('issueDocumentLink('), `${kind}: no link is made without a usable phone`);
   }
   const est = body(read('lib/actions/customer-approval.ts'), 'prepareEstimateWhatsApp');
-  assert.match(est, /await refuseDuringAssist\('prepareEstimateWhatsApp'\);/);
   assert.match(est, /requireAnswerTaker\(jc, 'prepareEstimateWhatsApp'\)/, 'as "Send approval link"');
   assert.match(est, /assertAwaitingAnswer\(jc\);/);
   assert.ok(est.indexOf('whatsAppShareUrlFor(') < est.indexOf('issueApprovalLink('), 'the emailed approval link is not replaced without a usable phone');
@@ -359,7 +357,6 @@ test('the welcome on WhatsApp: the same set-password mechanism as the email, the
   assert.match(access, /if \(!hasEmail\(customer\.email\)\) return/);
   assert.match(access, /action: 'whatsapp\.prepared'/);
   const crm = body(read('lib/actions/crm.ts'), 'sendCustomerAccessOnWhatsApp');
-  assert.match(crm, /await refuseDuringAssist\('sendCustomerAccessOnWhatsApp'\);/);
   assert.match(crm, /if \(!\(await allows\('workshop\.customer\.manage'\)\)\) await authorize\('crm\.manage'/, 'the welcome: whoever may register customers');
   assert.match(crm, /\} else \{\s*await authorize\('crm\.manage'/, 'the link again: crm.manage, as the email');
   assert.match(crm, /const c = await fencedCustomer\(customerId\);/);
@@ -392,18 +389,11 @@ test('the buttons: next to each email, a real link to tap (no pop-up), only with
   assert.match(read('app/(app)/crm/support/[id]/page.tsx'), /supportReplyMessage\(\{[^\n]*reply: lastAgentReply\.body/, 'the last emailed reply, on WhatsApp');
 });
 
-test('the schema change is additive: the deploy SQL, its manual mirror, the migration note and the data inventory', () => {
-  for (const f of ['scripts/predeploy/0031-document-links.sql', 'scripts/v-dp6-document-links.sql']) {
-    const sql = readRepo(f);
-    assert.match(sql, /IF to_regclass\('public\.organisations'\) IS NULL OR to_regclass\('public\.job_cards'\) IS NULL THEN/);
-    assert.match(sql, /IF NOT EXISTS \(SELECT 1 FROM pg_type WHERE typname = 'DocumentLinkKind'\) THEN\s*CREATE TYPE "DocumentLinkKind" AS ENUM \('ESTIMATE', 'INVOICE', 'RECEIPT'\);/);
-    assert.match(sql, /CREATE TABLE IF NOT EXISTS "document_links"/);
-    assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS "document_links_tokenHash_key" ON "document_links"\("tokenHash"\);/);
-    assert.match(sql, /"openCount"\s+INTEGER NOT NULL DEFAULT 0/);
-    assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /\b(DROP|DELETE|TRUNCATE|UPDATE|RENAME)\b/i, 'additive only');
-  }
-  assert.equal(readRepo('scripts/predeploy/0031-document-links.sql'), readRepo('scripts/v-dp6-document-links.sql'));
-  assert.match(readRepo('docs/DATA_MIGRATION.md'), /0031-document-links\.sql[\s\S]{0,40}v-dp6-document-links\.sql/);
+test('the schema keeps only a hash of each link, one per token, and the data inventory marks it secret', () => {
+  const schema = readRepo('packages/database/prisma/schema.prisma');
+  assert.match(schema, /enum DocumentLinkKind \{\s*ESTIMATE\s*INVOICE\s*RECEIPT\s*\}/);
+  assert.match(schema, /model DocumentLink \{[\s\S]*?tokenHash\s+String\s+@unique[\s\S]*?@@map\("document_links"\)/);
+  assert.match(schema, /model DocumentLink \{[\s\S]*?openCount\s+Int\s+@default\(0\)/);
   assert.match(read('lib/governance/data-inventory.ts'), /DocumentLink: \{ tenancy: 'ORGANISATION', owner: 'organisationId', classification: \['SECRET'\][^\n]*ai: 'NEVER' \}/);
   assert.match(readRepo('docs/SETUP.md'), /WhatsApp/);
 });

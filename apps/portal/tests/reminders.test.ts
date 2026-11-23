@@ -105,7 +105,6 @@ test('the server actions apply the rules (source check)', () => {
   assert.match(body('createReminder'), /recordVisibleToMe|linkFor\(/, 'a linked record must be one the setter may open');
   for (const fn of ['updateReminder', 'completeReminder', 'cancelReminder', 'snoozeReminder']) assert.match(body(fn), /ownReminder\(m, id\)/, `${fn}: the owner's own reminder`);
   assert.match(src, /async function ownReminder[\s\S]{0,300}organisationId: m\.organisationId, ownerId: m\.id/);
-  for (const fn of ['grantReminderDelegate', 'withdrawReminderDelegate']) assert.match(body(fn), /refuseDuringAssist\(/, `${fn}: not during an assisted session`);
   for (const [fn, action] of [['createReminder', 'reminder.created'], ['cancelReminder', 'reminder.cancelled'], ['completeReminder', 'reminder.done'], ['grantReminderDelegate', 'reminder.delegate_granted'], ['withdrawReminderDelegate', 'reminder.delegate_withdrawn']]) {
     assert.match(body(fn!), new RegExp(`writeAuditLog\\([^)]*'${action!.replace('.', '\\.')}'`), `${fn} is audited`);
   }

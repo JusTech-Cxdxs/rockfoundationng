@@ -70,15 +70,10 @@ test('wired in: filters never data; claimed before made; the owner checked; told
   assert.match(a, /if \(params\.customerId\) return fail/);
   assert.match(a, /updateMany\(\{ where: \{ id: s\.id, status: s\.status \}/);
   assert.doesNotMatch(a, /exportSchedule\.delete/, 'ended, never deleted');
-  for (const fn of ['scheduleExport', 'changeExportSchedule']) assert.match(a, new RegExp(`refuseDuringAssist\\('${fn}'\\)`));
   for (const act of ['export_scheduled', 'export_schedule_resumed', 'export_schedule_paused', 'export_schedule_ended']) assert.match(a, new RegExp(`data_exchange\\.${act}'`));
   for (const f of ['app/api/cron/export-schedules/route.ts', 'app/api/cron/pricing-alerts/route.ts']) assert.match(read(f), /runDueExportSchedules\(\)/, f);
   assert.match(read('app/api/cron/export-schedules/route.ts'), /if \(!isCronRequest\(request\.headers\.get\('authorization'\)\)\) return NextResponse\.json\(\{ error: 'Unauthorized' \}, \{ status: 401 \}\)/);
   assert.doesNotMatch(read('lib/exports/schedule.ts'), /^import /m, 'the form’s shared module pulls in nothing');
   assert.equal(DATA_INVENTORY.ExportSchedule?.ai, 'NEVER');
-  for (const f of ['scripts/predeploy/0026-export-schedules.sql', 'scripts/v-a4c3-export-schedules.sql']) {
-    const sql = read(`../../${f}`);
-    assert.match(sql, /CREATE TABLE IF NOT EXISTS "export_schedules"/);
-    assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /\b(DROP|DELETE|TRUNCATE|UPDATE|RENAME)\b/i, 'additive only');
-  }
+  assert.match(read('../../packages/database/prisma/schema.prisma'), /model ExportSchedule \{[\s\S]*?@@map\("export_schedules"\)/);
 });

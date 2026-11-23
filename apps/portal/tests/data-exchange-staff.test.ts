@@ -1,9 +1,9 @@
 /**
  * Staff from an HR or staff list: the pure row check (a name, the
- * person's own work email, a branch, roles by name — never an administrator),
+ * person's own work email, a branch, roles by name — never the Owner),
  * the branch a row names, and how the import is wired: accounts switched off
- * with an unusable password and nobody emailed until an Organisation
- * Administrator sends the invitations (each once, audited); undo to the bin
+ * with an unusable password and nobody emailed until the Owner sends the
+ * invitations (each once, audited); undo to the bin
  * only for accounts never invited or used, never holding a password.
  */
 import { test } from 'node:test';
@@ -37,7 +37,7 @@ test('a row: the staff list’s columns map themselves; name, own work email and
   assert.deepEqual(err({ 'Full name': 'A Person', Branch: 'Ota' }), ['Work email is required: the person signs in with it and their invitation goes to it.']);
   assert.match(err({ 'Full name': 'A Person', 'Work email': 'not-an-email', Branch: 'Ota' })[0]!, /is not an email address/);
   assert.match(err({ 'Full name': 'A Person', 'Work email': 'a@b.ng' })[0]!, /Branch is required/);
-  for (const r of ['Administrator', 'Organisation Administrator', 'Branch Administrator', 'branch-administrator']) assert.match(err({ 'Full name': 'A Person', 'Work email': 'a@b.ng', Branch: 'Ota', Roles: `Technician; ${r}` })[0]!, /added by hand on the Users page, never by a file/, r);
+  for (const r of ['Owner', 'owner', 'GMD', 'Owner / GMD']) assert.match(err({ 'Full name': 'A Person', 'Work email': 'a@b.ng', Branch: 'Ota', Roles: `Technician; ${r}` })[0]!, /the Owner is added by hand on the Staff page, never by a file/, r);
   assert.match(err({ 'Full name': 'A Person', 'Work email': 'a@b.ng', Branch: 'Ota', 'Employee ID': 'EMP 99!' })[0]!, /is not an employee ID/);
   // Notes, not refusals: a shared mailbox, no role yet.
   const shared = checkStaffRow(row({ 'Full name': 'Front Office', 'Work email': 'info@workshop.example.com', Branch: 'Ota', Roles: 'Front Desk' }), m);
@@ -46,12 +46,12 @@ test('a row: the staff list’s columns map themselves; name, own work email and
   assert.match(checkStaffRow(row({ 'Full name': 'New Person', 'Work email': 'new.person@staff.example.com', Branch: 'Ota' }), m).issues[0]!.message, /No role: the person will see only their own account/);
 });
 
-test('wired in: switched off, unusable password, nobody emailed at load; invitations once each by an Organisation Administrator; undo never keeps a password', () => {
+test('wired in: switched off, unusable password, nobody emailed at load; invitations once each by the Owner; undo never keeps a password', () => {
   const server = read('lib/data-exchange/staff-server.ts');
   assert.match(server, /isActive: false, accountType: 'EMPLOYEE'/);
   assert.match(server, /providerId: 'credential', password: unusable/);
   assert.doesNotMatch(server, /sendEmail|sendStaffAccessEmail|notify/, 'loading emails nobody');
-  assert.match(server, /ROLES_NEVER_IMPORTED\.includes\(role\.slug\)/, 'administrator roles refused by slug too, whatever they are called');
+  assert.match(server, /ROLES_NEVER_IMPORTED\.includes\(role\.slug\)/, 'the Owner role refused by slug too, whatever it is called');
   assert.match(server, /already has an EJO account elsewhere/, 'an address belongs to one person, never taken over from another organisation');
   const dx = read('lib/actions/data-exchange.ts');
   const inv = dx.slice(dx.indexOf('export async function sendStaffInvitations'), dx.indexOf('/** Where a record brought in by an import came from'));

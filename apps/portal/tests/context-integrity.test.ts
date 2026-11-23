@@ -40,10 +40,9 @@ const triage = (over: Partial<Triage> = {}): Triage => ({ topic: 'job_status', p
 
 test('deep links go to the exact customer-portal page (never a dashboard anchor)', () => {
   assert.equal(L.jobCard('abc'), `${SITE}/customer-portal/dashboard/services/jc/abc`);
-  assert.equal(L.service('x y'), `${SITE}/customer-portal/dashboard/services/vs/x%20y`);
-  assert.equal(customerRecordUrl(SITE, 'VehicleService', 's1'), `${SITE}/customer-portal/dashboard/services/vs/s1`);
+  assert.equal(customerRecordUrl(SITE, 'JobCard', 'j 1'), `${SITE}/customer-portal/dashboard/services/jc/j%201`);
   assert.equal(L.forgotPassword, `${SITE}/customer-portal/forgot-password`);
-  for (const f of ['lib/actions/workshop.ts', 'lib/actions/vehicle-service.ts', 'lib/actions/refunds.ts', 'lib/actions/sourcing.ts', 'lib/actions/vehicle-service-payment.ts', 'lib/actions/vehicle-service-estimate.ts']) {
+  for (const f of ['lib/actions/workshop.ts', 'lib/actions/refunds.ts', 'lib/actions/sourcing.ts']) {
     assert.doesNotMatch(read(f), /customer-portal\/dashboard#/, `${f} links to an anchor that does not exist`);
   }
 });
@@ -135,7 +134,6 @@ test('colleagues’ own help requests are private to the help team and support m
     const body = help.slice(help.indexOf(`export async function ${fn}(`), help.indexOf('\nexport ', help.indexOf(`export async function ${fn}(`) + 10));
     assert.match(body, /requesterUserId: m\.id/, `${fn}: only the person's own requests`);
   }
-  assert.match(help, /refuseDuringAssist\('help'\)/);
 });
 
 test('checking Enyo: drafts, verdicts, and the gap report says what to fix', () => {

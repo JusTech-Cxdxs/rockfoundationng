@@ -41,13 +41,16 @@ test('warranties are not part of this edition: no pages, menu entry, cards, noti
   }
 });
 
-// ------------------------------------------------------------------ D'Phoenix Autocare facts
+// ------------------------------------------------------------------ Rock Foundation Automobile facts
 
-test('the pages and the assistant use D\'Phoenix Autocare\'s own facts', () => {
-  const facts = read('lib/content/dphoenix.ts');
-  for (const fact of ['D\\\'PHOENIX AUTOCARE LIMITED', 'Restore Life To Your Vehicle', 'Plot 1 Muri Okunola Street', '+234 811 496 6212', '+234 807 654 4837', 'dphoenixautocare@gmail.com', 'https://www.dphoenixautocare.com']) {
+test('the pages and the assistant use Rock Foundation Automobile’s own published facts, and nothing invented', () => {
+  const facts = read('lib/content/workshop.ts');
+  for (const fact of ['ROCK FOUNDATION AUTOMOBILE INVESTMENT LTD', 'RC 1772429', 'Trust your vehicle to the certified service experts.', '1, Heal The World Avenue, Opp. Gateway Hotel, Ota, Ogun State', 'P.O. Box 257, Ota, Ogun State', '+234 803 304 9194', '+234 802 389 1766', 'https://rockfoundationng.com']) {
     assert.ok(facts.includes(fact), fact);
   }
-  assert.match(read('lib/enyo/company.ts'), /about: \{\n\s*company: `\$\{DPHOENIX\.legalName\}/);
-  assert.match(read('app/privacy/page.tsx'), /const address = DPHOENIX\.address;/);
+  // No email or opening hours are published, so none are made up.
+  assert.match(facts, /email: null as string \| null/);
+  assert.match(facts, /hours: null as string \| null/);
+  assert.match(read('lib/enyo/company.ts'), /about: \{\n\s*company: `\$\{WORKSHOP\.legalName\}, \$\{WORKSHOP\.rcNumber\}/);
+  assert.match(read('app/privacy/page.tsx'), /const address = WORKSHOP\.address;/);
 });

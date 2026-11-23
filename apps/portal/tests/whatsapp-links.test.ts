@@ -15,7 +15,7 @@ import { customerWhatsAppUrl, invoiceMessage, nairaText, readyForCollectionMessa
 
 const ROOT = join(__dirname, '..', '..', '..', '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
-const workshop = { name: "D'Phoenix Autocare", phone: '0800 000 0001' };
+const workshop = { name: 'Rock Foundation Automobile', phone: '0800 000 0001' };
 const decode = (url: string) => decodeURIComponent(url.split('?text=')[1]!);
 
 test('the first usable phone wins; no usable phone, no link', () => {
@@ -39,18 +39,18 @@ test('the service reminder: the vehicle, the plate, the due km and date, the wor
   assert.match(m, /^Hello Tolani,/);
   assert.match(m, /Toyota Camry \(EKY 482 KJ\) is due for its service at 85,250 km or 4 December 2026, whichever comes first/);
   assert.match(m, /Call or WhatsApp us: 0800 000 0001/);
-  const late = serviceReminderMessage({ customerName: 'RCL Africa', organisation: true, vehicle: { make: 'Ford', model: 'Ranger', plateNumber: 'LND 100 AA' }, dueOdometer: 120000, dueDate: null, overdue: true, workshop });
-  assert.match(late, /^Hello RCL Africa,/);
+  const late = serviceReminderMessage({ customerName: 'Bolaji Haulage Services', organisation: true, vehicle: { make: 'Ford', model: 'Ranger', plateNumber: 'LND 100 AA' }, dueOdometer: 120000, dueDate: null, overdue: true, workshop });
+  assert.match(late, /^Hello Bolaji Haulage Services,/);
   assert.match(late, /past its service \(it was due at 120,000 km/);
 });
 
 test('ready for collection, the invoice and the receipt carry their numbers and amounts; the invoice links to the customer portal', () => {
-  const ready = readyForCollectionMessage({ customerName: 'Tolani Bamgbose', vehicle: { make: 'Toyota', model: 'Camry', plateNumber: 'EKY 482 KJ' }, jobNumber: 'JC-2026-000123', balance: 54_312.5, workshop: { ...workshop, address: 'Victoria Island, Lagos' } });
+  const ready = readyForCollectionMessage({ customerName: 'Tolani Bamgbose', vehicle: { make: 'Toyota', model: 'Camry', plateNumber: 'EKY 482 KJ' }, jobNumber: 'JC-2026-000123', balance: 54_312.5, workshop: { ...workshop, address: 'Ota, Ogun State' } });
   assert.match(ready, /ready for collection \(Job Card JC-2026-000123\)/);
   assert.match(ready, /balance to pay on collection is ₦54,312\.50/);
-  assert.match(ready, /Collect it from Victoria Island, Lagos/);
-  assert.match(readyForCollectionMessage({ customerName: 'SEEPCO', organisation: true, vehicle: {}, jobNumber: 'JC-1', balance: 10, onCredit: true, workshop }), /goes on your account/);
-  const inv = invoiceMessage({ customerName: 'SEEPCO', organisation: true, invoiceNumber: 'INV-2026-000045', jobNumber: 'JC-2026-000123', total: 403_125, balance: 403_125, dueOn: new Date('2026-12-20T10:00:00Z'), portalUrl: 'https://portal.example.com/customer-portal/dashboard/services/jc/abc/invoice', workshop });
+  assert.match(ready, /Collect it from Ota, Ogun State/);
+  assert.match(readyForCollectionMessage({ customerName: 'Greenfield Agro Logistics', organisation: true, vehicle: {}, jobNumber: 'JC-1', balance: 10, onCredit: true, workshop }), /goes on your account/);
+  const inv = invoiceMessage({ customerName: 'Greenfield Agro Logistics', organisation: true, invoiceNumber: 'INV-2026-000045', jobNumber: 'JC-2026-000123', total: 403_125, balance: 403_125, dueOn: new Date('2026-12-20T10:00:00Z'), portalUrl: 'https://portal.example.com/customer-portal/dashboard/services/jc/abc/invoice', workshop });
   assert.match(inv, /invoice INV-2026-000045 for Job Card JC-2026-000123 is ₦403,125\.00/);
   assert.match(inv, /Balance to pay: ₦403,125\.00, by 20 December 2026/);
   assert.match(inv, /customer portal: https:\/\/portal\.example\.com\/customer-portal\/dashboard\/services\/jc\/abc\/invoice/);

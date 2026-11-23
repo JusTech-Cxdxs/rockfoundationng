@@ -1,4 +1,5 @@
 import { signedInSession } from '@/lib/session';
+import { supervisorWhere } from '@/lib/duty-roles';
 import { logFailure } from '@/lib/log';
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
@@ -157,13 +158,15 @@ export async function getWorkshopDepartmentForVehicleType(
  * department, or a Master Administrator standing in while the department
  * has none (the same two cases the picker offers). */
 export async function isEligibleSupervisor(userId: string, departmentId: string): Promise<boolean> {
+  const dept = await prisma.department.findUnique({ where: { id: departmentId }, select: { branch: { select: { businessUnit: { select: { organisationId: true } } } } } });
+  const organisationId = dept?.branch.businessUnit.organisationId;
   const match = await prisma.user.findFirst({
     where: {
       id: userId,
-      isActive: true,
       OR: [
-        { departmentId, roles: { some: { role: { slug: 'workshop-supervisor' } } } },
-        { roles: { some: { role: { isSuperAdmin: true } } } },
+        // The Owner, Workshop Supervisors of the department (or Front Desk while that role is off): lib/duty-roles.ts.
+        ...(organisationId ? [await supervisorWhere(organisationId, departmentId)] : []),
+        { isActive: true, roles: { some: { role: { isSuperAdmin: true } } } },
       ],
     },
     select: { id: true },

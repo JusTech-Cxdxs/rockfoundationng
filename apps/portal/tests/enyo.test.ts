@@ -43,34 +43,37 @@ test('the guide covers every live module with 40+ well-formed entries', () => {
     assert.match(e.page, /^\/[a-z0-9/-]*$/, `${e.id}: page path`);
     if (!PAGES_ELSEWHERE.has(e.page)) assert.ok(existsSync(join(ROOT, 'app', '(app)', e.page, 'page.tsx')), `${e.id}: ${e.page} is not a page`);
   }
-  for (const area of ['job-card', 'service', 'part', 'goods-receipt', 'warranty', 'crm', 'exit-pass', 'visitor', 'road-test', 'deliveries', 'contractors', 'incidents', 'appointment', 'broadcast', 'approvals', 'recycle-bin', 'users', 'roles', 'structure', 'assist', 'analytics', 'error', 'enyo', 'reminders', 'mail', 'refund']) {
+  for (const area of ['job-card', 'service', 'part', 'goods-receipt', 'crm', 'vehicle-exit', 'vehicles-inside', 'custody', 'broadcast', 'approvals', 'recycle-bin', 'users', 'roles', 'structure', 'analytics', 'error', 'enyo', 'reminders', 'refund', 'support', 'data-exchange']) {
     assert.ok(GUIDE.some((e) => e.id.includes(area)), `no guide entry for ${area}`);
   }
 });
 
 test('each guide entry needs what its page needs (the same rule as the page guards)', () => {
-  const AREA: Record<string, string> = { workshop: 'workshop.view', inventory: 'store.view', warranty: 'warranty.view' };
+  const AREA: Record<string, string> = { workshop: 'workshop.view', inventory: 'store.view', security: 'security.view' };
   for (const e of GUIDE) {
     const top = e.page.split('/')[1] ?? '';
     const want = PAGE_PERMISSIONS[top] ?? AREA[top];
     if (!want) continue;
-    if (e.page === '/inventory/analytics' || e.page === '/inventory/pricing' || e.page === '/inventory/goods-receipts' || e.page === '/warranty/analytics') continue; // stricter than the area: checked below
+    if (e.page === '/inventory/analytics' || e.page === '/inventory/pricing' || e.page === '/inventory/goods-receipts') continue; // stricter than the area: checked below
     assert.ok(e.needs.includes(want as never), `${e.id}: ${e.page} needs ${want}`);
   }
   assert.deepEqual(GUIDE.find((e) => e.id === 'inventory-analytics')!.needs, ['analytics.inventory.view']);
-  assert.deepEqual(GUIDE.find((e) => e.id === 'warranty-analytics')!.needs, ['analytics.warranty.view']);
+  assert.deepEqual(GUIDE.find((e) => e.id === 'pricing-alerts')!.needs, ['store.cost.view'], 'margins: the Owner only');
+  assert.deepEqual(GUIDE.find((e) => e.id === 'goods-receipt')!.needs, ['store.grn.record', 'store.cost.view']);
+  // No guide entry for a removed module.
+  for (const e of GUIDE) assert.doesNotMatch(`${e.id} ${e.page}`, /warranty|plant|visitor|exit-pass|road-test|contractor|appointment|schedule|news|roadmap|assist|\/mail\b/, e.id);
 });
 
 test('guide search: a technician gets workshop steps, never pages they cannot open', () => {
   const tech = who(['technician']);
   const pay = searchGuide('how do I record a payment', tech);
   assert.equal(pay.results[0]?.id, 'job-card-payment');
-  assert.equal(pay.results[0]?.youCanDoThis, false, 'Finance records payments');
+  assert.equal(pay.results[0]?.youCanDoThis, false, 'Front Desk and Accounts record payments');
   assert.equal(pay.results[0]?.href, '/workshop/job-cards');
 
   const profit = searchGuide('business analytics profit report', tech);
   assert.ok(!profit.results.some((r) => r.id === 'business-analytics'), 'no Analytics page for a technician');
-  assert.ok(profit.notYours.includes('Read business analytics (sales, profit, cash)'), 'but it is named as someone else\'s');
+  assert.ok(profit.notYours.includes('Read business analytics (revenue, profit, cash)'), 'but it is named as someone else\'s');
 
   const bin = searchGuide('restore something from the recycle bin', tech);
   assert.equal(bin.results.length, 0);
@@ -85,15 +88,11 @@ test('guide search: a technician gets workshop steps, never pages they cannot op
 });
 
 test('guide search: the same question gives each role what is theirs', () => {
-  assert.equal(searchGuide('business analytics', who(['finance-officer'])).results[0]?.id, 'business-analytics');
-  assert.equal(searchGuide('restore from the recycle bin', who(['administrator'])).results[0]?.id, 'recycle-bin');
-  // Everyone requests their own exit pass.
-  for (const role of ['technician', 'calendar-user', 'finance-officer', 'security-officer']) {
-    assert.equal(searchGuide('request an exit pass', who([role])).results[0]?.id, 'exit-pass', role);
-  }
-  // A person with no role at all still gets the everyone pages, nothing else.
+  assert.equal(searchGuide('business analytics', who(['owner'])).results[0]?.id, 'business-analytics');
+  assert.equal(searchGuide('restore from the recycle bin', who(['owner'])).results[0]?.id, 'recycle-bin');
+  // A person with no role at all gets only the everyone pages, nothing else.
   const nobody = who([]);
-  for (const e of GUIDE) if (canOpenGuide(e, nobody)) assert.ok(e.needs.length === 0 || e.needs.includes('security.exit_pass.request'), `${e.id} shown to someone with no role`);
+  for (const e of GUIDE) if (canOpenGuide(e, nobody)) assert.equal(e.needs.length, 0, `${e.id} shown to someone with no role`);
   assert.equal(guideScore(GUIDE[0]!, 'the a of'), 0, 'filler words match nothing');
 });
 
@@ -184,7 +183,7 @@ test('every staff tool is well formed: unique snake_case name, read|draft, a sta
     assert.ok(typeof t.description === 'string' && t.description.length >= 40, `${t.name}: description for the model`);
     assert.ok(t.runText.length > 0, `${t.name}: has a run function`);
   }
-  for (const core of ['guide_search', 'my_work', 'daily_brief', 'search_records', 'job_card_details', 'vehicle_service_details', 'customer_profile', 'vehicle_history', 'part_lookup', 'business_summary', 'technician_leaderboard', 'stock_alerts', 'warranty_watch', 'service_due', 'my_schedule', 'my_security', 'remember_fact', 'forget_fact', 'draft_job_card']) {
+  for (const core of ['guide_search', 'my_work', 'daily_brief', 'search_records', 'job_card_details', 'customer_profile', 'vehicle_history', 'part_lookup', 'business_summary', 'technician_leaderboard', 'stock_alerts', 'service_due', 'remember_fact', 'forget_fact', 'draft_job_card', 'draft_reminder']) {
     assert.ok(names.has(core), `missing tool ${core}`);
   }
 });
@@ -213,7 +212,7 @@ test('draft tools return a draft (drafts never write)', () => {
 });
 
 /** What counts as going through authorised code. */
-const GUARDS = ['allows(', 'authorize(', 'getPrincipal(', 'requireUser(', 'reachWhere(', 'orgWhere(', 'seeJobCard(', 'seeService(', 'seeVehicle(', 'canSeeRecord(', 'branchWithinReach('];
+const GUARDS = ['allows(', 'authorize(', 'getPrincipal(', 'requireUser(', 'reachWhere(', 'orgWhere(', 'seeJobCard(', 'seeVehicle(', 'canSeeRecord(', 'branchWithinReach('];
 
 test('every tool goes through authorised code (the module\'s readers or authorize / allows / reach)', () => {
   const missing: string[] = [];
@@ -304,7 +303,7 @@ test('next step follows the record\'s state', () => {
   const base = { kind: 'JC' as const, status: 'CHECKED_IN', approvalStatus: 'APPROVED', hasTechnician: true, technicianAccepted: 'ACCEPTED', estimateStatus: 'DRAFT', customerNotified: false, total: 100000, paid: 0, depositFraction: 0.7 };
   assert.match(nextStep({ ...base, approvalStatus: 'PENDING' }), /supervisor to approve the Job Card/);
   assert.match(nextStep({ ...base, hasTechnician: false }), /assigns a technician/);
-  assert.match(nextStep({ ...base, estimateStatus: 'APPROVED' }), /Manager's final approval/);
+  assert.match(nextStep({ ...base, estimateStatus: 'APPROVED' }), /Owner's final approval/);
   assert.match(nextStep({ ...base, estimateStatus: 'MANAGER_APPROVED' }), /Notify customer/);
   // With a deposit switched on (70%), the deposit is spelled out; with none (the default), approval alone.
   assert.match(nextStep({ ...base, estimateStatus: 'MANAGER_APPROVED', customerNotified: true, status: 'AWAITING_CUSTOMER_APPROVAL', paid: 20000 }), /approve the estimate[\s\S]*₦70,000 \(70% of ₦100,000\); ₦20,000 paid/);

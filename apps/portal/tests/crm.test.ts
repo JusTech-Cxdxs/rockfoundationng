@@ -175,12 +175,12 @@ test('welcome email: a set-password link and what the portal is for — never a 
 
 test('permissions: who sees and who manages customers', () => {
   const who = (roleSlugs: string[]): Principal => ({ userId: 'me', isSuperAdmin: false, roleSlugs, branchId: 'b1', departmentId: null });
-  for (const r of ['receptionist', 'workshop-supervisor', 'workshop-manager', 'administrator', 'branch-administrator']) assert.ok(decide(who([r]), 'crm.view').allowed, `${r} sees customers`);
-  for (const r of ['receptionist', 'workshop-manager', 'administrator', 'branch-administrator']) assert.ok(decide(who([r]), 'crm.manage').allowed, `${r} manages customers`);
-  for (const r of ['technician', 'finance-officer', 'store-officer', 'security-officer', 'broadcaster']) assert.equal(decide(who([r]), 'crm.view').allowed, false, `${r} does not open the CRM`);
-  assert.equal(decide(who(['workshop-supervisor']), 'crm.manage').allowed, false, 'supervisors view only');
+  for (const r of ['front-desk', 'workshop-supervisor', 'accounts', 'owner']) assert.ok(decide(who([r]), 'crm.view').allowed, `${r} sees customers`);
+  for (const r of ['front-desk', 'owner']) assert.ok(decide(who([r]), 'crm.manage').allowed, `${r} manages customers`);
+  for (const r of ['technician', 'store-keeper', 'security']) assert.equal(decide(who([r]), 'crm.view').allowed, false, `${r} does not open the CRM`);
+  for (const r of ['workshop-supervisor', 'accounts']) assert.equal(decide(who([r]), 'crm.manage').allowed, false, `${r}: view only`);
   // Never across organisations.
-  assert.equal(decide({ ...who(['administrator']), orgBranchIds: ['b1'] }, 'crm.view', { branchId: 'other-org' }).allowed, false);
+  assert.equal(decide({ ...who(['owner']), orgBranchIds: ['b1'] }, 'crm.view', { branchId: 'other-org' }).allowed, false);
 });
 
 test('CRM actions: authorised, fenced to the organisation, audited — and the token never reaches the audit trail', () => {

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { appShortName, PLATFORM } from '../lib/brand';
+import { appShortName, EMBLEM, LOGO, PLATFORM } from '../lib/brand';
 
 const REPO = join(__dirname, '..', '..', '..', '..');
 
@@ -22,12 +22,13 @@ test('no screen, email, print-out or PDF spells the platform name itself', () =>
       if (statSync(p).isDirectory()) { walk(p); continue; }
       if (!/\.(ts|tsx)$/.test(f) || /brand\.ts$/.test(f)) continue;
       const code = readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-      if (/['"`>]\s*Powered by EJO|EJO 100 Enterprise (Platform|OS)|['"]EJO 100['"]/.test(code)) offenders.push(p.slice(REPO.length + 1));
+      if (/['"`>]\s*Powered by EJO|EJO 100|EJO Workshop Platform/.test(code)) offenders.push(p.slice(REPO.length + 1));
     }
   };
   for (const app of ['apps/portal', 'apps/website', 'packages/enyo/src']) walk(join(REPO, app));
   assert.deepEqual(offenders, []);
-  assert.equal(PLATFORM.poweredBy, `Powered by ${PLATFORM.name}`);
+  assert.equal(PLATFORM.poweredBy, `Powered by ${PLATFORM.name} · ${PLATFORM.makerShort}`);
+  assert.equal(PLATFORM.poweredBy, 'Powered by EJO · JusTech');
 });
 
 test('the installed app gets a short name: the organisation\'s initials, or the one set', () => {
@@ -36,19 +37,14 @@ test('the installed app gets a short name: the organisation\'s initials, or the 
   assert.equal(appShortName('Bank of the North West Region'), 'BNWR');
   assert.equal(appShortName('Lagos Fleet Services', 'Fleet'), 'Fleet');
 });
-
-test('dealer brands: a quiet text line in every email footer, in each brand\'s colour; nothing when not set', async () => {
-  const { dealerBrands, renderEmailLayout } = await import('../lib/email-templates/layout');
-  assert.deepEqual(dealerBrands('FOTON:#111111, ISUZU:#E4002B,TOYOTA:#EB0A1E'), [
-    { name: 'FOTON', color: '#111111' }, { name: 'ISUZU', color: '#E4002B' }, { name: 'TOYOTA', color: '#EB0A1E' },
-  ]);
-  assert.deepEqual(dealerBrands('<b>X</b>:red'), [{ name: 'bXb', color: '#334155' }]);
-  assert.deepEqual(dealerBrands(''), []);
-  const before = process.env.NEXT_PUBLIC_DEALER_BRANDS;
-  process.env.NEXT_PUBLIC_DEALER_BRANDS = 'FOTON:#111111,ISUZU:#E4002B';
-  const out = renderEmailLayout({ previewText: 'p', companyName: 'Lagos Fleet Services', logoUrl: 'https://x.example/l.png', heading: 'Hi', bodyHtml: 'Body' });
-  assert.match(out, /Authorised dealer/);
-  assert.match(out, /color: #E4002B; font-weight: 800[^>]*>ISUZU</);
-  assert.doesNotMatch(out, /<img[^>]*(foton|isuzu)/i);
-  if (before === undefined) delete process.env.NEXT_PUBLIC_DEALER_BRANDS; else process.env.NEXT_PUBLIC_DEALER_BRANDS = before;
+test('the workshop’s logos are in both apps, used as published, and the brand colours are defined once', () => {
+  for (const app of ['portal', 'website']) {
+    for (const f of ['logo.png', 'emblem.png']) assert.ok(statSync(join(REPO, 'apps', app, 'public', 'brand', f)).size > 1000, `${app}: ${f}`);
+    assert.equal(readFileSync(join(REPO, 'apps', app, 'public', 'brand', 'logo.png')).toString('base64'), readFileSync(join(REPO, 'apps/portal/public/brand/logo.png')).toString('base64'));
+    const css = readFileSync(join(REPO, 'apps', app, 'app', 'globals.css'), 'utf8');
+    for (const t of ['--brand-blue: #3e4095', '--brand-red: #ec3237', '--brand-red-web: #dd3333', '--whatsapp: #25d366']) assert.ok(css.includes(t), `${app}: ${t}`);
+    assert.match(css, /var\(--font-roboto\)/, `${app}: Roboto`);
+    assert.doesNotMatch(css, /#f09e2c|#d6890b|#0a1628/i, `${app}: none of the previous edition's colours`);
+  }
+  assert.deepEqual([LOGO.width, LOGO.height, EMBLEM.width, EMBLEM.height], [720, 172, 512, 512]);
 });

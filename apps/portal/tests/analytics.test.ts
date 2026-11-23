@@ -33,27 +33,27 @@ const JOBS: Job[] = [
   job({ id: 'J6', kind: 'JC', finishedAt: at('2026-09-12T09:00:00'), lines: [{ type: 'LABOUR', amount: 7000, billTo: 'CUSTOMER' }], payments: [{ at: at('2026-09-12T09:00:00'), amount: 10000 }], refunds: [{ at: at('2026-10-03T09:00:00'), amount: 3000 }] }),
 ];
 
-test('one job: customer, warranty and given-away money are kept apart', () => {
+test('one job: customer, warranty and given-away money are kept apart; only the customer’s lines are revenue', () => {
   const m = jobMoney(JOBS[1]!);
   assert.equal(m.customer, 20000);
   assert.equal(m.warranty, 10000);
   assert.equal(m.givenAway, 5000);
-  assert.equal(m.sales, 30000, 'goodwill is not a sale');
+  assert.equal(m.sales, 20000, 'work under the workshop’s own warranty and goodwill are not revenue');
   assert.equal(m.owed, 10000, 'the customer owes only their own lines');
 });
 
 test('business analytics reconcile to the hand-worked answers', () => {
   const a = computeMasterAnalytics({ jobs: JOBS, purchases: [{ at: at('2026-10-04T09:00:00'), cost: 40000 }], from: FROM, to: TO, now: NOW });
   const c = a.current;
-  assert.equal(c.sales, 110000, '₦80,000 + ₦30,000');
+  assert.equal(c.sales, 100000, '₦80,000 + ₦20,000: the customers’ own lines');
   assert.equal(c.customerSales, 100000);
   assert.equal(c.warrantySales, 10000);
   assert.equal(c.givenAway, 5000);
   assert.equal(c.cost, 26000);
-  assert.equal(c.grossProfit, 84000);
-  assert.equal(c.grossMargin, 76.4);
+  assert.equal(c.grossProfit, 74000);
+  assert.equal(c.grossMargin, 74);
   assert.equal(c.jobsCompleted, 2);
-  assert.equal(c.averageJob, 55000);
+  assert.equal(c.averageJob, 50000);
   assert.equal(c.collections, 92000, 'payments ₦95,000 − refund ₦3,000 recorded in October');
   assert.equal(c.refunds, 3000);
   assert.equal(c.purchases, 40000);

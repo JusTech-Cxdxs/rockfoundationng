@@ -2,7 +2,7 @@
  * The demo, once: after the demo people (scripts/demo-people.ts, which makes
  * the demo organisation), the production build runs this so a first
  * installation holds the whole demo the moment the deploy finishes — the
- * Victoria Island Workshop's seven months (lib/workshop/demo) — with nothing
+ * Ota Workshop's sample months (lib/workshop/demo) — with nothing
  * to run anywhere.
  *
  * It loads only into an organisation marked as the demo (never the real

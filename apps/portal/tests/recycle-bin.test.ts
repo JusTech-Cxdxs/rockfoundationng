@@ -73,14 +73,13 @@ test('who may delete a Job Card: the opener within 24 hours, a Manager or an adm
   assert.equal(mayDeleteOther({ userId: 'x', isSuperAdmin: false, manageBin: false, ownerRight: true }), true);
 });
 
-test('the Recycle bin permission: administrators (and their branch), never the departments', () => {
+test('the Recycle bin permission: the Owner only, never the desks', () => {
   const who = (roles: string[], branchId = 'b1'): Principal => ({ userId: 'u', isSuperAdmin: false, roleSlugs: roles, branchId, departmentId: null, organisationId: 'o1', orgBranchIds: ['b1', 'b2'] });
-  assert.equal(ROLE_GRANTS.administrator!['admin.recycle_bin.manage'], 'ALL');
-  assert.equal(ROLE_GRANTS['branch-administrator']!['admin.recycle_bin.manage'], 'BRANCH');
-  assert.equal(decide(who(['branch-administrator']), 'admin.recycle_bin.manage', { branchId: 'b2' }).allowed, false, 'another branch');
-  assert.equal(decide(who(['administrator']), 'admin.recycle_bin.manage', { branchId: 'b-other-org' }).allowed, false, 'another organisation');
+  assert.equal(ROLE_GRANTS.owner!['admin.recycle_bin.manage'], 'ALL');
+  assert.equal(decide(who(['owner']), 'admin.recycle_bin.manage', { branchId: 'b2' }).allowed, true);
+  assert.equal(decide(who(['owner']), 'admin.recycle_bin.manage', { branchId: 'b-other-org' }).allowed, false, 'another organisation');
   for (const [slug, grants] of Object.entries(ROLE_GRANTS)) {
-    if (slug === 'administrator' || slug === 'branch-administrator') continue;
+    if (slug === 'owner') continue;
     assert.equal(grants['admin.recycle_bin.manage'], undefined, slug);
   }
 });
@@ -177,11 +176,10 @@ test('server half: locks, checks again under the lock, snapshots and deletes in 
   assert.ok(read('../../packages/database/src/audit-journal.ts').includes("'RecycleBinItem',"), 'the snapshot is not copied again into the journal');
 });
 
-test('actions: refused during an assisted session; restore needs the bin permission; purge is platform-only', () => {
+test('actions: restore needs the bin permission; purge is platform-only', () => {
   const src = read('lib/actions/recycle-bin.ts');
   for (const fn of ['moveToRecycleBin', 'restoreFromRecycleBin', 'purgeRecycleBinItems', 'purgeExpiredRecycleBinItems']) {
     const body = src.slice(src.indexOf(`export async function ${fn}(`), src.indexOf('\nexport ', src.indexOf(`export async function ${fn}(`) + 10));
-    assert.match(body, new RegExp(`refuseDuringAssist\\('${fn}'\\)`), fn);
   }
   assert.match(src, /export async function restoreFromRecycleBin[\s\S]{0,700}inMyOrganisation\(item\.organisationId\)[\s\S]{0,300}authorize\('admin\.recycle_bin\.manage', \{ branchId: item\.branchId \}/);
   for (const fn of ['purgeRecycleBinItems', 'purgeExpiredRecycleBinItems']) assert.match(src, new RegExp(`export async function ${fn}[\\s\\S]{0,300}if \\(!p\\.isSuperAdmin\\) return refuse\\(`), fn);

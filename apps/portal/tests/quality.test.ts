@@ -237,7 +237,7 @@ test('plurals: English rules, irregulars, phrases and letter case', () => {
 });
 
 test('no "1 jobs": hand-made plurals in pages and libraries go through pluralize', () => {
-  const files = ['app/(app)/permissions/page.tsx', 'app/(app)/inventory/analytics/page.tsx', 'lib/inventory-analytics.ts', 'lib/warranty-analytics.ts', 'app/(app)/settings/page.tsx'];
+  const files = ['app/(app)/permissions/page.tsx', 'app/(app)/inventory/analytics/page.tsx', 'lib/inventory-analytics.ts', 'app/(app)/settings/page.tsx'];
   const bad = /\$\{[^}]*\}\s(days|claims|permissions|roles|areas) |\{[a-zA-Z.]+(Days|length)\}\s(days|permissions|roles)\b/;
   for (const f of files) assert.ok(!bad.test(read(f)), `${f} builds a plural by hand`);
 });
@@ -286,15 +286,19 @@ test('relative times are right at every boundary', () => {
 test('server pages never format a date without the Lagos time zone', () => {
   const custody = read('app/(app)/workshop/custody/page.tsx');
   assert.ok(!/toLocaleDateString\('en-NG', \{ year: 'numeric', month: 'long', day: 'numeric' \}\)/.test(custody));
-  assert.ok(readRepo('apps/website/lib/customer-portal/notifications.ts').includes("timeZone: 'Africa/Lagos'"));
+  // Every date the customer portal writes into words carries the Lagos time zone.
+  for (const f of ['apps/website/lib/customer-portal/notifications.ts', 'apps/website/lib/customer-portal/format.ts']) {
+    for (const m of readRepo(f).matchAll(/toLocale(?:Date|Time)?String\([^)]*\)/g)) {
+      if (!/Date|Time/.test(m[0].slice(8, 12)) && !/(day|month|hour|year):/.test(m[0])) continue; // a number, not a date
+      assert.match(m[0], /timeZone/, `${f}: ${m[0]}`);
+    }
+  }
 });
 
 test('record histories list the newest first, in a stable order', () => {
   const fns: [string, string][] = [
-    ['lib/actions/warranty.ts', 'getWarrantyAuditTrail'], ['lib/actions/warranty.ts', 'getWarrantyPolicyAuditTrail'], ['lib/actions/warranty.ts', 'getWarrantyProviderAuditTrail'],
-    ['lib/actions/warranty-claims.ts', 'getWarrantyClaimAuditTrail'], ['lib/actions/workshop.ts', 'getJobCardAuditTrail'], ['lib/actions/workshop.ts', 'getVehicleAuditTrail'],
-    ['lib/actions/vehicle-service.ts', 'getVehicleServiceAuditTrail'], ['lib/actions/store.ts', 'getPartAuditTrail'], ['lib/actions/store.ts', 'getGoodsReceiptAuditTrail'],
-    ['lib/actions/sourcing.ts', 'getExternalProcurementRequestAuditTrail'],
+    ['lib/actions/workshop.ts', 'getJobCardAuditTrail'], ['lib/actions/workshop.ts', 'getVehicleAuditTrail'],
+    ['lib/actions/store.ts', 'getPartAuditTrail'], ['lib/actions/store.ts', 'getGoodsReceiptAuditTrail'],
   ];
   for (const [f, fn] of fns) {
     const src = read(f);

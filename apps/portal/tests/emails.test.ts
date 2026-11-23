@@ -29,7 +29,7 @@ test('every exported template has a sample', () => {
   const covered = new Set(emailSamples().map((s) => s.template));
   const missing = exported.filter((name) => !covered.has(name));
   assert.deepEqual(missing, [], `templates without a sample: ${missing.join(', ')}`);
-  assert.ok(exported.length >= 80, `found ${exported.length} templates`);
+  assert.ok(exported.length >= 40, `found ${exported.length} templates`);
 });
 
 test('realistic data: complete, specific, readable in HTML and plain text', () => {
@@ -44,7 +44,8 @@ test('realistic data: complete, specific, readable in HTML and plain text', () =
     const head = header(out);
     assert.ok(head.includes('>Lagos<') && head.includes('>Fleet Services<'), `${where}: wordmark`);
     assert.ok(head.includes('alt="Lagos Fleet Services logo"'), `${where}: logo alt text`);
-    assert.ok(out.includes('Powered by EJO 100'), `${where}: footer`);
+    assert.ok(out.includes('Powered by EJO · JusTech'), `${where}: footer`);
+    assert.ok(!out.includes('EJO 100'), `${where}: no old platform name`);
     // A proper plain-text part: the heading, the greeting, no markup.
     assert.ok(text.length > 120, `${where}: text part`);
     assert.doesNotMatch(text, /<[a-z][^>]*>/i, `${where}: markup in text part`);

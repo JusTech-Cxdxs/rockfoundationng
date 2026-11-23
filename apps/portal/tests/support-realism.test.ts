@@ -34,7 +34,6 @@ test('settings are read first and edited on purpose', () => {
   }
   assert.match(read('lib/actions/support-form-handlers.ts'), /&edit=\$\{edit\}/, 'a failed save comes back open');
   assert.match(read('components/enyo/EnyoSettingsForm.tsx'), /Edit settings/);
-  assert.match(read('app/(app)/organisation/people/page.tsx'), /\+ Add a person/);
 });
 
 test('each team has its own automatic reply text, plain words only', () => {
