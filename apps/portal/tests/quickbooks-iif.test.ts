@@ -53,8 +53,12 @@ test('payments, credit notes and stock adjustments each balance', () => {
   assert.equal(assertBalanced(paymentsIif([{ reference: 'RCT-0007', date: invoice.date, customer: 'Adeyemi Logistics Ltd', amount: 50000, method: 'Transfer', invoiceNumber: 'INV-2026-0042' }])), 1);
   assert.equal(assertBalanced(creditNotesIif([{ number: 'CN-0001', date: invoice.date, customer: 'Adeyemi Logistics Ltd', reason: 'Overcharge on labour', netAmount: 10000, vatAmount: 750, total: 10750 }])), 1);
   assert.equal(assertBalanced(stockMovementsIif([{ reference: 'ADJ-0003', date: invoice.date, item: 'OF-TOY-090', quantity: -2, value: -7000, memo: 'Stock count' }])), 1);
-  const pay = paymentsIif([{ reference: 'RCT-0007', date: invoice.date, customer: 'A', amount: 50000, method: 'Transfer' }]).split('\r\n')[3]!.split('\t');
-  assert.equal(pay[4], DEFAULT_QB_ACCOUNTS.undepositedFunds);
+  // Each payment lands in the account for its method: cash waits in Undeposited Funds, a transfer is in the bank, a card in the POS clearing account.
+  const accountOf = (method: string) => paymentsIif([{ reference: 'RCT-0007', date: invoice.date, customer: 'A', amount: 50000, method }]).split('\r\n')[3]!.split('\t');
+  assert.equal(accountOf('CASH')[4], DEFAULT_QB_ACCOUNTS.undepositedFunds);
+  assert.equal(accountOf('BANK_TRANSFER')[4], DEFAULT_QB_ACCOUNTS.bank);
+  assert.equal(accountOf('POS')[4], DEFAULT_QB_ACCOUNTS.pos);
+  assert.equal(accountOf('POS')[10], 'POS (card)');
 });
 
 test('lists: customers and items, with tabs and line breaks made safe', () => {
